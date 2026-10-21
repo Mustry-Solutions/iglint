@@ -1,0 +1,2202 @@
+### return-module
+return 1
+### return-module-bare
+return
+### return-class
+class C:
+    return 1
+### return-in-func
+def f():
+    return 1
+### yield-module
+yield 1
+### yield-class
+class C:
+    yield 1
+### yield-expr-module
+x = (yield)
+### yield-in-lambda
+f = lambda: (yield 1)
+### yield-in-genexp-elt
+def f():
+    return list((yield x) for x in y)
+### break-module
+break
+### break-func
+def f():
+    break
+### break-in-loop
+for x in y:
+    break
+### break-in-loop-else
+for x in y:
+    pass
+else:
+    break
+### break-in-nested-def
+for x in y:
+    def f():
+        break
+### break-in-class-in-loop
+for x in y:
+    class C:
+        break
+### continue-module
+continue
+### continue-in-loop
+while x:
+    continue
+### continue-in-finally
+for x in y:
+    try:
+        pass
+    finally:
+        continue
+### continue-in-finally-nested-loop
+try:
+    pass
+finally:
+    for x in y:
+        continue
+### break-in-finally
+for x in y:
+    try:
+        pass
+    finally:
+        break
+### continue-in-try
+for x in y:
+    try:
+        continue
+    finally:
+        pass
+### continue-in-except
+for x in y:
+    try:
+        pass
+    except:
+        continue
+### continue-in-while-else
+while x:
+    pass
+else:
+    continue
+### dup-arg
+def f(a, a):
+    pass
+### dup-arg-default
+def f(a, b, a=1):
+    pass
+### dup-arg-vararg
+def f(a, *a):
+    pass
+### dup-arg-kwarg
+def f(a, **a):
+    pass
+### dup-arg-var-kw
+def f(*a, **a):
+    pass
+### dup-arg-tuple
+def f(a, (a, b)):
+    pass
+### dup-arg-lambda
+f = lambda a, a: 1
+### return-value-generator
+def f():
+    yield 1
+    return 2
+### return-none-generator
+def f():
+    yield 1
+    return None
+### return-bare-generator
+def f():
+    yield 1
+    return
+### return-value-before-yield
+def f():
+    return 2
+    yield 1
+### generator-nested-return
+def f():
+    def g():
+        return 1
+    yield g
+### none-assign
+None = 1
+### none-aug
+None += 1
+### none-for
+for None in x:
+    pass
+### none-param
+def f(None):
+    pass
+### none-del
+del None
+### none-attr-assign
+x.None = 1
+### none-import-as
+import x as None
+### none-from-import
+from x import None
+### none-except
+try:
+    pass
+except E, None:
+    pass
+### none-with
+with x as None:
+    pass
+### none-global
+def f():
+    global None
+### none-def
+def None():
+    pass
+### none-class
+class None:
+    pass
+### none-kwarg
+f(None=1)
+### none-tuple-assign
+a, None = 1, 2
+### none-listcomp
+[1 for None in x]
+### none-genexp
+list(1 for None in x)
+### none-lambda
+f = lambda None: 1
+### none-vararg
+def f(*None):
+    pass
+### true-assign
+True = 1
+### debug-assign
+__debug__ = 1
+### debug-param
+def f(__debug__):
+    pass
+### import-star-func
+def f():
+    from os import *
+### import-star-func-free-vars
+def f():
+    from os import *
+    def g():
+        return x
+### import-star-func-nested-noref
+def f():
+    from os import *
+    def g():
+        return 1
+### import-star-class
+class C:
+    from os import *
+### import-star-nested-func-uses-global
+x = 1
+def f():
+    from os import *
+    def g():
+        return x
+### import-star-func-lambda
+def f():
+    from os import *
+    return lambda: y
+### import-star-child-has-free
+def f():
+    x = 1
+    from os import *
+    def g():
+        return x
+### exec-func-free-vars
+def f():
+    exec "x = 1"
+    def g():
+        return x
+### exec-in-func-free-vars
+def f():
+    exec "x = 1" in {}
+    def g():
+        return x
+### exec-func
+def f():
+    exec "x = 1"
+### exec-nested-uses-f-local
+def f():
+    y = 1
+    exec "x = 1"
+    def g():
+        return y
+### exec-nested-in-nested
+def f():
+    y = 1
+    def g():
+        exec "x = 1"
+        return y
+### default-except-not-last
+try:
+    pass
+except:
+    pass
+except ValueError:
+    pass
+### default-except-last
+try:
+    pass
+except ValueError:
+    pass
+except:
+    pass
+### two-default-except
+try:
+    pass
+except:
+    pass
+except:
+    pass
+### param-global
+def f(a):
+    global a
+### global-after-use
+def f():
+    print x
+    global x
+### global-after-assign
+def f():
+    x = 1
+    global x
+### global-module
+global x
+### global-class
+class C:
+    global x
+    x = 1
+### kw-repeated
+f(a=1, a=2)
+### kw-repeated-class-base
+class C(f(a=1, a=2)):
+    pass
+### future-late
+x = 1
+from __future__ import division
+### future-after-docstring
+"""doc"""
+from __future__ import division
+### future-after-two-docstrings
+"""doc"""
+"""doc2"""
+from __future__ import division
+### future-unknown
+from __future__ import braces
+### future-unknown2
+from __future__ import nonexistent
+### future-in-func
+def f():
+    from __future__ import division
+### future-multiple
+from __future__ import division
+from __future__ import print_function
+### future-after-import
+import os
+from __future__ import division
+### future-star
+from __future__ import *
+### future-print-function
+from __future__ import print_function
+print("a", end="")
+### future-with-statement
+from __future__ import with_statement
+### future-absolute
+from __future__ import absolute_import, generators, nested_scopes, unicode_literals
+### future-barry
+from __future__ import barry_as_FLUFL
+### del-free-var
+def f():
+    x = 1
+    def g():
+        return x
+    del x
+### del-local
+def f():
+    x = 1
+    del x
+### del-cell-nested-class
+def f():
+    x = 1
+    class C:
+        y = x
+    del x
+### yield-inside-try-finally
+def f():
+    try:
+        yield 1
+    finally:
+        pass
+### return-in-init
+class C:
+    def __init__(self):
+        return 1
+### lambda-return-yield-mix
+def f():
+    x = lambda: 1
+    yield x
+    return
+### func-call-star-before-kw
+f(*a, b=1)
+### func-call-kw-after-star-kw
+f(**a)
+### nested-func-same-name-param
+def f(a):
+    def a():
+        pass
+### augassign-to-call
+f() += 1
+### assign-to-call
+f() = 1
+### assign-to-literal
+1 = x
+### del-call
+del f()
+### assign-to-lambda
+lambda: 1 = 2
+### assign-to-compare
+a < b = 1
+### aug-to-tuple
+a, b += 1
+### assign-to-yield
+def f():
+    (yield) = 1
+### assign-to-genexp
+(x for x in y) = 1
+### assign-to-listcomp
+[x for x in y] = 1
+### assign-to-dict
+{} = 1
+### assign-to-str
+"a" = 1
+### assign-to-backquote
+`a` = 1
+### assign-to-ifexp
+(a if b else c) = 1
+### assign-to-binop
+a + b = 1
+### assign-to-unary
+-a = 1
+### for-call-target
+for f() in x:
+    pass
+### del-binop
+del a + b
+### except-call-target
+try:
+    pass
+except E, f():
+    pass
+### with-call-target
+with x as f():
+    pass
+### listcomp-call-target
+[1 for f() in x]
+### aug-to-subscript
+a[0] += 1
+### aug-to-attr
+a.b += 1
+### aug-to-list
+[a] += 1
+### import-as-dotted
+import a.b as c
+### yield-in-class-in-func
+def f():
+    class C:
+        yield 1
+### return-in-lambda
+f = lambda: 1
+### return-in-class-in-func
+def f():
+    class C:
+        return 1
+### break-in-try-in-loop
+while 1:
+    try:
+        break
+    except:
+        pass
+### continue-in-finally-in-while-in-try
+while x:
+    try:
+        pass
+    finally:
+        while y:
+            continue
+### continue-in-with-in-finally
+for x in y:
+    try:
+        pass
+    finally:
+        with z:
+            continue
+### continue-in-if-in-finally
+for x in y:
+    try:
+        pass
+    finally:
+        if z:
+            continue
+### continue-in-except-in-finally
+for x in y:
+    try:
+        pass
+    finally:
+        try:
+            pass
+        except:
+            continue
+### nonlocal
+def f():
+    nonlocal x
+### print-to-none
+print >>None, "x"
+### exec-tuple
+exec("x = 1", {})
+### huge-nesting-ok
+def f():
+    def g():
+        def h():
+            return x
+        return h
+    return g
+### star-import-module
+from os import *
+### import-star-func-noargs-print
+def f():
+    from os.path import *
+    return join
+### class-free-var
+def f():
+    x = 1
+    class C:
+        def g(self):
+            return x
+    return C
+### dup-arg-nested-tuple
+def f((a, b), (c, a)):
+    pass
+### dup-kwonly-lambda
+f = lambda *a, **b: a
+### return-generator-lambda
+def f():
+    g = (x for x in range(3))
+    return 1
+### yield-in-listcomp-module
+[(yield x) for x in y]
+### yield-in-dictcomp-func
+def f():
+    return {k: (yield k) for k in y}
+### name-param-global-lambda
+def f(x):
+    def g():
+        global x
+        x = 1
+### star-nested-builtin
+def f():
+    from os import *
+    def g():
+        return len
+### star-nested-lambda-nofree
+def f():
+    from os import *
+    return lambda a: a
+### star-genexp-nofree
+def f():
+    from os import *
+    return list(a for a in b)
+### star-genexp-free
+def f():
+    from os import *
+    return list(a + c for a in b)
+### star-nested-class-free
+def f():
+    from os import *
+    class C:
+        y = z
+### star-nested-class-method-free
+def f():
+    from os import *
+    class C:
+        def m(self):
+            return z
+### star-nested-deep-own
+def f():
+    from os import *
+    def g():
+        a = 1
+        def h():
+            return a
+### star-nested-param-only
+def f():
+    from os import *
+    def g(a):
+        return a
+### star-nested-attr
+def f():
+    from os import *
+    def g(a):
+        return a.b
+### star-nested-store-global
+def f():
+    from os import *
+    def g():
+        global q
+        q = 1
+### star-nested-load-global-decl
+def f():
+    from os import *
+    def g():
+        global q
+        return q
+### star-nested-None
+def f():
+    from os import *
+    def g():
+        return None
+### star-nested-dictcomp-nofree
+def f():
+    from os import *
+    return {a: 1 for a in b}
+### star-nested-setcomp-free
+def f():
+    from os import *
+    return {a + c for a in b}
+### star-listcomp
+def f():
+    from os import *
+    return [a + c for a in b]
+### star-in-class-in-func-nested
+def f():
+    class C:
+        from os import *
+        def m(self):
+            return z
+### star-after-nested
+def f():
+    def g():
+        return z
+    from os import *
+### star-two
+def f():
+    from os import *
+    from sys import *
+    def g():
+        return z
+### exec-nested-builtin
+def f():
+    exec "x = 1"
+    def g():
+        return len
+### exec-nested-nofree
+def f():
+    exec "x = 1"
+    def g(a):
+        return a
+### exec-self-free-outer
+def outer():
+    y = 1
+    def f():
+        exec "x = 1"
+        return y
+### exec-self-global
+def f():
+    exec "x = 1"
+    return len(x)
+### exec-nested-global-load
+def f():
+    exec "x = 1"
+    def g():
+        return q
+### exec-lambda-free
+def f():
+    exec "x = 1"
+    return lambda: q
+### exec-genexp-free
+def f():
+    exec "x = 1"
+    return list(a + q for a in b)
+### exec-in-locals
+def f():
+    exec "x = 1" in globals(), locals()
+    def g():
+        return q
+### exec-func-call-form
+def f():
+    exec("x = 1")
+    def g():
+        return q
+### exec-module-nested
+exec "x = 1"
+def g():
+    return q
+### exec-in-class-in-func
+def f():
+    y = 1
+    class C:
+        exec "x = 1"
+        z = y
+### return-gen-in-nested-try
+def f():
+    try:
+        yield 1
+    except:
+        return 5
+### yield-and-return-in-lambda-nested
+def f():
+    yield 1
+    g = lambda: 2
+    return
+### except-default-middle-reraise
+try:
+    pass
+except ValueError:
+    pass
+except:
+    pass
+except KeyError:
+    pass
+### except-default-nested
+try:
+    try:
+        pass
+    except:
+        pass
+except ValueError:
+    pass
+### local-global-lambda
+f = lambda a: [a for a in b]
+### param-global-later
+def f(a):
+    x = 1
+    if x:
+        global a
+### param-global-tuple
+def f((a, b)):
+    global b
+### param-global-vararg
+def f(*a):
+    global a
+### param-global-kwarg
+def f(**k):
+    global k
+### del-free-var-nested-deeper
+def f():
+    x = 1
+    def g():
+        def h():
+            return x
+    del x
+### del-free-var-genexp
+def f():
+    x = 1
+    y = list(x for a in b)
+    del x
+### del-free-var-lambda
+def f():
+    x = 1
+    g = lambda: x
+    del x
+### del-global-in-nested
+def f():
+    x = 1
+    def g():
+        global x
+        return x
+    del x
+### del-param-free
+def f(x):
+    def g():
+        return x
+    del x
+### del-in-nested-from-outer
+def f():
+    x = 1
+    def g():
+        del x
+    return x
+### del-free-tuple
+def f():
+    x = 1
+    def g():
+        return x
+    del (x, y)
+### future-docstring-then-future-then-future
+"""d"""
+from __future__ import division
+from __future__ import print_function
+### future-comment-blank
+# comment
+
+from __future__ import division
+### future-after-pass
+pass
+from __future__ import division
+### future-semicolon
+from __future__ import division; from __future__ import generators
+### future-semicolon-after-stmt
+x = 1; from __future__ import division
+### future-in-class
+class C:
+    from __future__ import division
+### future-paren
+from __future__ import (division, print_function)
+### future-as
+from __future__ import division as d
+### future-unknown-later
+from __future__ import division, foo
+### future-in-if
+if 1:
+    from __future__ import division
+### future-after-future-unknown
+from __future__ import foo
+x = 1
+### future-docstring-expr-not-string
+1
+from __future__ import division
+### future-after-bytes-docstring
+u"""doc"""
+from __future__ import division
+### kw-repeated-lambda-call
+(lambda **k: k)(a=1, b=2, a=3)
+### debug-aug
+__debug__ += 1
+### debug-for
+for __debug__ in x:
+    pass
+### debug-attr
+x.__debug__ = 1
+### debug-del
+del __debug__
+### debug-import
+import __debug__
+### debug-import-as
+import x as __debug__
+### debug-def
+def __debug__():
+    pass
+### debug-class
+class __debug__:
+    pass
+### debug-with
+with x as __debug__:
+    pass
+### debug-except
+try:
+    pass
+except E, __debug__:
+    pass
+### debug-kwarg
+f(__debug__=1)
+### debug-global
+def f():
+    global __debug__
+### debug-tuple
+a, __debug__ = 1, 2
+### debug-listcomp
+[1 for __debug__ in x]
+### debug-lambda
+f = lambda __debug__: 1
+### none-from-import-as
+from x import y as None
+### assign-to-set
+{a} = 1
+### assign-to-num-neg
+-1 = x
+### assign-to-subscript-call
+f()[0] = 1
+### aug-to-attr-of-call
+f().x += 1
+### for-attr-target
+for a.b in x:
+    pass
+### for-binop-target
+for a + b in x:
+    pass
+### for-unary-target
+for -a in x:
+    pass
+### for-compare-target
+for a < b in x:
+    pass
+### for-lit-target
+for 1 in x:
+    pass
+### with-binop-target
+with x as a + b:
+    pass
+### with-compare-target
+with x as a < b:
+    pass
+### except-binop-target
+try:
+    pass
+except E, a + b:
+    pass
+### except-subscript-target
+try:
+    pass
+except E, a[0]:
+    pass
+### except-attr-target
+try:
+    pass
+except E, self.e:
+    pass
+### listcomp-binop-target
+[1 for a + b in x]
+### genexp-call-target
+list(1 for f() in x)
+### genexp-binop-target
+list(1 for a + b in x)
+### del-compare
+del a < b
+### del-unary
+del -a
+### del-literal
+del 1
+### del-subscript-call
+del f()[0]
+### assign-tuple-with-call
+a, f() = 1, 2
+### assign-tuple-with-binop
+a, b + c = 1, 2
+### assign-list-with-compare
+[a, b < c] = 1, 2
+### aug-to-binop
+a + b += 1
+### aug-to-compare
+a < b += 1
+### aug-to-unary
+-a += 1
+### chained-assign-binop
+x = a + b = 1
+### assign-to-boolop
+a or b = 1
+### assign-to-ifexp-for
+for (a if b else c) in x:
+    pass
+### lambda-param-dup-tuple
+f = lambda (a, b), a: 1
+### dup-arg-three
+def f(a, b, c, b):
+    pass
+### dup-arg-nested-lambda
+def f(a):
+    return lambda a, a: 1
+### assign/call
+f() = 1
+### assign/binop
+a + b = 1
+### assign/unary
+-a = 1
+### assign/compare
+a < b = 1
+### assign/num
+1 = 1
+### assign/str
+"s" = 1
+### assign/boolop
+(a or b) = 1
+### assign/ifexp
+(a if b else c) = 1
+### assign/lambda
+(lambda: 1) = 1
+### assign/dict
+{} = 1
+### assign/set
+{a} = 1
+### assign/repr
+`a` = 1
+### assign/listcomp
+[a for a in b] = 1
+### assign/genexp
+(a for a in b) = 1
+### assign/attr
+a.b = 1
+### assign/sub
+a[0] = 1
+### assign/neg
+-1 = 1
+### assign/notop
+(not a) = 1
+### assign/invert
+~a = 1
+### assign/pow
+a ** b = 1
+### assign-tuple/call
+q, f() = 1, 2
+### assign-tuple/binop
+q, a + b = 1, 2
+### assign-tuple/unary
+q, -a = 1, 2
+### assign-tuple/compare
+q, a < b = 1, 2
+### assign-tuple/num
+q, 1 = 1, 2
+### assign-tuple/str
+q, "s" = 1, 2
+### assign-tuple/boolop
+q, (a or b) = 1, 2
+### assign-tuple/ifexp
+q, (a if b else c) = 1, 2
+### assign-tuple/lambda
+q, (lambda: 1) = 1, 2
+### assign-tuple/dict
+q, {} = 1, 2
+### assign-tuple/set
+q, {a} = 1, 2
+### assign-tuple/repr
+q, `a` = 1, 2
+### assign-tuple/listcomp
+q, [a for a in b] = 1, 2
+### assign-tuple/genexp
+q, (a for a in b) = 1, 2
+### assign-tuple/attr
+q, a.b = 1, 2
+### assign-tuple/sub
+q, a[0] = 1, 2
+### assign-tuple/neg
+q, -1 = 1, 2
+### assign-tuple/notop
+q, (not a) = 1, 2
+### assign-tuple/invert
+q, ~a = 1, 2
+### assign-tuple/pow
+q, a ** b = 1, 2
+### assign-list/call
+[q, f()] = 1, 2
+### assign-list/binop
+[q, a + b] = 1, 2
+### assign-list/unary
+[q, -a] = 1, 2
+### assign-list/compare
+[q, a < b] = 1, 2
+### assign-list/num
+[q, 1] = 1, 2
+### assign-list/str
+[q, "s"] = 1, 2
+### assign-list/boolop
+[q, (a or b)] = 1, 2
+### assign-list/ifexp
+[q, (a if b else c)] = 1, 2
+### assign-list/lambda
+[q, (lambda: 1)] = 1, 2
+### assign-list/dict
+[q, {}] = 1, 2
+### assign-list/set
+[q, {a}] = 1, 2
+### assign-list/repr
+[q, `a`] = 1, 2
+### assign-list/listcomp
+[q, [a for a in b]] = 1, 2
+### assign-list/genexp
+[q, (a for a in b)] = 1, 2
+### assign-list/attr
+[q, a.b] = 1, 2
+### assign-list/sub
+[q, a[0]] = 1, 2
+### assign-list/neg
+[q, -1] = 1, 2
+### assign-list/notop
+[q, (not a)] = 1, 2
+### assign-list/invert
+[q, ~a] = 1, 2
+### assign-list/pow
+[q, a ** b] = 1, 2
+### assign-chain/call
+x = f() = 1
+### assign-chain/binop
+x = a + b = 1
+### assign-chain/unary
+x = -a = 1
+### assign-chain/compare
+x = a < b = 1
+### assign-chain/num
+x = 1 = 1
+### assign-chain/str
+x = "s" = 1
+### assign-chain/boolop
+x = (a or b) = 1
+### assign-chain/ifexp
+x = (a if b else c) = 1
+### assign-chain/lambda
+x = (lambda: 1) = 1
+### assign-chain/dict
+x = {} = 1
+### assign-chain/set
+x = {a} = 1
+### assign-chain/repr
+x = `a` = 1
+### assign-chain/listcomp
+x = [a for a in b] = 1
+### assign-chain/genexp
+x = (a for a in b) = 1
+### assign-chain/attr
+x = a.b = 1
+### assign-chain/sub
+x = a[0] = 1
+### assign-chain/neg
+x = -1 = 1
+### assign-chain/notop
+x = (not a) = 1
+### assign-chain/invert
+x = ~a = 1
+### assign-chain/pow
+x = a ** b = 1
+### aug/call
+f() += 1
+### aug/binop
+a + b += 1
+### aug/unary
+-a += 1
+### aug/compare
+a < b += 1
+### aug/num
+1 += 1
+### aug/str
+"s" += 1
+### aug/boolop
+(a or b) += 1
+### aug/ifexp
+(a if b else c) += 1
+### aug/lambda
+(lambda: 1) += 1
+### aug/dict
+{} += 1
+### aug/set
+{a} += 1
+### aug/repr
+`a` += 1
+### aug/listcomp
+[a for a in b] += 1
+### aug/genexp
+(a for a in b) += 1
+### aug/attr
+a.b += 1
+### aug/sub
+a[0] += 1
+### aug/neg
+-1 += 1
+### aug/notop
+(not a) += 1
+### aug/invert
+~a += 1
+### aug/pow
+a ** b += 1
+### del/call
+del f()
+### del/binop
+del a + b
+### del/unary
+del -a
+### del/compare
+del a < b
+### del/num
+del 1
+### del/str
+del "s"
+### del/boolop
+del (a or b)
+### del/ifexp
+del (a if b else c)
+### del/lambda
+del (lambda: 1)
+### del/dict
+del {}
+### del/set
+del {a}
+### del/repr
+del `a`
+### del/listcomp
+del [a for a in b]
+### del/genexp
+del (a for a in b)
+### del/attr
+del a.b
+### del/sub
+del a[0]
+### del/neg
+del -1
+### del/notop
+del (not a)
+### del/invert
+del ~a
+### del/pow
+del a ** b
+### del-tuple/call
+del q, f()
+### del-tuple/binop
+del q, a + b
+### del-tuple/unary
+del q, -a
+### del-tuple/compare
+del q, a < b
+### del-tuple/num
+del q, 1
+### del-tuple/str
+del q, "s"
+### del-tuple/boolop
+del q, (a or b)
+### del-tuple/ifexp
+del q, (a if b else c)
+### del-tuple/lambda
+del q, (lambda: 1)
+### del-tuple/dict
+del q, {}
+### del-tuple/set
+del q, {a}
+### del-tuple/repr
+del q, `a`
+### del-tuple/listcomp
+del q, [a for a in b]
+### del-tuple/genexp
+del q, (a for a in b)
+### del-tuple/attr
+del q, a.b
+### del-tuple/sub
+del q, a[0]
+### del-tuple/neg
+del q, -1
+### del-tuple/notop
+del q, (not a)
+### del-tuple/invert
+del q, ~a
+### del-tuple/pow
+del q, a ** b
+### for/call
+for f() in x:
+    pass
+### for/binop
+for a + b in x:
+    pass
+### for/unary
+for -a in x:
+    pass
+### for/compare
+for a < b in x:
+    pass
+### for/num
+for 1 in x:
+    pass
+### for/str
+for "s" in x:
+    pass
+### for/boolop
+for (a or b) in x:
+    pass
+### for/ifexp
+for (a if b else c) in x:
+    pass
+### for/lambda
+for (lambda: 1) in x:
+    pass
+### for/dict
+for {} in x:
+    pass
+### for/set
+for {a} in x:
+    pass
+### for/repr
+for `a` in x:
+    pass
+### for/listcomp
+for [a for a in b] in x:
+    pass
+### for/genexp
+for (a for a in b) in x:
+    pass
+### for/attr
+for a.b in x:
+    pass
+### for/sub
+for a[0] in x:
+    pass
+### for/neg
+for -1 in x:
+    pass
+### for/notop
+for (not a) in x:
+    pass
+### for/invert
+for ~a in x:
+    pass
+### for/pow
+for a ** b in x:
+    pass
+### for-tuple/call
+for q, f() in x:
+    pass
+### for-tuple/binop
+for q, a + b in x:
+    pass
+### for-tuple/unary
+for q, -a in x:
+    pass
+### for-tuple/compare
+for q, a < b in x:
+    pass
+### for-tuple/num
+for q, 1 in x:
+    pass
+### for-tuple/str
+for q, "s" in x:
+    pass
+### for-tuple/boolop
+for q, (a or b) in x:
+    pass
+### for-tuple/ifexp
+for q, (a if b else c) in x:
+    pass
+### for-tuple/lambda
+for q, (lambda: 1) in x:
+    pass
+### for-tuple/dict
+for q, {} in x:
+    pass
+### for-tuple/set
+for q, {a} in x:
+    pass
+### for-tuple/repr
+for q, `a` in x:
+    pass
+### for-tuple/listcomp
+for q, [a for a in b] in x:
+    pass
+### for-tuple/genexp
+for q, (a for a in b) in x:
+    pass
+### for-tuple/attr
+for q, a.b in x:
+    pass
+### for-tuple/sub
+for q, a[0] in x:
+    pass
+### for-tuple/neg
+for q, -1 in x:
+    pass
+### for-tuple/notop
+for q, (not a) in x:
+    pass
+### for-tuple/invert
+for q, ~a in x:
+    pass
+### for-tuple/pow
+for q, a ** b in x:
+    pass
+### except/call
+try:
+    pass
+except E, f():
+    pass
+### except/binop
+try:
+    pass
+except E, a + b:
+    pass
+### except/unary
+try:
+    pass
+except E, -a:
+    pass
+### except/compare
+try:
+    pass
+except E, a < b:
+    pass
+### except/num
+try:
+    pass
+except E, 1:
+    pass
+### except/str
+try:
+    pass
+except E, "s":
+    pass
+### except/boolop
+try:
+    pass
+except E, (a or b):
+    pass
+### except/ifexp
+try:
+    pass
+except E, (a if b else c):
+    pass
+### except/lambda
+try:
+    pass
+except E, (lambda: 1):
+    pass
+### except/dict
+try:
+    pass
+except E, {}:
+    pass
+### except/set
+try:
+    pass
+except E, {a}:
+    pass
+### except/repr
+try:
+    pass
+except E, `a`:
+    pass
+### except/listcomp
+try:
+    pass
+except E, [a for a in b]:
+    pass
+### except/genexp
+try:
+    pass
+except E, (a for a in b):
+    pass
+### except/attr
+try:
+    pass
+except E, a.b:
+    pass
+### except/sub
+try:
+    pass
+except E, a[0]:
+    pass
+### except/neg
+try:
+    pass
+except E, -1:
+    pass
+### except/notop
+try:
+    pass
+except E, (not a):
+    pass
+### except/invert
+try:
+    pass
+except E, ~a:
+    pass
+### except/pow
+try:
+    pass
+except E, a ** b:
+    pass
+### with/call
+with x as f():
+    pass
+### with/binop
+with x as a + b:
+    pass
+### with/unary
+with x as -a:
+    pass
+### with/compare
+with x as a < b:
+    pass
+### with/num
+with x as 1:
+    pass
+### with/str
+with x as "s":
+    pass
+### with/boolop
+with x as (a or b):
+    pass
+### with/ifexp
+with x as (a if b else c):
+    pass
+### with/lambda
+with x as (lambda: 1):
+    pass
+### with/dict
+with x as {}:
+    pass
+### with/set
+with x as {a}:
+    pass
+### with/repr
+with x as `a`:
+    pass
+### with/listcomp
+with x as [a for a in b]:
+    pass
+### with/genexp
+with x as (a for a in b):
+    pass
+### with/attr
+with x as a.b:
+    pass
+### with/sub
+with x as a[0]:
+    pass
+### with/neg
+with x as -1:
+    pass
+### with/notop
+with x as (not a):
+    pass
+### with/invert
+with x as ~a:
+    pass
+### with/pow
+with x as a ** b:
+    pass
+### with-tuple/call
+with x as (q, f()):
+    pass
+### with-tuple/binop
+with x as (q, a + b):
+    pass
+### with-tuple/unary
+with x as (q, -a):
+    pass
+### with-tuple/compare
+with x as (q, a < b):
+    pass
+### with-tuple/num
+with x as (q, 1):
+    pass
+### with-tuple/str
+with x as (q, "s"):
+    pass
+### with-tuple/boolop
+with x as (q, (a or b)):
+    pass
+### with-tuple/ifexp
+with x as (q, (a if b else c)):
+    pass
+### with-tuple/lambda
+with x as (q, (lambda: 1)):
+    pass
+### with-tuple/dict
+with x as (q, {}):
+    pass
+### with-tuple/set
+with x as (q, {a}):
+    pass
+### with-tuple/repr
+with x as (q, `a`):
+    pass
+### with-tuple/listcomp
+with x as (q, [a for a in b]):
+    pass
+### with-tuple/genexp
+with x as (q, (a for a in b)):
+    pass
+### with-tuple/attr
+with x as (q, a.b):
+    pass
+### with-tuple/sub
+with x as (q, a[0]):
+    pass
+### with-tuple/neg
+with x as (q, -1):
+    pass
+### with-tuple/notop
+with x as (q, (not a)):
+    pass
+### with-tuple/invert
+with x as (q, ~a):
+    pass
+### with-tuple/pow
+with x as (q, a ** b):
+    pass
+### listcomp/call
+[1 for f() in x]
+### listcomp/binop
+[1 for a + b in x]
+### listcomp/unary
+[1 for -a in x]
+### listcomp/compare
+[1 for a < b in x]
+### listcomp/num
+[1 for 1 in x]
+### listcomp/str
+[1 for "s" in x]
+### listcomp/boolop
+[1 for (a or b) in x]
+### listcomp/ifexp
+[1 for (a if b else c) in x]
+### listcomp/lambda
+[1 for (lambda: 1) in x]
+### listcomp/dict
+[1 for {} in x]
+### listcomp/set
+[1 for {a} in x]
+### listcomp/repr
+[1 for `a` in x]
+### listcomp/listcomp
+[1 for [a for a in b] in x]
+### listcomp/genexp
+[1 for (a for a in b) in x]
+### listcomp/attr
+[1 for a.b in x]
+### listcomp/sub
+[1 for a[0] in x]
+### listcomp/neg
+[1 for -1 in x]
+### listcomp/notop
+[1 for (not a) in x]
+### listcomp/invert
+[1 for ~a in x]
+### listcomp/pow
+[1 for a ** b in x]
+### listcomp-tuple/call
+[1 for q, f() in x]
+### listcomp-tuple/binop
+[1 for q, a + b in x]
+### listcomp-tuple/unary
+[1 for q, -a in x]
+### listcomp-tuple/compare
+[1 for q, a < b in x]
+### listcomp-tuple/num
+[1 for q, 1 in x]
+### listcomp-tuple/str
+[1 for q, "s" in x]
+### listcomp-tuple/boolop
+[1 for q, (a or b) in x]
+### listcomp-tuple/ifexp
+[1 for q, (a if b else c) in x]
+### listcomp-tuple/lambda
+[1 for q, (lambda: 1) in x]
+### listcomp-tuple/dict
+[1 for q, {} in x]
+### listcomp-tuple/set
+[1 for q, {a} in x]
+### listcomp-tuple/repr
+[1 for q, `a` in x]
+### listcomp-tuple/listcomp
+[1 for q, [a for a in b] in x]
+### listcomp-tuple/genexp
+[1 for q, (a for a in b) in x]
+### listcomp-tuple/attr
+[1 for q, a.b in x]
+### listcomp-tuple/sub
+[1 for q, a[0] in x]
+### listcomp-tuple/neg
+[1 for q, -1 in x]
+### listcomp-tuple/notop
+[1 for q, (not a) in x]
+### listcomp-tuple/invert
+[1 for q, ~a in x]
+### listcomp-tuple/pow
+[1 for q, a ** b in x]
+### genexp/call
+list(1 for f() in x)
+### genexp/binop
+list(1 for a + b in x)
+### genexp/unary
+list(1 for -a in x)
+### genexp/compare
+list(1 for a < b in x)
+### genexp/num
+list(1 for 1 in x)
+### genexp/str
+list(1 for "s" in x)
+### genexp/boolop
+list(1 for (a or b) in x)
+### genexp/ifexp
+list(1 for (a if b else c) in x)
+### genexp/lambda
+list(1 for (lambda: 1) in x)
+### genexp/dict
+list(1 for {} in x)
+### genexp/set
+list(1 for {a} in x)
+### genexp/repr
+list(1 for `a` in x)
+### genexp/listcomp
+list(1 for [a for a in b] in x)
+### genexp/genexp
+list(1 for (a for a in b) in x)
+### genexp/attr
+list(1 for a.b in x)
+### genexp/sub
+list(1 for a[0] in x)
+### genexp/neg
+list(1 for -1 in x)
+### genexp/notop
+list(1 for (not a) in x)
+### genexp/invert
+list(1 for ~a in x)
+### genexp/pow
+list(1 for a ** b in x)
+### setcomp/call
+{1 for f() in x}
+### setcomp/binop
+{1 for a + b in x}
+### setcomp/unary
+{1 for -a in x}
+### setcomp/compare
+{1 for a < b in x}
+### setcomp/num
+{1 for 1 in x}
+### setcomp/str
+{1 for "s" in x}
+### setcomp/boolop
+{1 for (a or b) in x}
+### setcomp/ifexp
+{1 for (a if b else c) in x}
+### setcomp/lambda
+{1 for (lambda: 1) in x}
+### setcomp/dict
+{1 for {} in x}
+### setcomp/set
+{1 for {a} in x}
+### setcomp/repr
+{1 for `a` in x}
+### setcomp/listcomp
+{1 for [a for a in b] in x}
+### setcomp/genexp
+{1 for (a for a in b) in x}
+### setcomp/attr
+{1 for a.b in x}
+### setcomp/sub
+{1 for a[0] in x}
+### setcomp/neg
+{1 for -1 in x}
+### setcomp/notop
+{1 for (not a) in x}
+### setcomp/invert
+{1 for ~a in x}
+### setcomp/pow
+{1 for a ** b in x}
+### dictcomp/call
+{1: 2 for f() in x}
+### dictcomp/binop
+{1: 2 for a + b in x}
+### dictcomp/unary
+{1: 2 for -a in x}
+### dictcomp/compare
+{1: 2 for a < b in x}
+### dictcomp/num
+{1: 2 for 1 in x}
+### dictcomp/str
+{1: 2 for "s" in x}
+### dictcomp/boolop
+{1: 2 for (a or b) in x}
+### dictcomp/ifexp
+{1: 2 for (a if b else c) in x}
+### dictcomp/lambda
+{1: 2 for (lambda: 1) in x}
+### dictcomp/dict
+{1: 2 for {} in x}
+### dictcomp/set
+{1: 2 for {a} in x}
+### dictcomp/repr
+{1: 2 for `a` in x}
+### dictcomp/listcomp
+{1: 2 for [a for a in b] in x}
+### dictcomp/genexp
+{1: 2 for (a for a in b) in x}
+### dictcomp/attr
+{1: 2 for a.b in x}
+### dictcomp/sub
+{1: 2 for a[0] in x}
+### dictcomp/neg
+{1: 2 for -1 in x}
+### dictcomp/notop
+{1: 2 for (not a) in x}
+### dictcomp/invert
+{1: 2 for ~a in x}
+### dictcomp/pow
+{1: 2 for a ** b in x}
+### func-for/call
+def f():
+    for f() in x:
+        pass
+### func-for/binop
+def f():
+    for a + b in x:
+        pass
+### func-for/unary
+def f():
+    for -a in x:
+        pass
+### func-for/compare
+def f():
+    for a < b in x:
+        pass
+### func-for/num
+def f():
+    for 1 in x:
+        pass
+### func-for/str
+def f():
+    for "s" in x:
+        pass
+### func-for/boolop
+def f():
+    for (a or b) in x:
+        pass
+### func-for/ifexp
+def f():
+    for (a if b else c) in x:
+        pass
+### func-for/lambda
+def f():
+    for (lambda: 1) in x:
+        pass
+### func-for/dict
+def f():
+    for {} in x:
+        pass
+### func-for/set
+def f():
+    for {a} in x:
+        pass
+### func-for/repr
+def f():
+    for `a` in x:
+        pass
+### func-for/listcomp
+def f():
+    for [a for a in b] in x:
+        pass
+### func-for/genexp
+def f():
+    for (a for a in b) in x:
+        pass
+### func-for/attr
+def f():
+    for a.b in x:
+        pass
+### func-for/sub
+def f():
+    for a[0] in x:
+        pass
+### func-for/neg
+def f():
+    for -1 in x:
+        pass
+### func-for/notop
+def f():
+    for (not a) in x:
+        pass
+### func-for/invert
+def f():
+    for ~a in x:
+        pass
+### func-for/pow
+def f():
+    for a ** b in x:
+        pass
+### func-assign/call
+def f():
+    f() = 1
+### func-assign/binop
+def f():
+    a + b = 1
+### func-assign/unary
+def f():
+    -a = 1
+### func-assign/compare
+def f():
+    a < b = 1
+### func-assign/num
+def f():
+    1 = 1
+### func-assign/str
+def f():
+    "s" = 1
+### func-assign/boolop
+def f():
+    (a or b) = 1
+### func-assign/ifexp
+def f():
+    (a if b else c) = 1
+### func-assign/lambda
+def f():
+    (lambda: 1) = 1
+### func-assign/dict
+def f():
+    {} = 1
+### func-assign/set
+def f():
+    {a} = 1
+### func-assign/repr
+def f():
+    `a` = 1
+### func-assign/listcomp
+def f():
+    [a for a in b] = 1
+### func-assign/genexp
+def f():
+    (a for a in b) = 1
+### func-assign/attr
+def f():
+    a.b = 1
+### func-assign/sub
+def f():
+    a[0] = 1
+### func-assign/neg
+def f():
+    -1 = 1
+### func-assign/notop
+def f():
+    (not a) = 1
+### func-assign/invert
+def f():
+    ~a = 1
+### func-assign/pow
+def f():
+    a ** b = 1
+### direct
+for x in y:
+    try:
+        pass
+    finally:
+        continue
+### after-stmt
+for x in y:
+    try:
+        pass
+    finally:
+        a = 1
+        continue
+### in-if
+for x in y:
+    try:
+        pass
+    finally:
+        if z:
+            continue
+### in-else
+for x in y:
+    try:
+        pass
+    finally:
+        if z:
+            pass
+        else:
+            continue
+### in-with
+for x in y:
+    try:
+        pass
+    finally:
+        with z:
+            continue
+### in-try-body
+for x in y:
+    try:
+        pass
+    finally:
+        try:
+            continue
+        except:
+            pass
+### in-except
+for x in y:
+    try:
+        pass
+    finally:
+        try:
+            pass
+        except:
+            continue
+### in-try-else
+for x in y:
+    try:
+        pass
+    finally:
+        try:
+            pass
+        except:
+            pass
+        else:
+            continue
+### in-inner-finally-body
+for x in y:
+    try:
+        pass
+    finally:
+        try:
+            continue
+        finally:
+            pass
+### in-inner-finally
+for x in y:
+    try:
+        pass
+    finally:
+        try:
+            pass
+        finally:
+            continue
+### in-except-not-in-finally
+for x in y:
+    try:
+        pass
+    except:
+        continue
+### in-except-in-try-body
+for x in y:
+    try:
+        try:
+            pass
+        except:
+            continue
+    finally:
+        pass
+### in-while-in-if-in-finally
+for x in y:
+    try:
+        pass
+    finally:
+        if a:
+            while b:
+                continue
+### in-for-else-in-finally
+for x in y:
+    try:
+        pass
+    finally:
+        for q in r:
+            pass
+        else:
+            continue
+### in-except-in-loop-in-finally
+for x in y:
+    try:
+        pass
+    finally:
+        for q in r:
+            try:
+                pass
+            except:
+                continue
+### in-if-in-except-in-finally
+for x in y:
+    try:
+        pass
+    finally:
+        try:
+            pass
+        except:
+            if a:
+                continue
+### in-with-in-finally-direct-after-if
+for x in y:
+    try:
+        pass
+    finally:
+        if a:
+            pass
+        continue
+### finally-in-if-in-loop
+for x in y:
+    if a:
+        try:
+            pass
+        finally:
+            continue
+### finally-in-except
+for x in y:
+    try:
+        pass
+    except:
+        try:
+            pass
+        finally:
+            continue
+### break-in-except-in-finally
+for x in y:
+    try:
+        pass
+    finally:
+        try:
+            pass
+        except:
+            break
+### exec-tuple-in-func-nested
+def f():
+    exec("x = 1", {})
+    def g():
+        return q
+### exec-tuple3-in-func-nested
+def f():
+    exec("x = 1", {}, {})
+    def g():
+        return q
+### star-func-self-free
+def outer():
+    a = 1
+    def f():
+        from os import *
+        return a
+### star-and-exec
+def f():
+    exec "x = 1"
+    from os import *
+    def g():
+        return q
+### return-gen-lambda-yield
+def f():
+    g = lambda: (yield)
+    return 1
+### return-gen-genexp-yield
+def f():
+    g = ((yield) for x in y)
+    return 1
+### return-gen-listcomp-yield
+def f():
+    g = [(yield) for x in y]
+    return 1
+### return-gen-two-returns
+def f():
+    return 1
+    return 2
+    yield 3
+### return-gen-yield-in-nested-def
+def f():
+    def g():
+        yield 1
+    return 2
+### dup-arg-vararg-tuple
+def f((a, b), *a):
+    pass
+### global-param-nested-other
+def f(a):
+    def g():
+        global a
+### global-param-lambda
+f = lambda a: a
+### global-and-param-class
+class C:
+    def m(self, x):
+        global x
+### del-free-in-class-method
+def f():
+    x = 1
+    class C:
+        def m(self):
+            return x
+    del x
+### del-free-global-in-module
+x = 1
+def g():
+    return x
+del x
+### del-free-class-scope
+class C:
+    x = 1
+    def m(self):
+        return x
+    del x
+### future-docstring-semicolon
+"""d"""; from __future__ import division
+### debug-del-tuple
+del a, __debug__
+### debug-in-func
+def f():
+    __debug__ = 1
+### star-nested-builtin-only
+def outer():
+    def f():
+        from os import *
+        return len
+### star-nested-norefs
+def outer():
+    def f():
+        from os import *
+### star-nested-global-ref
+x = 1
+def outer():
+    def f():
+        from os import *
+        return x
+### star-nested-both
+def outer():
+    a = 1
+    def f():
+        from os import *
+        def g():
+            return q
+        return a
+### star-in-method
+class C:
+    def m(self):
+        from os import *
+        return len
+### star-in-method-of-nested-class
+def outer():
+    a = 1
+    class C:
+        def m(self):
+            from os import *
+            return a
+### exec-nested-builtin-only
+def outer():
+    def f():
+        exec "x = 1"
+        return len
+### exec-nested-norefs
+def outer():
+    def f():
+        exec "x = 1"
+### exec-nested-both
+def outer():
+    a = 1
+    def f():
+        exec "x = 1"
+        def g():
+            return q
+        return a
+### exec-in-method
+class C:
+    def m(self):
+        exec "x = 1"
+        return len
+### exec-lambda-nested-param-only
+def f():
+    exec "x = 1"
+    return lambda a: a
+### exec-nested-class-free
+def f():
+    exec "x = 1"
+    class C:
+        y = q
+### exec-nested-class-nofree
+def f():
+    exec "x = 1"
+    class C:
+        y = 1
+### star-nested-class-nofree
+def f():
+    from os import *
+    class C:
+        y = 1
+### star-nested-class-method-nofree
+def f():
+    from os import *
+    class C:
+        def m(self):
+            return self
+### star-deep-free-grandchild
+def f():
+    from os import *
+    def g():
+        def h():
+            return q
+### star-genexp-uses-outer-var-only-in-first-iter
+def f():
+    from os import *
+    return list(a for a in q)
+### star-genexp-two-gens
+def f():
+    from os import *
+    return list(a for a in q for b in a)
+### star-genexp-two-gens-free
+def f():
+    from os import *
+    return list(a for a in q for b in r)
