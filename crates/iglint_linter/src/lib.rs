@@ -3,6 +3,7 @@
 pub mod diagnostic;
 pub mod registry;
 pub mod rules;
+pub mod settings;
 
 pub use diagnostic::{Applicability, Diagnostic, FileEdit, Fix, Label, Severity, SourceFile};
 pub use registry::{
