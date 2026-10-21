@@ -142,3 +142,42 @@ keyword must be a name
 ### unclosed then def with bad dedent
 error 4 2
 mismatched input 'def' expecting RPAREN
+### tuple then bracket then operator then lexical error
+error 1 11
+no viable alternative at character '\\n'
+### tuple then bracket then plus then lexical error
+error 1 10
+no viable alternative at character '\\n'
+### tuple then bracket then lexical error
+error 1 8
+no viable alternative at character '\\n'
+### name then bracket then operator then lexical error
+error 1 1
+mismatched input ')' expecting NEWLINE
+### tuple then bracket then two tokens then lexical error
+error 1 4
+mismatched input ')' expecting NEWLINE
+### tuple then bracket then equal then lexical error
+error 1 10
+no viable alternative at character '\\n'
+### tuple then square bracket then operator then lexical error
+error 1 11
+no viable alternative at character '\\n'
+### tuple then name then lexical error
+error 1 9
+no viable alternative at character '\\n'
+### tuple then bracket then name then lexical error
+error 1 10
+no viable alternative at character '\\n'
+### tuple then bracket then two names then lexical error
+error 1 4
+mismatched input ')' expecting NEWLINE
+### name then bracket then name then lexical error
+error 1 1
+mismatched input ')' expecting NEWLINE
+### tuple then bracket then comma then lexical error
+error 1 4
+mismatched input ')' expecting NEWLINE
+### double comma across continuation lines then lexical error
+error 4 0
+no viable alternative at character '$'

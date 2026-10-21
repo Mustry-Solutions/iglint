@@ -1244,27 +1244,33 @@ impl Parser<'_> {
         }
         // Jython decides this loop with a DFA that also validates what
         // follows: a token that can neither continue the tuple nor follow a
-        // `testlist` is an error right there.
+        // `testlist` is an error right there. The DFA consumes every token
+        // it examines, which fetches the token after it (and so may surface
+        // a lexical error there); `peek_kind(2)` reproduces that.
         let mut elts = vec![first.expr];
         loop {
             // After a comma.
             let kind = self.kind();
-            if !starts_test_loosely(kind) {
-                if kind == TokenKind::Comma || follows_testlist(kind) {
-                    break;
-                }
+            let continues = starts_test_loosely(kind);
+            if !continues && kind != TokenKind::Comma && !follows_testlist(kind) {
                 return Err(self.invalid_syntax());
+            }
+            self.peek_kind(2);
+            if !continues {
+                break;
             }
             elts.push(self.test()?.expr);
             // After an element.
             let kind = self.kind();
             if kind == TokenKind::Comma {
                 self.bump();
-            } else if follows_testlist(kind) {
-                break;
-            } else {
+                continue;
+            }
+            if !follows_testlist(kind) {
                 return Err(self.invalid_syntax());
             }
+            self.peek_kind(2);
+            break;
         }
         Ok(Operand {
             expr: Expr::Tuple(ExprTuple {

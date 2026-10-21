@@ -16,6 +16,38 @@
 //!     "Module(body=[Print(dest=Name(id='f', ctx=Load()), values=[Str(s='x')], nl=True)])"
 //! );
 //! ```
+//!
+//! # Jython behaviour worth knowing
+//!
+//! * The source is parsed as `compile()` sees it: with two newlines
+//!   appended, lines separated by `\n` only, columns counted in UTF-16 code
+//!   units ([`Locator`] converts offsets).
+//! * Some malformed tokens (an unterminated single-quoted string, a stray
+//!   backslash, `!` without `=`) are silently dropped by Jython's lexer
+//!   together with the next character; the code is accepted with that text
+//!   missing. [`Parsed::dropped`] lists every such place.
+//! * Keywords are allowed as attribute names (`x.print`, `x.from`) and as
+//!   later parts of dotted import names (`import a.if`).
+//! * Several assignment targets that CPython rejects are accepted (`-a = 1`,
+//!   `a < b = 1`, `for f() in x:`, `del a + b`, `except E, f():`), with the
+//!   target context applied to their operands.
+//! * Node positions follow Jython's tokens, not CPython's: a chained
+//!   arithmetic operation is anchored at its operator, a `with` statement at
+//!   its first context expression, a negative literal at its digits, a
+//!   multi-line string at its last line with column -1.
+//! * Float reprs use the digits of Java's `Double.toString`
+//!   (`4.9e-324`, `6.1987046510000005e+18`); dictionary comprehensions dump
+//!   as the bare word `DictComp`.
+//!
+//! # Deliberate differences
+//!
+//! * `\N{...}` escapes resolve against a table of about 2500 common names;
+//!   other names are kept as written, where Jython would resolve them or
+//!   reject them.
+//! * Expressions nested more than 100 levels deep are rejected; Jython's
+//!   limit depends on the JVM stack.
+//! * After the first error, recovery may differ from what Jython would do
+//!   (Jython stops there).
 
 pub mod anchor;
 pub mod ast;

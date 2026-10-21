@@ -138,3 +138,32 @@ if x:
     if y:
         f(1,
   def g(): pass
+### tuple then bracket then operator then lexical error
+a, b) += 0x
+### tuple then bracket then plus then lexical error
+a, b) + 0x
+### tuple then bracket then lexical error
+a, b) 0x
+### name then bracket then operator then lexical error
+a) += 0x
+### tuple then bracket then two tokens then lexical error
+a, b) += 1 0x
+### tuple then bracket then equal then lexical error
+a, b) = 0x
+### tuple then square bracket then operator then lexical error
+a, b] += 0x
+### tuple then name then lexical error
+a, b c 0x
+### tuple then bracket then name then lexical error
+a, b) x 0x
+### tuple then bracket then two names then lexical error
+a, b) x y 0x
+### name then bracket then name then lexical error
+a) x 0x
+### tuple then bracket then comma then lexical error
+a, b), c 0x
+### double comma across continuation lines then lexical error
+x = a,\
+b,\
+,c\
+$
