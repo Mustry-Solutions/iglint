@@ -1,0 +1,536 @@
+### form feed line
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=2))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=3, col_offset=0)], value=Num(n=2, lineno=3, col_offset=4), lineno=3, col_offset=0)])
+### form feed before code at line start
+error 1 0
+rule WS failed predicate: {startPos>0}?
+### form feed after indentation
+error 2 4
+required (...)+ loop did not match anything at input '\\n'
+### form feed inside line
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=BinOp(left=Num(n=1), op=Add(), right=Num(n=2)))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=BinOp(left=Num(n=1, lineno=1, col_offset=4), op=Add(), right=Num(n=2, lineno=1, col_offset=9), lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### form feed before newline in block
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=1))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### form feed at line start of block
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='z', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4), Assign(targets=[Name(id='z', ctx=Store(), lineno=4, col_offset=4)], value=Num(n=2, lineno=4, col_offset=8), lineno=4, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### form feed after newline then space
+error 2 2
+no viable alternative at input 'y'
+### form feed in parens
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Tuple(elts=[Num(n=1), Num(n=2)], ctx=Load()))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Tuple(elts=[Num(n=1, lineno=1, col_offset=5), Num(n=2, lineno=2, col_offset=1)], ctx=Load(), lineno=1, col_offset=5), lineno=1, col_offset=0)])
+### form feed double
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=2))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=3, col_offset=0)], value=Num(n=2, lineno=3, col_offset=4), lineno=3, col_offset=0)])
+### form feed then comment
+error 2 3
+no viable alternative at input 'c'
+### vertical tab
+error 1 5
+no viable alternative at character ''
+### nul in source
+error 0 0
+internal error: TypeError
+### nul in string
+error 0 0
+internal error: TypeError
+### nul in comment
+error 0 0
+internal error: TypeError
+### cr only line ends [nonl]
+error 1 4
+can't assign to number
+### cr in middle
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=BinOp(left=Num(n=1), op=Add(), right=Num(n=2)))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=BinOp(left=Num(n=1, lineno=1, col_offset=4), op=Add(), right=Num(n=2, lineno=1, col_offset=9), lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### cr before name
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### cr crlf mix
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=2)), Assign(targets=[Name(id='z', ctx=Store())], value=Num(n=3))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=0)], value=Num(n=2, lineno=2, col_offset=4), lineno=2, col_offset=0), Assign(targets=[Name(id='z', ctx=Store(), lineno=3, col_offset=0)], value=Num(n=3, lineno=3, col_offset=4), lineno=3, col_offset=0)])
+### crlf in string continuation
+error 2 2
+no viable alternative at character '\\n'
+### crlf in triple string
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='a\\r\\nb'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='a\\r\\nb', lineno=2, col_offset=-1), lineno=1, col_offset=0)])
+### crlf blank lines in block
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4), Assign(targets=[Name(id='b', ctx=Store(), lineno=4, col_offset=4)], value=Num(n=2, lineno=4, col_offset=8), lineno=4, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### crlf comment line in block
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4), Assign(targets=[Name(id='b', ctx=Store(), lineno=4, col_offset=4)], value=Num(n=2, lineno=4, col_offset=8), lineno=4, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### crlf continuation
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=BinOp(left=Num(n=1), op=Add(), right=Num(n=2)))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=BinOp(left=Num(n=1, lineno=1, col_offset=4), op=Add(), right=Num(n=2, lineno=2, col_offset=4), lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### cr after continuation backslash
+error 1 11
+no viable alternative at input '\\n\\n\\n'
+### backslash then space
+error 1 10
+no viable alternative at input '\\n'
+### backslash then comment
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=BinOp(left=Num(n=1), op=Add(), right=Name(id='c', ctx=Load()))), Expr(value=Num(n=2))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=BinOp(left=Num(n=1, lineno=1, col_offset=4), op=Add(), right=Name(id='c', ctx=Load(), lineno=1, col_offset=11), lineno=1, col_offset=4), lineno=1, col_offset=0), Expr(value=Num(n=2, lineno=2, col_offset=0), lineno=2, col_offset=0)])
+### backslash then blank line
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=2))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=3, col_offset=0)], value=Num(n=2, lineno=3, col_offset=4), lineno=3, col_offset=0)])
+### backslash then blank line in parens
+error 0 -1
+mismatched input '\\n' expecting RPAREN
+### backslash then comment line
+error 2 5
+no viable alternative at input '\\n'
+### backslash at line start
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=2))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=3, col_offset=0)], value=Num(n=2, lineno=3, col_offset=4), lineno=3, col_offset=0)])
+### backslash at end of file [nonl]
+error 0 0
+unexpected character after line continuation character
+### backslash newline end of file
+error 0 0
+unexpected character after line continuation character
+### backslash in middle
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='z', ctx=Store())], value=Num(n=2))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='z', ctx=Store(), lineno=2, col_offset=0)], value=Num(n=2, lineno=2, col_offset=4), lineno=2, col_offset=0)])
+### backslash before letter at line start
+error 1 3
+mismatched input ' ' expecting EOF
+### backslash then astral
+error 0 0
+internal error: ValueError
+### exclamation then astral
+error 0 0
+internal error: ValueError
+### unterminated single quote
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store()), Name(id='y', ctx=Store())], value=Num(n=2))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0), Name(id='y', ctx=Store(), lineno=2, col_offset=0)], value=Num(n=2, lineno=2, col_offset=4), lineno=1, col_offset=0)])
+### unterminated double quote
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store()), Name(id='y', ctx=Store())], value=Num(n=2))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0), Name(id='y', ctx=Store(), lineno=2, col_offset=0)], value=Num(n=2, lineno=2, col_offset=4), lineno=1, col_offset=0)])
+### unterminated quote at end [nonl]
+error 2 0
+no viable alternative at input '\\n'
+### unterminated triple quote
+error 1 2
+no viable alternative at input '\\n'
+### quote then newline
+error 1 5
+no viable alternative at character '\\n'
+### two quotes then newline
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=''))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### escaped quote unterminated
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store()), Name(id='y', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0), Name(id='y', ctx=Store(), lineno=2, col_offset=0)], value=Num(n=1, lineno=2, col_offset=4), lineno=1, col_offset=0)])
+### string with escaped newline
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='ab'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='ab', lineno=2, col_offset=-1), lineno=1, col_offset=0)])
+### triple with quotes inside
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s="a''b'c"))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s="a''b'c", lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### triple ending with quote
+error 1 12
+no viable alternative at character '\\n'
+### triple starting with quote
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='"a'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='"a', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### triple with escaped quote
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='a"'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='a"', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### triple empty
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=''))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### six double quotes
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=''))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### multiline string positions
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Tuple(elts=[Num(n=1), Str(s='a\\nb'), Num(n=2)], ctx=Load()))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Tuple(elts=[Num(n=1, lineno=1, col_offset=5), Str(s='a\\nb', lineno=2, col_offset=-1), Num(n=2, lineno=2, col_offset=6)], ctx=Load(), lineno=1, col_offset=5), lineno=1, col_offset=0)])
+### multiline string first in expression
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=BinOp(left=Str(s='a\\nb'), op=Add(), right=Name(id='c', ctx=Load())))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=BinOp(left=Str(s='a\\nb', lineno=2, col_offset=-1), op=Add(), right=Name(id='c', ctx=Load(), lineno=2, col_offset=7), lineno=2, col_offset=-1), lineno=1, col_offset=0)])
+### multiline string statement
+ok
+Module(body=[Expr(value=Str(s='a\\nb')), Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Expr(value=Str(s='a\\nb', lineno=2, col_offset=-1), lineno=2, col_offset=-1), Assign(targets=[Name(id='x', ctx=Store(), lineno=3, col_offset=0)], value=Num(n=1, lineno=3, col_offset=4), lineno=3, col_offset=0)])
+### multiline string call
+ok
+Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[Str(s='a\\nb')], keywords=[], starargs=None, kwargs=None))])
+Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load(), lineno=1, col_offset=0), args=[Str(s='a\\nb', lineno=2, col_offset=-1)], keywords=[], starargs=None, kwargs=None, lineno=1, col_offset=0), lineno=1, col_offset=0)])
+### multiline string subscript
+ok
+Module(body=[Expr(value=Subscript(value=Str(s='a\\nb'), slice=Index(value=Num(n=0)), ctx=Load()))])
+Module(body=[Expr(value=Subscript(value=Str(s='a\\nb', lineno=2, col_offset=-1), slice=Index(value=Num(n=0, lineno=2, col_offset=5)), ctx=Load(), lineno=2, col_offset=-1), lineno=2, col_offset=-1)])
+### multiline string concat
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='a\\nbc'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='a\\nbc', lineno=2, col_offset=-1), lineno=1, col_offset=0)])
+### concat then multiline
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='ca\\nb'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='ca\\nb', lineno=1, col_offset=5), lineno=1, col_offset=0)])
+### multiline string in block start
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Expr(value=Str(s='a\\nb')), Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=1))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Expr(value=Str(s='a\\nb', lineno=3, col_offset=-1), lineno=3, col_offset=-1), Assign(targets=[Name(id='y', ctx=Store(), lineno=4, col_offset=4)], value=Num(n=1, lineno=4, col_offset=8), lineno=4, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### multiline string at col 0 in block
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=1))], orelse=[]), Expr(value=Str(s='a\\nb'))])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0), Expr(value=Str(s='a\\nb', lineno=4, col_offset=-1), lineno=4, col_offset=-1)])
+### multiline string dedent block
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[]), Expr(value=Str(s='doc\\n'))])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0), Expr(value=Str(s='doc\\n', lineno=4, col_offset=-1), lineno=4, col_offset=-1)])
+### escaped newline string statement
+ok
+Module(body=[Expr(value=Str(s='ab'))])
+Module(body=[Expr(value=Str(s='ab', lineno=2, col_offset=-1), lineno=2, col_offset=-1)])
+### unicode escapes
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\xe9\\U0001f600A'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\xe9\\U0001f600A', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### unicode escape in str
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='\\\\u00e9'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='\\\\u00e9', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### unicode raw escape
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\xe9 \\\\\\\\u00e9'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\xe9 \\\\\\\\u00e9', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### unicode surrogate pair escape
+error 0 0
+internal error: UnicodeDecodeError
+### unicode lone surrogate escape
+error 0 0
+internal error: UnicodeDecodeError
+### unicode raw lone surrogate
+error 0 0
+internal error: ValueError
+### unicode raw pair across literals
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\U0001f600'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\U0001f600', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### unicode truncated escape
+error 0 0
+internal error: UnicodeDecodeError
+### unicode big escape
+error 0 0
+internal error: UnicodeDecodeError
+### named escape
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u2022\\xe9'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u2022\\xe9', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### named escape lowercase
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u2022'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u2022', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### named escape malformed
+error 0 0
+internal error: UnicodeDecodeError
+### named escape in str
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='\\\\N{BULLET}'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='\\\\N{BULLET}', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### hex escape truncated
+error 0 0
+internal error: UnicodeDecodeError
+### octal escape large
+error 0 0
+internal error: java.lang.IllegalArgumentException
+### octal escape large unicode
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u01ff'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u01ff', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### octal escape 400
+error 0 0
+internal error: java.lang.IllegalArgumentException
+### octal escape 377
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='\\xff'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='\\xff', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### unknown escapes
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='\\\\q\\\\8\\\\9'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='\\\\q\\\\8\\\\9', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### non ascii str
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='\\xc3\\xa9\\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='\\xc3\\xa9\\xe2\\x82\\xac\\xf0\\x9f\\x98\\x80', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### non ascii unicode
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\xe9\\u20ac\\U0001f600'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\xe9\\u20ac\\U0001f600', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### non ascii raw
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='\\xc3\\xa9\\\\n'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='\\xc3\\xa9\\\\n', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### non ascii comment
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=2))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=0)], value=Num(n=2, lineno=2, col_offset=4), lineno=2, col_offset=0)])
+### non ascii column
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\U0001f600\\U0001f600')), Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\U0001f600\\U0001f600', lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=1, col_offset=13)], value=Num(n=1, lineno=1, col_offset=17), lineno=1, col_offset=13)])
+### non ascii column after str
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='\\xc3\\xa9\\xc3\\xa9')), Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='\\xc3\\xa9\\xc3\\xa9', lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=1, col_offset=10)], value=Num(n=1, lineno=1, col_offset=14), lineno=1, col_offset=10)])
+### non ascii identifier
+error 1 3
+no viable alternative at character 'é'
+### non ascii outside string
+error 1 6
+no viable alternative at character 'é'
+### astral outside string
+error 0 0
+internal error: ValueError
+### mixed str unicode concat
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'a\\xc3\\xa9b'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'a\\xc3\\xa9b', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### bom
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### tab width 8
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=1)], value=Num(n=1, lineno=2, col_offset=5), lineno=2, col_offset=1), Assign(targets=[Name(id='b', ctx=Store(), lineno=3, col_offset=8)], value=Num(n=2, lineno=3, col_offset=12), lineno=3, col_offset=8)], orelse=[], lineno=1, col_offset=0)])
+### tab after 4 spaces
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=5)], value=Num(n=1, lineno=2, col_offset=9), lineno=2, col_offset=5), Assign(targets=[Name(id='b', ctx=Store(), lineno=3, col_offset=1)], value=Num(n=2, lineno=3, col_offset=5), lineno=3, col_offset=1)], orelse=[], lineno=1, col_offset=0)])
+### tab mismatch
+error 3 4
+unindent does not match any outer indentation level
+### spaces then tab equal
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=8)], value=Num(n=1, lineno=2, col_offset=12), lineno=2, col_offset=8), Assign(targets=[Name(id='b', ctx=Store(), lineno=3, col_offset=1)], value=Num(n=2, lineno=3, col_offset=5), lineno=3, col_offset=1)], orelse=[], lineno=1, col_offset=0)])
+### trailing whitespace lines
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=2))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=4, col_offset=0)], value=Num(n=2, lineno=4, col_offset=4), lineno=4, col_offset=0)])
+### whitespace only at end [nonl]
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### whitespace only at end of block [nonl]
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=1))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### comment indented at end of block
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=1))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### comment at end no newline in block [nonl]
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=1))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### empty lines with tabs in block
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='z', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=1)], value=Num(n=1, lineno=2, col_offset=5), lineno=2, col_offset=1), Assign(targets=[Name(id='z', ctx=Store(), lineno=4, col_offset=1)], value=Num(n=2, lineno=4, col_offset=5), lineno=4, col_offset=1)], orelse=[], lineno=1, col_offset=0)])
+### dedent to comment level
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[If(test=Name(id='y', ctx=Load()), body=[Expr(value=Name(id='a', ctx=Load()))], orelse=[])], orelse=[]), Expr(value=Name(id='b', ctx=Load()))])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[If(test=Name(id='y', ctx=Load(), lineno=2, col_offset=7), body=[Expr(value=Name(id='a', ctx=Load(), lineno=3, col_offset=8), lineno=3, col_offset=8)], orelse=[], lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0), Expr(value=Name(id='b', ctx=Load(), lineno=5, col_offset=0), lineno=5, col_offset=0)])
+### numbers adjacent names
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=IfExp(test=Name(id='y', ctx=Load()), body=Num(n=1), orelse=Num(n=2)))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=IfExp(test=Name(id='y', ctx=Load(), lineno=1, col_offset=8), body=Num(n=1, lineno=1, col_offset=4), orelse=Num(n=2, lineno=1, col_offset=15), lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### number then e name
+error 1 6
+no viable alternative at character 'l'
+### number dot attribute
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Attribute(value=Num(n=1), attr='real', ctx=Load()))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Attribute(value=Num(n=1, lineno=1, col_offset=4), attr='real', ctx=Load(), lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### hex then name
+error 1 8
+no viable alternative at input 'g'
+### octal 8
+error 1 6
+no viable alternative at character '\\n'
+### octal 0778
+error 1 8
+no viable alternative at character '\\n'
+### octal 0778 float
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=778.5))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=778.5, lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### binary empty
+error 0 0
+internal error: java.lang.NumberFormatException
+### octal empty
+error 0 0
+internal error: java.lang.NumberFormatException
+### octal empty long
+error 0 0
+internal error: java.lang.NumberFormatException
+### binary 2
+error 0 0
+internal error: java.lang.NumberFormatException
+### hex empty
+error 1 6
+no viable alternative at character '\\n'
+### exponent empty
+error 1 6
+no viable alternative at character '\\n'
+### exponent sign empty
+error 1 7
+no viable alternative at character '\\n'
+### dot exponent empty
+error 1 7
+no viable alternative at character '\\n'
+### complex long
+error 1 6
+no viable alternative at input 'L'
+### long complex
+error 1 6
+no viable alternative at input 'j'
+### float long
+error 1 7
+no viable alternative at input 'L'
+### dots
+ok
+Module(body=[Expr(value=Subscript(value=Name(id='x', ctx=Load()), slice=Ellipsis(), ctx=Load())), Expr(value=Subscript(value=Name(id='x', ctx=Load()), slice=Ellipsis(), ctx=Load()))])
+Module(body=[Expr(value=Subscript(value=Name(id='x', ctx=Load(), lineno=1, col_offset=0), slice=Ellipsis(), ctx=Load(), lineno=1, col_offset=0), lineno=1, col_offset=0), Expr(value=Subscript(value=Name(id='x', ctx=Load(), lineno=1, col_offset=8), slice=Ellipsis(), ctx=Load(), lineno=1, col_offset=8), lineno=1, col_offset=8)])
+### dot dot
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Attribute(value=Num(n=1.0), attr='real', ctx=Load()))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Attribute(value=Num(n=1.0, lineno=1, col_offset=4), attr='real', ctx=Load(), lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### underscore number
+error 1 5
+no viable alternative at input '_000'
+### dollar
+error 1 4
+no viable alternative at character '$'
+### question
+error 1 4
+no viable alternative at character '?'
+### lone exclamation
+ok
+Module(body=[])
+Module(body=[])
+### exclamation newline
+error 2 0
+no viable alternative at input 'y'
+### not equal spaced
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store()), Name(id='a', ctx=Store())], value=Name(id='b', ctx=Load()))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0), Name(id='a', ctx=Store(), lineno=1, col_offset=4)], value=Name(id='b', ctx=Load(), lineno=1, col_offset=10), lineno=1, col_offset=0)])
+### string prefix combos
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Tuple(elts=[Str(s=u'a'), Str(s=u'b'), Str(s='c'), Str(s='d'), Str(s='e'), Str(s='f'), Str(s=u'g'), Str(s=u'h'), Str(s=u'i'), Str(s=u'j'), Str(s='k'), Str(s='l'), Str(s='m'), Str(s='n')], ctx=Load()))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Tuple(elts=[Str(s=u'a', lineno=1, col_offset=4), Str(s=u'b', lineno=1, col_offset=10), Str(s='c', lineno=1, col_offset=16), Str(s='d', lineno=1, col_offset=22), Str(s='e', lineno=1, col_offset=28), Str(s='f', lineno=1, col_offset=34), Str(s=u'g', lineno=1, col_offset=40), Str(s=u'h', lineno=1, col_offset=47), Str(s=u'i', lineno=1, col_offset=54), Str(s=u'j', lineno=1, col_offset=61), Str(s='k', lineno=1, col_offset=68), Str(s='l', lineno=1, col_offset=75), Str(s='m', lineno=1, col_offset=82), Str(s='n', lineno=1, col_offset=89)], ctx=Load(), lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### string prefix invalid
+error 1 6
+no viable alternative at input ''a''
+### string prefix invalid ru
+error 1 6
+no viable alternative at input ''a''
+### prefix name
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=BinOp(left=BinOp(left=BinOp(left=BinOp(left=Name(id='u', ctx=Load()), op=Add(), right=Name(id='r', ctx=Load())), op=Add(), right=Name(id='b', ctx=Load())), op=Add(), right=Name(id='ur', ctx=Load())), op=Add(), right=Name(id='br', ctx=Load())))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=BinOp(left=BinOp(left=BinOp(left=BinOp(left=Name(id='u', ctx=Load(), lineno=1, col_offset=4), op=Add(), right=Name(id='r', ctx=Load(), lineno=1, col_offset=8), lineno=1, col_offset=4), op=Add(), right=Name(id='b', ctx=Load(), lineno=1, col_offset=12), lineno=1, col_offset=10), op=Add(), right=Name(id='ur', ctx=Load(), lineno=1, col_offset=16), lineno=1, col_offset=14), op=Add(), right=Name(id='br', ctx=Load(), lineno=1, col_offset=21), lineno=1, col_offset=19), lineno=1, col_offset=0)])
+### keywords as prefix of names
+ok
+Module(body=[Assign(targets=[Name(id='iff', ctx=Store()), Name(id='elsee', ctx=Store()), Name(id='notx', ctx=Store()), Name(id='andy', ctx=Store()), Name(id='ora', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='iff', ctx=Store(), lineno=1, col_offset=0), Name(id='elsee', ctx=Store(), lineno=1, col_offset=6), Name(id='notx', ctx=Store(), lineno=1, col_offset=14), Name(id='andy', ctx=Store(), lineno=1, col_offset=21), Name(id='ora', ctx=Store(), lineno=1, col_offset=28)], value=Num(n=1, lineno=1, col_offset=34), lineno=1, col_offset=0)])
+### print future attribute
+ok
+Module(body=[ImportFrom(module='__future__', names=[alias(name='print_function', asname=None)], level=0), Assign(targets=[Attribute(value=Name(id='print', ctx=Load()), attr='x', ctx=Store())], value=Num(n=1))])
+Module(body=[ImportFrom(module='__future__', names=[alias(name='print_function', asname=None)], level=0, lineno=1, col_offset=0), Assign(targets=[Attribute(value=Name(id='print', ctx=Load(), lineno=2, col_offset=0), attr='x', ctx=Store(), lineno=2, col_offset=0)], value=Num(n=1, lineno=2, col_offset=10), lineno=2, col_offset=0)])
+### print as attribute
+ok
+Module(body=[Assign(targets=[Attribute(value=Name(id='x', ctx=Load()), attr='print', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Attribute(value=Name(id='x', ctx=Load(), lineno=1, col_offset=0), attr='print', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=10), lineno=1, col_offset=0)])
+### exec as attribute
+ok
+Module(body=[Expr(value=Attribute(value=Name(id='x', ctx=Load()), attr='exec', ctx=Load()))])
+Module(body=[Expr(value=Attribute(value=Name(id='x', ctx=Load(), lineno=1, col_offset=0), attr='exec', ctx=Load(), lineno=1, col_offset=0), lineno=1, col_offset=0)])
+### long line continuation chain
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=BinOp(left=BinOp(left=Num(n=1), op=Add(), right=Num(n=2)), op=Add(), right=Num(n=3)))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=BinOp(left=BinOp(left=Num(n=1, lineno=1, col_offset=4), op=Add(), right=Num(n=2, lineno=2, col_offset=4), lineno=1, col_offset=4), op=Add(), right=Num(n=3, lineno=3, col_offset=4), lineno=2, col_offset=6), lineno=1, col_offset=0)])
+### continuation then dedent
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='y', ctx=Store())], value=BinOp(left=Num(n=1), op=Add(), right=Num(n=2)))], orelse=[]), Assign(targets=[Name(id='z', ctx=Store())], value=Num(n=3))])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=4)], value=BinOp(left=Num(n=1, lineno=2, col_offset=8), op=Add(), right=Num(n=2, lineno=3, col_offset=0), lineno=2, col_offset=8), lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0), Assign(targets=[Name(id='z', ctx=Store(), lineno=4, col_offset=0)], value=Num(n=3, lineno=4, col_offset=4), lineno=4, col_offset=0)])
+### implicit joining with tabs
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=List(elts=[Num(n=1), Num(n=2)], ctx=Load()))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=List(elts=[Num(n=1, lineno=2, col_offset=1), Num(n=2, lineno=3, col_offset=2)], ctx=Load(), lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### nested parens newlines
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Tuple(elts=[Num(n=1), Num(n=2)], ctx=Load()))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Tuple(elts=[Num(n=1, lineno=2, col_offset=0), Num(n=2, lineno=5, col_offset=0)], ctx=Load(), lineno=1, col_offset=5), lineno=1, col_offset=0)])
+### unbalanced close then newline
+error 1 5
+mismatched input ')' expecting NEWLINE
+### close bracket first
+error 1 0
+mismatched input ')' expecting EOF
+### comment only file no newline [nonl]
+ok
+Module(body=[])
+Module(body=[])
+### empty file with spaces [nonl]
+ok
+Module(body=[])
+Module(body=[])
+### empty file with tab [nonl]
+ok
+Module(body=[])
+Module(body=[])
+### newlines only
+ok
+Module(body=[])
+Module(body=[])
+### indented comment first line
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=2, col_offset=0)], value=Num(n=1, lineno=2, col_offset=4), lineno=2, col_offset=0)])
+### indented code first line
+error 1 4
+mismatched input '    ' expecting EOF
+### indented blank first line
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=2, col_offset=0)], value=Num(n=1, lineno=2, col_offset=4), lineno=2, col_offset=0)])

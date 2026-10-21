@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Parses Python sources with IA's Jython 2.7 and records, per source, the
+# ast.dump output or the SyntaxError (default), or the token stream that the
+# parser sees (--tokens).
+#
+# usage: oracle/run-oracle.sh [--tokens] ROOT LIST OUT
+#
+#   ROOT  directory that contains the inputs
+#   LIST  file with one path per line, relative to ROOT; ".cases" files hold
+#         many small sources (see jython_ast_oracle.py)
+#   OUT   output file
+#
+# Needs Docker and the inductiveautomation/ignition image (override with
+# IGLINT_ORACLE_IMAGE). Everything runs in a single JVM.
+set -euo pipefail
+script=jython_ast_oracle.py
+if [[ "${1:-}" == "--tokens" ]]; then
+  script=jython_token_oracle.py
+  shift
+fi
+image="${IGLINT_ORACLE_IMAGE:-inductiveautomation/ignition:8.3.3}"
+root="$(cd "$1" && pwd)"
+list="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
+out="$3"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+cp "$list" "$work/list.txt"
+chmod 777 "$work"
+
+docker run --rm \
+  -v "$root":/w:ro \
+  -v "$work":/out \
+  -v "$here":/oracle:ro \
+  --entrypoint sh "$image" -c '
+    CP=$(ls /usr/local/bin/ignition/lib/core/common/*.jar | tr "\n" ":")
+    cd /w
+    exec /usr/local/bin/ignition/lib/runtime/jre-nix/bin/java -Xss16m -cp "$CP" \
+      -Dpython.path=/usr/local/bin/ignition/user-lib/pylib:/oracle \
+      -Dpython.import.site=false -Dpython.cachedir.skip=true \
+      -Dpython.console.encoding=UTF-8 \
+      org.python.util.jython "/oracle/$0" /out/list.txt /out/result.txt' "$script"
+cp "$work/result.txt" "$out"

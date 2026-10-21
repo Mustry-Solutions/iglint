@@ -458,6 +458,9 @@ dependencies = [
 [[package]]
 name = "iglint_python"
 version = "0.1.0"
+dependencies = [
+ "iglint_text",
+]
 
 [[package]]
 name = "iglint_python_semantic"
