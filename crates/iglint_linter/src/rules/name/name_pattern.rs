@@ -1,0 +1,1319 @@
+//! NAME001 name-pattern.
+
+use std::collections::BTreeMap;
+
+use iglint_json::{Value, ValueKind};
+use iglint_project::node_path::strip_indices;
+use iglint_project::view::{Component, View};
+use iglint_project::{FileId, Owner};
+use iglint_text::{TextEdit, TextRange};
+use regex::Regex;
+use rustc_hash::FxHashSet;
+
+use super::convention::{
+    BUILTIN_ABBREVIATIONS, Convention, compile, normalize_abbreviations, suggest,
+};
+use super::rename::{References, escaped};
+use crate::checker::Checker;
+use crate::diagnostic::{Fix, Severity};
+use crate::options::OptionReader;
+use crate::registry::{Category, FixAvailability, OptionMeta, OptionType, RuleMeta};
+use crate::rule::{Hook, ParsedOptions, Phase, RuleImpl, ViewRule};
+use crate::settings::OptionValue;
+
+pub static META: RuleMeta = RuleMeta {
+    code: "NAME001",
+    name: "name-pattern",
+    category: Category::Name,
+    default_severity: Severity::Warning,
+    default_enabled: false,
+    fix: FixAvailability::Sometimes,
+    summary: "Name does not follow the configured naming convention",
+    explanation: r#"## What it does
+
+Checks the names of components (`meta.name`), properties (custom
+properties, view parameters and the free-form keys inside them), message
+handlers (their `messageType`) and custom methods against a naming
+convention or a regular expression, with per-node-type settings. By default
+only component names are checked, against PascalCase, and `root` is skipped.
+
+A failing name gets a suggestion in the configured convention. For
+components the suggestion is offered as a fix that renames the component
+and updates every reference to it in the view: property references in
+expressions (`{../Label.props.text}`, `{/root/Panel/Label.custom.x}`),
+property binding paths, indirect tag binding references, and literal
+`getChild('...')` / `getSibling('...')` calls in scripts whose receiver
+resolves (`self`, `self.parent`, `self.view.rootContainer`, earlier
+lookups). References are found by resolution, so a different component with
+the same name elsewhere in the view is left alone.
+
+The fix is offered only when every reference can be updated: a literal
+lookup on an unresolvable receiver naming the component, a suggestion that
+is taken by a sibling or that would itself break the convention, means no
+fix. It is *safe* when the view has nothing that could refer to the
+component in a way iglint cannot follow (no references at all, no script
+reads `meta.name`, no script looks up children with computed names or has a
+string literal equal to the name, every script parses), and *unsafe*
+otherwise.
+
+Keys of `props` that the component's schema declares (`text`, `style`,
+`pipes`, ...) are Ignition's names, not yours, and are never checked; only
+free-form keys (for example the `params` passed to an embedded view) are.
+Style objects, `position`, private names (starting with `_`), Java dates
+and dataset internals are skipped.
+
+## Why is this bad?
+
+Consistent names make views readable and make references such as
+`{../SaveButton.props.enabled}` predictable. Names with spaces or
+punctuation are easy to mistype in property paths and scripts.
+
+## Example
+
+With `convention = "PascalCase"`:
+
+```json
+{"meta": {"name": "save button"}, "type": "ia.input.button"}
+```
+
+Use instead:
+
+```json
+{"meta": {"name": "SaveButton"}, "type": "ia.input.button"}
+```
+
+## Options
+
+* `convention`: one of `PascalCase`, `camelCase`, `snake_case`,
+  `kebab-case`, `SCREAMING_SNAKE_CASE`, `Title Case`, `lower case`. Unset
+  means PascalCase without suggestions.
+* `custom-pattern`: a regular expression (matched at the start of the name,
+  like Python's `re.match`) that replaces the convention's pattern.
+* `suggestion-convention`: the convention suggestions are written in, when
+  it differs from `convention` (for example with a `custom-pattern`).
+* `target-node-types`: node types to check: `component`, `property`,
+  `message_handler`, `custom_method`. Defaults to the keys of `per-type`, or
+  `["component"]`.
+* `per-type`: a table from node type to overrides of `convention`,
+  `pattern`, `pattern_description`, `suggestion_convention`, `min_length`,
+  `max_length`, `forbidden_names`, `skip_names`, `severity` and
+  `allow_numbers`.
+* `allow-numbers`: whether convention patterns accept digits.
+* `min-length`, `max-length`: length limits (characters).
+* `forbidden-names`: names that are always reported.
+* `skip-names`: names never checked; giving a list replaces the default
+  `["root"]`.
+* `allowed-abbreviations`: extra abbreviations; an abbreviation written in
+  capitals as a whole word is accepted where the convention writes words
+  differently (`read_API_data` in snake_case, `API Key` in Title Case).
+* `auto-detect-abbreviations`: also use the built-in list (`API`, `HTTP`,
+  `ID`, `URL`, ...).
+
+## ign-lint
+
+Equivalent of `NamePatternRule`; every kwarg maps to the option of the same
+name (`node_type_specific_rules` is `per-type`) and `iglint ign-lint`
+prints the same messages. Intended differences
+(`docs/compat/ign-lint-differences.md`): abbreviations only ever widen what
+is accepted (ign-lint's substring replacement rejects `idleTimer`,
+`restartButton` or `urlParams` in camelCase and accepts any SCREAMING name
+containing an abbreviation); suggestions keep digits and split words
+consistently (`badEmbeddedPotato_0` becomes `BadEmbeddedPotato0`, not
+`Badembeddedpotato0`); a component is never reported as colliding with its
+own name; schema-defined `props` keys and propConfig metadata are not
+properties; object-valued properties are checked too, not only leaves;
+renames update references by resolution and are unsafe when scripts could
+refer to the component dynamically.
+"#,
+    options: &[
+        OptionMeta {
+            name: "convention",
+            ty: OptionType::String,
+            default: "none",
+            description: "Naming convention of all node types.",
+        },
+        OptionMeta {
+            name: "custom-pattern",
+            ty: OptionType::String,
+            default: "none",
+            description: "Regular expression replacing the convention's pattern.",
+        },
+        OptionMeta {
+            name: "suggestion-convention",
+            ty: OptionType::String,
+            default: "none",
+            description: "Convention used for suggestions.",
+        },
+        OptionMeta {
+            name: "target-node-types",
+            ty: OptionType::StringList,
+            default: "none",
+            description: "Node types to check.",
+        },
+        OptionMeta {
+            name: "per-type",
+            ty: OptionType::Table,
+            default: "{}",
+            description: "Per node type overrides.",
+        },
+        OptionMeta {
+            name: "allow-numbers",
+            ty: OptionType::Bool,
+            default: "true",
+            description: "Whether convention patterns accept digits.",
+        },
+        OptionMeta {
+            name: "min-length",
+            ty: OptionType::Integer,
+            default: "1",
+            description: "Minimum name length.",
+        },
+        OptionMeta {
+            name: "max-length",
+            ty: OptionType::Integer,
+            default: "none",
+            description: "Maximum name length.",
+        },
+        OptionMeta {
+            name: "forbidden-names",
+            ty: OptionType::StringList,
+            default: "[]",
+            description: "Names that are always reported.",
+        },
+        OptionMeta {
+            name: "skip-names",
+            ty: OptionType::StringList,
+            default: "[\"root\"]",
+            description: "Names never checked.",
+        },
+        OptionMeta {
+            name: "allowed-abbreviations",
+            ty: OptionType::StringList,
+            default: "[]",
+            description: "Extra abbreviations.",
+        },
+        OptionMeta {
+            name: "auto-detect-abbreviations",
+            ty: OptionType::Bool,
+            default: "true",
+            description: "Use the built-in abbreviation list.",
+        },
+    ],
+    ign_lint_names: &["NamePatternRule"],
+    ign_lint_option_map: &[
+        ("convention", "convention"),
+        ("custom_pattern", "custom-pattern"),
+        ("suggestion_convention", "suggestion-convention"),
+        ("target_node_types", "target-node-types"),
+        ("node_type_specific_rules", "per-type"),
+        ("allow_numbers", "allow-numbers"),
+        ("min_length", "min-length"),
+        ("max_length", "max-length"),
+        ("forbidden_names", "forbidden-names"),
+        ("skip_names", "skip-names"),
+        ("allowed_abbreviations", "allowed-abbreviations"),
+        ("auto_detect_abbreviations", "auto-detect-abbreviations"),
+    ],
+};
+
+pub static RULE: RuleImpl = RuleImpl {
+    meta: &META,
+    phase: Phase::Local,
+    hooks: &[Hook::View(&NamePattern)],
+    options: Some(parse_options),
+};
+
+/// The kinds of names the rule checks (ign-lint's node type names).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NodeType {
+    Component,
+    Property,
+    MessageHandler,
+    CustomMethod,
+}
+
+impl NodeType {
+    const ALL: [NodeType; 4] = [
+        NodeType::Component,
+        NodeType::Property,
+        NodeType::MessageHandler,
+        NodeType::CustomMethod,
+    ];
+
+    fn name(self) -> &'static str {
+        match self {
+            NodeType::Component => "component",
+            NodeType::Property => "property",
+            NodeType::MessageHandler => "message_handler",
+            NodeType::CustomMethod => "custom_method",
+        }
+    }
+
+    fn parse(s: &str) -> Option<NodeType> {
+        NodeType::ALL.into_iter().find(|t| t.name() == s)
+    }
+}
+
+/// How suggestions are made for a node type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Suggestion {
+    /// No suggestion is shown.
+    None,
+    /// A suggestion convention that is not known: ign-lint shows
+    /// `No suggestion available`.
+    Unknown,
+    In(Convention),
+}
+
+/// The resolved settings of one node type.
+#[derive(Debug)]
+struct TypeRules {
+    regex: Regex,
+    description: String,
+    /// Convention used to accept whole-word abbreviations.
+    normalize: Option<Convention>,
+    suggestion: Suggestion,
+    allow_numbers: bool,
+    min_length: usize,
+    max_length: Option<usize>,
+    forbidden: Vec<String>,
+    skip: Vec<String>,
+    severity: Option<Severity>,
+}
+
+/// Parsed options.
+#[derive(Debug)]
+pub struct Options {
+    types: Vec<(NodeType, TypeRules)>,
+    abbreviations: Vec<String>,
+}
+
+impl Options {
+    fn rules(&self, t: NodeType) -> Option<&TypeRules> {
+        self.types.iter().find(|(n, _)| *n == t).map(|(_, r)| r)
+    }
+}
+
+fn table_get<'t>(table: &'t BTreeMap<String, OptionValue>, key: &str) -> Option<&'t OptionValue> {
+    table.get(key).or_else(|| table.get(&key.replace('_', "-")))
+}
+
+fn string_list(value: &OptionValue, what: &str) -> Result<Vec<String>, String> {
+    value
+        .as_string_list()
+        .map(|l| l.into_iter().map(str::to_owned).collect())
+        .ok_or_else(|| format!("`{what}` must be an array of strings"))
+}
+
+fn length(value: &OptionValue, what: &str) -> Result<usize, String> {
+    value
+        .as_i64()
+        .and_then(|n| usize::try_from(n).ok())
+        .ok_or_else(|| format!("`{what}` must be a non-negative integer"))
+}
+
+fn parse_options(o: &OptionReader<'_>) -> Result<ParsedOptions, String> {
+    let convention = o.opt_string("convention")?;
+    let custom_pattern = o.opt_string("custom-pattern")?;
+    let suggestion_convention = o.opt_string("suggestion-convention")?;
+    let allow_numbers = o.bool("allow-numbers")?;
+    let min_length = usize::try_from(o.int("min-length")?).unwrap_or(0);
+    let max_length = o
+        .opt_int("max-length")?
+        .and_then(|n| usize::try_from(n).ok());
+    let forbidden = o.string_list("forbidden-names")?;
+    let skip = o.string_list("skip-names")?;
+    let per_type = o.table("per-type")?;
+    let mut abbreviations = o.string_list("allowed-abbreviations")?;
+    if o.bool("auto-detect-abbreviations")? {
+        abbreviations.extend(BUILTIN_ABBREVIATIONS.iter().map(|s| (*s).to_owned()));
+    }
+
+    let known = convention.as_deref().and_then(Convention::parse);
+    let (global_pattern, global_description) = match (&custom_pattern, known) {
+        (Some(p), _) => (p.clone(), format!("custom pattern: {p}")),
+        (None, Some(c)) => (c.regex_source(allow_numbers), c.description().to_owned()),
+        (None, None) => (
+            Convention::Pascal.regex_source(allow_numbers),
+            Convention::Pascal.description().to_owned(),
+        ),
+    };
+
+    let mut overrides: BTreeMap<String, BTreeMap<String, OptionValue>> = BTreeMap::new();
+    for (key, value) in &per_type {
+        if NodeType::parse(key).is_none() {
+            return Err(format!("unknown node type `{key}` in `per-type`"));
+        }
+        let Some(table) = value.as_table() else {
+            return Err(format!("`per-type.{key}` must be a table"));
+        };
+        overrides.insert(key.clone(), table.clone());
+    }
+
+    let targets: Vec<NodeType> = match o.opt_string_list("target-node-types")? {
+        Some(list) => {
+            let mut out = Vec::new();
+            for t in &list {
+                out.push(NodeType::parse(t).ok_or_else(|| {
+                    format!(
+                        "unknown node type `{t}`; expected one of component, property, message_handler, custom_method"
+                    )
+                })?);
+            }
+            out
+        }
+        None => Vec::new(),
+    };
+    let targets = if !targets.is_empty() {
+        targets
+    } else if !overrides.is_empty() {
+        overrides
+            .keys()
+            .filter_map(|k| NodeType::parse(k))
+            .collect()
+    } else {
+        vec![NodeType::Component]
+    };
+
+    let mut types = Vec::new();
+    for t in targets {
+        let empty = BTreeMap::new();
+        let ov = overrides.get(t.name()).unwrap_or(&empty);
+        let get_str = |k: &str| -> Result<Option<String>, String> {
+            match table_get(ov, k) {
+                None => Ok(None),
+                Some(v) => v
+                    .as_str()
+                    .map(|s| Some(s.to_owned()))
+                    .ok_or_else(|| format!("`per-type.{}.{k}` must be a string", t.name())),
+            }
+        };
+        let ov_convention = get_str("convention")?;
+        let ov_pattern = get_str("pattern")?;
+        let ov_description = get_str("pattern_description")?;
+        let ov_suggestion = get_str("suggestion_convention")?;
+        let ov_allow_numbers = match table_get(ov, "allow_numbers") {
+            None => allow_numbers,
+            Some(v) => v.as_bool().ok_or_else(|| {
+                format!("`per-type.{}.allow_numbers` must be a boolean", t.name())
+            })?,
+        };
+        let conv_name = ov_convention.clone().or_else(|| convention.clone());
+        let conv = conv_name.as_deref().and_then(Convention::parse);
+        let (pattern, description) = if let Some(p) = &ov_pattern {
+            (
+                p.clone(),
+                ov_description
+                    .clone()
+                    .unwrap_or_else(|| format!("custom pattern: {p}")),
+            )
+        } else if let Some(c) = ov_convention.as_deref().and_then(Convention::parse) {
+            (c.regex_source(ov_allow_numbers), c.description().to_owned())
+        } else if ov_convention.is_some() {
+            (
+                Convention::Pascal.regex_source(ov_allow_numbers),
+                Convention::Pascal.description().to_owned(),
+            )
+        } else {
+            (global_pattern.clone(), global_description.clone())
+        };
+        let suggestion_name = ov_suggestion.or_else(|| suggestion_convention.clone());
+        let suggestion = match (&suggestion_name, conv) {
+            (Some(s), _) => Convention::parse(s).map_or(Suggestion::Unknown, Suggestion::In),
+            (None, Some(c)) => Suggestion::In(c),
+            (None, None) => Suggestion::None,
+        };
+        let normalize = match suggestion {
+            Suggestion::In(c) if ov_pattern.is_some() || custom_pattern.is_some() => {
+                conv.or(Some(c))
+            }
+            _ => conv,
+        };
+        let severity = match table_get(ov, "severity") {
+            None => None,
+            Some(v) => Some(
+                v.as_str()
+                    .and_then(|s| matches!(s, "warning" | "error").then(|| Severity::parse(s)))
+                    .flatten()
+                    .ok_or_else(|| {
+                        format!(
+                            "`per-type.{}.severity` must be \"warning\" or \"error\"",
+                            t.name()
+                        )
+                    })?,
+            ),
+        };
+        types.push((
+            t,
+            TypeRules {
+                regex: compile(&pattern)?,
+                description,
+                normalize,
+                suggestion,
+                allow_numbers: ov_allow_numbers,
+                min_length: match table_get(ov, "min_length") {
+                    Some(v) => length(v, "min_length")?,
+                    None => min_length,
+                },
+                max_length: match table_get(ov, "max_length") {
+                    Some(v) => Some(length(v, "max_length")?),
+                    None => max_length,
+                },
+                forbidden: match table_get(ov, "forbidden_names") {
+                    Some(v) => string_list(v, "forbidden_names")?,
+                    None => forbidden.clone(),
+                },
+                skip: match table_get(ov, "skip_names") {
+                    Some(v) => string_list(v, "skip_names")?,
+                    None => skip.clone(),
+                },
+                severity,
+            },
+        ));
+    }
+    Ok(Box::new(Options {
+        types,
+        abbreviations,
+    }))
+}
+
+/// Why a name fails.
+enum Failure {
+    Forbidden,
+    TooShort(usize),
+    TooLong(usize),
+    Pattern,
+}
+
+fn check_name(name: &str, rules: &TypeRules, abbreviations: &[String]) -> Option<Failure> {
+    if rules.skip.iter().any(|s| s == name) {
+        return None;
+    }
+    if rules.forbidden.iter().any(|s| s == name) {
+        return Some(Failure::Forbidden);
+    }
+    let len = name.chars().count();
+    if len < rules.min_length {
+        return Some(Failure::TooShort(rules.min_length));
+    }
+    if let Some(max) = rules.max_length
+        && max > 0
+        && len > max
+    {
+        return Some(Failure::TooLong(max));
+    }
+    if matches_pattern(name, rules, abbreviations) {
+        None
+    } else {
+        Some(Failure::Pattern)
+    }
+}
+
+fn matches_pattern(name: &str, rules: &TypeRules, abbreviations: &[String]) -> bool {
+    rules.regex.is_match(name)
+        || rules
+            .normalize
+            .and_then(|c| normalize_abbreviations(name, c, abbreviations))
+            .is_some_and(|n| rules.regex.is_match(&n))
+}
+
+/// One name to check.
+struct Node<'a> {
+    name: &'a str,
+    file_range: TextRange,
+    node_path: String,
+    ign_lint_path: String,
+}
+
+struct NamePattern;
+
+impl ViewRule for NamePattern {
+    fn check_view(&self, cx: &mut Checker<'_, '_>, view: &View<'_>) {
+        let options: &Options = cx.options();
+        let file = cx.primary_file();
+        if let Some(rules) = options.rules(NodeType::Component) {
+            check_components(cx, view, file, rules, options);
+        }
+        if let Some(rules) = options.rules(NodeType::Property) {
+            for node in properties(view) {
+                report(cx, NodeType::Property, &node, rules, options, None);
+            }
+        }
+        if let Some(rules) = options.rules(NodeType::MessageHandler) {
+            for h in &view.message_handlers {
+                let Some(t) = h.message_type else { continue };
+                let node = Node {
+                    name: t.value(),
+                    file_range: t.range(),
+                    node_path: h.node_path.clone(),
+                    ign_lint_path: h.ign_lint_path.clone(),
+                };
+                report(cx, NodeType::MessageHandler, &node, rules, options, None);
+            }
+        }
+        if let Some(rules) = options.rules(NodeType::CustomMethod) {
+            for m in &view.custom_methods {
+                let Some(n) = m.name else { continue };
+                let node = Node {
+                    name: n.value(),
+                    file_range: n.range(),
+                    node_path: m.node_path.clone(),
+                    ign_lint_path: m.ign_lint_path.clone(),
+                };
+                report(cx, NodeType::CustomMethod, &node, rules, options, None);
+            }
+        }
+    }
+}
+
+fn message(t: NodeType, node: &Node<'_>, failure: &Failure, rules: &TypeRules) -> String {
+    let name = node.name;
+    let ty = t.name();
+    match failure {
+        Failure::Forbidden => format!("Name '{name}' is forbidden for {ty}"),
+        Failure::TooShort(n) => {
+            format!("Name '{name}' is too short (minimum {n} characters) for {ty}")
+        }
+        Failure::TooLong(n) => {
+            format!("Name '{name}' is too long (maximum {n} characters) for {ty}")
+        }
+        Failure::Pattern => format!(
+            "Name '{name}' doesn't follow {} for {ty}",
+            rules.description
+        ),
+    }
+}
+
+/// The suggestion for a failing name, if suggestions are configured and the
+/// suggestion differs from the name.
+fn suggestion_for(name: &str, rules: &TypeRules, options: &Options) -> Option<String> {
+    match rules.suggestion {
+        Suggestion::None => None,
+        Suggestion::Unknown => Some("No suggestion available".to_owned()),
+        Suggestion::In(c) => {
+            let s = suggest(name, c, &options.abbreviations, rules.allow_numbers);
+            (!s.is_empty() && s != name).then_some(s)
+        }
+    }
+}
+
+fn report(
+    cx: &mut Checker<'_, '_>,
+    t: NodeType,
+    node: &Node<'_>,
+    rules: &TypeRules,
+    options: &Options,
+    fix: Option<Fix>,
+) {
+    if node.name.is_empty() {
+        return;
+    }
+    let Some(failure) = check_name(node.name, rules, &options.abbreviations) else {
+        return;
+    };
+    let mut text = message(t, node, &failure, rules);
+    if matches!(failure, Failure::Pattern)
+        && let Some(s) = suggestion_for(node.name, rules, options)
+    {
+        text.push_str(&format!(" (suggestion: '{s}')"));
+    }
+    emit(cx, node, text, rules, fix);
+}
+
+fn emit(
+    cx: &mut Checker<'_, '_>,
+    node: &Node<'_>,
+    text: String,
+    rules: &TypeRules,
+    fix: Option<Fix>,
+) {
+    let file = cx.primary_file();
+    let severity = rules.severity.unwrap_or(cx.severity());
+    cx.report_in(file, node.file_range, text)
+        .node_path(node.node_path.clone())
+        .ign_lint_path(Some(node.ign_lint_path.clone()))
+        .severity(severity)
+        .fix_opt(fix);
+}
+
+fn check_components(
+    cx: &mut Checker<'_, '_>,
+    view: &View<'_>,
+    file: FileId,
+    rules: &TypeRules,
+    options: &Options,
+) {
+    let mut references: Option<References> = None;
+    // Names claimed by earlier renames, per parent.
+    let mut claimed: FxHashSet<(Option<u32>, String)> = FxHashSet::default();
+    for c in &view.components {
+        if c.name.is_empty() {
+            continue;
+        }
+        let Some(failure) = check_name(c.name, rules, &options.abbreviations) else {
+            continue;
+        };
+        let node = Node {
+            name: c.name,
+            file_range: c.name_range(),
+            node_path: c.path.clone(),
+            ign_lint_path: c.ign_lint_path.clone(),
+        };
+        let mut text = message(NodeType::Component, &node, &failure, rules);
+        let suggestion = suggestion_for(c.name, rules, options);
+        let siblings: Vec<&str> = match c.parent {
+            Some(p) => view
+                .children(p)
+                .filter(|s| s.id != c.id)
+                .map(|s| s.name)
+                .collect(),
+            None => Vec::new(),
+        };
+        let usable = suggestion.as_deref().filter(|s| {
+            matches!(rules.suggestion, Suggestion::In(_))
+                && !siblings.contains(s)
+                && check_name(s, rules, &options.abbreviations).is_none()
+        });
+        if let Some(s) = &suggestion
+            && matches!(failure, Failure::Pattern)
+        {
+            if siblings.contains(&s.as_str()) {
+                text.push_str(&format!(
+                    " (suggestion '{s}' already in use by a sibling; rename manually)"
+                ));
+            } else {
+                text.push_str(&format!(" (suggestion: '{s}')"));
+            }
+        }
+        let fix = usable.and_then(|new| {
+            let key = (c.parent.map(|p| p.0), new.to_owned());
+            if claimed.contains(&key) {
+                return None;
+            }
+            let refs =
+                references.get_or_insert_with(|| References::collect(view, cx.parsed_scripts()));
+            let fix = rename_fix(cx, view, c, file, new, refs)?;
+            claimed.insert(key);
+            Some(fix)
+        });
+        emit(cx, &node, text, rules, fix);
+    }
+}
+
+fn rename_fix(
+    cx: &Checker<'_, '_>,
+    view: &View<'_>,
+    c: &Component<'_>,
+    file: FileId,
+    new: &str,
+    refs: &References,
+) -> Option<Fix> {
+    if refs.blocked.contains(c.name) {
+        return None;
+    }
+    let name_value = c.name_value?;
+    let editor = cx.json_editor(file, view.root)?;
+    let style = editor.escape_style();
+    let mut edits = vec![editor.replace_with_string(name_value, new)];
+    let mut count = 0;
+    for site in refs.sites.iter().filter(|s| s.component == c.id) {
+        edits.push(TextEdit::replace(site.range, escaped(new, style)));
+        count += 1;
+    }
+    let risky = count > 0
+        || refs.meta_name_read.contains(&c.id)
+        || refs.dynamic_meta_name
+        || refs.dynamic_lookup
+        || refs.literals.contains(c.name);
+    let message = format!("Rename component '{}' to '{new}'", c.name);
+    let edits = cx.file_edits(file, edits);
+    Some(if risky {
+        Fix::unsafe_edit(message, edits)
+    } else {
+        Fix::safe(message, edits)
+    })
+}
+
+// ---- properties ----
+
+/// Path substrings ign-lint never treats as property names.
+const SKIPPED: &[&str] = &[
+    ".style.",
+    ".elementStyle.",
+    ".textStyle.",
+    ".instanceStyle.",
+    ".position.",
+    ".meta.",
+    ".binding.",
+    ".scripts.",
+    ".events.",
+];
+
+fn properties<'v>(view: &'v View<'v>) -> Vec<Node<'v>> {
+    let mut out = Vec::new();
+    let mut seen: FxHashSet<String> = FxHashSet::default();
+    let mut walker = PropertyWalker {
+        out: &mut out,
+        seen: &mut seen,
+    };
+    for (category, value) in [("custom", view.custom), ("params", view.params)] {
+        if let Some(value) = value {
+            walker.walk(value, category, &format!("view.{category}"), None);
+        }
+    }
+    for c in &view.components {
+        let ign = strip_indices(&c.ign_lint_path);
+        if let Some(custom) = c.custom {
+            walker.walk(
+                custom,
+                &format!("{ign}.custom"),
+                &format!("{}.custom", c.path),
+                None,
+            );
+        }
+        if let (Some(props), Some(ct)) = (c.props, c.component_type()) {
+            walker.walk(
+                props,
+                &format!("{ign}.props"),
+                &format!("{}.props", c.path),
+                Some(SchemaContext {
+                    ty: ct,
+                    path: String::new(),
+                }),
+            );
+        }
+    }
+    // Properties that exist only through their propConfig entry.
+    for pc in &view.prop_configs {
+        if !matches!(pc.path.category, "custom" | "params") {
+            continue;
+        }
+        if pc.path.category == "params" && pc.owner != Owner::View {
+            continue;
+        }
+        let key = pc.key.value();
+        let ign = match pc.owner {
+            Owner::View => strip_indices(key),
+            Owner::Component(c) => {
+                format!(
+                    "{}.{}",
+                    strip_indices(&view.component(c).ign_lint_path),
+                    strip_indices(key)
+                )
+            }
+            _ => continue,
+        };
+        let last = key.rsplit('.').next().unwrap_or(key);
+        let name = last.split('[').next().unwrap_or(last);
+        if name.is_empty() || name.starts_with('_') || !seen.insert(ign.clone()) {
+            continue;
+        }
+        if SKIPPED.iter().any(|s| format!("{ign}.").contains(s)) {
+            continue;
+        }
+        let start = key.len() - last.len();
+        let name_range = TextRange::at(
+            iglint_text::TextSize::from(start),
+            iglint_text::TextSize::of(name),
+        );
+        out.push(Node {
+            name,
+            file_range: pc.key.raw_range(name_range),
+            node_path: format!("{}.{key}", view.owner_path(pc.owner)),
+            ign_lint_path: ign,
+        });
+    }
+    out
+}
+
+#[derive(Clone)]
+struct SchemaContext {
+    ty: &'static iglint_stubs::ComponentType,
+    /// Path below `props`, e.g. `params` or `columns[0]`.
+    path: String,
+}
+
+struct PropertyWalker<'o, 'v> {
+    out: &'o mut Vec<Node<'v>>,
+    seen: &'o mut FxHashSet<String>,
+}
+
+impl<'v> PropertyWalker<'_, 'v> {
+    fn walk(&mut self, value: &'v Value<'v>, ign: &str, node: &str, schema: Option<SchemaContext>) {
+        match &value.kind {
+            ValueKind::Object(object) => {
+                if is_java_date(value) || is_dataset(value) {
+                    return;
+                }
+                for member in &object.members {
+                    let key = member.key();
+                    let child_ign = format!("{ign}.{key}");
+                    let probe = format!("{child_ign}.");
+                    if SKIPPED.iter().any(|s| probe.contains(s))
+                        || child_ign.contains(".props.aspectRatio")
+                        || (key == "d" && child_ign.contains(".props.elements"))
+                    {
+                        continue;
+                    }
+                    let child_node = format!("{node}.{key}");
+                    let (declared, child_schema) = match &schema {
+                        Some(s) => {
+                            let path = if s.path.is_empty() {
+                                key.to_owned()
+                            } else {
+                                format!("{}.{key}", s.path)
+                            };
+                            let declared = s.ty.prop(&path).is_some();
+                            (
+                                declared,
+                                declared.then_some(SchemaContext { ty: s.ty, path }),
+                            )
+                        }
+                        None => (false, None),
+                    };
+                    if !declared
+                        && !key.is_empty()
+                        && !key.starts_with('_')
+                        && self.seen.insert(child_ign.clone())
+                    {
+                        self.out.push(Node {
+                            name: key,
+                            file_range: member.key.range(),
+                            node_path: child_node.clone(),
+                            ign_lint_path: child_ign.clone(),
+                        });
+                    }
+                    self.walk(&member.value, &child_ign, &child_node, child_schema);
+                }
+            }
+            ValueKind::Array(array) => {
+                for (i, element) in array.iter().enumerate() {
+                    let child_schema = schema.as_ref().map(|s| SchemaContext {
+                        ty: s.ty,
+                        path: format!("{}[{i}]", s.path),
+                    });
+                    self.walk(element, ign, &format!("{node}[{i}]"), child_schema);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// `{"$": ["ts", ...], "$ts": n}`: a Java date as Ignition stores it.
+fn is_java_date(value: &Value<'_>) -> bool {
+    let Some(o) = value.as_object() else {
+        return false;
+    };
+    o.len() == 2
+        && o.get("$ts").is_some()
+        && o.get("$")
+            .and_then(Value::as_array)
+            .and_then(|a| a.get(0))
+            .and_then(Value::as_str)
+            == Some("ts")
+}
+
+/// `{"$": ["ds", ...], "$columns": [...], "rows": [...]}`: a dataset.
+fn is_dataset(value: &Value<'_>) -> bool {
+    value
+        .get("$")
+        .and_then(Value::as_array)
+        .and_then(|a| a.get(0))
+        .and_then(Value::as_str)
+        == Some("ds")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rules::test_support::*;
+
+    fn component(name: &str, ty: &str, extra: &str) -> String {
+        format!(r#"{{"meta": {{"name": "{name}"}}, "type": "{ty}"{extra}}}"#)
+    }
+
+    fn root(children: &[String]) -> String {
+        format!(
+            r#"{{"custom": {{}}, "params": {{}}, "root": {{"meta": {{"name": "root"}}, "type": "ia.container.flex", "children": [{}]}}}}"#,
+            children.join(", ")
+        )
+    }
+
+    #[test]
+    fn default_checks_components_against_pascal_case() {
+        let f = Fixture::view(&root(&[
+            component("saveButton", "ia.input.button", ""),
+            component("Title", "ia.display.label", ""),
+            component("Data Table", "ia.display.table", ""),
+        ]));
+        let d = f.lint(&["NAME001"]);
+        assert_eq!(
+            messages(&d),
+            vec![
+                (
+                    "NAME001".into(),
+                    "Name 'saveButton' doesn't follow PascalCase for component".into()
+                ),
+                (
+                    "NAME001".into(),
+                    "Name 'Data Table' doesn't follow PascalCase for component".into()
+                ),
+            ]
+        );
+        assert_eq!(flagged(&d), vec!["\"saveButton\"", "\"Data Table\""]);
+        assert_eq!(d[0].node_path.as_deref(), Some("root/saveButton"));
+        assert_eq!(
+            d[0].ign_lint_path.as_deref(),
+            Some("root.root.children[0].saveButton")
+        );
+        assert!(
+            d.iter().all(|d| d.fix.is_none()),
+            "no convention, no suggestion"
+        );
+    }
+
+    #[test]
+    fn camel_case_with_safe_rename() {
+        let view = root(&[component("SaveButton", "ia.input.button", "")]);
+        let f = Fixture::view(&view);
+        let rules = [("NAME001", "convention = \"camelCase\"")];
+        let d = f.lint_with(&rules);
+        assert_eq!(
+            d[0].message,
+            "Name 'SaveButton' doesn't follow camelCase for component (suggestion: 'saveButton')"
+        );
+        assert_eq!(
+            d[0].fix.as_ref().unwrap().applicability,
+            crate::Applicability::Safe
+        );
+        let fixed = f.fixed(&rules, false, &f.view_path("Main"));
+        assert_eq!(fixed, view.replace("\"SaveButton\"", "\"saveButton\""));
+    }
+
+    #[test]
+    fn abbreviations_never_cause_findings() {
+        let f = Fixture::view(&root(&[
+            component("idleTimer", "ia.display.label", ""),
+            component("restartButton", "ia.input.button", ""),
+            component("urlParams", "ia.display.label", ""),
+            component("myAPIButton", "ia.input.button", ""),
+        ]));
+        assert!(
+            f.lint_with(&[("NAME001", "convention = \"camelCase\"")])
+                .is_empty()
+        );
+        // ...and do not hide real violations.
+        let d = f.lint_with(&[("NAME001", "convention = \"SCREAMING_SNAKE_CASE\"")]);
+        assert_eq!(d.len(), 4);
+        let d = f.lint_with(&[("NAME001", "convention = \"PascalCase\"")]);
+        assert_eq!(d.len(), 4, "idleTimer is not PascalCase");
+    }
+
+    #[test]
+    fn whole_word_abbreviations_widen_snake_and_title_case() {
+        let f = Fixture::view(&root(&[
+            component("read_API_data", "ia.display.label", ""),
+            component("read_Api_data", "ia.display.label", ""),
+        ]));
+        let d = f.lint_with(&[("NAME001", "convention = \"snake_case\"")]);
+        assert_eq!(flagged(&d), vec!["\"read_Api_data\""]);
+        let d = f.lint_with(&[(
+            "NAME001",
+            "convention = \"snake_case\"\nauto-detect-abbreviations = false",
+        )]);
+        assert_eq!(d.len(), 2);
+        let f = Fixture::view(&root(&[component("API Key", "ia.display.label", "")]));
+        assert!(
+            f.lint_with(&[("NAME001", "convention = \"Title Case\"")])
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn suggestions_keep_digits_and_split_consistently() {
+        let f = Fixture::view(&root(&[
+            component("pump_12", "ia.display.label", ""),
+            component("HTTPServer", "ia.display.label", ""),
+        ]));
+        let d = f.lint_with(&[("NAME001", "convention = \"camelCase\"")]);
+        assert_eq!(
+            messages(&d).into_iter().map(|m| m.1).collect::<Vec<_>>(),
+            vec![
+                "Name 'pump_12' doesn't follow camelCase for component (suggestion: 'pump12')",
+                "Name 'HTTPServer' doesn't follow camelCase for component (suggestion: 'httpServer')",
+            ]
+        );
+    }
+
+    #[test]
+    fn sibling_collision_but_never_with_itself() {
+        let f = Fixture::view(&root(&[
+            component("save_button", "ia.input.button", ""),
+            component("SaveButton", "ia.input.button", ""),
+        ]));
+        let d = f.lint_with(&[("NAME001", "convention = \"PascalCase\"")]);
+        assert_eq!(
+            d[0].message,
+            "Name 'save_button' doesn't follow PascalCase for component (suggestion 'SaveButton' already in use by a sibling; rename manually)"
+        );
+        assert!(d[0].fix.is_none());
+        assert_eq!(d.len(), 1);
+    }
+
+    #[test]
+    fn rename_updates_every_resolved_reference() {
+        let label = component(
+            "TheLabel",
+            "ia.display.label",
+            r#", "props": {"text": "x"}"#,
+        );
+        let other_label = component("TheLabel", "ia.display.label", "");
+        let panel = format!(
+            r#"{{"meta": {{"name": "Panel"}}, "type": "ia.container.flex", "children": [{other_label}]}}"#
+        );
+        let button = component(
+            "Btn",
+            "ia.input.button",
+            r#", "propConfig": {"props.text": {"binding": {"type": "expr", "config": {"expression": "{../TheLabel.props.text} + {/root/Panel/TheLabel.props.text}"}}}, "props.enabled": {"binding": {"type": "property", "config": {"path": "../TheLabel.props.visible"}}}}, "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": "\tself.getSibling(\"TheLabel\").props.text = 'a'\n\tself.parent.getChild(\"Panel/TheLabel\").props.text = 'b'"}}}}"#,
+        );
+        let view = root(&[label, panel, button]);
+        let f = Fixture::view(&view);
+        let rules = [(
+            "NAME001",
+            "convention = \"camelCase\"\nskip-names = [\"root\", \"Panel\", \"Btn\"]",
+        )];
+        let d = f.lint_with(&rules);
+        assert_eq!(d.len(), 2);
+        assert!(
+            d.iter()
+                .all(|d| d.fix.as_ref().unwrap().applicability == crate::Applicability::Unsafe)
+        );
+        let fixed = f.fixed(&rules, true, &f.view_path("Main"));
+        let expected = view
+            .replace(
+                r#""meta": {"name": "TheLabel"}"#,
+                r#""meta": {"name": "theLabel"}"#,
+            )
+            .replace("{../TheLabel.", "{../theLabel.")
+            .replace("{/root/Panel/TheLabel.", "{/root/Panel/theLabel.")
+            .replace(
+                "\"../TheLabel.props.visible\"",
+                "\"../theLabel.props.visible\"",
+            )
+            .replace(r#"getSibling(\"TheLabel\")"#, r#"getSibling(\"theLabel\")"#)
+            .replace(
+                r#"getChild(\"Panel/TheLabel\")"#,
+                r#"getChild(\"Panel/theLabel\")"#,
+            );
+        assert_eq!(fixed, expected);
+        // Safe fixes alone change nothing.
+        assert!(
+            f.run(
+                &rules,
+                crate::FixMode::DiffOnly {
+                    unsafe_fixes: false
+                }
+            )
+            .fixed
+            .iter()
+            .all(|s| !s.changed())
+        );
+    }
+
+    #[test]
+    fn unresolvable_lookups_block_the_rename() {
+        let button = component(
+            "Btn",
+            "ia.input.button",
+            r#", "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": "\tthing = system.util.getGlobals()['x']\n\tthing.getChild('the_label')"}}}}"#,
+        );
+        let f = Fixture::view(&root(&[
+            component("the_label", "ia.display.label", ""),
+            button,
+        ]));
+        let d = f.lint_with(&[("NAME001", "convention = \"PascalCase\"")]);
+        assert_eq!(flagged(&d), vec!["\"the_label\""]);
+        assert!(d[0].fix.is_none());
+    }
+
+    #[test]
+    fn literal_name_in_script_makes_the_rename_unsafe() {
+        let button = component(
+            "Btn",
+            "ia.input.button",
+            r#", "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": "\tfor c in self.parent.children:\n\t\tif c.meta.name == 'the_label':\n\t\t\tpass"}}}}"#,
+        );
+        let f = Fixture::view(&root(&[
+            component("the_label", "ia.display.label", ""),
+            button,
+        ]));
+        let d = f.lint_with(&[("NAME001", "convention = \"PascalCase\"")]);
+        assert_eq!(
+            d[0].fix.as_ref().unwrap().applicability,
+            crate::Applicability::Unsafe
+        );
+    }
+
+    #[test]
+    fn properties_are_user_chosen_keys_only() {
+        let embedded = component(
+            "Embed",
+            "ia.display.view",
+            r#", "props": {"path": "Other", "params": {"Bad_Param": 1, "goodParam": {"Inner_Key": 2}}, "style": {"Bad_Style": 1}}, "custom": {"Bad_Custom": 1, "_private": 2}, "propConfig": {"custom.Bound_Only": {"binding": {"type": "expr", "config": {"expression": "1"}}}}"#,
+        );
+        let view = format!(
+            r#"{{"custom": {{"Top_Level": {{"Nested_Key": 1}}, "rows": [{{"Row_Key": 1}}, {{"Row_Key": 2}}]}}, "params": {{"Param_One": 1}}, "propConfig": {{"custom.Config_Only": {{"persistent": false}}}}, "root": {{"meta": {{"name": "root"}}, "type": "ia.container.flex", "children": [{embedded}]}}}}"#
+        );
+        let f = Fixture::view(&view);
+        let d = f.lint_with(&[(
+            "NAME001",
+            "target-node-types = [\"property\"]\nconvention = \"camelCase\"",
+        )]);
+        let mut names: Vec<String> = flagged(&d)
+            .into_iter()
+            .map(|n| n.trim_matches('"').to_owned())
+            .collect();
+        names.sort();
+        assert_eq!(
+            names,
+            vec![
+                "Bad_Custom",
+                "Bad_Param",
+                "Bound_Only",
+                "Config_Only",
+                "Inner_Key",
+                "Nested_Key",
+                "Param_One",
+                "Row_Key",
+                "Top_Level",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>()
+        );
+        let paths: Vec<&str> = d
+            .iter()
+            .filter_map(|d| d.ign_lint_path.as_deref())
+            .collect();
+        assert!(paths.contains(&"custom.rows.Row_Key"));
+        assert!(paths.contains(&"root.root.children.Embed.props.params.Bad_Param"));
+        assert!(
+            d.iter().all(|d| d.fix.is_none()),
+            "only components are renamed"
+        );
+    }
+
+    #[test]
+    fn handlers_methods_and_per_type_settings() {
+        let comp = component(
+            "Comp",
+            "ia.display.label",
+            r#", "scripts": {"customMethods": [{"name": "do_thing", "params": [], "script": "\tpass"}, {"name": "go", "params": [], "script": "\tpass"}], "messageHandlers": [{"messageType": "refreshAll", "script": "\tpass", "pageScope": true, "sessionScope": false, "viewScope": false}]}"#,
+        );
+        let f = Fixture::view(&root(&[comp]));
+        let d = f.lint_with(&[(
+            "NAME001",
+            r#"[per-type.custom_method]
+convention = "camelCase"
+min_length = 3
+severity = "error"
+[per-type.message_handler]
+convention = "kebab-case"
+"#,
+        )]);
+        assert_eq!(
+            d.iter()
+                .map(|d| (d.severity, d.message.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    Severity::Error,
+                    "Name 'do_thing' doesn't follow camelCase for custom_method (suggestion: 'doThing')"
+                ),
+                (
+                    Severity::Error,
+                    "Name 'go' is too short (minimum 3 characters) for custom_method"
+                ),
+                (
+                    Severity::Warning,
+                    "Name 'refreshAll' doesn't follow kebab-case for message_handler (suggestion: 'refresh-all')"
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn lengths_forbidden_skip_and_custom_patterns() {
+        let f = Fixture::view(&root(&[
+            component("Button", "ia.input.button", ""),
+            component("Ab", "ia.display.label", ""),
+            component("VeryLongComponentName", "ia.display.label", ""),
+            component("btnSave", "ia.input.button", ""),
+            component("Legacy_Name", "ia.display.label", ""),
+        ]));
+        let d = f.lint_with(&[(
+            "NAME001",
+            r#"custom-pattern = "^(btn|lbl)[A-Z][a-zA-Z0-9]*$"
+suggestion-convention = "PascalCase"
+min-length = 3
+max-length = 12
+forbidden-names = ["Button"]
+skip-names = ["root", "Legacy_Name"]"#,
+        )]);
+        assert_eq!(
+            messages(&d).into_iter().map(|m| m.1).collect::<Vec<_>>(),
+            vec![
+                "Name 'Button' is forbidden for component",
+                "Name 'Ab' is too short (minimum 3 characters) for component",
+                "Name 'VeryLongComponentName' is too long (maximum 12 characters) for component",
+            ]
+        );
+        // A suggestion that the custom pattern would reject is never applied.
+        let f = Fixture::view(&root(&[component("Save", "ia.input.button", "")]));
+        let d = f.lint_with(&[(
+            "NAME001",
+            "custom-pattern = \"^btn\"\nsuggestion-convention = \"PascalCase\"",
+        )]);
+        assert_eq!(
+            d[0].message,
+            "Name 'Save' doesn't follow custom pattern: ^btn for component"
+        );
+        assert!(d[0].fix.is_none());
+    }
+
+    #[test]
+    fn allow_numbers() {
+        let f = Fixture::view(&root(&[component("Pump12", "ia.display.label", "")]));
+        assert!(
+            f.lint_with(&[("NAME001", "convention = \"PascalCase\"")])
+                .is_empty()
+        );
+        let d = f.lint_with(&[(
+            "NAME001",
+            "convention = \"PascalCase\"\nallow-numbers = false",
+        )]);
+        assert_eq!(
+            d[0].message,
+            "Name 'Pump12' doesn't follow PascalCase for component (suggestion: 'Pump')"
+        );
+    }
+
+    #[test]
+    fn option_errors() {
+        let meta = &META;
+        let parse = |toml: &str| {
+            let values = options_from_toml(toml);
+            parse_options(&OptionReader::new(meta, &values)).map(|_| ())
+        };
+        assert!(parse("").is_ok());
+        assert!(
+            parse("target-node-types = [\"widget\"]")
+                .unwrap_err()
+                .contains("widget")
+        );
+        assert!(parse("[per-type.widget]\nconvention = \"camelCase\"").is_err());
+        assert!(parse("custom-pattern = \"(\"").is_err());
+        assert!(parse("[per-type.component]\nseverity = \"info\"").is_err());
+    }
+}

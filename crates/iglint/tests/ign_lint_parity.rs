@@ -139,8 +139,19 @@ fn expected_findings(entry: &Value, fixes: Option<&Value>) -> Vec<Finding> {
         .collect()
 }
 
-fn actual_findings(view: &Path, config: &Value) -> Vec<Finding> {
-    let text = serde_json::to_string(config).unwrap();
+fn actual_findings(view: &Path, config: &Value, variant: &str) -> Vec<Finding> {
+    // Like the generator: every variant but `default` disables the rules it
+    // does not configure.
+    let mut config = config.clone();
+    if variant != "default" {
+        let object = config.as_object_mut().unwrap();
+        for rule in iglint_config::compat::IGN_LINT_RULES {
+            object
+                .entry(rule.name)
+                .or_insert_with(|| serde_json::json!({"enabled": false}));
+        }
+    }
+    let text = serde_json::to_string(&config).unwrap();
     let rule_config =
         parse_rule_config(Path::new("rule_config.json"), &text).expect("valid rule config");
     let dir = view.parent().unwrap();
@@ -226,7 +237,7 @@ fn ign_lint_parity() {
                 continue;
             };
             let mut expected = expected_findings(&entry["findings"], entry.get("fixes"));
-            let mut actual = actual_findings(&dir.join("view.json"), config);
+            let mut actual = actual_findings(&dir.join("view.json"), config, variant);
             expected.sort();
             actual.sort();
             compared += expected.len();

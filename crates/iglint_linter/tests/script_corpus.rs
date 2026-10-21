@@ -17,6 +17,9 @@ fn root() -> Option<PathBuf> {
     Some(PathBuf::from(std::env::var_os("IGLINT_PRIVATE_CORPUS")?))
 }
 
+/// Scripts by kind, scripts, parsed, compile errors, bytes.
+type ResourceStats = (BTreeMap<&'static str, usize>, usize, usize, usize, usize);
+
 #[test]
 #[ignore = "needs IGLINT_PRIVATE_CORPUS"]
 fn semantic_layer_on_every_script() {
@@ -26,7 +29,7 @@ fn semantic_layer_on_every_script() {
     };
     let ws = Workspace::discover(&[root.join("projects"), root.join("services")]);
     let start = Instant::now();
-    let per_resource: Vec<(BTreeMap<&'static str, usize>, usize, usize, usize, usize)> = ws
+    let per_resource: Vec<ResourceStats> = ws
         .resources
         .par_iter()
         .map(|r| {

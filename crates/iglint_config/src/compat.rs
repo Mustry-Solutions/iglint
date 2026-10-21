@@ -460,7 +460,13 @@ pub struct CompatSettings {
 
 /// Converts a JSON kwarg to an option value checked against `ty`.
 pub fn convert_option(value: &Value, ty: OptionType) -> Result<OptionValue, String> {
-    let converted = json_to_option(value).ok_or_else(|| "null is not a valid value".to_owned())?;
+    let mut converted =
+        json_to_option(value).ok_or_else(|| "null is not a valid value".to_owned())?;
+    // ign-lint accepts a single string where it expects a list of strings
+    // (`target_node_types: "component"`).
+    if ty == OptionType::StringList && matches!(converted, OptionValue::String(_)) {
+        converted = OptionValue::List(vec![converted]);
+    }
     check_option_type(&converted, ty)?;
     Ok(converted)
 }
