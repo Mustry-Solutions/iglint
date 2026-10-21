@@ -230,9 +230,16 @@ pub(crate) fn decode_strings<'a>(
     encoding: SourceEncoding,
     unicode_literals: bool,
 ) -> Result<StringValue, LiteralError> {
+    let mut tokens = tokens.into_iter().peekable();
+    let first = tokens.next().unwrap_or("''");
+    if tokens.peek().is_none()
+        && let Some(value) = simple_string(first, encoding, unicode_literals)
+    {
+        return Ok(value);
+    }
     let mut units: Vec<u16> = Vec::new();
     let mut unicode = false;
-    for token in tokens {
+    for token in std::iter::once(first).chain(tokens) {
         unicode |= decode_string(token, encoding, unicode_literals, &mut units)?;
     }
     if unicode {
@@ -247,14 +254,32 @@ pub(crate) fn decode_strings<'a>(
     }
 }
 
-/// Appends the value of one string token (as UTF-16 code units; a `str`
-/// contributes one unit per byte) and returns whether it is unicode.
-fn decode_string(
+/// The value of a single string token without backslashes, whose body is
+/// its value (the common case), without the general decoding machinery.
+fn simple_string(
     token: &str,
     encoding: SourceEncoding,
     unicode_literals: bool,
-    out: &mut Vec<u16>,
-) -> Result<bool, LiteralError> {
+) -> Option<StringValue> {
+    let (body, unicode) = string_body(token, unicode_literals);
+    if body.contains('\\') {
+        return None;
+    }
+    if unicode {
+        return Some(StringValue::Unicode(body.into()));
+    }
+    match encoding {
+        SourceEncoding::Utf8 | SourceEncoding::Other => {
+            Some(StringValue::Bytes(body.as_bytes().into()))
+        }
+        _ if body.is_ascii() => Some(StringValue::Bytes(body.as_bytes().into())),
+        _ => None,
+    }
+}
+
+/// The text between the quotes of a string token and whether the token is
+/// a unicode literal.
+fn string_body(token: &str, unicode_literals: bool) -> (&str, bool) {
     let bytes = token.as_bytes();
     let mut start = 0;
     let mut unicode = unicode_literals;
@@ -269,8 +294,7 @@ fn decode_string(
         }
         _ => {}
     }
-    let raw = matches!(bytes.get(start), Some(b'r' | b'R'));
-    if raw {
+    if matches!(bytes.get(start), Some(b'r' | b'R')) {
         start += 1;
     }
     let quotes = if bytes.len() - start == 2 || bytes.get(start) != bytes.get(start + 1) {
@@ -280,7 +304,22 @@ fn decode_string(
     };
     let body_start = (start + quotes).min(bytes.len());
     let body_end = bytes.len().saturating_sub(quotes).max(body_start);
-    let body = &token[body_start..body_end];
+    (&token[body_start..body_end], unicode)
+}
+
+/// Appends the value of one string token (as UTF-16 code units; a `str`
+/// contributes one unit per byte) and returns whether it is unicode.
+fn decode_string(
+    token: &str,
+    encoding: SourceEncoding,
+    unicode_literals: bool,
+    out: &mut Vec<u16>,
+) -> Result<bool, LiteralError> {
+    let (body, unicode) = string_body(token, unicode_literals);
+    let raw = token
+        .bytes()
+        .take_while(|&byte| byte != b'\'' && byte != b'"')
+        .any(|byte| byte == b'r' || byte == b'R');
 
     if !unicode {
         let mut encoded = Vec::with_capacity(body.len());
