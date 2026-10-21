@@ -113,3 +113,28 @@ class A:
         x = f(1,
     def g(self):
         pass
+### keyword check before unclosed call ends
+f(a.b=1
+### keyword check before statement keyword
+x = f(a.b=1,
+def g(): pass
+### keyword check then for inside parens
+f(g() = 1
+for x in y: pass
+### statement keyword after dot inside brackets
+x = f(os.path.
+try)
+### statement keyword after dot then colon
+f = open(os.path.
+try:
+    pass
+### unclosed then dedented def with keyword error
+def f():
+    x = g(a.b=1,
+def h():
+    pass
+### unclosed then def with bad dedent
+if x:
+    if y:
+        f(1,
+  def g(): pass

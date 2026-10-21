@@ -190,7 +190,11 @@ impl<'src> Locator<'src> {
             Err(next) => next - 1,
         };
         let start = self.line_starts[line] as usize;
-        let text = &self.source[start..offset as usize];
+        let mut end = offset as usize;
+        while !self.source.is_char_boundary(end) {
+            end -= 1;
+        }
+        let text = &self.source[start..end.max(start)];
         let column = if text.is_ascii() {
             text.len()
         } else {

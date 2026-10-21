@@ -930,7 +930,8 @@ impl Parser<'_> {
     }
 
     /// The arguments of a call after `(`, and the closing `)`. Jython checks
-    /// the keyword arguments only once the `)` has been read.
+    /// the keyword arguments when it builds the call, just before it reads
+    /// the `)`.
     pub(super) fn call_arguments(&mut self) -> PResult<CallArguments> {
         let kind = self.kind();
         let arglist = if kind == TokenKind::Rpar {
@@ -940,8 +941,8 @@ impl Parser<'_> {
         } else {
             return Err(self.invalid_syntax());
         };
-        self.expect(TokenKind::Rpar)?;
         let keywords = self.make_keywords(arglist.keywords);
+        self.expect(TokenKind::Rpar)?;
         Ok(CallArguments {
             args: arglist.args,
             keywords,

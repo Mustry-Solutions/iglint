@@ -58,7 +58,9 @@ fn write_tokens(output: &mut String, source: &str) {
         .collect();
     let _ = writeln!(output, "{}", rendered.join(" "));
     if let Some(error) = error {
-        let location = error.jython_location(&locator);
+        // The lexer's own position, even where building Jython's
+        // SyntaxError would fail later.
+        let location = locator.anchor_location(error.anchor());
         let _ = writeln!(
             output,
             "error {} {} {}",

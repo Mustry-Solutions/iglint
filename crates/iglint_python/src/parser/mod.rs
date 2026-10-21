@@ -234,7 +234,11 @@ impl<'src> Parser<'src> {
         let token = self.lt1();
         if !matches!(
             token.kind,
-            TokenKind::Newline | TokenKind::Indent | TokenKind::Dedent | TokenKind::EndOfFile
+            TokenKind::Newline
+                | TokenKind::RecoveryNewline
+                | TokenKind::Indent
+                | TokenKind::Dedent
+                | TokenKind::EndOfFile
         ) {
             self.previous_end = token.range.end();
         }
@@ -438,7 +442,7 @@ impl<'src> Parser<'src> {
     fn recover_to_line_end(&mut self) {
         loop {
             match self.kind() {
-                TokenKind::Newline => {
+                TokenKind::Newline | TokenKind::RecoveryNewline => {
                     self.bump();
                     return;
                 }

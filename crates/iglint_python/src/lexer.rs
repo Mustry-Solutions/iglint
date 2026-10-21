@@ -68,6 +68,8 @@ pub(crate) struct Lexer<'src> {
     /// Whether to end unclosed brackets at a line that starts a statement
     /// (see [`Lexer::unclosed_bracket_recovery`]).
     recover_unclosed_brackets: bool,
+    /// The kind of the last visible token (any keyword may follow a dot).
+    last_kind: Option<TokenKind>,
 }
 
 impl<'src> Lexer<'src> {
@@ -84,6 +86,7 @@ impl<'src> Lexer<'src> {
             dropped: Vec::new(),
             split_surrogate: None,
             recover_unclosed_brackets: false,
+            last_kind: None,
         }
     }
 
@@ -92,11 +95,11 @@ impl<'src> Lexer<'src> {
     /// Inside brackets Jython joins lines, so an unclosed bracket swallows
     /// the rest of the file into one logical line. With recovery enabled, a
     /// line inside brackets that starts with a keyword that can only start a
-    /// statement (`def`, `class`, `return`, ...) closes all brackets and
-    /// gets a NEWLINE token before it. This deviates from Jython only where
-    /// Jython reports a syntax error at that keyword anyway: the NEWLINE is
-    /// anchored at the keyword, and a NEWLINE inside brackets is always a
-    /// syntax error, so the first error the parser reports is unchanged.
+    /// statement (`def`, `class`, `return`, ...), and does not follow a dot,
+    /// closes all brackets and gets a [`TokenKind::RecoveryNewline`] before
+    /// it. Jython reports a syntax error at or before such a keyword anyway;
+    /// the recovery newline is anchored at the keyword and accepted by no
+    /// rule, so the first error the parser reports is unchanged.
     pub(crate) fn unclosed_bracket_recovery(mut self) -> Self {
         self.recover_unclosed_brackets = true;
         self
@@ -260,6 +263,7 @@ impl<'src> Lexer<'src> {
     pub(crate) fn next_token(&mut self) -> Token {
         loop {
             if let Lexed::Visible(token) = self.next_any() {
+                self.last_kind = Some(token.kind);
                 return token;
             }
         }
@@ -269,13 +273,15 @@ impl<'src> Lexer<'src> {
     fn next_any(&mut self) -> Lexed {
         if self.nesting > 0
             && self.recover_unclosed_brackets
+            && self.last_kind != Some(TokenKind::Dot)
             && self.first_on_physical_line()
             && self.statement_keyword_ahead()
         {
             self.nesting = 0;
             let at = TextSize::from(self.pos);
+            self.last_kind = Some(TokenKind::RecoveryNewline);
             return Lexed::Visible(Token::new(
-                TokenKind::Newline,
+                TokenKind::RecoveryNewline,
                 TextRange::empty(self.clamp(self.pos)),
                 Anchor::at(at),
             ));
@@ -347,7 +353,7 @@ impl<'src> Lexer<'src> {
                 self.pos += 1;
                 TokenKind::Dot
             }
-            b'"' | b'\'' => return self.lex_string(start, false),
+            b'"' | b'\'' => return self.lex_string(start),
             b'\\' => return self.lex_continuation(line_start),
             b'\x0c' => {
                 if matches!(self.peek_at(1), b'\n' | b'\r') {
@@ -515,16 +521,16 @@ impl<'src> Lexer<'src> {
             b'u' | b'U' | b'b' | b'B' => {
                 if is_quote(next) {
                     self.pos += 1;
-                    return self.lex_string(start, true);
+                    return self.lex_string(start);
                 }
                 if matches!(next, b'r' | b'R') && is_quote(self.peek_at(2)) {
                     self.pos += 2;
-                    return self.lex_string(start, true);
+                    return self.lex_string(start);
                 }
             }
             b'r' | b'R' if is_quote(next) => {
                 self.pos += 1;
-                return self.lex_string(start, true);
+                return self.lex_string(start);
             }
             _ => {}
         }
@@ -642,7 +648,7 @@ impl<'src> Lexer<'src> {
     }
 
     /// A string literal; the prefix (if any) has been consumed.
-    fn lex_string(&mut self, start: usize, _prefixed: bool) -> LexResult {
+    fn lex_string(&mut self, start: usize) -> LexResult {
         let quote = self.peek();
         let triple = if self.peek_at(1) == quote {
             self.peek_at(2) == quote

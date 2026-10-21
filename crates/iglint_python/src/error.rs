@@ -63,6 +63,13 @@ impl ParseError {
             _ => locator.anchor_location(self.anchor),
         }
     }
+
+    /// The token Jython's parser or lexer was at when it failed. For
+    /// [`ParseErrorKind::InternalError`] this is where the failure started,
+    /// although Jython itself reports no position then.
+    pub fn anchor(&self) -> Anchor {
+        self.anchor
+    }
 }
 
 impl Ranged for ParseError {

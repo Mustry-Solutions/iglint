@@ -120,3 +120,25 @@ mismatched input 'import' expecting RCURLY
 ### unclosed then dedented def
 error 4 4
 mismatched input 'def' expecting RPAREN
+### keyword check before unclosed call ends
+error 1 2
+keyword must be a name
+### keyword check before statement keyword
+error 1 6
+keyword must be a name
+### keyword check then for inside parens
+error 1 2
+can't assign to function call
+### statement keyword after dot inside brackets
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Call(func=Name(id='f', ctx=Load()), args=[Attribute(value=Attribute(value=Name(id='os', ctx=Load()), attr='path', ctx=Load()), attr='try', ctx=Load())], keywords=[], starargs=None, kwargs=None))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Call(func=Name(id='f', ctx=Load(), lineno=1, col_offset=4), args=[Attribute(value=Attribute(value=Name(id='os', ctx=Load(), lineno=1, col_offset=6), attr='path', ctx=Load(), lineno=1, col_offset=6), attr='try', ctx=Load(), lineno=1, col_offset=6)], keywords=[], starargs=None, kwargs=None, lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### statement keyword after dot then colon
+error 2 3
+no viable alternative at input ':'
+### unclosed then dedented def with keyword error
+error 2 10
+keyword must be a name
+### unclosed then def with bad dedent
+error 4 2
+mismatched input 'def' expecting RPAREN

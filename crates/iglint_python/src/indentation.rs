@@ -95,20 +95,23 @@ impl<'src> TokenSource<'src> {
                 match previous.map(|token| token.kind) {
                     None => self.generate_newline(&eof),
                     Some(TokenKind::LeadingWs) => {
-                        self.dedent(-1, &eof);
+                        self.dedent(-1, &eof, false);
                         self.generate_newline(&eof);
                     }
                     Some(TokenKind::Newline) => {}
                     Some(_) => {
                         self.generate_newline(&eof);
-                        self.dedent(-1, &eof);
+                        self.dedent(-1, &eof, false);
                     }
                 }
                 self.queue.push_back(eof);
             }
-            TokenKind::Newline => {
+            TokenKind::Newline | TokenKind::RecoveryNewline => {
                 self.queue.push_back(token);
                 let newline = token;
+                // After a recovery newline Jython has already failed, so an
+                // inconsistent dedent is not reported again.
+                let lenient = token.kind == TokenKind::RecoveryNewline;
                 self.consume();
 
                 let mut first = self.lt1();
@@ -146,7 +149,7 @@ impl<'src> TokenSource<'src> {
                     self.queue
                         .push_back(Token::new(TokenKind::Indent, range, first.anchor));
                 } else if column < last {
-                    self.dedent(column, &first);
+                    self.dedent(column, &first, lenient);
                 }
                 if first.kind != TokenKind::LeadingWs {
                     self.queue.push_back(first);
@@ -187,7 +190,7 @@ impl<'src> TokenSource<'src> {
 
     /// Pops the indentation stack down to `column`, emitting one `DEDENT`
     /// per level. `column` -1 or -2 dedents to the outermost level.
-    fn dedent(&mut self, column: i32, at: &Token) {
+    fn dedent(&mut self, column: i32, at: &Token, lenient: bool) {
         let target = match self.indents.iter().rposition(|&level| level == column) {
             Some(index) if index + 1 < self.indents.len() => index,
             // Equal to the top level: nothing to pop. (Callers only dedent to
@@ -195,6 +198,11 @@ impl<'src> TokenSource<'src> {
             // occur either way.)
             Some(index) => index,
             None if column < 0 => 0,
+            None if lenient => self
+                .indents
+                .iter()
+                .rposition(|&level| level < column)
+                .unwrap_or(0),
             None => {
                 let error = ParseError::new(
                     ParseErrorKind::IndentationError,

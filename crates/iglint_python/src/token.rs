@@ -105,6 +105,12 @@ pub enum TokenKind {
 
     /// End of a logical line.
     Newline,
+    /// End of a logical line that Jython does not have: the parser's lexer
+    /// inserts it inside unclosed brackets before a line that starts with a
+    /// statement keyword (see [`crate::parse_module`]). No grammar rule
+    /// accepts it, so it is a syntax error wherever it appears, anchored at
+    /// that keyword, where Jython reports its error.
+    RecoveryNewline,
     Indent,
     Dedent,
     /// Leading whitespace that Jython's lexer passes to the parser: on the
@@ -247,6 +253,7 @@ impl TokenKind {
             Dot => "DOT",
             At => "AT",
             Newline => "NEWLINE",
+            RecoveryNewline => "NEWLINE",
             Indent => "INDENT",
             Dedent => "DEDENT",
             LeadingWs => "LEADING_WS",
@@ -263,6 +270,7 @@ impl TokenKind {
             Int | LongInt | Float | Complex => "number",
             String => "string",
             Newline => "end of line",
+            RecoveryNewline => "statement keyword inside unclosed brackets",
             Indent => "indent",
             Dedent => "dedent",
             LeadingWs => "leading whitespace",
