@@ -182,6 +182,24 @@ fn actual_findings(view: &Path, config: &Value) -> Vec<Finding> {
         .collect()
 }
 
+/// Every variant but `default` enables only the rules it names, as
+/// `generate_expected.py` does.
+fn variant_config(name: &str, config: &Value) -> Value {
+    if name == "default" {
+        return config.clone();
+    }
+    let mut full = serde_json::Map::new();
+    for rule in iglint_config::compat::IGN_LINT_RULES {
+        full.insert(rule.name.to_owned(), serde_json::json!({"enabled": false}));
+    }
+    for (rule, rule_config) in config.as_object().unwrap() {
+        let mut entry = rule_config.as_object().cloned().unwrap_or_default();
+        entry.insert("enabled".to_owned(), Value::Bool(true));
+        full.insert(rule.clone(), Value::Object(entry));
+    }
+    Value::Object(full)
+}
+
 #[test]
 fn ign_lint_parity() {
     let root = fixtures();
@@ -226,7 +244,8 @@ fn ign_lint_parity() {
                 continue;
             };
             let mut expected = expected_findings(&entry["findings"], entry.get("fixes"));
-            let mut actual = actual_findings(&dir.join("view.json"), config);
+            let mut actual =
+                actual_findings(&dir.join("view.json"), &variant_config(variant, config));
             expected.sort();
             actual.sort();
             compared += expected.len();

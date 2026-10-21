@@ -10,6 +10,7 @@ use crate::registry::{Registry, RuleMeta};
 use crate::rule::RuleImpl;
 
 pub mod helpers;
+pub mod name;
 #[cfg(test)]
 pub mod test_support;
 pub mod view;
@@ -23,7 +24,11 @@ macro_rules! rules {
     };
 }
 
-rules![view::invalid_json];
+rules![
+    name::name_pattern,
+    name::method_shadows_api,
+    view::invalid_json,
+];
 
 pub static REGISTRY: Registry = Registry::new(ALL);
 

@@ -156,8 +156,9 @@ impl<'c, 'a> Checker<'c, 'a> {
     ///
     /// When `T` is not the type the rule's options parser produces; that is
     /// a bug in the rule, caught by its tests.
-    pub fn options<T: 'static>(&self) -> &T {
-        self.active
+    pub fn options<T: 'static>(&self) -> &'c T {
+        let active: &'c ActiveRule = self.active;
+        active
             .options
             .as_ref()
             .and_then(|o| o.downcast_ref::<T>())

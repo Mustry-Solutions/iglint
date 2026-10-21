@@ -107,12 +107,9 @@ fn selects(selectors: &[String], d: &Diagnostic) -> bool {
 fn parse_comment(comment: &str) -> Option<(Vec<String>, bool)> {
     let body = comment.strip_prefix('#')?.trim_start();
     let rest = body.strip_prefix("iglint:")?.trim_start();
-    let (file_wide, rest) = if let Some(r) = rest.strip_prefix("ignore-file") {
-        (true, r)
-    } else if let Some(r) = rest.strip_prefix("ignore") {
-        (false, r)
-    } else {
-        return None;
+    let (file_wide, rest) = match rest.strip_prefix("ignore-file") {
+        Some(r) => (true, r),
+        None => (false, rest.strip_prefix("ignore")?),
     };
     let rest = rest.trim_start();
     if let Some(list) = rest.strip_prefix('[') {
