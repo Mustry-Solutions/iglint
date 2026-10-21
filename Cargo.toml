@@ -28,6 +28,7 @@ ignore = "0.4.25"
 rayon = "1.11"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.145", features = ["preserve_order"] }
+regex = "1.11"
 similar = "2.7"
 toml = "1"
 
