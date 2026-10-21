@@ -1,0 +1,2260 @@
+{
+ "differences": [
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[1].ParentScript: Name 'ParentScript' doesn't follow camelCase for component (suggestion: 'parentScript')",
+   "kind": "fix",
+   "reason": "intended: references are found by resolution, not by name; this component is not referenced (the scripts name a different component with the same name), so the rename is safe"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[1].ParentScript: Name 'ParentScript' doesn't follow snake_case for component (suggestion: 'parent_script')",
+   "kind": "fix",
+   "reason": "intended: references are found by resolution, not by name; this component is not referenced (the scripts name a different component with the same name), so the rename is safe"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[1].ParentScript: Name 'ParentScript' doesn't follow kebab-case for component (suggestion: 'parent-script')",
+   "kind": "fix",
+   "reason": "intended: references are found by resolution, not by name; this component is not referenced (the scripts name a different component with the same name), so the rename is safe"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].ContainerWithBadScript: Name 'ContainerWithBadScript' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'CONTAINER_WITH_BAD_SCRIPT')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[1].ParentScript: Name 'ParentScript' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'PARENT_SCRIPT')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty: Name 'ParentContainerProperty' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'PARENT_CONTAINER_PROPERTY')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression: Name 'ParentContainerExpression' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'PARENT_CONTAINER_EXPRESSION')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[0].ParentScript: Name 'ParentScript' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'PARENT_SCRIPT')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[1].SiblingScript: Name 'SiblingScript' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SIBLING_SCRIPT')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[2].BadScript: Name 'BadScript' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'BAD_SCRIPT')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[3].CousinScript: Name 'CousinScript' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'COUSIN_SCRIPT')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[4].GrandParentScript: Name 'GrandParentScript' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'GRAND_PARENT_SCRIPT')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts: Name 'ParentContainerScripts' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'PARENT_CONTAINER_SCRIPTS')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer: Name 'TopContainer' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'TOP_CONTAINER')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[7].Centered Container.children[0].Detail: Name 'Detail' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'DETAIL')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].SelfRefContainer: Name 'SelfRefContainer' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SELF_REF_CONTAINER')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[1].ParentScript: Name 'ParentScript' doesn't follow Title Case for component (suggestion: 'Parent Script')",
+   "kind": "fix",
+   "reason": "intended: references are found by resolution, not by name; this component is not referenced (the scripts name a different component with the same name), so the rename is safe"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].ContainerWithBadScript: Name 'ContainerWithBadScript' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'container with bad script')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[1].ParentScript: Name 'ParentScript' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'parent script')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty: Name 'ParentContainerProperty' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'parent container property')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression: Name 'ParentContainerExpression' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'parent container expression')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[0].ParentScript: Name 'ParentScript' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'parent script')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[1].SiblingScript: Name 'SiblingScript' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'sibling script')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[2].BadScript: Name 'BadScript' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'bad script')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[3].CousinScript: Name 'CousinScript' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'cousin script')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[4].GrandParentScript: Name 'GrandParentScript' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'grand parent script')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts: Name 'ParentContainerScripts' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'parent container scripts')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].TopContainer: Name 'TopContainer' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'top container')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[7].Centered Container.children[0].Detail: Name 'Detail' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'detail')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[7].Centered Container: Name 'Centered Container' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'centered container')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].SelfRefContainer: Name 'SelfRefContainer' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'self ref container')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].Filters.children[0].Zone.children[0].Zone Dropdown: Name 'Zone Dropdown' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].Filters.children[1].Region.children[0].Region Dropdown: Name 'Region Dropdown' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[7].Centered Container: Name 'Centered Container' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/BadContextData",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "custom.filteredData.DifferentialPressure: Name 'DifferentialPressure' doesn't follow camelCase for property (suggestion: 'differentialPressure')",
+   "kind": "extra",
+   "reason": "intended: ign-lint only checks leaf keys; iglint also checks keys whose value is an object or array"
+  },
+  {
+   "view": "cases/BadContextData",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "custom.filteredData.EnergyValvePosition: Name 'EnergyValvePosition' doesn't follow camelCase for property (suggestion: 'energyValvePosition')",
+   "kind": "extra",
+   "reason": "intended: ign-lint only checks leaf keys; iglint also checks keys whose value is an object or array"
+  },
+  {
+   "view": "cases/BadContextData",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "custom.filteredData.LeakIsolationAlarm: Name 'LeakIsolationAlarm' doesn't follow camelCase for property (suggestion: 'leakIsolationAlarm')",
+   "kind": "extra",
+   "reason": "intended: ign-lint only checks leaf keys; iglint also checks keys whose value is an object or array"
+  },
+  {
+   "view": "cases/BadContextData",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "custom.filteredData.Rack: Name 'Rack' doesn't follow camelCase for property (suggestion: 'rack')",
+   "kind": "extra",
+   "reason": "intended: ign-lint only checks leaf keys; iglint also checks keys whose value is an object or array"
+  },
+  {
+   "view": "cases/BadContextData",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "custom.filteredData.ReturnTemperature: Name 'ReturnTemperature' doesn't follow camelCase for property (suggestion: 'returnTemperature')",
+   "kind": "extra",
+   "reason": "intended: ign-lint only checks leaf keys; iglint also checks keys whose value is an object or array"
+  },
+  {
+   "view": "cases/BadContextData",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "custom.filteredData.SupplyTemperature: Name 'SupplyTemperature' doesn't follow camelCase for property (suggestion: 'supplyTemperature')",
+   "kind": "extra",
+   "reason": "intended: ign-lint only checks leaf keys; iglint also checks keys whose value is an object or array"
+  },
+  {
+   "view": "cases/BadContextData",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "custom.filteredData.VolumetricFlow: Name 'VolumetricFlow' doesn't follow camelCase for property (suggestion: 'volumetricFlow')",
+   "kind": "extra",
+   "reason": "intended: ign-lint only checks leaf keys; iglint also checks keys whose value is an object or array"
+  },
+  {
+   "view": "cases/BadContextData",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Filters.children[0].Wing.children[1].Wing Dropdown: Name 'Wing Dropdown' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/BadContextData",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Filters.children[1].Section.children[1].Section Dropdown: Name 'Section Dropdown' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/BadContextData",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Filters.children[2].Device.children[1].Device Dropdown: Name 'Device Dropdown' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/ExtensionFunctions",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].Status Label: Name 'Status Label' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Header.children[0].FlexContainer: Name 'FlexContainer' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'FLEX_CONTAINER')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].Data.children[1].SplitContainer: Name 'SplitContainer' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SPLIT_CONTAINER')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Header.children[0].FlexContainer: Name 'FlexContainer' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'flex container')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].Data.children[0].Left Container.children[1].Equipment States: Name 'Equipment States' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'equipment states')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].Data.children[0].Left Container.children[2].KPI Charts: Name 'KPI Charts' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'kpi charts')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].Data.children[0].Left Container: Name 'Left Container' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'left container')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].Data.children[1].SplitContainer: Name 'SplitContainer' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'split container')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.custom.urlParams: Name 'urlParams' doesn't follow camelCase for property (suggestion: 'URLParams')",
+   "kind": "missing",
+   "reason": "bug 6/7: ign-lint replaces abbreviation substrings before matching (camelCase rejects names such as idleTimer, urlParams; Title Case rejects abbreviation words) and then reports a collision of the suggestion with the component itself; iglint only accepts whole-word abbreviations and never rejects a name because of them"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[1].Custom Dashboard Button: Name 'Custom Dashboard Button' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Header.children[0].FlexContainer.children[2].KPI Repeater Static: Name 'KPI Repeater Static' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Header.children[1].Production Picker: Name 'Production Picker' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].Data.children[0].Left Container.children[0].Production Orders: Name 'Production Orders' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].Data.children[0].Left Container.children[1].Equipment States: Name 'Equipment States' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].Data.children[0].Left Container: Name 'Left Container' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow PascalCase for component (suggestion: 'MixedPascalcaseInvalid')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow PascalCase for component (suggestion: 'MixedPascalCaseInvalid')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].HTTPSConnection: Name 'HTTPSConnection' doesn't follow camelCase for component (suggestion: 'hTTPSConnection')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[12].XMLHTTPRequest: Name 'XMLHTTPRequest' doesn't follow camelCase for component (suggestion: 'xMLHTTPRequest')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[13].API_CLIENT_HTTP: Name 'API_CLIENT_HTTP' doesn't follow camelCase for component (suggestion: 'APIClientHTTP')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[14].HTTP_API_URL: Name 'HTTP_API_URL' doesn't follow camelCase for component (suggestion: 'HTTPAPIURL')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[16].IOModuleController: Name 'IOModuleController' doesn't follow camelCase for component (suggestion: 'iOModuleController')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[17].CPU_GPU_MONITOR: Name 'CPU_GPU_MONITOR' doesn't follow camelCase for component (suggestion: 'CPUGPUMonitor')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].MyComponentWithNumbers123: Name 'MyComponentWithNumbers123' doesn't follow camelCase for component (suggestion: 'myComponentWithNumbers')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow camelCase for component (suggestion: 'mixedPascalcaseInvalid')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].APIClient: Name 'APIClient' doesn't follow camelCase for component (suggestion: 'aPIClient')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].HTTPSConnection: Name 'HTTPSConnection' doesn't follow camelCase for component (suggestion: 'httpsConnection')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[12].XMLHTTPRequest: Name 'XMLHTTPRequest' doesn't follow camelCase for component (suggestion: 'xmlHTTPRequest')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[13].API_CLIENT_HTTP: Name 'API_CLIENT_HTTP' doesn't follow camelCase for component (suggestion: 'apiClientHTTP')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[14].HTTP_API_URL: Name 'HTTP_API_URL' doesn't follow camelCase for component (suggestion: 'httpAPIURL')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[16].IOModuleController: Name 'IOModuleController' doesn't follow camelCase for component (suggestion: 'ioModuleController')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[17].CPU_GPU_MONITOR: Name 'CPU_GPU_MONITOR' doesn't follow camelCase for component (suggestion: 'cpuGPUMonitor')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].MyComponentWithNumbers123: Name 'MyComponentWithNumbers123' doesn't follow camelCase for component (suggestion: 'myComponentWithNumbers123')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow camelCase for component (suggestion: 'mixedPascalCaseInvalid')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].APIClient: Name 'APIClient' doesn't follow camelCase for component (suggestion: 'apiClient')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].HTTPSConnection: Name 'HTTPSConnection' doesn't follow snake_case for component (suggestion: 'h_t_t_p_s_connection')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].MyAPIHandler: Name 'MyAPIHandler' doesn't follow snake_case for component (suggestion: 'my_a_p_i_handler')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[12].XMLHTTPRequest: Name 'XMLHTTPRequest' doesn't follow snake_case for component (suggestion: 'x_m_l_h_t_t_p_request')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[16].IOModuleController: Name 'IOModuleController' doesn't follow snake_case for component (suggestion: 'i_o_module_controller')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].MyComponentWithNumbers123: Name 'MyComponentWithNumbers123' doesn't follow snake_case for component (suggestion: 'my_component_with_numbers')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow snake_case for component (suggestion: 'mixed_pascalcase_invalid')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].APIClient: Name 'APIClient' doesn't follow snake_case for component (suggestion: 'a_p_i_client')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].HTTPSConnection: Name 'HTTPSConnection' doesn't follow snake_case for component (suggestion: 'https_connection')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].MyAPIHandler: Name 'MyAPIHandler' doesn't follow snake_case for component (suggestion: 'my_api_handler')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[12].XMLHTTPRequest: Name 'XMLHTTPRequest' doesn't follow snake_case for component (suggestion: 'xml_http_request')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[16].IOModuleController: Name 'IOModuleController' doesn't follow snake_case for component (suggestion: 'io_module_controller')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].MyComponentWithNumbers123: Name 'MyComponentWithNumbers123' doesn't follow snake_case for component (suggestion: 'my_component_with_numbers_123')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow snake_case for component (suggestion: 'mixed_pascal_case_invalid')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].APIClient: Name 'APIClient' doesn't follow snake_case for component (suggestion: 'api_client')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].HTTPSConnection: Name 'HTTPSConnection' doesn't follow kebab-case for component (suggestion: 'h-t-t-p-s-connection')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].MyAPIHandler: Name 'MyAPIHandler' doesn't follow kebab-case for component (suggestion: 'my-a-p-i-handler')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[12].XMLHTTPRequest: Name 'XMLHTTPRequest' doesn't follow kebab-case for component (suggestion: 'x-m-l-h-t-t-p-request')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[16].IOModuleController: Name 'IOModuleController' doesn't follow kebab-case for component (suggestion: 'i-o-module-controller')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].MyComponentWithNumbers123: Name 'MyComponentWithNumbers123' doesn't follow kebab-case for component (suggestion: 'my-component-with-numbers')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow kebab-case for component (suggestion: 'mixed-pascalcase-invalid')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].APIClient: Name 'APIClient' doesn't follow kebab-case for component (suggestion: 'a-p-i-client')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].HTTPSConnection: Name 'HTTPSConnection' doesn't follow kebab-case for component (suggestion: 'https-connection')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].MyAPIHandler: Name 'MyAPIHandler' doesn't follow kebab-case for component (suggestion: 'my-api-handler')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[12].XMLHTTPRequest: Name 'XMLHTTPRequest' doesn't follow kebab-case for component (suggestion: 'xml-http-request')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[16].IOModuleController: Name 'IOModuleController' doesn't follow kebab-case for component (suggestion: 'io-module-controller')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].MyComponentWithNumbers123: Name 'MyComponentWithNumbers123' doesn't follow kebab-case for component (suggestion: 'my-component-with-numbers-123')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow kebab-case for component (suggestion: 'mixed-pascal-case-invalid')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].APIClient: Name 'APIClient' doesn't follow kebab-case for component (suggestion: 'api-client')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[16].IOModuleController: Name 'IOModuleController' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'I_O_MODULE_CONTROLLER')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].MyComponentWithNumbers123: Name 'MyComponentWithNumbers123' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'MY_COMPONENT_WITH_NUMBERS')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].HTTPSConnection: Name 'HTTPSConnection' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'HTTPS_CONNECTION')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].MyAPIHandler: Name 'MyAPIHandler' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'MY_API_HANDLER')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[12].XMLHTTPRequest: Name 'XMLHTTPRequest' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'XML_HTTP_REQUEST')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[16].IOModuleController: Name 'IOModuleController' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'IO_MODULE_CONTROLLER')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].MyComponentWithNumbers123: Name 'MyComponentWithNumbers123' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'MY_COMPONENT_WITH_NUMBERS_123')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].camelCaseInvalid: Name 'camelCaseInvalid' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'CAMEL_CASE_INVALID')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].snake_case_invalid: Name 'snake_case_invalid' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SNAKE_CASE_INVALID')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'MIXED_PASCAL_CASE_INVALID')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].APIClient: Name 'APIClient' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'API_CLIENT')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].HTTPSConnection: Name 'HTTPSConnection' doesn't follow Title Case for component (suggestion: 'H T T P S Connection')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].MyAPIHandler: Name 'MyAPIHandler' doesn't follow Title Case for component (suggestion: 'My A P I Handler')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[12].XMLHTTPRequest: Name 'XMLHTTPRequest' doesn't follow Title Case for component (suggestion: 'X M L H T T P Request')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[15].TT_DAT_API_123: Name 'TT_DAT_API_123' doesn't follow Title Case for component (suggestion: 'Tt Dat API 123')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[16].IOModuleController: Name 'IOModuleController' doesn't follow Title Case for component (suggestion: 'I O Module Controller')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].DAT_02_TT_123_A: Name 'DAT_02_TT_123_A' doesn't follow Title Case for component (suggestion: 'Dat 02 Tt 123 A')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].UPPER_WITH_NUMBERS_456: Name 'UPPER_WITH_NUMBERS_456' doesn't follow Title Case for component (suggestion: 'Upper With Numbers 456')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow Title Case for component (suggestion: 'Mixed Pascalcase Invalid')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].APIClient: Name 'APIClient' doesn't follow Title Case for component (suggestion: 'A P I Client')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].HTTPSConnection: Name 'HTTPSConnection' doesn't follow Title Case for component (suggestion: 'HTTPS Connection')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].MyAPIHandler: Name 'MyAPIHandler' doesn't follow Title Case for component (suggestion: 'My API Handler')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[12].XMLHTTPRequest: Name 'XMLHTTPRequest' doesn't follow Title Case for component (suggestion: 'XML HTTP Request')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[15].TT_DAT_API_123: Name 'TT_DAT_API_123' doesn't follow Title Case for component (suggestion: 'Tt Dat API')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[16].IOModuleController: Name 'IOModuleController' doesn't follow Title Case for component (suggestion: 'Io Module Controller')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].DAT_02_TT_123_A: Name 'DAT_02_TT_123_A' doesn't follow Title Case for component (suggestion: 'Dat Tt A')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].UPPER_WITH_NUMBERS_456: Name 'UPPER_WITH_NUMBERS_456' doesn't follow Title Case for component (suggestion: 'Upper With Numbers')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow Title Case for component (suggestion: 'Mixed Pascal Case Invalid')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].APIClient: Name 'APIClient' doesn't follow Title Case for component (suggestion: 'API Client')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[15].TT_DAT_API_123: Name 'TT_DAT_API_123' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'tt dat api 123')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[16].IOModuleController: Name 'IOModuleController' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'i o module controller')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].DAT_02_TT_123_A: Name 'DAT_02_TT_123_A' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'dat 02 tt 123 a')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].UPPER_WITH_NUMBERS_456: Name 'UPPER_WITH_NUMBERS_456' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'upper with numbers 456')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'mixed pascalcase invalid')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].HTTPSConnection: Name 'HTTPSConnection' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'https connection')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].MyAPIHandler: Name 'MyAPIHandler' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'my api handler')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[12].XMLHTTPRequest: Name 'XMLHTTPRequest' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'xml http request')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[15].TT_DAT_API_123: Name 'TT_DAT_API_123' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'tt dat api')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[16].IOModuleController: Name 'IOModuleController' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'io module controller')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].DAT_02_TT_123_A: Name 'DAT_02_TT_123_A' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'dat tt a')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].UPPER_WITH_NUMBERS_456: Name 'UPPER_WITH_NUMBERS_456' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'upper with numbers')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].camelCaseInvalid: Name 'camelCaseInvalid' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'camel case invalid')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'mixed pascal case invalid')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].APIClient: Name 'APIClient' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'api client')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[13].API_CLIENT_HTTP: Name 'API_CLIENT_HTTP' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[15].TT_DAT_API_123: Name 'TT_DAT_API_123' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[17].CPU_GPU_MONITOR: Name 'CPU_GPU_MONITOR' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].SCREAMING_SNAKE_CASE_LABEL: Name 'SCREAMING_SNAKE_CASE_LABEL' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].DAT_02_TT_123_A: Name 'DAT_02_TT_123_A' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].MyComponentWithNumbers123: Name 'MyComponentWithNumbers123' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].UPPER_WITH_NUMBERS_456: Name 'UPPER_WITH_NUMBERS_456' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[5].camelCaseInvalid: Name 'camelCaseInvalid' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].snake_case_invalid: Name 'snake_case_invalid' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[7].kebab-case-invalid: Name 'kebab-case-invalid' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-no-numbers",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[15].TT_DAT_API_123: Name 'TT_DAT_API_123' doesn't follow PascalCase for component (suggestion: 'TtDatAPI123')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-no-numbers",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].DAT_02_TT_123_A: Name 'DAT_02_TT_123_A' doesn't follow PascalCase for component (suggestion: 'Dat02Tt123A')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-no-numbers",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].UPPER_WITH_NUMBERS_456: Name 'UPPER_WITH_NUMBERS_456' doesn't follow PascalCase for component (suggestion: 'UpperWithNumbers456')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-no-numbers",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[15].TT_DAT_API_123: Name 'TT_DAT_API_123' doesn't follow PascalCase for component (suggestion: 'TtDatAPI')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-no-numbers",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].DAT_02_TT_123_A: Name 'DAT_02_TT_123_A' doesn't follow PascalCase for component (suggestion: 'DatTtA')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-pascal-no-numbers",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].UPPER_WITH_NUMBERS_456: Name 'UPPER_WITH_NUMBERS_456' doesn't follow PascalCase for component (suggestion: 'UpperWithNumbers')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-mixedcase-pattern",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'MixedPascalcaseInvalid')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/MixedCase",
+   "variant": "np-mixedcase-pattern",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'MixedPascalCaseInvalid')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/Pipes",
+   "variant": "np-property-camel-forbidden",
+   "rule": "NamePatternRule",
+   "message": "root.root.props.pipes.origin.connections.connections.x: Name 'x' is too short (minimum 2 characters) for property",
+   "kind": "missing",
+   "reason": "intended: keys of props that the component schema declares are Ignition's names, not the user's; iglint only checks free-form keys"
+  },
+  {
+   "view": "cases/Pipes",
+   "variant": "np-property-camel-forbidden",
+   "rule": "NamePatternRule",
+   "message": "root.root.props.pipes.origin.connections.connections.y: Name 'y' is too short (minimum 2 characters) for property",
+   "kind": "missing",
+   "reason": "intended: keys of props that the component schema declares are Ignition's names, not the user's; iglint only checks free-form keys"
+  },
+  {
+   "view": "cases/Pipes",
+   "variant": "np-property-camel-forbidden",
+   "rule": "NamePatternRule",
+   "message": "root.root.props.pipes.origin.connections.x: Name 'x' is too short (minimum 2 characters) for property",
+   "kind": "missing",
+   "reason": "intended: keys of props that the component schema declares are Ignition's names, not the user's; iglint only checks free-form keys"
+  },
+  {
+   "view": "cases/Pipes",
+   "variant": "np-property-camel-forbidden",
+   "rule": "NamePatternRule",
+   "message": "root.root.props.pipes.origin.connections.y: Name 'y' is too short (minimum 2 characters) for property",
+   "kind": "missing",
+   "reason": "intended: keys of props that the component schema declares are Ignition's names, not the user's; iglint only checks free-form keys"
+  },
+  {
+   "view": "cases/Pipes",
+   "variant": "np-property-camel-forbidden",
+   "rule": "NamePatternRule",
+   "message": "root.root.props.pipes.origin.x: Name 'x' is too short (minimum 2 characters) for property",
+   "kind": "missing",
+   "reason": "intended: keys of props that the component schema declares are Ignition's names, not the user's; iglint only checks free-form keys"
+  },
+  {
+   "view": "cases/Pipes",
+   "variant": "np-property-camel-forbidden",
+   "rule": "NamePatternRule",
+   "message": "root.root.props.pipes.origin.y: Name 'y' is too short (minimum 2 characters) for property",
+   "kind": "missing",
+   "reason": "intended: keys of props that the component schema declares are Ignition's names, not the user's; iglint only checks free-form keys"
+  },
+  {
+   "view": "cases/Title Case",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Icon Title Case: Name 'Icon Title Case' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/UPPER_CASE",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].ICON_UPPER_CASE: Name 'ICON_UPPER_CASE' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/camelCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].iconCamelCase: Name 'iconCamelCase' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow PascalCase for component (suggestion: 'Badembeddedpotato0')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow PascalCase for component (suggestion: 'BadEmbeddedPotato0')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow camelCase for component (suggestion: 'badembeddedpotato0')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow camelCase for component (suggestion: 'badEmbeddedPotato0')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow snake_case for component (suggestion: 'badembeddedpotato_0')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow snake_case for component (suggestion: 'bad_embedded_potato_0')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow kebab-case for component (suggestion: 'badembeddedpotato-0')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow kebab-case for component (suggestion: 'bad-embedded-potato-0')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'BADEMBEDDEDPOTATO_0')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'BAD_EMBEDDED_POTATO_0')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer: Name 'FlexContainer' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'FLEX_CONTAINER')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow Title Case for component (suggestion: 'Badembeddedpotato 0')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow Title Case for component (suggestion: 'Bad Embedded Potato')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'badembeddedpotato 0')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'bad embedded potato')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer: Name 'FlexContainer' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'flex container')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "custom.THISIsQuestionable: Name 'THISIsQuestionable' doesn't follow camelCase for property (suggestion: 'tHISIsQuestionable')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "custom.TRYAGAIN: Name 'TRYAGAIN' doesn't follow camelCase for property (suggestion: 'tRYAGAIN')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "custom.THISIsQuestionable: Name 'THISIsQuestionable' doesn't follow camelCase for property (suggestion: 'thisIsQuestionable')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "custom.TRYAGAIN: Name 'TRYAGAIN' doesn't follow camelCase for property (suggestion: 'tryagain')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].anotherBadPotato: Name 'anotherBadPotato' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-pascal-no-numbers",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow PascalCase for component (suggestion: 'BadEmbeddedPotato')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-mixedcase-pattern",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'Badembeddedpotato0')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/inconsistentCase",
+   "variant": "np-mixedcase-pattern",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'BadEmbeddedPotato0')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/kebab-case",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].icon-kebab-case: Name 'icon-kebab-case' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "cases/snake_case",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow PascalCase for component (suggestion: 'IdleTimer')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton1')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow PascalCase for component (suggestion: 'RestartButton')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow PascalCase for component (suggestion: 'GuideLabel')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow PascalCase for component (suggestion: 'ClientPanel')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow PascalCase for component (suggestion: 'AspectRatio')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].idle: Name 'idle' doesn't follow PascalCase for component (suggestion: 'Idle')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow camelCase for component (suggestion 'idleTimer' already in use by a sibling; rename manually)",
+   "kind": "missing",
+   "reason": "bug 6/7: ign-lint replaces abbreviation substrings before matching (camelCase rejects names such as idleTimer, urlParams; Title Case rejects abbreviation words) and then reports a collision of the suggestion with the component itself; iglint only accepts whole-word abbreviations and never rejects a name because of them"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow camelCase for component (suggestion: 'hTTPServer')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow camelCase for component (suggestion 'restartButton' already in use by a sibling; rename manually)",
+   "kind": "missing",
+   "reason": "bug 6/7: ign-lint replaces abbreviation substrings before matching (camelCase rejects names such as idleTimer, urlParams; Title Case rejects abbreviation words) and then reports a collision of the suggestion with the component itself; iglint only accepts whole-word abbreviations and never rejects a name because of them"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow camelCase for component (suggestion 'guideLabel' already in use by a sibling; rename manually)",
+   "kind": "missing",
+   "reason": "bug 6/7: ign-lint replaces abbreviation substrings before matching (camelCase rejects names such as idleTimer, urlParams; Title Case rejects abbreviation words) and then reports a collision of the suggestion with the component itself; iglint only accepts whole-word abbreviations and never rejects a name because of them"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow camelCase for component (suggestion 'clientPanel' already in use by a sibling; rename manually)",
+   "kind": "missing",
+   "reason": "bug 6/7: ign-lint replaces abbreviation substrings before matching (camelCase rejects names such as idleTimer, urlParams; Title Case rejects abbreviation words) and then reports a collision of the suggestion with the component itself; iglint only accepts whole-word abbreviations and never rejects a name because of them"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow camelCase for component (suggestion 'aspectRatio' already in use by a sibling; rename manually)",
+   "kind": "missing",
+   "reason": "bug 6/7: ign-lint replaces abbreviation substrings before matching (camelCase rejects names such as idleTimer, urlParams; Title Case rejects abbreviation words) and then reports a collision of the suggestion with the component itself; iglint only accepts whole-word abbreviations and never rejects a name because of them"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow camelCase for component (suggestion: 'APIKey')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].idle: Name 'idle' doesn't follow camelCase for component (suggestion 'idle' already in use by a sibling; rename manually)",
+   "kind": "missing",
+   "reason": "bug 6/7: ign-lint replaces abbreviation substrings before matching (camelCase rejects names such as idleTimer, urlParams; Title Case rejects abbreviation words) and then reports a collision of the suggestion with the component itself; iglint only accepts whole-word abbreviations and never rejects a name because of them"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow camelCase for component (suggestion: 'httpServer')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow camelCase for component (suggestion: 'apiKey')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow snake_case for component (suggestion: 'my_button')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow snake_case for component (suggestion: 'my_a_p_i_button')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow snake_case for component (suggestion: 'my_button_1')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow snake_case for component (suggestion: 'http_server')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow snake_case for component (suggestion: 'my_api_button')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow kebab-case for component (suggestion: 'my-button')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow kebab-case for component (suggestion: 'my-a-p-i-button')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow kebab-case for component (suggestion: 'my-button-1')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow kebab-case for component (suggestion: 'http-server')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow kebab-case for component (suggestion: 'my-api-button')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'MY_BUTTON')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'IDLE_TIMER')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'MY_BUTTON_1')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'HTTP_SERVER')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'RESTART_BUTTON')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'GUIDE_LABEL')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'CLIENT_PANEL')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'ASPECT_RATIO')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'MY_API_BUTTON')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].idle: Name 'idle' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'IDLE')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow Title Case for component (suggestion: 'H T T P Server')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow Title Case for component (suggestion: 'My A P I Button')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow Title Case for component (suggestion 'API Key' already in use by a sibling; rename manually)",
+   "kind": "missing",
+   "reason": "bug 6/7: ign-lint replaces abbreviation substrings before matching (camelCase rejects names such as idleTimer, urlParams; Title Case rejects abbreviation words) and then reports a collision of the suggestion with the component itself; iglint only accepts whole-word abbreviations and never rejects a name because of them"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow Title Case for component (suggestion: 'HTTP Server')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow Title Case for component (suggestion: 'My API Button')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'idle timer')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'http server')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'restart button')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'guide label')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'client panel')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'aspect ratio')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'my api button')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'api key')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-pascal-min5",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].idle: Name 'idle' is too short (minimum 5 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].restartButton: Name 'restartButton' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].clientPanel: Name 'clientPanel' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-pascal-max10",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' is too long (maximum 10 characters) for component",
+   "kind": "fix",
+   "reason": "intended: iglint offers a rename only when the suggestion itself passes every check of the rule (ign-lint offers renames to names it would report again)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-mixedcase-pattern",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'MyButton')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-mixedcase-pattern",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'IdleTimer')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-mixedcase-pattern",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'MyButton1')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-mixedcase-pattern",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'RestartButton')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-mixedcase-pattern",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'GuideLabel')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-mixedcase-pattern",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'ClientPanel')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-mixedcase-pattern",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'AspectRatio')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/NamingAbbreviations",
+   "variant": "np-mixedcase-pattern",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[9].idle: Name 'idle' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'Idle')",
+   "kind": "extra",
+   "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow snake_case for component (suggestion: 'py2')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "np-snake-component-error",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow snake_case for component (suggestion: 'py_2')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow kebab-case for component (suggestion: 'py2')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "np-kebab-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow kebab-case for component (suggestion: 'py-2')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'PY2')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "np-screaming-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'PY_2')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow Title Case for component (suggestion 'Py2' already in use by a sibling; rename manually)",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "np-title-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow Title Case for component (suggestion: 'Py')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'py2')",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "np-lower-component",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'py')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "np-pascal-no-numbers",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow PascalCase for component (suggestion 'Py2' already in use by a sibling; rename manually)",
+   "kind": "missing",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "np-pascal-no-numbers",
+   "rule": "NamePatternRule",
+   "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow PascalCase for component (suggestion: 'Py')",
+   "kind": "extra",
+   "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  }
+ ]
+}
