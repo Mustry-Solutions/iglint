@@ -1,0 +1,28 @@
+---
+source: crates/iglint/src/output/tests.rs
+expression: "format!(\"{}\\n{}\", String::from_utf8(text).unwrap(),\nString::from_utf8(json).unwrap())"
+---
+2	TST001	[*] unused-thing
+2	TST002	    bad-name
+2	TST003	    deep-structure
+
+[
+  {
+    "code": "TST001",
+    "name": "unused-thing",
+    "count": 2,
+    "fixable": true
+  },
+  {
+    "code": "TST002",
+    "name": "bad-name",
+    "count": 2,
+    "fixable": false
+  },
+  {
+    "code": "TST003",
+    "name": "deep-structure",
+    "count": 2,
+    "fixable": false
+  }
+]

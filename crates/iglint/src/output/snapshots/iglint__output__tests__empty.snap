@@ -1,0 +1,46 @@
+---
+source: crates/iglint/src/output/tests.rs
+expression: all
+---
+--- Text
+--- Concise
+--- Grouped
+--- Json
+[]
+--- JsonLines
+--- Sarif
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "iglint",
+          "informationUri": "https://github.com/Mustry-Solutions/iglint",
+          "version": "0.1.0",
+          "rules": []
+        }
+      },
+      "originalUriBaseIds": {
+        "%SRCROOT%": {
+          "uri": "file:///repo/"
+        }
+      },
+      "columnKind": "unicodeCodePoints",
+      "results": []
+    }
+  ]
+}
+--- Github
+--- Azure
+--- Junit
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="iglint" tests="1" failures="0" errors="0">
+  <testsuite name="iglint" tests="1" failures="0" errors="0">
+    <testcase name="iglint" classname="iglint"/>
+  </testsuite>
+</testsuites>
+--- Pylint
+--- Gitlab
+[]

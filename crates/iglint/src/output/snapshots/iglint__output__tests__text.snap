@@ -1,0 +1,48 @@
+---
+source: crates/iglint/src/output/tests.rs
+expression: "output(OutputFormat::Text, & diagnostics(), false)"
+---
+/other/lib.py:1:1: TST003 [info] Empty range at the start
+  |
+1 | import os
+  | ^
+  |
+
+projects/p/ignition/script-python/a/code.py:2:2: TST002 [warning] Variable `x` is unused
+  |
+2 |     x = 1
+  |     ^
+  |
+  = help: Remove the assignment
+
+projects/p/ignition/script-python/a/code.py:3:9: TST001 [error] Undefined name `y`
+  |
+3 |     return y
+  |            ^
+  |
+
+projects/p/views/Main/view.json:3:5: TST001 [error] Custom property `unused` is never read
+  |
+3 |     "unused": 1,
+  |     ^^^^^^^^
+  |
+  = note: at custom.unused
+  = help: [*] Remove the property
+
+projects/p/views/Main/view.json:4:5: TST002 [warning] Name "naïve" <is> not camelCase; 100% sure, [really]; a]b second line
+  |
+4 |     "naïve": "<a & 'b'>"
+  |     ^^^^^^^
+  |
+  = note: the view root (projects/p/views/Main/view.json:6:3)
+  = help: Rename to `naive` (unsafe fix available with `--unsafe-fixes`)
+
+projects/p/views/Main/view.json:6:3: TST003 [info] Root is nested
+  |
+6 |   "root": {
+  |   ^^^^^^^^^
+7 |     "meta": {"name": "root"}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+8 |   }
+  | ^^^
+  |

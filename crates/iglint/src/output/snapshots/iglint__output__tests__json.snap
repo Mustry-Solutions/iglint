@@ -1,0 +1,171 @@
+---
+source: crates/iglint/src/output/tests.rs
+expression: "output(OutputFormat::Json, & diagnostics(), false)"
+---
+[
+  {
+    "code": "TST003",
+    "name": "deep-structure",
+    "severity": "info",
+    "message": "Empty range at the start",
+    "filename": "/other/lib.py",
+    "location": {
+      "row": 1,
+      "column": 1
+    },
+    "end_location": {
+      "row": 1,
+      "column": 1
+    },
+    "node_path": null,
+    "fingerprint": "30bad17765f4dd46",
+    "fix": null,
+    "url": null
+  },
+  {
+    "code": "TST002",
+    "name": "bad-name",
+    "severity": "warning",
+    "message": "Variable `x` is unused",
+    "filename": "projects/p/ignition/script-python/a/code.py",
+    "location": {
+      "row": 2,
+      "column": 2
+    },
+    "end_location": {
+      "row": 2,
+      "column": 3
+    },
+    "node_path": null,
+    "fingerprint": "b91e31e97da4c401",
+    "fix": {
+      "applicability": "display-only",
+      "message": "Remove the assignment",
+      "edits": [
+        {
+          "filename": "projects/p/ignition/script-python/a/code.py",
+          "content": "",
+          "location": {
+            "row": 2,
+            "column": 1
+          },
+          "end_location": {
+            "row": 3,
+            "column": 1
+          }
+        }
+      ]
+    },
+    "url": null
+  },
+  {
+    "code": "TST001",
+    "name": "unused-thing",
+    "severity": "error",
+    "message": "Undefined name `y`",
+    "filename": "projects/p/ignition/script-python/a/code.py",
+    "location": {
+      "row": 3,
+      "column": 9
+    },
+    "end_location": {
+      "row": 3,
+      "column": 10
+    },
+    "node_path": null,
+    "fingerprint": "bb0cd88fb36159e3",
+    "fix": null,
+    "url": null
+  },
+  {
+    "code": "TST001",
+    "name": "unused-thing",
+    "severity": "error",
+    "message": "Custom property `unused` is never read",
+    "filename": "projects/p/views/Main/view.json",
+    "location": {
+      "row": 3,
+      "column": 5
+    },
+    "end_location": {
+      "row": 3,
+      "column": 13
+    },
+    "node_path": "custom.unused",
+    "fingerprint": "e02456ace8e7051c",
+    "fix": {
+      "applicability": "safe",
+      "message": "Remove the property",
+      "edits": [
+        {
+          "filename": "projects/p/views/Main/view.json",
+          "content": "",
+          "location": {
+            "row": 3,
+            "column": 1
+          },
+          "end_location": {
+            "row": 4,
+            "column": 1
+          }
+        }
+      ]
+    },
+    "url": null
+  },
+  {
+    "code": "TST002",
+    "name": "bad-name",
+    "severity": "warning",
+    "message": "Name \"naïve\" <is> not camelCase; 100% sure, [really]; a]b\nsecond line",
+    "filename": "projects/p/views/Main/view.json",
+    "location": {
+      "row": 4,
+      "column": 5
+    },
+    "end_location": {
+      "row": 4,
+      "column": 12
+    },
+    "node_path": null,
+    "fingerprint": "422766c711bc5561",
+    "fix": {
+      "applicability": "unsafe",
+      "message": "Rename to `naive`",
+      "edits": [
+        {
+          "filename": "projects/p/views/Main/view.json",
+          "content": "naive",
+          "location": {
+            "row": 4,
+            "column": 6
+          },
+          "end_location": {
+            "row": 4,
+            "column": 11
+          }
+        }
+      ]
+    },
+    "url": null
+  },
+  {
+    "code": "TST003",
+    "name": "deep-structure",
+    "severity": "info",
+    "message": "Root is nested",
+    "filename": "projects/p/views/Main/view.json",
+    "location": {
+      "row": 6,
+      "column": 3
+    },
+    "end_location": {
+      "row": 8,
+      "column": 4
+    },
+    "node_path": null,
+    "fingerprint": "949a3a2d89c2da25",
+    "fix": null,
+    "url": null
+  }
+]

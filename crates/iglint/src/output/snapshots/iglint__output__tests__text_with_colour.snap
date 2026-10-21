@@ -1,0 +1,29 @@
+---
+source: crates/iglint/src/output/tests.rs
+expression: "output(OutputFormat::Text, &all[all.len() - 3..], true)"
+---
+[1mprojects/p/views/Main/view.json[0m:3:5: [1mTST001[0m [1;31m[error][0m Custom property `unused` is never read
+  [1;34m|[0m
+[1;34m3[0m [1;34m|[0m     "unused": 1,
+  [1;34m|[0m     [1;31m^^^^^^^^[0m
+  [1;34m|[0m
+  [1;34m=[0m [1mnote[0m: at custom.unused
+  [1;34m=[0m [1mhelp[0m: [36m[*][0m Remove the property
+
+[1mprojects/p/views/Main/view.json[0m:4:5: [1mTST002[0m [1;33m[warning][0m Name "naïve" <is> not camelCase; 100% sure, [really]; a]b second line
+  [1;34m|[0m
+[1;34m4[0m [1;34m|[0m     "naïve": "<a & 'b'>"
+  [1;34m|[0m     [1;33m^^^^^^^[0m
+  [1;34m|[0m
+  [1;34m=[0m [1mnote[0m: the view root (projects/p/views/Main/view.json:6:3)
+  [1;34m=[0m [1mhelp[0m: Rename to `naive` (unsafe fix available with `--unsafe-fixes`)
+
+[1mprojects/p/views/Main/view.json[0m:6:3: [1mTST003[0m [1;34m[info][0m Root is nested
+  [1;34m|[0m
+[1;34m6[0m [1;34m|[0m   "root": {
+  [1;34m|[0m   [1;34m^^^^^^^^^[0m
+[1;34m7[0m [1;34m|[0m     "meta": {"name": "root"}
+  [1;34m|[0m [1;34m^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[1;34m8[0m [1;34m|[0m   }
+  [1;34m|[0m [1;34m^^^[0m
+  [1;34m|[0m

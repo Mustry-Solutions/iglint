@@ -1,0 +1,340 @@
+---
+source: crates/iglint/src/output/tests.rs
+expression: "output(OutputFormat::Sarif, & diagnostics(), false)"
+---
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "iglint",
+          "informationUri": "https://github.com/Mustry-Solutions/iglint",
+          "version": "0.1.0",
+          "rules": [
+            {
+              "id": "TST001",
+              "name": "unused-thing",
+              "shortDescription": {
+                "text": "Unused custom property"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "category": "View structure"
+              },
+              "fullDescription": {
+                "text": "## What it does\nFlags custom properties nobody reads."
+              },
+              "help": {
+                "text": "Unused custom property",
+                "markdown": "## What it does\nFlags custom properties nobody reads."
+              }
+            },
+            {
+              "id": "TST002",
+              "name": "bad-name",
+              "shortDescription": {
+                "text": "Name does not follow the convention"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "category": "Naming"
+              }
+            },
+            {
+              "id": "TST003",
+              "name": "deep-structure",
+              "shortDescription": {
+                "text": "Structure is deeply nested"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "category": "View structure"
+              }
+            }
+          ]
+        }
+      },
+      "originalUriBaseIds": {
+        "%SRCROOT%": {
+          "uri": "file:///repo/"
+        }
+      },
+      "columnKind": "unicodeCodePoints",
+      "results": [
+        {
+          "ruleId": "TST003",
+          "ruleIndex": 2,
+          "level": "note",
+          "message": {
+            "text": "Empty range at the start"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/other/lib.py",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 1
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "iglint/v1": "30bad17765f4dd46"
+          }
+        },
+        {
+          "ruleId": "TST002",
+          "ruleIndex": 1,
+          "level": "warning",
+          "message": {
+            "text": "Variable `x` is unused"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "projects/p/ignition/script-python/a/code.py",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 2,
+                  "startColumn": 2,
+                  "endLine": 2,
+                  "endColumn": 3
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "iglint/v1": "b91e31e97da4c401"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Remove the assignment"
+              },
+              "artifactChanges": [
+                {
+                  "artifactLocation": {
+                    "uri": "projects/p/ignition/script-python/a/code.py",
+                    "uriBaseId": "%SRCROOT%"
+                  },
+                  "replacements": [
+                    {
+                      "deletedRegion": {
+                        "byteOffset": 10,
+                        "byteLength": 8
+                      },
+                      "insertedContent": {
+                        "text": ""
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "ruleId": "TST001",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Undefined name `y`"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "projects/p/ignition/script-python/a/code.py",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 3,
+                  "startColumn": 9,
+                  "endLine": 3,
+                  "endColumn": 10
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "iglint/v1": "bb0cd88fb36159e3"
+          }
+        },
+        {
+          "ruleId": "TST001",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Custom property `unused` is never read"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "projects/p/views/Main/view.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 3,
+                  "startColumn": 5,
+                  "endLine": 3,
+                  "endColumn": 13
+                }
+              },
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "custom.unused"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "iglint/v1": "e02456ace8e7051c"
+          },
+          "fixes": [
+            {
+              "description": {
+                "text": "Remove the property"
+              },
+              "artifactChanges": [
+                {
+                  "artifactLocation": {
+                    "uri": "projects/p/views/Main/view.json",
+                    "uriBaseId": "%SRCROOT%"
+                  },
+                  "replacements": [
+                    {
+                      "deletedRegion": {
+                        "byteOffset": 16,
+                        "byteLength": 17
+                      },
+                      "insertedContent": {
+                        "text": ""
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "ruleId": "TST002",
+          "ruleIndex": 1,
+          "level": "warning",
+          "message": {
+            "text": "Name \"naïve\" <is> not camelCase; 100% sure, [really]; a]b\nsecond line"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "projects/p/views/Main/view.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 4,
+                  "startColumn": 5,
+                  "endLine": 4,
+                  "endColumn": 12
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "iglint/v1": "422766c711bc5561"
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "message": {
+                "text": "the view root"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "projects/p/views/Main/view.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 6,
+                  "startColumn": 3,
+                  "endLine": 6,
+                  "endColumn": 9
+                }
+              }
+            }
+          ],
+          "fixes": [
+            {
+              "description": {
+                "text": "Rename to `naive`"
+              },
+              "artifactChanges": [
+                {
+                  "artifactLocation": {
+                    "uri": "projects/p/views/Main/view.json",
+                    "uriBaseId": "%SRCROOT%"
+                  },
+                  "replacements": [
+                    {
+                      "deletedRegion": {
+                        "byteOffset": 38,
+                        "byteLength": 6
+                      },
+                      "insertedContent": {
+                        "text": "naive"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "ruleId": "TST003",
+          "ruleIndex": 2,
+          "level": "note",
+          "message": {
+            "text": "Root is nested"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "projects/p/views/Main/view.json",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 6,
+                  "startColumn": 3,
+                  "endLine": 8,
+                  "endColumn": 4
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "iglint/v1": "949a3a2d89c2da25"
+          }
+        }
+      ]
+    }
+  ]
+}

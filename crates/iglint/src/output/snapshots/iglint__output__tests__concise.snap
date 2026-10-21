@@ -1,0 +1,10 @@
+---
+source: crates/iglint/src/output/tests.rs
+expression: "output(OutputFormat::Concise, & diagnostics(), false)"
+---
+/other/lib.py:1:1: TST003 [info] Empty range at the start
+projects/p/ignition/script-python/a/code.py:2:2: TST002 [warning] Variable `x` is unused
+projects/p/ignition/script-python/a/code.py:3:9: TST001 [error] Undefined name `y`
+projects/p/views/Main/view.json:3:5: TST001 [error] Custom property `unused` is never read
+projects/p/views/Main/view.json:4:5: TST002 [warning] Name "naïve" <is> not camelCase; 100% sure, [really]; a]b second line
+projects/p/views/Main/view.json:6:3: TST003 [info] Root is nested
