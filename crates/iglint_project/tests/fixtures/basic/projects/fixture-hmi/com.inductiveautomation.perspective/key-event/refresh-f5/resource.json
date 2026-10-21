@@ -1,0 +1,25 @@
+{
+  "scope": "G",
+  "version": 1,
+  "restricted": false,
+  "overridable": true,
+  "files": [
+    "onKeyEvent.py"
+  ],
+  "attributes": {
+    "eventMode": "KEYDOWN",
+    "regexPattern": "",
+    "preventDefaultEventOption": true,
+    "enabled": true,
+    "eventBoundCode": "",
+    "capturePhaseEventOption": false,
+    "metaEventModifier": false,
+    "eventBound": "KEY",
+    "stopPropagationEventOption": false,
+    "altEventModifier": false,
+    "regexWindow": 1,
+    "controlEventModifier": false,
+    "shiftEventModifier": false,
+    "eventBoundKey": "F5"
+  }
+}

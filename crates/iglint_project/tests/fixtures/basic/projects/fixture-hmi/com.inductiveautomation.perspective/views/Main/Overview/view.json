@@ -1,0 +1,561 @@
+{
+  "custom": {
+    "lineState": "running",
+    "motors": []
+  },
+  "events": {
+    "system": {
+      "onShutdown": {
+        "config": {
+          "script": "\tpass"
+        },
+        "scope": "G",
+        "type": "script"
+      },
+      "onStartup": {
+        "config": {
+          "script": "\tself.custom.motors \u003d []\n\tsystem.perspective.print(\"overview started\")"
+        },
+        "scope": "G",
+        "type": "script"
+      }
+    }
+  },
+  "params": {
+    "line": "Line1",
+    "selectedMotor": ""
+  },
+  "propConfig": {
+    "custom.lineState": {
+      "binding": {
+        "config": {
+          "fallbackDelay": 2.5,
+          "mode": "indirect",
+          "references": {
+            "line": "{view.params.line}"
+          },
+          "tagPath": "[default]Plant/{line}/State"
+        },
+        "type": "tag"
+      },
+      "persistent": true
+    },
+    "custom.motors": {
+      "access": "PRIVATE",
+      "binding": {
+        "config": {
+          "expression": "runScript(\"hmi.motors.listMotors\", 0, {view.params.line})"
+        },
+        "type": "expr"
+      },
+      "persistent": true
+    },
+    "params.line": {
+      "paramDirection": "input",
+      "persistent": true
+    },
+    "params.selectedMotor": {
+      "paramDirection": "output",
+      "persistent": false
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 720,
+      "width": 1280
+    },
+    "loading": {
+      "mode": "non-blocking"
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Clock"
+        },
+        "position": {
+          "basis": "24px",
+          "shrink": 0
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "expression": "dateFormat(now(1000), \"HH:mm:ss\")"
+              },
+              "type": "expr"
+            }
+          }
+        },
+        "props": {
+          "style": {
+            "classes": "Brand/Muted"
+          }
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "LineTotal"
+        },
+        "position": {
+          "basis": "24px"
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "fallbackDelay": 2.5,
+                "mode": "direct",
+                "tagPath": "[default]Plant/Line1/Total"
+              },
+              "transforms": [
+                {
+                  "formatType": "numeric",
+                  "formatValue": "#,##0.0",
+                  "type": "format"
+                }
+              ],
+              "type": "tag"
+            }
+          }
+        },
+        "props": {},
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Summary"
+        },
+        "position": {
+          "basis": "24px"
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "struct": {
+                  "count": "len({view.custom.motors})",
+                  "line": "{view.params.line}"
+                },
+                "waitOnAll": true
+              },
+              "transforms": [
+                {
+                  "code": "\treturn \"%s: %d motors\" % (value.line, value.count)",
+                  "type": "script"
+                }
+              ],
+              "type": "expr-struct"
+            }
+          }
+        },
+        "props": {},
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "StateIcon"
+        },
+        "position": {
+          "basis": "24px"
+        },
+        "propConfig": {
+          "props.color": {
+            "binding": {
+              "config": {
+                "fallbackDelay": 2.5,
+                "mode": "direct",
+                "tagPath": "[default]Plant/Line1/Running"
+              },
+              "transforms": [
+                {
+                  "fallback": "#9E9E9E",
+                  "inputType": "scalar",
+                  "mappings": [
+                    {
+                      "input": true,
+                      "output": "#43A047"
+                    },
+                    {
+                      "input": false,
+                      "output": "#E53935"
+                    }
+                  ],
+                  "outputType": "color",
+                  "type": "map"
+                }
+              ],
+              "type": "tag"
+            }
+          }
+        },
+        "props": {
+          "path": "material/check_circle"
+        },
+        "type": "ia.display.icon"
+      },
+      {
+        "meta": {
+          "name": "Badge"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "propConfig": {
+          "props.params.state": {
+            "binding": {
+              "config": {
+                "path": "view.custom.lineState"
+              },
+              "type": "property"
+            }
+          }
+        },
+        "props": {
+          "params": {
+            "label": "Line 1",
+            "state": "running"
+          },
+          "path": "Common/StatusBadge"
+        },
+        "type": "ia.display.view"
+      },
+      {
+        "meta": {
+          "name": "Motors"
+        },
+        "position": {
+          "basis": "200px",
+          "grow": 1
+        },
+        "propConfig": {
+          "props.instances": {
+            "binding": {
+              "config": {
+                "path": "view.custom.motors"
+              },
+              "type": "property"
+            }
+          }
+        },
+        "props": {
+          "direction": "row",
+          "instances": [
+            {
+              "selected": false,
+              "tagPath": "[default]Plant/Line1/Motor1",
+              "title": "Motor 1"
+            },
+            {
+              "selected": false,
+              "tagPath": "[default]Plant/Line1/Motor2",
+              "title": "Motor 2"
+            }
+          ],
+          "path": "Components/MotorCard",
+          "wrap": "wrap"
+        },
+        "type": "ia.display.flex-repeater"
+      },
+      {
+        "meta": {
+          "name": "LinePicker"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "propConfig": {
+          "props.value": {
+            "binding": {
+              "config": {
+                "bidirectional": true,
+                "path": "session.custom.selectedLine"
+              },
+              "type": "property"
+            }
+          }
+        },
+        "props": {
+          "options": [
+            {
+              "label": "Line 1",
+              "value": "Line1"
+            },
+            {
+              "label": "Line 2",
+              "value": "Line2"
+            }
+          ]
+        },
+        "type": "ia.input.dropdown"
+      },
+      {
+        "meta": {
+          "name": "Setpoint"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "propConfig": {
+          "props.value": {
+            "binding": {
+              "config": {
+                "bidirectional": true,
+                "fallbackDelay": 2.5,
+                "mode": "direct",
+                "tagPath": "[default]Plant/Line1/Setpoint"
+              },
+              "type": "tag"
+            }
+          }
+        },
+        "props": {},
+        "type": "ia.input.numeric-entry-field"
+      },
+      {
+        "children": [
+          {
+            "meta": {
+              "name": "TrendTab"
+            },
+            "position": {
+              "tabIndex": 0
+            },
+            "props": {
+              "params": {
+                "tagPath": "[default]Plant/Line1/Motor1"
+              },
+              "path": "Popups/MotorDetail"
+            },
+            "type": "ia.display.view"
+          },
+          {
+            "meta": {
+              "name": "AlarmTab"
+            },
+            "position": {
+              "tabIndex": 1
+            },
+            "props": {
+              "text": "No alarms"
+            },
+            "type": "ia.display.label"
+          }
+        ],
+        "meta": {
+          "name": "Tabs"
+        },
+        "position": {
+          "basis": "200px"
+        },
+        "props": {
+          "currentTabIndex": 0,
+          "tabs": [
+            "Trend",
+            "Alarms"
+          ]
+        },
+        "type": "ia.container.tab"
+      },
+      {
+        "meta": {
+          "name": "Carousel"
+        },
+        "position": {
+          "basis": "60px"
+        },
+        "props": {
+          "views": [
+            {
+              "viewParams": {
+                "label": "A",
+                "state": "running"
+              },
+              "viewPath": "Common/StatusBadge"
+            },
+            {
+              "viewParams": {
+                "label": "B",
+                "state": "faulted"
+              },
+              "viewPath": "Common/StatusBadge"
+            }
+          ]
+        },
+        "type": "ia.display.carousel"
+      },
+      {
+        "meta": {
+          "name": "Accordion"
+        },
+        "position": {
+          "basis": "60px"
+        },
+        "props": {
+          "items": [
+            {
+              "body": {
+                "viewParams": {
+                  "tagPath": "[default]Plant/Line1/Motor1"
+                },
+                "viewPath": "Components/MotorCard"
+              },
+              "expanded": false,
+              "header": {
+                "content": {
+                  "text": "Details",
+                  "type": "text",
+                  "viewPath": ""
+                }
+              }
+            }
+          ]
+        },
+        "type": "ia.display.accordion"
+      },
+      {
+        "events": {
+          "component": {
+            "onActionPerformed": [
+              {
+                "config": {
+                  "script": "\tsystem.perspective.sendMessage(\"motor-refresh\", payload\u003d{\"tagPath\": None}, scope\u003d\"page\")\n\tself.getSibling(\"Motors\").refreshBinding(\"props.instances\")"
+                },
+                "scope": "G",
+                "type": "script"
+              },
+              {
+                "config": {
+                  "newTab": false,
+                  "page": "/motors/Line1"
+                },
+                "scope": "C",
+                "type": "nav"
+              }
+            ]
+          }
+        },
+        "meta": {
+          "name": "Refresh",
+          "tooltip": {
+            "text": "Reload the motor list"
+          }
+        },
+        "position": {
+          "basis": "40px"
+        },
+        "props": {
+          "text": "Refresh"
+        },
+        "type": "ia.input.button"
+      },
+      {
+        "events": {
+          "dom": {
+            "onClick": {
+              "config": {
+                "newTab": true,
+                "url": "https://example.invalid/help"
+              },
+              "scope": "C",
+              "type": "nav"
+            },
+            "onDoubleClick": {
+              "config": {
+                "id": "help",
+                "type": "toggle",
+                "viewParams": {},
+                "viewPath": "Docks/Header"
+              },
+              "scope": "C",
+              "type": "dock"
+            }
+          }
+        },
+        "meta": {
+          "name": "Help"
+        },
+        "position": {
+          "basis": "40px"
+        },
+        "props": {
+          "text": "Help"
+        },
+        "type": "ia.input.button"
+      },
+      {
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "config": {},
+              "enabled": true,
+              "scope": "C",
+              "type": "logout"
+            }
+          }
+        },
+        "meta": {
+          "name": "Logout",
+          "visible": true
+        },
+        "position": {
+          "basis": "40px"
+        },
+        "props": {
+          "text": "Sign out"
+        },
+        "type": "ia.input.button"
+      },
+      {
+        "meta": {
+          "name": "Hidden",
+          "visible": false
+        },
+        "position": {
+          "basis": "0px",
+          "display": false
+        },
+        "propConfig": {
+          "meta.visible": {
+            "binding": {
+              "config": {
+                "expression": "{session.props.auth.user.userName} \u003d \"admin\""
+              },
+              "enabled": false,
+              "type": "expr"
+            }
+          }
+        },
+        "props": {
+          "text": "debug"
+        },
+        "type": "ia.display.label"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column",
+      "style": {
+        "classes": "Brand/Primary Brand/Muted"
+      }
+    },
+    "scripts": {
+      "customMethods": [],
+      "extensionFunctions": null,
+      "messageHandlers": [
+        {
+          "messageType": "line-changed",
+          "pageScope": false,
+          "script": "\tself.view.params.line \u003d payload[\"line\"]",
+          "sessionScope": true,
+          "viewScope": true
+        }
+      ]
+    },
+    "type": "ia.container.flex"
+  }
+}

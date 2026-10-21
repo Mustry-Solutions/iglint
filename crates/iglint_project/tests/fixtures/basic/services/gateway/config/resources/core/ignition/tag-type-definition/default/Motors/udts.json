@@ -1,0 +1,128 @@
+[
+  {
+    "name": "Motor",
+    "tagType": "UdtType",
+    "typeColor": -7667713,
+    "documentation": "Generic drive",
+    "parameters": {
+      "DeviceName": {
+        "dataType": "String",
+        "value": ""
+      },
+      "BaseAddress": {
+        "dataType": "String",
+        "value": ""
+      },
+      "MaxSpeed": {
+        "dataType": "Integer",
+        "value": 3000
+      }
+    },
+    "tags": [
+      {
+        "valueSource": "opc",
+        "opcServer": "Ignition OPC UA Server",
+        "dataType": "Float8",
+        "name": "Speed",
+        "engUnit": "rpm",
+        "opcItemPath": {
+          "bindType": "parameter",
+          "binding": "ns\u003d1;s\u003d[{DeviceName}]{BaseAddress}.Speed"
+        },
+        "engHigh": {
+          "bindType": "parameter",
+          "binding": "{MaxSpeed}"
+        },
+        "tooltip": {
+          "bindType": "parameter",
+          "binding": "Speed of {InstanceName}"
+        },
+        "historyEnabled": true,
+        "historyProvider": "Core Historian",
+        "tagType": "AtomicTag",
+        "alarms": [
+          {
+            "name": "Overspeed",
+            "mode": "AboveValue",
+            "priority": "High",
+            "setpointA": {
+              "bindType": "Tag",
+              "value": "[.]../Setpoints/MaxSpeed"
+            },
+            "label": {
+              "bindType": "Expression",
+              "value": "\u0027Overspeed on \u0027 + {itemName}"
+            },
+            "displayPath": "{InstanceName}/Speed",
+            "activePipeline": "Notify"
+          }
+        ]
+      },
+      {
+        "valueSource": "opc",
+        "opcServer": "Ignition OPC UA Server",
+        "dataType": "Boolean",
+        "name": "Running",
+        "tagType": "AtomicTag",
+        "opcItemPath": {
+          "bindType": "parameter",
+          "binding": "ns\u003d1;s\u003d[{DeviceName}]{BaseAddress}.Running"
+        },
+        "eventScripts": [
+          {
+            "eventid": "valueChanged",
+            "script": "\tif not initialChange and currentValue.value:\n\t\tsystem.util.sendMessage(\"fixture-api\", \"rebuild-report\", {\"motor\": str(tagPath)})"
+          },
+          {
+            "eventid": "alarmActive",
+            "script": "\tsystem.util.getLogger(\"fixture.tags\").info(alarmName)"
+          }
+        ]
+      },
+      {
+        "name": "Cmd",
+        "tagType": "Folder",
+        "tags": [
+          {
+            "valueSource": "opc",
+            "opcServer": "Ignition OPC UA Server",
+            "dataType": "Boolean",
+            "name": "Start",
+            "tagType": "AtomicTag",
+            "opcItemPath": {
+              "bindType": "parameter",
+              "binding": "ns\u003d1;s\u003d[{DeviceName}]{BaseAddress}.Start"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Setpoints",
+        "tagType": "Folder",
+        "tags": [
+          {
+            "valueSource": "memory",
+            "dataType": "Float8",
+            "name": "MaxSpeed",
+            "tagType": "AtomicTag",
+            "value": {
+              "bindType": "parameter",
+              "binding": "{MaxSpeed}"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "FastMotor",
+    "typeId": "Motors/Motor",
+    "tagType": "UdtType",
+    "parameters": {
+      "MaxSpeed": {
+        "dataType": "Integer",
+        "value": 6000
+      }
+    }
+  }
+]

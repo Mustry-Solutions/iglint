@@ -1,0 +1,7 @@
+{
+  "title": "Fixture Base",
+  "description": "Shared resources for the fixture projects",
+  "parent": "",
+  "enabled": true,
+  "inheritable": true
+}

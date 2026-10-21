@@ -1,0 +1,30 @@
+{
+  "custom": {
+    "recentAlarms": [],
+    "selectedLine": "Line1"
+  },
+  "propConfig": {
+    "custom.recentAlarms": {
+      "binding": {
+        "config": {
+          "expression": "now(5000)"
+        },
+        "transforms": [
+          {
+            "code": "\treturn system.alarm.queryStatus(state\u003d[\"ActiveUnacked\"]).getEvents()",
+            "type": "script"
+          }
+        ],
+        "type": "expr"
+      },
+      "persistent": false
+    },
+    "custom.selectedLine": {
+      "persistent": true
+    }
+  },
+  "props": {
+    "locale": "en-US",
+    "theme": "light"
+  }
+}

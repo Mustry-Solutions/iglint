@@ -1,0 +1,7 @@
+{
+  "title": "Local",
+  "description": "Gateway configuration resources that are unique to the local instance.",
+  "enabled": true,
+  "inheritable": false,
+  "parent": "production"
+}

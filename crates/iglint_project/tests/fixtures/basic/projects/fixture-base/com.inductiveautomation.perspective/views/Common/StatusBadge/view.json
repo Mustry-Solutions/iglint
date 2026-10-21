@@ -1,0 +1,85 @@
+{
+  "custom": {},
+  "params": {
+    "label": "",
+    "state": "stopped"
+  },
+  "propConfig": {
+    "params.label": {
+      "paramDirection": "input",
+      "persistent": true
+    },
+    "params.state": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 32,
+      "width": 120
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Text"
+        },
+        "position": {
+          "basis": "120px",
+          "grow": 1
+        },
+        "propConfig": {
+          "props.style.classes": {
+            "binding": {
+              "config": {
+                "path": "view.params.state"
+              },
+              "transforms": [
+                {
+                  "fallback": "Brand/Muted",
+                  "inputType": "scalar",
+                  "mappings": [
+                    {
+                      "input": "running",
+                      "output": "State/Running"
+                    },
+                    {
+                      "input": "faulted",
+                      "output": "State/Faulted Brand/Primary"
+                    }
+                  ],
+                  "outputType": "style-list",
+                  "type": "map"
+                }
+              ],
+              "type": "property"
+            }
+          },
+          "props.text": {
+            "binding": {
+              "config": {
+                "path": "view.params.label"
+              },
+              "type": "property"
+            }
+          }
+        },
+        "props": {
+          "style": {
+            "classes": "Brand/Primary"
+          }
+        },
+        "type": "ia.display.label"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "row"
+    },
+    "type": "ia.container.flex"
+  }
+}

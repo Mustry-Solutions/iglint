@@ -1,0 +1,23 @@
+{
+  "base": {
+    "style": {
+      "backgroundColor": "#43A047"
+    },
+    "animation": {
+      "duration": "2s",
+      "delay": "0s",
+      "direction": "alternate",
+      "iterationCount": "infinite",
+      "timingFunction": "ease",
+      "fillMode": "both"
+    }
+  },
+  "variants": [
+    {
+      "mediaQuery": "max-width: 600px",
+      "style": {
+        "padding": "2px"
+      }
+    }
+  ]
+}

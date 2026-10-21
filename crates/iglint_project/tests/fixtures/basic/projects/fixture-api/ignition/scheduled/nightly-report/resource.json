@@ -1,0 +1,13 @@
+{
+  "scope": "G",
+  "version": 1,
+  "restricted": false,
+  "overridable": true,
+  "files": [
+    "handleScheduleEvent.py"
+  ],
+  "attributes": {
+    "cronExpression": "0 2 * * *",
+    "enabled": true
+  }
+}

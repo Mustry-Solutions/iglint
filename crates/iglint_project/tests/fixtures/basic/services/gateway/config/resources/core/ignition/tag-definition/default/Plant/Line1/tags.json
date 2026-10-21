@@ -1,0 +1,87 @@
+[
+  {
+    "valueSource": "memory",
+    "dataType": "String",
+    "name": "State",
+    "value": "running",
+    "tagType": "AtomicTag"
+  },
+  {
+    "valueSource": "memory",
+    "dataType": "Float8",
+    "name": "Setpoint",
+    "value": 1200.0,
+    "engUnit": "rpm",
+    "engHigh": 3000.0,
+    "tagType": "AtomicTag",
+    "persistValue": true
+  },
+  {
+    "valueSource": "expr",
+    "dataType": "Float8",
+    "name": "Total",
+    "expression": "{[.]Motor1/Speed} + {[.]Motor2/Speed}",
+    "executionMode": "TagGroupRate",
+    "tagType": "AtomicTag",
+    "historyEnabled": true,
+    "historyProvider": "Core Historian",
+    "historySampleRate": 10,
+    "historySampleRateUnits": "SEC",
+    "sampleMode": "Periodic"
+  },
+  {
+    "valueSource": "reference",
+    "dataType": "Boolean",
+    "name": "Running",
+    "sourceTagPath": "[.]Motor1/Running",
+    "tagType": "AtomicTag"
+  },
+  {
+    "valueSource": "db",
+    "dataType": "Int4",
+    "name": "OpenOrders",
+    "datasource": "Production",
+    "queryType": "AutoDetect",
+    "query": "SELECT COUNT(*) FROM orders WHERE line \u003d \u0027Line1\u0027",
+    "executionRate": 30000,
+    "executionMode": "FixedRate",
+    "tagType": "AtomicTag"
+  },
+  {
+    "valueSource": "derived",
+    "dataType": "Float8",
+    "name": "SetpointPercent",
+    "sourceTagPath": "[.]Setpoint",
+    "deriveExpressionGetter": "{source} / 3000.0",
+    "deriveExpressionSetter": "{value} * 3000.0",
+    "tagType": "AtomicTag"
+  },
+  {
+    "valueSource": "memory",
+    "dataType": "Int4",
+    "name": "Counter",
+    "value": 0,
+    "tagType": "AtomicTag",
+    "eventScripts": [
+      {
+        "eventid": "valueChanged",
+        "script": "\tif initialChange or currentValue.value is None:\n\t\treturn\n\tif currentValue.value \u003c previousValue.value:\n\t\tsystem.util.getLogger(\"fixture.tags\").warn(\"%s reset\" % tagPath)"
+      },
+      {
+        "eventid": "qualityChanged",
+        "script": "\tpass",
+        "enabled": false
+      }
+    ],
+    "alarms": [
+      {
+        "name": "Overflow",
+        "mode": "AboveValue",
+        "setpointA": 1000000.0,
+        "priority": "Medium",
+        "label": "Counter overflow",
+        "activePipeline": "Notify"
+      }
+    ]
+  }
+]

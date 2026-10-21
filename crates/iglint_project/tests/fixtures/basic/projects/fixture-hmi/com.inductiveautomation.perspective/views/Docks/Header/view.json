@@ -1,0 +1,74 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {
+    "defaultSize": {
+      "height": 56,
+      "width": 1280
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "events": {
+          "dom": {
+            "onClick": {
+              "config": {
+                "script": "\tcore.nav.goHome()"
+              },
+              "scope": "G",
+              "type": "script"
+            }
+          }
+        },
+        "meta": {
+          "name": "Title"
+        },
+        "position": {
+          "breakpoints": [
+            {
+              "columns": 6,
+              "width": 0
+            }
+          ],
+          "height": 56
+        },
+        "props": {
+          "text": "Fixture HMI"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "User"
+        },
+        "position": {
+          "breakpoints": [
+            {
+              "columns": 6,
+              "width": 0
+            }
+          ],
+          "height": 56
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "path": "session.props.auth.user.userName"
+              },
+              "type": "property"
+            }
+          }
+        },
+        "props": {},
+        "type": "ia.display.label"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {},
+    "type": "ia.container.column"
+  }
+}

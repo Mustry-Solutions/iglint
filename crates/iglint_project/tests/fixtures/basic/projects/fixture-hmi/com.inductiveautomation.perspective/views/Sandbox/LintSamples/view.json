@@ -1,0 +1,198 @@
+{
+  "custom": {
+    "counter": 0,
+    "unused": 1
+  },
+  "params": {
+    "known": ""
+  },
+  "propConfig": {
+    "custom.counter": {
+      "onChange": {
+        "enabled": false,
+        "script": "\tsystem.perspective.print(currentValue.value)"
+      }
+    },
+    "params.known": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 200,
+      "width": 200
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "BadParam"
+        },
+        "position": {
+          "basis": "24px"
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "path": "view.params.missing"
+              },
+              "type": "property"
+            }
+          }
+        },
+        "props": {},
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "MissingView"
+        },
+        "position": {
+          "basis": "24px"
+        },
+        "props": {
+          "path": "Does/Not/Exist"
+        },
+        "type": "ia.display.view"
+      },
+      {
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "config": {
+                "script": "\t"
+              },
+              "scope": "G",
+              "type": "script"
+            }
+          }
+        },
+        "meta": {
+          "name": "EmptyScript"
+        },
+        "position": {
+          "basis": "24px"
+        },
+        "props": {
+          "text": "x"
+        },
+        "type": "ia.input.button"
+      },
+      {
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "config": {
+                "script": "\tsystem.perspective.navigate(view\u003d\"Missing/View\")\n\tsystem.perspective.openPopup(\"p\", \"Missing/Popup\")"
+              },
+              "scope": "G",
+              "type": "script"
+            }
+          }
+        },
+        "meta": {
+          "name": "BadNav"
+        },
+        "position": {
+          "basis": "24px"
+        },
+        "props": {
+          "text": "y"
+        },
+        "type": "ia.input.button"
+      },
+      {
+        "meta": {
+          "name": "BadStyle"
+        },
+        "position": {
+          "basis": "24px"
+        },
+        "props": {
+          "style": {
+            "classes": "Brand/DoesNotExist"
+          }
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "BadTransform"
+        },
+        "position": {
+          "basis": "24px"
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "expression": "1 +"
+              },
+              "transforms": [
+                {
+                  "code": "\tvalue \u003d value * 2",
+                  "type": "script"
+                }
+              ],
+              "type": "expr"
+            }
+          }
+        },
+        "props": {},
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "BadQuery"
+        },
+        "position": {
+          "basis": "24px"
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "parameters": {
+                  "line": "\"x\""
+                },
+                "queryPath": "Machines/Nope",
+                "returnFormat": "scalar"
+              },
+              "type": "query"
+            }
+          }
+        },
+        "props": {},
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "BadName"
+        },
+        "position": {
+          "basis": "24px"
+        },
+        "props": {},
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "BadName"
+        },
+        "position": {
+          "basis": "24px"
+        },
+        "props": {},
+        "type": "ia.display.label"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {},
+    "type": "ia.container.flex"
+  }
+}

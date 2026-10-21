@@ -1,0 +1,7 @@
+{
+  "title": "Fixture HMI",
+  "description": "Operator screens",
+  "parent": "fixture-base",
+  "enabled": true,
+  "inheritable": false
+}
