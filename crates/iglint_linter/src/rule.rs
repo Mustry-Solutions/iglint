@@ -159,11 +159,6 @@ impl PhaseHooks {
             && self.script.is_empty()
             && self.project.is_empty()
     }
-
-    /// Whether any hook walks view internals.
-    pub fn walks_views(&self) -> bool {
-        !(self.view.is_empty() && self.component.is_empty() && self.binding.is_empty())
-    }
 }
 
 /// The enabled rules for one settings object.

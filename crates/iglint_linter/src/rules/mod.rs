@@ -9,6 +9,7 @@
 use crate::registry::{Registry, RuleMeta};
 use crate::rule::RuleImpl;
 
+pub mod bind;
 pub mod helpers;
 #[cfg(test)]
 pub mod test_support;
@@ -23,7 +24,19 @@ macro_rules! rules {
     };
 }
 
-rules![view::invalid_json];
+rules![
+    bind::expression_syntax_error,
+    bind::unknown_expression_function,
+    bind::expression_function_arity,
+    bind::polling_interval,
+    bind::unresolved_property_reference,
+    bind::indirect_tag_reference_mismatch,
+    bind::placeholder_in_direct_tag_path,
+    bind::disabled_binding,
+    bind::map_transform_duplicate_input,
+    bind::expression_type_mismatch,
+    view::invalid_json,
+];
 
 pub static REGISTRY: Registry = Registry::new(ALL);
 
