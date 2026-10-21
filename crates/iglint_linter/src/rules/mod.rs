@@ -13,6 +13,9 @@ pub mod a11y;
 pub mod bind;
 pub mod helpers;
 pub mod perf;
+pub mod refs;
+pub mod style;
+pub mod tag;
 #[cfg(test)]
 pub mod test_support;
 pub mod view;
@@ -55,6 +58,25 @@ rules![
     bind::disabled_binding,
     bind::map_transform_duplicate_input,
     bind::expression_type_mismatch,
+    refs::unknown_view,
+    refs::unknown_named_query,
+    refs::named_query_params,
+    refs::popup_params,
+    refs::unknown_page_url,
+    refs::manifest_mismatch,
+    refs::unknown_parent_project,
+    refs::unused_view,
+    refs::unused_named_query,
+    style::unknown_style_class,
+    style::unused_style_class,
+    style::empty_style_class,
+    tag::unknown_udt_type,
+    tag::undefined_udt_parameter,
+    tag::unknown_tag_path,
+    tag::unknown_history_provider,
+    tag::alarm_bind_type,
+    tag::tag_change_paths,
+    tag::invalid_cron,
 ];
 
 pub static REGISTRY: Registry = Registry::new(ALL);
