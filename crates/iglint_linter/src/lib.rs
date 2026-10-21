@@ -12,6 +12,7 @@ pub mod options;
 pub mod registry;
 pub mod rule;
 pub mod rules;
+pub mod script_facts;
 pub mod settings;
 pub mod suggest;
 pub mod suppression;

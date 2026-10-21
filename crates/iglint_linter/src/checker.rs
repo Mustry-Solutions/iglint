@@ -11,7 +11,9 @@ use iglint_text::{TextEdit, TextRange};
 
 use crate::diagnostic::{Diagnostic, FileEdit, Fix, Label, Severity, SourceFile};
 use crate::registry::RuleCode;
-use crate::rule::ActiveRule;
+use crate::rule::{ActiveRule, ScriptUnit};
+use crate::script_facts::PropertyAccess;
+use std::sync::OnceLock;
 
 /// Source files a run may report on, by workspace file id. Files outside
 /// the workspace (standalone `view.json` files, stdin) get ids after the
@@ -49,6 +51,51 @@ impl FileTable {
     }
 }
 
+/// Per-unit results computed on first use and shared by every rule and
+/// both phases: parsed scripts and script property accesses.
+#[derive(Default)]
+pub struct UnitCache {
+    scripts: OnceLock<Vec<iglint_python::Parsed>>,
+    accesses: OnceLock<Vec<PropertyAccess>>,
+}
+
+impl UnitCache {
+    /// The parse of every script of `data`, in `data.scripts()` order.
+    pub fn parsed_scripts(&self, data: &ModelData<'_>) -> &[iglint_python::Parsed] {
+        self.scripts.get_or_init(|| {
+            data.scripts()
+                .iter()
+                .map(|(_, s)| crate::script_facts::parse_script(s))
+                .collect()
+        })
+    }
+
+    /// Property accesses of every script of a view (see
+    /// [`crate::script_facts`]).
+    pub fn property_accesses(&self, data: &ModelData<'_>) -> &[PropertyAccess] {
+        self.accesses.get_or_init(|| {
+            let Some(view) = data.view() else {
+                return Vec::new();
+            };
+            let provider = crate::script_facts::provider();
+            let parsed = self.parsed_scripts(data);
+            let mut out = Vec::new();
+            for (index, ((file, script), parsed)) in
+                data.scripts().into_iter().zip(parsed).enumerate()
+            {
+                let unit = ScriptUnit {
+                    file,
+                    script,
+                    parsed,
+                    index,
+                };
+                provider.property_accesses(&unit, view, &mut out);
+            }
+            out
+        })
+    }
+}
+
 /// One unit of analysis: a resource (or a standalone file, or a project)
 /// with its typed model.
 pub struct Unit<'a> {
@@ -66,6 +113,7 @@ pub struct Unit<'a> {
     pub files: &'a FileTable,
     /// Report dynamic references that cannot be resolved statically.
     pub strict: bool,
+    pub cache: &'a UnitCache,
 }
 
 /// What a rule sees while it runs, and how it reports.
@@ -162,6 +210,22 @@ impl<'c, 'a> Checker<'c, 'a> {
 
     pub fn strict(&self) -> bool {
         self.unit.strict
+    }
+
+    /// The parse of every script of the unit, in `data().scripts()` order.
+    pub fn parsed_scripts(&self) -> &'a [iglint_python::Parsed] {
+        self.unit.cache.parsed_scripts(self.unit.data)
+    }
+
+    /// Reads and writes of view properties by the unit's scripts, and
+    /// whether that list is complete (see [`crate::script_facts`]). Rules
+    /// that need to know that nothing reads a property must not report
+    /// when the list is incomplete and the view has scripts.
+    pub fn script_property_accesses(&self) -> (&'a [PropertyAccess], bool) {
+        (
+            self.unit.cache.property_accesses(self.unit.data),
+            crate::script_facts::provider().complete(),
+        )
     }
 
     pub fn primary_file(&self) -> FileId {

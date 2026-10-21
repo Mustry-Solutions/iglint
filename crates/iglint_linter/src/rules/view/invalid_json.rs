@@ -1,7 +1,7 @@
 //! VIEW001 invalid-json.
 
-use iglint_project::model::ModelData;
 use iglint_project::ProjectId;
+use iglint_project::model::ModelData;
 use iglint_text::TextRange;
 
 use crate::checker::Checker;

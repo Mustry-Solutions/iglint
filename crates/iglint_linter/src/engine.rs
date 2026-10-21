@@ -377,14 +377,8 @@ fn lint_one(
         let fixed_source = SourceFile::new(path, text);
         analyzer(&fixed_source, kind, &file_settings)
     };
-    let (fix_summary, diagnostics) = fix_file(
-        settings,
-        options,
-        path,
-        &text,
-        diagnostics,
-        &reanalyze,
-    )?;
+    let (fix_summary, diagnostics) =
+        fix_file(settings, options, path, &text, diagnostics, &reanalyze)?;
 
     Ok(Outcome {
         checked: CheckedFile {

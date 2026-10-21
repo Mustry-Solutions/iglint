@@ -56,15 +56,20 @@ pub trait ExpressionRule: Sync {
 
 /// One script location with everything script rules may use.
 ///
-/// The Python layer will add the parsed module and its semantic model here
-/// (fields `module` and `semantic`), parsed once per script and shared by
-/// every script rule. Diagnostics reported while a script rule runs are
+/// The Python layer may add its semantic model here, built once per script
+/// and shared by every script rule. Diagnostics reported while a script rule runs are
 /// filtered through the script's `# iglint: ignore[...]` comments
 /// ([`crate::suppression`]).
 pub struct ScriptUnit<'s, 'a> {
     /// The file the script lives in.
     pub file: FileId,
     pub script: &'s EmbeddedScript<'a>,
+    /// The parse of `script.source` (parsed once per run and shared by
+    /// every rule; offsets are in `script.source`, map them with
+    /// `script.file_range`).
+    pub parsed: &'s iglint_python::Parsed,
+    /// Position of the script in the unit's `data.scripts()`.
+    pub index: usize,
 }
 
 /// Checks one script location (library modules, event files, embedded

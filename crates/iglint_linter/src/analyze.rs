@@ -36,7 +36,7 @@ use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHasher};
 
 use crate::cache::Cache;
-use crate::checker::{Checker, FileTable, Unit};
+use crate::checker::{Checker, FileTable, Unit, UnitCache};
 use crate::diagnostic::{Diagnostic, SourceFile};
 use crate::discovery::{FileKind, absolute};
 use crate::engine::{CheckOptions, CheckedFile, FileError, Outcome, fix_file};
@@ -94,8 +94,7 @@ pub(crate) fn analyze_with(
         .enumerate()
         .map(|(i, t)| (absolute(&t.path), i))
         .collect();
-    let ws_roots: Vec<PathBuf> = if roots.is_empty() || targets.iter().any(|t| t.stdin.is_some())
-    {
+    let ws_roots: Vec<PathBuf> = if roots.is_empty() || targets.iter().any(|t| t.stdin.is_some()) {
         targets.iter().map(|t| t.path.clone()).collect()
     } else {
         roots.to_vec()
@@ -185,6 +184,32 @@ pub(crate) fn analyze_with(
         );
     }
     let mut errors_by_target: FxHashMap<usize, String> = FxHashMap::default();
+    // Linted files the model does not read (binary-classified data files,
+    // files outside resources): read them so they still get file rules.
+    let unread: Vec<(FileId, usize)> = target_of
+        .iter()
+        .enumerate()
+        .filter_map(|(f, t)| t.map(|t| (FileId(f as u32), t)))
+        .filter(|(f, _)| table.get(*f).is_none())
+        .collect();
+    let unread_texts: Vec<(FileId, usize, Result<Arc<str>, String>)> = unread
+        .into_par_iter()
+        .map(|(f, t)| {
+            let text = match &targets[t].stdin {
+                Some(text) => Ok(Arc::clone(text)),
+                None => read_text(&targets[t].path),
+            };
+            (f, t, text)
+        })
+        .collect();
+    for (f, t, text) in unread_texts {
+        match text {
+            Ok(text) => table.insert(f, SourceFile::new(targets[t].path.clone(), text)),
+            Err(message) => {
+                errors_by_target.insert(t, message);
+            }
+        }
+    }
     let mut standalone_files: Vec<(usize, FileId, Arc<str>)> = Vec::new();
     for (k, (t, text)) in standalone.into_iter().enumerate() {
         match text {
@@ -214,6 +239,8 @@ pub(crate) fn analyze_with(
 
     // Phase A, part 2: model, summarise and run local rules.
     let models: Vec<ResourceModel<'_>> = loaded.par_iter().map(|l| build_model(&ws, l)).collect();
+    let caches: Vec<UnitCache> = (0..models.len()).map(|_| UnitCache::default()).collect();
+    let facts = crate::script_facts::provider();
     let unit_settings = |rid: ResourceId| -> Option<(usize, Arc<LinterSettings>)> {
         let r = ws.resource(rid);
         let t = r
@@ -258,8 +285,11 @@ pub(crate) fn analyze_with(
     let phase_a: Vec<(ResourceSummary, Option<UnitResult>)> = models
         .par_iter()
         .map(|model| {
-            let summary = summarize(model);
+            let mut summary = summarize(model);
             let rid = model.resource.id;
+            if facts.provides_references() {
+                add_script_references(&model.data, &caches[rid.index()], &mut summary);
+            }
             if !linted[rid.index()] {
                 return (summary, None);
             }
@@ -287,6 +317,7 @@ pub(crate) fn analyze_with(
                         primary: primary_file(model),
                         files: &table,
                         strict: strict_of(&s),
+                        cache: &caches[rid.index()],
                     };
                     run_phase(&unit, None, &set, &set.local, &mut diagnostics);
                 }
@@ -327,6 +358,7 @@ pub(crate) fn analyze_with(
                         primary: primary_file(model),
                         files: &table,
                         strict: strict_of(&s),
+                        cache: &caches[i],
                     };
                     run_phase(&unit, Some(&index), &set, &set.project, &mut diagnostics);
                 }
@@ -343,6 +375,7 @@ pub(crate) fn analyze_with(
 
     // Project rules, once per linted project (reported on `project.json`).
     let none = ModelData::None;
+    let project_cache = UnitCache::default();
     let mut project_diagnostics = Vec::new();
     for p in &ws.projects {
         let manifest = p.manifest.file;
@@ -367,9 +400,15 @@ pub(crate) fn analyze_with(
             primary: manifest,
             files: &table,
             strict: targets[t].settings.strict,
+            cache: &project_cache,
         };
         for (slot, rule) in &set.project.project {
-            let mut cx = Checker::new(&unit, Some(&index), &set.active[*slot], &mut project_diagnostics);
+            let mut cx = Checker::new(
+                &unit,
+                Some(&index),
+                &set.active[*slot],
+                &mut project_diagnostics,
+            );
             rule.check_project(&mut cx, p.id);
         }
     }
@@ -399,6 +438,7 @@ pub(crate) fn analyze_with(
             let set = sets.get(rules, &t.settings);
             if !set.is_empty() {
                 let (data, errors) = standalone_model(&t.path, s.file, s.doc.as_ref(), &s.text);
+                let cache = UnitCache::default();
                 let unit = Unit {
                     ws: &ws,
                     resource: None,
@@ -408,6 +448,7 @@ pub(crate) fn analyze_with(
                     primary: s.file,
                     files: &table,
                     strict: t.settings.strict,
+                    cache: &cache,
                 };
                 run_phase(&unit, None, &set, &set.local, &mut diagnostics);
                 run_phase(&unit, Some(&index), &set, &set.project, &mut diagnostics);
@@ -425,7 +466,7 @@ pub(crate) fn analyze_with(
     let mut per_target: Vec<Vec<Diagnostic>> = (0..targets.len()).map(|_| Vec::new()).collect();
     let mut time: Vec<Duration> = vec![Duration::ZERO; targets.len()];
     let mut cached = vec![false; targets.len()];
-    let mut place = |d: Diagnostic, origin: Option<usize>, per_target: &mut Vec<Vec<Diagnostic>>| {
+    let place = |d: Diagnostic, origin: Option<usize>, per_target: &mut Vec<Vec<Diagnostic>>| {
         let Some(&t) = by_display.get(d.file.path()) else {
             return;
         };
@@ -517,7 +558,9 @@ pub(crate) fn analyze_with(
                     (Some(f), _) => reanalyze_resource(
                         rules, &ws, &index, &target_of, &targets, &overrides, *f, text,
                     ),
-                    (None, Some(s)) => reanalyze_standalone(rules, &ws, &index, target, s.file, text),
+                    (None, Some(s)) => {
+                        reanalyze_standalone(rules, &ws, &index, target, s.file, text)
+                    }
                     _ => Vec::new(),
                 }
             };
@@ -594,9 +637,17 @@ pub(crate) fn run_phase(
         }
     }
     if !hooks.script.is_empty() {
-        for (file, script) in unit.data.scripts() {
+        let parsed = unit.cache.parsed_scripts(unit.data);
+        for (position, ((file, script), parsed)) in
+            unit.data.scripts().into_iter().zip(parsed).enumerate()
+        {
             let start = out.len();
-            let script_unit = ScriptUnit { file, script };
+            let script_unit = ScriptUnit {
+                file,
+                script,
+                parsed,
+                index: position,
+            };
             for (slot, rule) in &hooks.script {
                 let mut cx = Checker::new(unit, index, &set.active[*slot], out);
                 rule.check_script(&mut cx, &script_unit);
@@ -610,6 +661,26 @@ pub(crate) fn run_phase(
                 }
             }
         }
+    }
+}
+
+/// Feeds the literal references of a resource's scripts into its summary
+/// (see [`crate::script_facts`]).
+fn add_script_references(data: &ModelData<'_>, cache: &UnitCache, summary: &mut ResourceSummary) {
+    let scripts = data.scripts();
+    if scripts.is_empty() {
+        return;
+    }
+    let facts = crate::script_facts::provider();
+    let parsed = cache.parsed_scripts(data);
+    for (index, ((file, script), parsed)) in scripts.into_iter().zip(parsed).enumerate() {
+        let unit = ScriptUnit {
+            file,
+            script,
+            parsed,
+            index,
+        };
+        facts.references(&unit, &mut summary.references);
     }
 }
 
@@ -737,7 +808,10 @@ fn reanalyze_resource(
     };
     let target = &targets[t];
     let mut table = FileTable::with_len(ws.files.len());
-    table.insert(file, SourceFile::new(target.path.clone(), Arc::clone(&text)));
+    table.insert(
+        file,
+        SourceFile::new(target.path.clone(), Arc::clone(&text)),
+    );
     let set = RuleSet::build(rules, &target.settings);
     let mut out = Vec::new();
     let Some(rid) = entry.resource else {
@@ -755,6 +829,7 @@ fn reanalyze_resource(
         }
     }
     let model = build_model(ws, &loaded);
+    let cache = UnitCache::default();
     let unit = Unit {
         ws,
         resource: Some(resource),
@@ -767,6 +842,7 @@ fn reanalyze_resource(
         primary: primary_file(&model),
         files: &table,
         strict: target.settings.strict,
+        cache: &cache,
     };
     run_phase(&unit, None, &set, &set.local, &mut out);
     run_phase(&unit, Some(index), &set, &set.project, &mut out);
@@ -783,10 +859,14 @@ fn reanalyze_standalone(
     text: Arc<str>,
 ) -> Vec<Diagnostic> {
     let mut table = FileTable::with_len(file.index() + 1);
-    table.insert(file, SourceFile::new(target.path.clone(), Arc::clone(&text)));
+    table.insert(
+        file,
+        SourceFile::new(target.path.clone(), Arc::clone(&text)),
+    );
     let doc = is_json(&target.path).then(|| JsonDocument::parse(Arc::clone(&text)));
     let (data, errors) = standalone_model(&target.path, file, doc.as_ref(), &text);
     let set = RuleSet::build(rules, &target.settings);
+    let cache = UnitCache::default();
     let unit = Unit {
         ws,
         resource: None,
@@ -796,6 +876,7 @@ fn reanalyze_standalone(
         primary: file,
         files: &table,
         strict: target.settings.strict,
+        cache: &cache,
     };
     let mut out = Vec::new();
     run_phase(&unit, None, &set, &set.local, &mut out);

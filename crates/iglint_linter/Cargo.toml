@@ -11,6 +11,7 @@ workspace = true
 iglint_text.workspace = true
 iglint_json.workspace = true
 iglint_expression.workspace = true
+iglint_python.workspace = true
 iglint_project.workspace = true
 iglint_stubs.workspace = true
 ignore.workspace = true

@@ -32,7 +32,12 @@ mod tests {
     #[test]
     fn rules_are_sorted_unique_and_consistent() {
         for pair in ALL.windows(2) {
-            assert!(pair[0].code < pair[1].code, "{} before {}", pair[0].code, pair[1].code);
+            assert!(
+                pair[0].code < pair[1].code,
+                "{} before {}",
+                pair[0].code,
+                pair[1].code
+            );
         }
         let mut names: Vec<&str> = ALL.iter().map(|m| m.name).collect();
         names.sort_unstable();
@@ -40,11 +45,27 @@ mod tests {
         assert_eq!(names.len(), ALL.len(), "rule names are unique");
         assert_eq!(ALL.len(), IMPLS.len());
         for (meta, imp) in ALL.iter().zip(IMPLS) {
-            assert!(std::ptr::eq(*meta, imp.meta), "{} registered twice", meta.code);
-            assert!(meta.code.starts_with(meta.category.prefix()), "{}", meta.code);
-            assert!(!meta.summary.is_empty() && !meta.explanation.is_empty(), "{}", meta.code);
+            assert!(
+                std::ptr::eq(*meta, imp.meta),
+                "{} registered twice",
+                meta.code
+            );
+            assert!(
+                meta.code.starts_with(meta.category.prefix()),
+                "{}",
+                meta.code
+            );
+            assert!(
+                !meta.summary.is_empty() && !meta.explanation.is_empty(),
+                "{}",
+                meta.code
+            );
             for section in ["## What it does", "## Why", "## Example"] {
-                assert!(meta.explanation.contains(section), "{}: missing {section}", meta.code);
+                assert!(
+                    meta.explanation.contains(section),
+                    "{}: missing {section}",
+                    meta.code
+                );
             }
             for option in meta.options {
                 if !matches!(option.default.trim(), "" | "none") {

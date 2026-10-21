@@ -98,10 +98,7 @@ impl Suppressions {
 fn selects(selectors: &[String], d: &Diagnostic) -> bool {
     selectors.is_empty()
         || selectors.iter().any(|s| {
-            d.rule.name() == s
-                || d.rule
-                    .code()
-                    .starts_with(s.to_ascii_uppercase().as_str())
+            d.rule.name() == s || d.rule.code().starts_with(s.to_ascii_uppercase().as_str())
         })
 }
 
