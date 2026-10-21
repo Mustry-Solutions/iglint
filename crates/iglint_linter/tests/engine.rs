@@ -141,7 +141,6 @@ fn discovery_classifies_and_skips() {
                 FileKind::Manifest
             ),
             ("projects/p/project.json".into(), FileKind::Manifest),
-            ("tools/gen.py".into(), FileKind::Python),
         ]
     );
     let skipped: Vec<(String, SkipReason)> = found
@@ -183,9 +182,94 @@ fn discovery_classifies_and_skips() {
 }
 
 #[test]
+fn walks_skip_python_outside_ignition_trees() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    write(root, "tools/x.py", "");
+    write(root, "projects/p/project.json", "{}");
+    write(root, "projects/p/scripts/stray.py", "");
+    write(root, "projects/p/sub/deeper/stray.py", "");
+    write(root, "config/config-mode.json", "{}");
+    write(root, "config/x/stray.py", "");
+    write(root, "views/view.json", "{}");
+    let settings = settings(root);
+
+    let found = discover(&settings, &[root.to_path_buf()]);
+    let files: Vec<(String, FileKind)> = found
+        .files
+        .iter()
+        .map(|(p, k)| (relative(root, p), *k))
+        .collect();
+    assert_eq!(
+        files,
+        vec![
+            ("config/config-mode.json".into(), FileKind::Manifest),
+            ("config/x/stray.py".into(), FileKind::Python),
+            ("projects/p/project.json".into(), FileKind::Manifest),
+            ("projects/p/scripts/stray.py".into(), FileKind::Python),
+            ("projects/p/sub/deeper/stray.py".into(), FileKind::Python),
+            ("views/view.json".into(), FileKind::View),
+        ]
+    );
+    assert!(found.skipped.is_empty());
+
+    // Walking a subdirectory still sees the project above it.
+    let found = discover(&settings, &[root.join("projects/p/sub")]);
+    assert_eq!(found.files.len(), 1);
+    // Walking the loose directory itself finds nothing.
+    assert!(discover(&settings, &[root.join("tools")]).files.is_empty());
+
+    // Named explicitly, the loose file is linted.
+    let found = discover(&settings, &[root.join("tools/x.py")]);
+    assert_eq!(
+        found.files,
+        vec![(root.join("tools/x.py"), FileKind::Python)]
+    );
+}
+
+#[test]
+fn explicit_loose_python_is_linted_as_jython() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let loose = write(root, "tools/x.py", "def broken(:\n");
+    write(root, "projects/p/project.json", "{}");
+    let rules: BTreeMap<RuleCode, RuleSettings> = iglint_linter::rules::REGISTRY
+        .iter()
+        .map(|rule| {
+            (
+                rule,
+                RuleSettings {
+                    severity: rule.meta().default_severity,
+                    options: BTreeMap::new(),
+                },
+            )
+        })
+        .collect();
+    let settings = ProjectSettings {
+        root: root.to_path_buf(),
+        base: Arc::new(LinterSettings {
+            rules,
+            strict: false,
+        }),
+        ..ProjectSettings::default()
+    };
+    let options = CheckOptions::default();
+
+    let walked = check(&settings, &[root.to_path_buf()], &options);
+    assert!(walked.files.iter().all(|f| f.path != loose));
+    assert!(walked.diagnostics.is_empty());
+
+    let named = check(&settings, std::slice::from_ref(&loose), &options);
+    assert_eq!(named.files_checked, 1);
+    let rules: Vec<&str> = named.diagnostics.iter().map(|d| d.rule.code()).collect();
+    assert_eq!(rules, ["SCR001"]);
+}
+
+#[test]
 fn check_reports_sorted_diagnostics_and_errors() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
+    write(root, "project.json", "{}");
     write(root, "b.py", "x = undefined_thing\nunused_var = 1\n");
     write(root, "a.py", "undefined_thing\n");
     std::fs::write(root.join("bad.py"), [0xff, 0xfe]).unwrap();
@@ -207,7 +291,7 @@ fn check_reports_sorted_diagnostics_and_errors() {
             ("b.py".into(), "SCR102"),
         ]
     );
-    assert_eq!(result.files_checked, 2);
+    assert_eq!(result.files_checked, 3);
     assert_eq!(result.errors.len(), 1);
     assert_eq!(result.errors[0].message, "file is not valid UTF-8");
     assert!(result.fixed.is_empty());

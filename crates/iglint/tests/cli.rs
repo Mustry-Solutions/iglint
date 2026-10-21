@@ -90,6 +90,7 @@ fn default_command_reports_findings() {
 #[test]
 fn exit_status_threshold() {
     let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "project.json", "{}\n");
     write(dir.path(), "a.py", "unused_var\nbad_prop\n");
     // A warning fails by default.
     assert_eq!(run(dir.path(), &["--isolated"]).status, ExitStatus::Failure);
@@ -130,6 +131,7 @@ fn exit_status_threshold() {
 #[test]
 fn fixes() {
     let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "project.json", "{}\n");
     let file = write(dir.path(), "a.py", "unused_var\nunusedProp\n");
 
     let diff = run(dir.path(), &["--isolated", "--diff"]);
@@ -171,6 +173,7 @@ fn fixes() {
 #[test]
 fn unsafe_fix_hint() {
     let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "project.json", "{}\n");
     write(dir.path(), "a.py", "unusedProp\n");
     let result = run(dir.path(), &["--isolated", "--output-format", "concise"]);
     assert!(
@@ -285,6 +288,31 @@ fn show_settings_and_files() {
     assert_eq!(
         files.stdout,
         "projects/p/ignition/script-python/lib/code.py\nprojects/p/ignition/script-python/lib/resource.json\n"
+    );
+}
+
+#[test]
+fn walks_only_lint_python_inside_ignition_trees() {
+    let dir = project();
+    write(dir.path(), "tools/x.py", "unused_var\n");
+    write(dir.path(), "projects/p/project.json", "{}\n");
+    write(dir.path(), "projects/p/scripts/stray.py", "");
+    let files = run(dir.path(), &["--show-files"]);
+    assert_eq!(
+        files.stdout,
+        "projects/p/ignition/script-python/lib/code.py\nprojects/p/ignition/script-python/lib/resource.json\nprojects/p/project.json\nprojects/p/scripts/stray.py\n"
+    );
+    let named = run(dir.path(), &["--show-files", "tools/x.py"]);
+    assert_eq!(named.stdout, "tools/x.py\n");
+    let linted = run(
+        dir.path(),
+        &["--output-format", "concise", "--no-cache", "tools/x.py"],
+    );
+    assert_eq!(linted.status, ExitStatus::Failure);
+    assert!(
+        linted.stdout.contains("tools/x.py:1:1: SCR102"),
+        "{}",
+        linted.stdout
     );
 }
 
@@ -583,6 +611,8 @@ fn cache_is_written_to_the_project_root() {
     let dir = project();
     let first = run(dir.path(), &["--output-format", "concise"]);
     assert!(dir.path().join(".iglint_cache").is_dir());
+    let tag = std::fs::read_to_string(dir.path().join(".iglint_cache/CACHEDIR.TAG")).unwrap();
+    assert!(tag.starts_with("Signature: 8a477f597d28d172789f06886806bc55\n"));
     let second = run(dir.path(), &["--output-format", "concise"]);
     assert_eq!(first.stdout, second.stdout);
     let other = run(dir.path(), &["--cache-dir", "elsewhere"]);

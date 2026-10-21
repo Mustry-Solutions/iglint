@@ -3,11 +3,18 @@
 //! One JSON file per project root and iglint version holds, per file, a hash
 //! of the file contents, its kind and its resolved settings, plus the
 //! diagnostics found. A file whose hash matches is not analysed again.
+//!
+//! The cache file also records the build that wrote it ([`build_id`]); a
+//! different build discards all entries, so a rebuilt binary with changed
+//! rules never serves stale findings even when the version is unchanged.
+//! The cache directory is marked with a `.gitignore` and a `CACHEDIR.TAG`
+//! (<https://bford.info/cachedir/>) so that version control and backup tools
+//! skip it.
 
 use std::collections::BTreeMap;
 use std::hash::Hasher;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 use iglint_text::{TextEdit, TextRange, TextSize};
 use serde::{Deserialize, Serialize};
@@ -18,11 +25,56 @@ use crate::diagnostic::{
 use crate::discovery::FileKind;
 use crate::settings::{LinterSettings, ProjectSettings};
 
-const FORMAT: u32 = 1;
+const FORMAT: u32 = 2;
+
+const CACHEDIR_TAG: &str = "Signature: 8a477f597d28d172789f06886806bc55
+# This file is a cache directory tag created by iglint.
+# For information about cache directory tags, see:
+#	https://bford.info/cachedir/
+";
+
+/// Identifies the running binary: the crate version, the commit and compile
+/// time stamped in by `build.rs` (`IGLINT_BUILD_ID`) and the size and
+/// modification time of the executable.
+///
+/// The build script only reruns when a file of this crate changes, so its id
+/// alone misses rebuilds caused by edits to other crates (the parser, the
+/// semantic model, the stubs) that change findings just as well. The linker
+/// rewrites the executable on every such rebuild, so its metadata covers
+/// them for the price of one `stat` per run. Hashing the executable's
+/// contents would be exact but costs milliseconds on every run; a spurious
+/// miss after copying the binary is harmless.
+pub(crate) fn build_id() -> &'static str {
+    static ID: OnceLock<String> = OnceLock::new();
+    ID.get_or_init(|| {
+        let mut hasher = Fnv64::default();
+        if let Some(metadata) = std::env::current_exe()
+            .ok()
+            .and_then(|exe| std::fs::metadata(exe).ok())
+        {
+            hasher.write(&metadata.len().to_le_bytes());
+            if let Some(since) = metadata
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            {
+                hasher.write(&since.as_nanos().to_le_bytes());
+            }
+        }
+        format!(
+            "{}+{}+{:016x}",
+            env!("CARGO_PKG_VERSION"),
+            env!("IGLINT_BUILD_ID"),
+            hasher.finish()
+        )
+    })
+}
 
 #[derive(Serialize, Deserialize, Default)]
 struct CacheFile {
     format: u32,
+    /// The [`build_id`] of the binary that wrote the file.
+    build: String,
     files: BTreeMap<String, Entry>,
 }
 
@@ -62,13 +114,26 @@ struct CachedFix {
 }
 
 pub(crate) struct Cache {
+    /// The cache directory, marked with `.gitignore` and `CACHEDIR.TAG`.
+    dir: PathBuf,
     path: PathBuf,
+    build: String,
     entries: BTreeMap<String, Entry>,
     lock: Mutex<()>,
 }
 
 impl Cache {
     pub(crate) fn load(dir: &Path, settings: &ProjectSettings) -> Cache {
+        Self::load_with_build_id(dir, settings, build_id())
+    }
+
+    /// Like [`Cache::load`] for the binary identified by `build_id`; entries
+    /// written by another build are discarded.
+    pub(crate) fn load_with_build_id(
+        dir: &Path,
+        settings: &ProjectSettings,
+        build_id: &str,
+    ) -> Cache {
         let mut hasher = Fnv64::default();
         hasher.write(settings.root.to_string_lossy().as_bytes());
         let path = dir
@@ -77,11 +142,13 @@ impl Cache {
         let entries = std::fs::read(&path)
             .ok()
             .and_then(|bytes| serde_json::from_slice::<CacheFile>(&bytes).ok())
-            .filter(|file| file.format == FORMAT)
+            .filter(|file| file.format == FORMAT && file.build == build_id)
             .map(|file| file.files)
             .unwrap_or_default();
         Cache {
+            dir: dir.to_path_buf(),
             path,
+            build: build_id.to_owned(),
             entries,
             lock: Mutex::new(()),
         }
@@ -153,6 +220,7 @@ impl Cache {
         }
         let file = CacheFile {
             format: FORMAT,
+            build: std::mem::take(&mut self.build),
             files: std::mem::take(&mut self.entries),
         };
         let Some(dir) = self.path.parent() else {
@@ -161,10 +229,13 @@ impl Cache {
         if std::fs::create_dir_all(dir).is_err() {
             return;
         }
-        if let Some(root) = dir.parent() {
-            let ignore = root.join(".gitignore");
-            if !ignore.exists() {
-                let _ = std::fs::write(ignore, "# Automatically created by iglint.\n*\n");
+        for (name, text) in [
+            (".gitignore", "# Automatically created by iglint.\n*\n"),
+            ("CACHEDIR.TAG", CACHEDIR_TAG),
+        ] {
+            let marker = self.dir.join(name);
+            if !marker.exists() {
+                let _ = std::fs::write(marker, text);
             }
         }
         if let Ok(json) = serde_json::to_vec(&file) {
@@ -278,4 +349,88 @@ fn restore(
         });
     }
     Some(diagnostic)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn stored(dir: &Path, settings: &ProjectSettings, build_id: &str, file: &SourceFile) {
+        let cache = Cache::load_with_build_id(dir, settings, build_id);
+        let entry = cache
+            .entry(file.path(), FileKind::Python, &settings.base, file, 0, &[])
+            .unwrap();
+        cache.store(vec![entry]);
+    }
+
+    fn hits(
+        dir: &Path,
+        settings: &ProjectSettings,
+        linter: &LinterSettings,
+        build_id: &str,
+        file: &SourceFile,
+    ) -> bool {
+        Cache::load_with_build_id(dir, settings, build_id)
+            .get(file.path(), FileKind::Python, linter, file, 0)
+            .is_some()
+    }
+
+    #[test]
+    fn entries_are_keyed_by_build_and_settings() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join(".iglint_cache");
+        let settings = ProjectSettings {
+            root: temp.path().to_path_buf(),
+            ..ProjectSettings::default()
+        };
+        let file = SourceFile::new(temp.path().join("a.py"), "x = 1\n");
+        stored(&dir, &settings, "build-a", &file);
+
+        assert!(hits(&dir, &settings, &settings.base, "build-a", &file));
+        assert!(!hits(&dir, &settings, &settings.base, "build-b", &file));
+        let strict = LinterSettings {
+            strict: true,
+            ..(*settings.base).clone()
+        };
+        assert!(!hits(&dir, &settings, &strict, "build-a", &file));
+
+        // A store by another build replaces the old entries.
+        stored(
+            &dir,
+            &settings,
+            "build-b",
+            &SourceFile::new(temp.path().join("b.py"), ""),
+        );
+        assert!(!hits(&dir, &settings, &settings.base, "build-b", &file));
+        assert!(!hits(&dir, &settings, &settings.base, "build-a", &file));
+    }
+
+    #[test]
+    fn cache_directory_is_marked() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join(".iglint_cache");
+        let settings = ProjectSettings {
+            root: temp.path().to_path_buf(),
+            ..ProjectSettings::default()
+        };
+        let file = SourceFile::new(temp.path().join("a.py"), "x = 1\n");
+        stored(&dir, &settings, "build-a", &file);
+
+        let ignore = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
+        assert!(ignore.lines().any(|line| line == "*"));
+        let tag = std::fs::read_to_string(dir.join("CACHEDIR.TAG")).unwrap();
+        assert!(tag.starts_with("Signature: 8a477f597d28d172789f06886806bc55"));
+
+        // Existing markers are left alone.
+        std::fs::write(dir.join(".gitignore"), "*\n# mine\n").unwrap();
+        stored(&dir, &settings, "build-a", &file);
+        let ignore = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
+        assert_eq!(ignore, "*\n# mine\n");
+    }
+
+    #[test]
+    fn build_id_names_the_version() {
+        assert!(build_id().starts_with(concat!(env!("CARGO_PKG_VERSION"), "+")));
+        assert_eq!(build_id(), build_id());
+    }
 }

@@ -4,6 +4,16 @@
 //! when configured). Every file is classified by [`FileKind::classify`];
 //! files that are not Ignition resources are skipped silently while walking,
 //! but linted when named explicitly.
+//!
+//! A walk lints only Python files that belong to an Ignition tree: library
+//! modules and resource scripts always do, and any other `.py` file
+//! ([`FileKind::Python`]) only when it lies inside a project (an ancestor
+//! directory holds `project.json`) or a gateway configuration collection (an
+//! ancestor holds `config-mode.json`). Build scripts, tools and virtual
+//! environments next to the projects are therefore not linted as Jython. A
+//! loose Python file named explicitly is still linted. JSON kinds keep their
+//! own rules ([`FileKind::discovered_by_walk`]), so a standalone `view.json`
+//! is still found by a walk.
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -71,6 +81,40 @@ const MANIFESTS: [&str; 4] = [
     "config-mode.json",
 ];
 
+/// Files that mark the root of an Ignition tree: a project or a gateway
+/// configuration collection.
+const TREE_ROOTS: [&str; 2] = ["project.json", "config-mode.json"];
+
+/// Memoised answers to "is this directory inside an Ignition tree?", so a
+/// walk stats each directory's markers at most once.
+#[derive(Default)]
+struct IgnitionTrees {
+    known: HashMap<PathBuf, bool>,
+}
+
+impl IgnitionTrees {
+    fn contains(&mut self, dir: &Path) -> bool {
+        let dir = absolute(dir);
+        let mut visited = Vec::new();
+        let mut inside = false;
+        for ancestor in dir.ancestors() {
+            if let Some(&known) = self.known.get(ancestor) {
+                inside = known;
+                break;
+            }
+            visited.push(ancestor.to_path_buf());
+            if TREE_ROOTS.iter().any(|m| ancestor.join(m).is_file()) {
+                inside = true;
+                break;
+            }
+        }
+        for dir in visited {
+            self.known.insert(dir, inside);
+        }
+        inside
+    }
+}
+
 fn has_manifest(dir: &Path) -> bool {
     MANIFESTS.iter().any(|m| dir.join(m).is_file())
 }
@@ -132,8 +176,8 @@ pub struct Discovery {
 }
 
 /// Walks `paths` and classifies every file below them. Directory walks skip
-/// hidden directories, `.gitignore`d files (when configured) and excluded
-/// paths; explicitly named files are still checked against `exclude` and the
+/// hidden directories, `.gitignore`d files (when configured), excluded
+/// paths and Python files outside any Ignition tree; explicitly named files are still checked against `exclude` and the
 /// whitelist so that editor and pre-commit integrations honour them.
 pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
     let mut discovery = Discovery::default();
@@ -144,6 +188,7 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
             .entry(dir.to_path_buf())
             .or_insert_with(|| has_manifest(dir))
     };
+    let mut trees = IgnitionTrees::default();
     for path in paths {
         if path.is_file() {
             if !seen.insert(path.clone()) {
@@ -199,7 +244,13 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
             let Some(kind) = classify_with(&file, &mut manifest_in) else {
                 continue;
             };
-            if !kind.discovered_by_walk() || !seen.insert(file.clone()) {
+            if !kind.discovered_by_walk() {
+                continue;
+            }
+            if kind == FileKind::Python && !file.parent().is_some_and(|dir| trees.contains(dir)) {
+                continue;
+            }
+            if !seen.insert(file.clone()) {
                 continue;
             }
             match skip_reason(settings, &file) {
@@ -290,6 +341,25 @@ mod tests {
         assert_eq!(kind("package.json", &[]), Some(FileKind::Json));
         assert_eq!(kind("p/views/Main/thumbnail.png", &[]), None);
         assert_eq!(kind("p/stylesheet.css", &[]), None);
+    }
+
+    #[test]
+    fn ignition_trees_are_found_through_ancestors() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        std::fs::create_dir_all(root.join("projects/p/a/b")).unwrap();
+        std::fs::create_dir_all(root.join("config/x")).unwrap();
+        std::fs::create_dir_all(root.join("tools/sub")).unwrap();
+        std::fs::write(root.join("projects/p/project.json"), "{}").unwrap();
+        std::fs::write(root.join("config/config-mode.json"), "{}").unwrap();
+        let mut trees = IgnitionTrees::default();
+        assert!(trees.contains(&root.join("projects/p/a/b")));
+        assert!(trees.contains(&root.join("projects/p/a")));
+        assert!(trees.contains(&root.join("projects/p")));
+        assert!(!trees.contains(&root.join("projects")));
+        assert!(trees.contains(&root.join("config/x")));
+        assert!(!trees.contains(&root.join("tools/sub")));
+        assert!(!trees.contains(&root.join("tools")));
     }
 
     #[test]
