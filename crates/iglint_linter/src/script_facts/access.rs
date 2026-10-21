@@ -309,7 +309,14 @@ impl<'v, 'a> Analysis<'v, 'a, '_> {
 
     // ---- recording ----
 
-    fn record(&mut self, t: AccessTarget, category: PropCategory, name: Option<String>, ctx: ExprContext, range: TextRange) {
+    fn record(
+        &mut self,
+        t: AccessTarget,
+        category: PropCategory,
+        name: Option<String>,
+        ctx: ExprContext,
+        range: TextRange,
+    ) {
         let (read, write) = match ctx {
             ExprContext::Load => (true, false),
             ExprContext::AugLoad | ExprContext::AugStore => (true, true),
@@ -536,8 +543,8 @@ mod tests {
     /// Accesses of `body` run as the button's action script.
     fn accesses(body: &str) -> Vec<String> {
         let mut json: serde_json::Value = serde_json::from_str(VIEW).unwrap();
-        json["root"]["children"][1]["events"]["component"]["onActionPerformed"]["config"]
-            ["script"] = serde_json::Value::String(body.to_owned());
+        json["root"]["children"][1]["events"]["component"]["onActionPerformed"]["config"]["script"] =
+            serde_json::Value::String(body.to_owned());
         let text = serde_json::to_string(&json).unwrap();
         let root = iglint_json::parse(&text).unwrap();
         let view = build_view(&root);
@@ -572,21 +579,37 @@ mod tests {
     #[test]
     fn direct_accesses() {
         assert_eq!(
-            accesses("\tx = self.view.custom.a\n\tself.view.params.p = self.custom.y\n\tself.getSibling('A').custom['x'] += 1"),
-            vec!["view.custom.a r", "view.params.p w", "B.custom.y r", "A.custom.x r w"]
+            accesses(
+                "\tx = self.view.custom.a\n\tself.view.params.p = self.custom.y\n\tself.getSibling('A').custom['x'] += 1"
+            ),
+            vec![
+                "view.custom.a r",
+                "view.params.p w",
+                "B.custom.y r",
+                "A.custom.x r w"
+            ]
         );
     }
 
     #[test]
     fn navigation() {
         assert_eq!(
-            accesses("\tself.parent.getChild('A').custom.x\n\tself.view.getChild('root/A').custom.q\n\tself.view.rootContainer.custom.r\n\tself.getSibling('Missing').custom.z"),
+            accesses(
+                "\tself.parent.getChild('A').custom.x\n\tself.view.getChild('root/A').custom.q\n\tself.view.rootContainer.custom.r\n\tself.getSibling('Missing').custom.z"
+            ),
             vec!["A.custom.x r", "A.custom.q r", "root.custom.r r"]
         );
         // Iterating over children loses track of the components.
         assert_eq!(
-            accesses("\tfor c in self.parent.children:\n\t\tc.custom.x = 1\n\tself.getSibling(name).custom.w"),
-            vec!["view.custom.* r w", "view.params.* r w", "*.custom.* r w", "*.custom.w r"]
+            accesses(
+                "\tfor c in self.parent.children:\n\t\tc.custom.x = 1\n\tself.getSibling(name).custom.w"
+            ),
+            vec![
+                "view.custom.* r w",
+                "view.params.* r w",
+                "*.custom.* r w",
+                "*.custom.w r"
+            ]
         );
     }
 
@@ -600,14 +623,26 @@ mod tests {
 
     #[test]
     fn dynamic_uses_are_conservative() {
-        assert_eq!(accesses("\tk = 'a'\n\tself.view.custom[k]"), vec!["view.custom.* r"]);
+        assert_eq!(
+            accesses("\tk = 'a'\n\tself.view.custom[k]"),
+            vec!["view.custom.* r"]
+        );
         assert_eq!(accesses("\tdata = dict(self.custom)"), vec!["B.custom.* r"]);
-        assert_eq!(accesses("\tfor k in self.view.custom.keys(): pass"), vec!["view.custom.* r"]);
+        assert_eq!(
+            accesses("\tfor k in self.view.custom.keys(): pass"),
+            vec!["view.custom.* r"]
+        );
         let escaped = accesses("\tproject.util.handle(self)");
-        assert!(escaped.contains(&"*.custom.* r w".to_owned()), "{escaped:?}");
+        assert!(
+            escaped.contains(&"*.custom.* r w".to_owned()),
+            "{escaped:?}"
+        );
         assert!(escaped.contains(&"view.params.* r w".to_owned()));
         let reassigned = accesses("\tv = self.view\n\tv = other\n\tv.custom.a");
-        assert!(reassigned.contains(&"view.custom.* r w".to_owned()), "{reassigned:?}");
+        assert!(
+            reassigned.contains(&"view.custom.* r w".to_owned()),
+            "{reassigned:?}"
+        );
         assert!(accesses("\tx = locals()").len() == 3);
     }
 

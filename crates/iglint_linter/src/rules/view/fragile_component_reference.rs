@@ -159,7 +159,10 @@ fn detector(pattern: &str) -> Detector<'_> {
         return Detector::Method(name);
     }
     for attr in ["parent", "children"] {
-        if let Some(rest) = pattern.strip_prefix("self.").and_then(|p| p.strip_prefix(attr)) {
+        if let Some(rest) = pattern
+            .strip_prefix("self.")
+            .and_then(|p| p.strip_prefix(attr))
+        {
             let mut chars = rest.chars();
             match (chars.next(), chars.next()) {
                 (None, _) => return Detector::SelfAttribute(attr, None),
@@ -265,7 +268,10 @@ impl<'a> Visitor<'a> for ScriptHits<'_> {
             Expr::Attribute(a) => {
                 if let Expr::Name(n) = &*a.value
                     && &*n.id == "self"
-                    && matches!(a.attr.as_str().to_ascii_lowercase().as_str(), "parent" | "children")
+                    && matches!(
+                        a.attr.as_str().to_ascii_lowercase().as_str(),
+                        "parent" | "children"
+                    )
                 {
                     let next = self.source[a.range.end().to_usize()..].chars().next();
                     self.hits.push((
@@ -323,8 +329,13 @@ impl ViewRule for FragileReference {
         }
         // Expressions, grouped by their ign-lint node (a struct binding is
         // one node).
-        let mut groups: Vec<(String, Option<String>, Vec<(Hit, TextRange)>, String, TextRange)> =
-            Vec::new();
+        let mut groups: Vec<(
+            String,
+            Option<String>,
+            Vec<(Hit, TextRange)>,
+            String,
+            TextRange,
+        )> = Vec::new();
         for e in &view.expressions {
             if !matches!(
                 e.kind,
@@ -462,7 +473,12 @@ mod tests {
         Fixture::view(view)
             .lint_with(&[("VIEW018", options)])
             .iter()
-            .map(|d| (d.message.clone(), flagged(std::slice::from_ref(d))[0].clone()))
+            .map(|d| {
+                (
+                    d.message.clone(),
+                    flagged(std::slice::from_ref(d))[0].clone(),
+                )
+            })
             .collect()
     }
 
@@ -519,7 +535,10 @@ mod tests {
         assert_eq!(only_sibling.len(), 1);
         assert!(only_sibling[0].0.contains("`.getSibling(`"));
         assert_eq!(lint(&v, "forbidden-patterns = [\".getChild(\"]").len(), 0);
-        let insensitive = lint(&v, "forbidden-patterns = [\".getChild(\"]\ncase-sensitive = false");
+        let insensitive = lint(
+            &v,
+            "forbidden-patterns = [\".getChild(\"]\ncase-sensitive = false",
+        );
         assert_eq!(insensitive.len(), 1);
         let text = lint(&v, "forbidden-patterns = [\"Label\"]");
         assert_eq!(text.len(), 1, "{text:?}");

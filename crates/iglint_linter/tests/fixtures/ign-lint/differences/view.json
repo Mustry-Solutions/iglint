@@ -311,6 +311,62 @@
       "message": "root.root.children[3].Deep.propConfig.props.text: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
       "kind": "missing",
       "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/ExpressionBindings",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "custom.test: custom property 'test' is defined but never referenced",
+      "kind": "missing",
+      "reason": "a property with a change script (`onChange`) is never unused in iglint: the script runs on every change; ign-lint ignores change scripts when crediting"
+    },
+    {
+      "view": "cases/ExpressionBindings",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "params.outputWithoutBinding: view parameter 'outputWithoutBinding' is defined but never referenced",
+      "kind": "missing",
+      "reason": "output parameters are written by the view and read by its caller; iglint leaves them to VIEW019 output-param-never-written"
+    },
+    {
+      "view": "probes/UnusedQuirks",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "params.outParam: view parameter 'outParam' is defined but never referenced",
+      "kind": "missing",
+      "reason": "output parameters are written by the view and read by its caller; iglint leaves them to VIEW019 output-param-never-written"
+    },
+    {
+      "view": "probes/ScriptLines",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "root.root.children.Btn.custom.watched: custom property 'watched' is defined but never referenced",
+      "kind": "missing",
+      "reason": "a property with a change script (`onChange`) is never unused in iglint: the script runs on every change"
+    },
+    {
+      "view": "probes/ScriptLines",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "root.root.children.Btn.propConfig.custom.watched: custom property 'watched' is defined but never referenced",
+      "kind": "missing",
+      "reason": "bug 23: ign-lint turns component propConfig leaves into a bogus definition"
+    },
+    {
+      "view": "probes/UnusedQuirks",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "custom.foo: custom property 'foo' is defined but never referenced",
+      "kind": "extra",
+      "reason": "bug 21: ign-lint credits `foo` because `{view.custom.foobar}` contains it as a substring; iglint resolves references exactly"
+    },
+    {
+      "view": "probes/UnusedQuirks",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "root.root.children.Card.custom.beta: custom property 'beta' is defined but never referenced",
+      "kind": "extra",
+      "reason": "bug 21: `{this.custom.beta}` on another component credits every component's `beta` in ign-lint; iglint resolves `this` to the binding's own component"
     }
   ]
 }

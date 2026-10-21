@@ -28,6 +28,7 @@ rules![
     view::excessive_context_data,
     view::property_access,
     view::property_persistence,
+    view::unused_custom_property,
     view::fragile_component_reference,
 ];
 
