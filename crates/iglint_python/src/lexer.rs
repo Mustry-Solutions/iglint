@@ -65,6 +65,9 @@ pub(crate) struct Lexer<'src> {
     pub(crate) dropped: Vec<DroppedText>,
     /// Set when error recovery consumed half of a surrogate pair.
     split_surrogate: Option<usize>,
+    /// Whether to end unclosed brackets at a line that starts a statement
+    /// (see [`Lexer::unclosed_bracket_recovery`]).
+    recover_unclosed_brackets: bool,
 }
 
 impl<'src> Lexer<'src> {
@@ -80,7 +83,23 @@ impl<'src> Lexer<'src> {
             errors: Vec::new(),
             dropped: Vec::new(),
             split_surrogate: None,
+            recover_unclosed_brackets: false,
         }
+    }
+
+    /// Enables recovery from unclosed brackets for the parser.
+    ///
+    /// Inside brackets Jython joins lines, so an unclosed bracket swallows
+    /// the rest of the file into one logical line. With recovery enabled, a
+    /// line inside brackets that starts with a keyword that can only start a
+    /// statement (`def`, `class`, `return`, ...) closes all brackets and
+    /// gets a NEWLINE token before it. This deviates from Jython only where
+    /// Jython reports a syntax error at that keyword anyway: the NEWLINE is
+    /// anchored at the keyword, and a NEWLINE inside brackets is always a
+    /// syntax error, so the first error the parser reports is unchanged.
+    pub(crate) fn unclosed_bracket_recovery(mut self) -> Self {
+        self.recover_unclosed_brackets = true;
+        self
     }
 
     pub(crate) fn source(&self) -> &'src str {
@@ -127,6 +146,52 @@ impl<'src> Lexer<'src> {
             self.split_surrogate = Some(self.pos);
         }
         self.bump();
+    }
+
+    /// Whether only whitespace precedes the current position on its line.
+    fn first_on_physical_line(&self) -> bool {
+        let mut index = self.pos;
+        while index > self.start {
+            match self.byte(index - 1) {
+                b' ' | b'\t' | b'\x0c' => index -= 1,
+                b'\n' => return true,
+                _ => return false,
+            }
+        }
+        true
+    }
+
+    /// Whether a keyword that can only start a statement comes next.
+    fn statement_keyword_ahead(&self) -> bool {
+        let mut end = self.pos;
+        while is_name_continue(self.byte(end)) {
+            end += 1;
+        }
+        let word = &self.bytes[self.pos.min(self.bytes.len())..end.min(self.bytes.len())];
+        matches!(
+            TokenKind::keyword(word),
+            Some(
+                TokenKind::Def
+                    | TokenKind::Class
+                    | TokenKind::Return
+                    | TokenKind::Pass
+                    | TokenKind::Break
+                    | TokenKind::Continue
+                    | TokenKind::Global
+                    | TokenKind::Del
+                    | TokenKind::Assert
+                    | TokenKind::Raise
+                    | TokenKind::Import
+                    | TokenKind::From
+                    | TokenKind::Try
+                    | TokenKind::Except
+                    | TokenKind::Finally
+                    | TokenKind::While
+                    | TokenKind::With
+                    | TokenKind::Elif
+                    | TokenKind::Exec
+            )
+        )
     }
 
     #[inline]
@@ -202,6 +267,19 @@ impl<'src> Lexer<'src> {
 
     /// ANTLR's `nextToken()`: one token, possibly hidden.
     fn next_any(&mut self) -> Lexed {
+        if self.nesting > 0
+            && self.recover_unclosed_brackets
+            && self.first_on_physical_line()
+            && self.statement_keyword_ahead()
+        {
+            self.nesting = 0;
+            let at = TextSize::from(self.pos);
+            return Lexed::Visible(Token::new(
+                TokenKind::Newline,
+                TextRange::empty(self.clamp(self.pos)),
+                Anchor::at(at),
+            ));
+        }
         // Jython computes `startPos` once per call, before error recovery
         // retries, so a dropped token does not change it.
         let line_start = self.at_line_start();

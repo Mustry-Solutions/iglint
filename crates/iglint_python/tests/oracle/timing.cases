@@ -1,0 +1,115 @@
+### semantic error then indentation error in print
+if x:
+	print lambda None, y=1: y
+    z = 1
+### semantic error then indentation error in assignment value
+if x:
+	a = [lambda None: 0]
+    z = 1
+### semantic error then indentation error in expression statement
+if x:
+	f(lambda None: 0)
+    z = 1
+### semantic error then indentation error in augmented assignment
+if x:
+	a += f(lambda None: 0)
+    z = 1
+### semantic error then lexical error in list
+x = [lambda None: 0, 0x]
+### semantic error then lexical error in call
+f(lambda None: 0, 0x)
+### semantic error then lexical error after tuple
+x = lambda None: 0, 0x
+### keyword check after closing parenthesis
+f(a.b=1 $)
+### keyword check before unclosed error
+f(a.b=1
+x = 2
+### keyword repeated then lexical error
+f(a=1, a=2, 0x)
+### vararg None then syntax error
+def f(*None, x):
+    pass
+### vararg None then kwarg None
+def f(*None, **None):
+    pass
+### kwarg None then syntax error
+def f(**None, x):
+    pass
+### parameter None then syntax error
+def f(None, 1):
+    pass
+### non default then syntax error
+def f(a=1, b 2):
+    pass
+### decorator keyword error then lexical error
+@dec(a.b=1)
+def f(): $
+### decorator None attribute then lexical error
+@a.None
+def $(): pass
+### for None then lexical error in body
+for None in x:
+    $
+### for None then indentation error
+for None in x:
+        pass
+    pass
+### with target error then lexical error
+with a as f(): $
+### delete error then lexical error
+del f(), $
+### assign error then lexical error
+f() = 0x
+### augmented assign error then lexical error
+(a, b) += 0x
+### subscript slice error timing
+x[lambda None: 0:0x]
+### exprlist error timing
+for x, (lambda None: 0) in $: pass
+### string error then lexical error
+x = '\x4' $
+### number error then lexical error
+x = 0o + $
+### number error then indentation error
+if x:
+	y = 0o
+    z = 1
+### unicode escape error then syntax error
+x = u'\N{BULLET}' +
+### continue in finally then lexical error
+for x in y:
+    try: pass
+    finally: continue; $
+### generator error then lexical error
+f(a, x for x in y, 0x)
+### generator not sole then syntax error
+f(x for x in y, a b)
+### non keyword after keyword then lexical error
+f(a=1, b, 0x)
+### unclosed call then def
+x = foo(1,
+def g():
+    pass
+### unclosed list then class
+x = [1,
+class A: pass
+### unclosed then return in block
+def f():
+    x = (1,
+    return x
+### unclosed then if inside is valid
+x = (1 if a
+     else 2)
+### unclosed then for inside is valid
+x = [y
+     for y in z]
+### unclosed then import
+x = {1: 2,
+import os
+### unclosed then dedented def
+class A:
+    def f(self):
+        x = f(1,
+    def g(self):
+        pass

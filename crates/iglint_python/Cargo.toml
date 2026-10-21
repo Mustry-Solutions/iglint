@@ -18,3 +18,7 @@ path = "tests/oracle.rs"
 [[test]]
 name = "robustness"
 path = "tests/robustness.rs"
+
+[[bench]]
+name = "parse"
+harness = false

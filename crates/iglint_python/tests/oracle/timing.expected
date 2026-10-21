@@ -1,0 +1,122 @@
+### semantic error then indentation error in print
+error 3 4
+unindent does not match any outer indentation level
+### semantic error then indentation error in assignment value
+error 3 4
+unindent does not match any outer indentation level
+### semantic error then indentation error in expression statement
+error 3 4
+unindent does not match any outer indentation level
+### semantic error then indentation error in augmented assignment
+error 3 4
+unindent does not match any outer indentation level
+### semantic error then lexical error in list
+error 1 23
+no viable alternative at character ']'
+### semantic error then lexical error in call
+error 1 20
+no viable alternative at character ')'
+### semantic error then lexical error after tuple
+error 1 22
+no viable alternative at character '\\n'
+### keyword check after closing parenthesis
+error 1 8
+no viable alternative at character '$'
+### keyword check before unclosed error
+error 2 0
+no viable alternative at input 'x'
+### keyword repeated then lexical error
+error 1 14
+no viable alternative at character ')'
+### vararg None then syntax error
+error 1 13
+mismatched input 'x' expecting DOUBLESTAR
+### vararg None then kwarg None
+error 1 7
+can't be None
+### kwarg None then syntax error
+error 1 8
+can't be None
+### parameter None then syntax error
+error 1 6
+assignment to None
+### non default then syntax error
+error 1 11
+non-default argument follows default argument
+### decorator keyword error then lexical error
+error 1 5
+keyword must be a name
+### decorator None attribute then lexical error
+error 2 4
+no viable alternative at character '$'
+### for None then lexical error in body
+error 2 4
+no viable alternative at character '$'
+### for None then indentation error
+error 3 4
+unindent does not match any outer indentation level
+### with target error then lexical error
+error 1 15
+no viable alternative at character '$'
+### delete error then lexical error
+error 1 9
+no viable alternative at character '$'
+### assign error then lexical error
+error 1 8
+no viable alternative at character '\\n'
+### augmented assign error then lexical error
+error 1 12
+no viable alternative at character '\\n'
+### subscript slice error timing
+error 1 19
+no viable alternative at character ']'
+### exprlist error timing
+error 1 15
+assignment to None
+### string error then lexical error
+error 1 10
+no viable alternative at character '$'
+### number error then lexical error
+error 1 9
+no viable alternative at character '$'
+### number error then indentation error
+error 3 4
+unindent does not match any outer indentation level
+### unicode escape error then syntax error
+error 1 19
+no viable alternative at input '\\n\\n\\n'
+### continue in finally then lexical error
+error 3 23
+no viable alternative at character '$'
+### generator error then lexical error
+error 1 21
+no viable alternative at character ')'
+### generator not sole then syntax error
+error 1 18
+no viable alternative at input 'b'
+### non keyword after keyword then lexical error
+error 1 12
+no viable alternative at character ')'
+### unclosed call then def
+error 2 0
+mismatched input 'def' expecting RPAREN
+### unclosed list then class
+error 2 0
+mismatched input 'class' expecting RBRACK
+### unclosed then return in block
+error 3 4
+mismatched input 'return' expecting RPAREN
+### unclosed then if inside is valid
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=IfExp(test=Name(id='a', ctx=Load()), body=Num(n=1), orelse=Num(n=2)))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=IfExp(test=Name(id='a', ctx=Load(), lineno=1, col_offset=10), body=Num(n=1, lineno=1, col_offset=5), orelse=Num(n=2, lineno=2, col_offset=10), lineno=1, col_offset=5), lineno=1, col_offset=0)])
+### unclosed then for inside is valid
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=ListComp(elt=Name(id='y', ctx=Load()), generators=[comprehension(target=Name(id='y', ctx=Store()), iter=Name(id='z', ctx=Load()), ifs=[])]))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=ListComp(elt=Name(id='y', ctx=Load(), lineno=1, col_offset=5), generators=[comprehension(target=Name(id='y', ctx=Store(), lineno=2, col_offset=9), iter=Name(id='z', ctx=Load(), lineno=2, col_offset=14), ifs=[])], lineno=1, col_offset=5), lineno=1, col_offset=0)])
+### unclosed then import
+error 2 0
+mismatched input 'import' expecting RCURLY
+### unclosed then dedented def
+error 4 4
+mismatched input 'def' expecting RPAREN

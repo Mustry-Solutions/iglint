@@ -130,7 +130,7 @@ pub(crate) struct Parser<'src> {
 
 impl<'src> Parser<'src> {
     pub(crate) fn new(source: &'src str, options: &ParseOptions) -> Self {
-        let lexer = Lexer::new(source);
+        let lexer = Lexer::new(source).unclosed_bracket_recovery();
         let mut parser = Parser {
             source,
             stream: TokenStream::new(TokenSource::new(lexer)),

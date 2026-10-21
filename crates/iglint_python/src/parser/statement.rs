@@ -995,16 +995,15 @@ impl Parser<'_> {
         match self.kind() {
             TokenKind::Lpar => {
                 let lpar = self.bump();
-                let (args, keywords, starargs, kwargs) = self.call_arguments()?;
-                self.expect(TokenKind::Rpar)?;
+                let arguments = self.call_arguments()?;
                 expr = Expr::Call(ExprCall {
                     range: self.range_from(start),
                     anchor: lpar.anchor,
                     func: Box::new(expr),
-                    args,
-                    keywords,
-                    starargs,
-                    kwargs,
+                    args: arguments.args,
+                    keywords: arguments.keywords,
+                    starargs: arguments.starargs,
+                    kwargs: arguments.kwargs,
                 });
             }
             TokenKind::Newline => {}
@@ -1127,6 +1126,15 @@ impl Parser<'_> {
             }
         }
         arguments.range = self.range_from(start);
+        // Jython checks the names of `*args` and `**kwargs` when it builds
+        // the arguments, after the whole list.
+        for name in [&arguments.vararg, &arguments.kwarg].into_iter().flatten() {
+            if &*name.id == "None" {
+                let error =
+                    ParseError::syntax("can't be None", name.range, Anchor::at(name.range.start()));
+                self.report(error);
+            }
+        }
         Ok(arguments)
     }
 
@@ -1144,13 +1152,6 @@ impl Parser<'_> {
     /// The name after `*` or `**`.
     fn parameter_name(&mut self) -> PResult<Identifier> {
         let token = self.expect(TokenKind::Name)?;
-        if self.text(&token) == "None" {
-            self.report(ParseError::syntax(
-                "can't be None",
-                token.range,
-                token.anchor,
-            ));
-        }
         Ok(self.identifier(&token))
     }
 

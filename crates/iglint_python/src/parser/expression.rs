@@ -510,16 +510,15 @@ impl Parser<'_> {
     #[inline(never)]
     fn call_trailer(&mut self, func: Expr, first: Anchor, start: TextSize) -> PResult<Expr> {
         self.bump();
-        let (args, keywords, starargs, kwargs) = self.call_arguments()?;
-        self.expect(TokenKind::Rpar)?;
+        let arguments = self.call_arguments()?;
         Ok(Expr::Call(ExprCall {
             range: self.range_from(start),
             anchor: first,
             func: Box::new(func),
-            args,
-            keywords,
-            starargs,
-            kwargs,
+            args: arguments.args,
+            keywords: arguments.keywords,
+            starargs: arguments.starargs,
+            kwargs: arguments.kwargs,
         }))
     }
 
@@ -930,26 +929,25 @@ impl Parser<'_> {
         }
     }
 
-    /// The arguments of a call after `(`, up to `)`.
-    #[allow(clippy::type_complexity)]
-    pub(super) fn call_arguments(
-        &mut self,
-    ) -> PResult<(
-        Vec<Expr>,
-        Vec<Keyword>,
-        Option<Box<Expr>>,
-        Option<Box<Expr>>,
-    )> {
+    /// The arguments of a call after `(`, and the closing `)`. Jython checks
+    /// the keyword arguments only once the `)` has been read.
+    pub(super) fn call_arguments(&mut self) -> PResult<CallArguments> {
         let kind = self.kind();
-        if kind == TokenKind::Rpar {
-            return Ok((Vec::new(), Vec::new(), None, None));
-        }
-        if !(self.starts_test() || matches!(kind, TokenKind::Star | TokenKind::DoubleStar)) {
+        let arglist = if kind == TokenKind::Rpar {
+            ArgList::default()
+        } else if self.starts_test() || matches!(kind, TokenKind::Star | TokenKind::DoubleStar) {
+            self.arglist()?
+        } else {
             return Err(self.invalid_syntax());
-        }
-        let arglist = self.arglist()?;
+        };
+        self.expect(TokenKind::Rpar)?;
         let keywords = self.make_keywords(arglist.keywords);
-        Ok((arglist.args, keywords, arglist.starargs, arglist.kwargs))
+        Ok(CallArguments {
+            args: arglist.args,
+            keywords,
+            starargs: arglist.starargs,
+            kwargs: arglist.kwargs,
+        })
     }
 
     /// `arglist`. Keyword arguments are returned unchecked (Jython checks
@@ -1365,6 +1363,14 @@ impl Parser<'_> {
             &token,
         ))
     }
+}
+
+/// The parsed arguments of a call.
+pub(super) struct CallArguments {
+    pub(super) args: Vec<Expr>,
+    pub(super) keywords: Vec<Keyword>,
+    pub(super) starargs: Option<Box<Expr>>,
+    pub(super) kwargs: Option<Box<Expr>>,
 }
 
 /// Arguments of a call before Jython validates the keywords.
