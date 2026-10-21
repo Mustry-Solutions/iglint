@@ -1,0 +1,37 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Mustry-Solutions/iglint"
+rust-version = "1.90"
+
+[workspace.dependencies]
+iglint_text = { path = "crates/iglint_text" }
+iglint_json = { path = "crates/iglint_json" }
+iglint_python = { path = "crates/iglint_python" }
+iglint_python_semantic = { path = "crates/iglint_python_semantic" }
+iglint_expression = { path = "crates/iglint_expression" }
+iglint_project = { path = "crates/iglint_project" }
+iglint_stubs = { path = "crates/iglint_stubs" }
+iglint_linter = { path = "crates/iglint_linter" }
+iglint_config = { path = "crates/iglint_config" }
+iglint_server = { path = "crates/iglint_server" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+[profile.profiling]
+inherits = "release"
+debug = true
