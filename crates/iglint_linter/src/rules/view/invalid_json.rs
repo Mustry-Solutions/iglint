@@ -104,3 +104,48 @@ impl ProjectRule for InvalidJson {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::rules::test_support::*;
+
+    #[test]
+    fn reports_syntax_errors_with_position() {
+        let f = Fixture::view("{\n  \"custom\": {\n    \"a\": 1,\n  }\n}");
+        let d = f.lint(&["VIEW001"]);
+        assert_eq!(
+            messages(&d),
+            vec![("VIEW001".into(), "Invalid JSON: trailing comma".into())]
+        );
+        assert_eq!(flagged(&d), vec![","]);
+    }
+
+    #[test]
+    fn valid_files_and_other_resources_are_clean() {
+        let f =
+            Fixture::view(r#"{"root": {"type": "ia.container.flex", "meta": {"name": "root"}}}"#)
+                .with_view("Other", "{}");
+        assert!(f.lint(&["VIEW001"]).is_empty());
+    }
+
+    #[test]
+    fn manifests_and_standalone_views() {
+        let f = Fixture::view("{}")
+            .file("projects/p/project.json", "{\"title\": ")
+            .file("loose/view.json", "[1 2]");
+        let d = f.lint(&["VIEW001"]);
+        let mut found: Vec<String> = d
+            .iter()
+            .map(|d| {
+                d.file
+                    .path()
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        found.sort();
+        assert_eq!(found, vec!["project.json", "view.json"]);
+    }
+}

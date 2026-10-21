@@ -10,6 +10,8 @@ use crate::registry::{Registry, RuleMeta};
 use crate::rule::RuleImpl;
 
 pub mod helpers;
+#[cfg(test)]
+pub mod test_support;
 pub mod view;
 
 macro_rules! rules {

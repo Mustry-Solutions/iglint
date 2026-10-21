@@ -168,7 +168,7 @@ pub fn parse_default(option: &OptionMeta) -> Result<OptionValue, String> {
     }
 }
 
-fn from_toml(value: toml::Value) -> OptionValue {
+pub(crate) fn from_toml(value: toml::Value) -> OptionValue {
     match value {
         toml::Value::String(s) => OptionValue::String(s),
         toml::Value::Integer(i) => OptionValue::Integer(i),
