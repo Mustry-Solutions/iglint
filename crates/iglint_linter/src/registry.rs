@@ -1,0 +1,263 @@
+//! Rule metadata and lookup.
+//!
+//! Every rule is described by a `'static` [`RuleMeta`]. The full list lives in
+//! [`crate::rules::ALL`]; lookups by code or name go through [`Registry`].
+
+use std::fmt;
+
+use crate::diagnostic::Severity;
+
+/// Groups rules for selection (`select = ["SCR"]`) and documentation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Category {
+    /// View structure and component tree.
+    View,
+    /// Naming conventions.
+    Name,
+    /// Bindings, transforms and expressions.
+    Bind,
+    /// Script correctness.
+    Script,
+    /// References between resources.
+    Ref,
+    /// Performance.
+    Perf,
+    /// Security.
+    Sec,
+    /// Accessibility.
+    A11y,
+    /// Style classes and inline styles.
+    Style,
+    /// Tags and gateway resources.
+    Tag,
+}
+
+impl Category {
+    pub const ALL: [Category; 10] = [
+        Category::View,
+        Category::Name,
+        Category::Bind,
+        Category::Script,
+        Category::Ref,
+        Category::Perf,
+        Category::Sec,
+        Category::A11y,
+        Category::Style,
+        Category::Tag,
+    ];
+
+    /// The code prefix, e.g. `SCR` for `SCR101`.
+    pub const fn prefix(self) -> &'static str {
+        match self {
+            Category::View => "VIEW",
+            Category::Name => "NAME",
+            Category::Bind => "BIND",
+            Category::Script => "SCR",
+            Category::Ref => "REF",
+            Category::Perf => "PERF",
+            Category::Sec => "SEC",
+            Category::A11y => "A11Y",
+            Category::Style => "STYLE",
+            Category::Tag => "TAG",
+        }
+    }
+
+    pub const fn title(self) -> &'static str {
+        match self {
+            Category::View => "View structure",
+            Category::Name => "Naming",
+            Category::Bind => "Bindings and expressions",
+            Category::Script => "Scripts",
+            Category::Ref => "References",
+            Category::Perf => "Performance",
+            Category::Sec => "Security",
+            Category::A11y => "Accessibility",
+            Category::Style => "Styles",
+            Category::Tag => "Tags and gateway",
+        }
+    }
+
+    pub fn from_prefix(prefix: &str) -> Option<Category> {
+        Category::ALL
+            .into_iter()
+            .find(|c| c.prefix().eq_ignore_ascii_case(prefix))
+    }
+}
+
+/// Whether a rule can produce fixes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FixAvailability {
+    None,
+    Sometimes,
+    Always,
+}
+
+/// The type of a rule option, used to validate configuration.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OptionType {
+    Bool,
+    Integer,
+    Float,
+    String,
+    StringList,
+    /// A table whose shape the rule validates itself.
+    Table,
+}
+
+/// Describes one configurable option of a rule.
+#[derive(Clone, Copy, Debug)]
+pub struct OptionMeta {
+    pub name: &'static str,
+    pub ty: OptionType,
+    /// Default rendered as TOML, for documentation.
+    pub default: &'static str,
+    pub description: &'static str,
+}
+
+/// Static description of a rule.
+#[derive(Debug)]
+pub struct RuleMeta {
+    /// Stable code, e.g. `SCR101`.
+    pub code: &'static str,
+    /// Stable kebab-case name, e.g. `undefined-name`.
+    pub name: &'static str,
+    pub category: Category,
+    pub default_severity: Severity,
+    /// Whether the rule runs when the user has not selected rules explicitly.
+    pub default_enabled: bool,
+    pub fix: FixAvailability,
+    /// One line, shown in rule lists.
+    pub summary: &'static str,
+    /// Markdown: what it does, why, examples, configuration.
+    pub explanation: &'static str,
+    pub options: &'static [OptionMeta],
+    /// Names under which ign-lint configures the equivalent rule, if any.
+    pub ign_lint_names: &'static [&'static str],
+}
+
+/// A cheap handle to a rule's metadata. Equality is by code.
+#[derive(Clone, Copy)]
+pub struct RuleCode(&'static RuleMeta);
+
+impl RuleCode {
+    pub const fn new(meta: &'static RuleMeta) -> Self {
+        RuleCode(meta)
+    }
+
+    pub const fn meta(self) -> &'static RuleMeta {
+        self.0
+    }
+
+    pub const fn code(self) -> &'static str {
+        self.0.code
+    }
+
+    pub const fn name(self) -> &'static str {
+        self.0.name
+    }
+}
+
+impl PartialEq for RuleCode {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.code == other.0.code
+    }
+}
+
+impl Eq for RuleCode {}
+
+impl std::hash::Hash for RuleCode {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.code.hash(state);
+    }
+}
+
+impl PartialOrd for RuleCode {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for RuleCode {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.code.cmp(other.0.code)
+    }
+}
+
+impl fmt::Debug for RuleCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.0.code)
+    }
+}
+
+impl fmt::Display for RuleCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.0.code)
+    }
+}
+
+/// What a selector in configuration refers to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Selector {
+    All,
+    Category(Category),
+    /// A code prefix such as `SCR1`.
+    Prefix(&'static str),
+    Rule(RuleCode),
+}
+
+/// Lookup over a fixed list of rules.
+pub struct Registry {
+    rules: &'static [&'static RuleMeta],
+}
+
+impl Registry {
+    pub const fn new(rules: &'static [&'static RuleMeta]) -> Self {
+        Registry { rules }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = RuleCode> + '_ {
+        self.rules.iter().map(|meta| RuleCode::new(meta))
+    }
+
+    /// Finds a rule by code (case-insensitive), kebab-case name, or ign-lint
+    /// rule class name.
+    pub fn find(&self, key: &str) -> Option<RuleCode> {
+        self.rules
+            .iter()
+            .find(|m| {
+                m.code.eq_ignore_ascii_case(key) || m.name == key || m.ign_lint_names.contains(&key)
+            })
+            .map(|meta| RuleCode::new(meta))
+    }
+
+    /// Parses a selector: `ALL`, a category prefix (`SCR`), a code prefix
+    /// (`SCR1`), a full code (`SCR101`) or a rule name (`undefined-name`).
+    pub fn parse_selector(&self, key: &str) -> Option<Selector> {
+        if key.eq_ignore_ascii_case("ALL") {
+            return Some(Selector::All);
+        }
+        if let Some(rule) = self.find(key) {
+            return Some(Selector::Rule(rule));
+        }
+        if let Some(category) = Category::from_prefix(key) {
+            return Some(Selector::Category(category));
+        }
+        // A code prefix must match at least one rule and start with a category.
+        let upper = key.to_ascii_uppercase();
+        let matched = self.rules.iter().find(|m| m.code.starts_with(&upper))?;
+        let prefix = &matched.code[..upper.len()];
+        Category::ALL
+            .into_iter()
+            .any(|c| prefix.starts_with(c.prefix()))
+            .then_some(Selector::Prefix(prefix))
+    }
+
+    pub fn matches(selector: Selector, rule: RuleCode) -> bool {
+        match selector {
+            Selector::All => true,
+            Selector::Category(category) => rule.meta().category == category,
+            Selector::Prefix(prefix) => rule.code().starts_with(prefix),
+            Selector::Rule(other) => other == rule,
+        }
+    }
+}

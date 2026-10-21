@@ -1,14 +1,10 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! The iglint linter: diagnostics, rule registry, rules and the check driver.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod diagnostic;
+pub mod registry;
+pub mod rules;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use diagnostic::{Applicability, Diagnostic, FileEdit, Fix, Label, Severity, SourceFile};
+pub use registry::{
+    Category, FixAvailability, OptionMeta, OptionType, Registry, RuleCode, RuleMeta, Selector,
+};

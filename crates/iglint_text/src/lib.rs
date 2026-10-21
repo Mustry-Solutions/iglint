@@ -272,11 +272,7 @@ impl LineIndex {
     /// The range of a zero-based line, excluding its terminator.
     pub fn line_range(&self, line: usize, text: &str) -> TextRange {
         let start = self.line_starts[line];
-        let mut end = self
-            .line_starts
-            .get(line + 1)
-            .copied()
-            .unwrap_or(self.len);
+        let mut end = self.line_starts.get(line + 1).copied().unwrap_or(self.len);
         let bytes = text.as_bytes();
         while end > start && matches!(bytes[end.to_usize() - 1], b'\n' | b'\r') {
             end = end - TextSize::new(1);
@@ -384,7 +380,10 @@ pub fn apply_edits(text: &str, edits: &[TextEdit]) -> Result<String, Overlapping
     for pair in order.windows(2) {
         let (a, b) = (edits[pair[0]].range, edits[pair[1]].range);
         if a.end() > b.start() {
-            return Err(OverlappingEdits { first: a, second: b });
+            return Err(OverlappingEdits {
+                first: a,
+                second: b,
+            });
         }
     }
     let mut out = String::with_capacity(text.len());
@@ -408,11 +407,23 @@ mod tests {
         let text = "ab\ncé\r\nx";
         let index = LineIndex::new(text);
         assert_eq!(index.line_count(), 3);
-        assert_eq!(index.line_column(TextSize::new(0), text), LineColumn { line: 1, column: 1 });
-        assert_eq!(index.line_column(TextSize::new(3), text), LineColumn { line: 2, column: 1 });
+        assert_eq!(
+            index.line_column(TextSize::new(0), text),
+            LineColumn { line: 1, column: 1 }
+        );
+        assert_eq!(
+            index.line_column(TextSize::new(3), text),
+            LineColumn { line: 2, column: 1 }
+        );
         // 'é' is two bytes; the offset after it is column 3.
-        assert_eq!(index.line_column(TextSize::new(6), text), LineColumn { line: 2, column: 3 });
-        assert_eq!(index.line_column(TextSize::new(8), text), LineColumn { line: 3, column: 1 });
+        assert_eq!(
+            index.line_column(TextSize::new(6), text),
+            LineColumn { line: 2, column: 3 }
+        );
+        assert_eq!(
+            index.line_column(TextSize::new(8), text),
+            LineColumn { line: 3, column: 1 }
+        );
         assert_eq!(index.line_range(1, text).slice(text), "cé");
     }
 
@@ -422,7 +433,13 @@ mod tests {
         let index = LineIndex::new(text);
         let offset = TextSize::new(5); // after the emoji
         let pos = index.utf16_position(offset, text);
-        assert_eq!(pos, Utf16Position { line: 0, character: 3 });
+        assert_eq!(
+            pos,
+            Utf16Position {
+                line: 0,
+                character: 3
+            }
+        );
         assert_eq!(index.offset_of_utf16(pos, text), offset);
     }
 
