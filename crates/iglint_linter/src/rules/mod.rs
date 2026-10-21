@@ -42,6 +42,7 @@ rules![
     bind::indirect_tag_reference_mismatch,
     bind::placeholder_in_direct_tag_path,
     bind::disabled_binding,
+    bind::transform_without_return,
     bind::map_transform_duplicate_input,
     bind::expression_type_mismatch,
     name::name_pattern,
