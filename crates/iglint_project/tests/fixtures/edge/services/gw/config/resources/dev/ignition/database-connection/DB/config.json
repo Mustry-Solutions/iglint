@@ -1,0 +1,5 @@
+{
+  "connectURL": "jdbc:sqlserver://dev.example.invalid",
+  "driver": "MSSQL",
+  "translator": "MSSQL"
+}

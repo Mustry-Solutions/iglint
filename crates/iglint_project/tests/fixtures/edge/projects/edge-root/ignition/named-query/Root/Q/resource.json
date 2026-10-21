@@ -1,0 +1,33 @@
+{
+  "scope": "A",
+  "version": 2,
+  "restricted": false,
+  "overridable": true,
+  "files": [
+    "query.sql"
+  ],
+  "attributes": {
+    "type": "Query",
+    "database": "",
+    "enabled": true,
+    "cacheEnabled": false,
+    "parameters": [
+      {
+        "type": "Parameter",
+        "identifier": "id",
+        "sqlType": 2
+      },
+      {
+        "type": "Database",
+        "identifier": "db",
+        "sqlType": 7
+      },
+      {
+        "type": "QueryString",
+        "identifier": "order",
+        "sqlType": 7
+      }
+    ]
+  },
+  "documentation": "Rows by id"
+}

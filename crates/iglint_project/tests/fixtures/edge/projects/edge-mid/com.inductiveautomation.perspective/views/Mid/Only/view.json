@@ -1,0 +1,13 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {},
+  "root": {
+    "children": [],
+    "meta": {
+      "name": "root"
+    },
+    "props": {},
+    "type": "ia.container.coord"
+  }
+}

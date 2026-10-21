@@ -1,0 +1,75 @@
+{
+  "custom": {
+    "v": 1
+  },
+  "params": {
+    "p": 1
+  },
+  "propConfig": {
+    "custom.onlyConfig": {
+      "persistent": false
+    },
+    "custom.v": {
+      "binding": {
+        "config": {
+          "expression": "{this.custom.v} + {/root/A/B.custom.c} + {session.custom.s}"
+        },
+        "type": "expr"
+      }
+    },
+    "params.p": {
+      "paramDirection": "input"
+    }
+  },
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "custom": {
+              "c": 2
+            },
+            "meta": {
+              "name": "B"
+            },
+            "propConfig": {
+              "props.text": {
+                "binding": {
+                  "config": {
+                    "expression": "{../B.custom.c} + {.../A.custom.a} + {parent.custom.a} + {this.custom.missing} + {view.params.p} + {view.params.nope} + {../../X.props.y} + {page.props.path} + {./Kid.props.text} + {[edge]Area/Unit1/Value} + {this.props.anything}"
+                  },
+                  "type": "expr"
+                }
+              }
+            },
+            "props": {},
+            "type": "ia.display.label"
+          }
+        ],
+        "custom": {
+          "a": 1
+        },
+        "meta": {
+          "name": "A"
+        },
+        "props": {},
+        "type": "ia.container.flex"
+      },
+      {
+        "meta": {
+          "name": "X"
+        },
+        "props": {
+          "y": 1
+        },
+        "type": "ia.display.label"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {},
+    "type": "ia.container.flex"
+  }
+}

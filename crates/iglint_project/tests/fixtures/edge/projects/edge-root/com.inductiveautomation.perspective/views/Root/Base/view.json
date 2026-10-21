@@ -1,0 +1,26 @@
+{
+  "custom": {},
+  "params": {
+    "p1": "",
+    "p2": 0
+  },
+  "propConfig": {
+    "params.p1": {
+      "paramDirection": "input",
+      "persistent": true
+    },
+    "params.p2": {
+      "paramDirection": "output",
+      "persistent": true
+    }
+  },
+  "props": {},
+  "root": {
+    "children": [],
+    "meta": {
+      "name": "root"
+    },
+    "props": {},
+    "type": "ia.container.flex"
+  }
+}

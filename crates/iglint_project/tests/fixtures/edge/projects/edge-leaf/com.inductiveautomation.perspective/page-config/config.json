@@ -1,0 +1,24 @@
+{
+  "pages": {
+    "/": {
+      "viewPath": "Bindings/All"
+    },
+    "/edge/:id": {
+      "viewPath": "Root/Base",
+      "title": "Edge"
+    },
+    "/edge/fixed": {
+      "viewPath": "Mid/Only"
+    }
+  },
+  "sharedDocks": {
+    "cornerPriority": "left-right",
+    "left": [
+      {
+        "id": "left",
+        "viewPath": "Mid/Only",
+        "show": "onDemand"
+      }
+    ]
+  }
+}

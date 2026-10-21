@@ -1,0 +1,132 @@
+{
+    "params": {},
+    "custom": {
+        "k.with.dots": 1
+    },
+    "props": {},
+    "root": {
+        "type": "ia.container.coord",
+        "children": [
+            {
+                "meta": {
+                    "name": "Caf\u00e9"
+                },
+                "type": "ia.display.label",
+                "props": {
+                    "text": "\ud83d\ude00 \u00e9"
+                },
+                "events": {
+                    "dom": {
+                        "onClick": {
+                            "type": "script",
+                            "scope": "G",
+                            "config": {
+                                "script": "\ts = u\"\ud83d\ude00 = \u00e9\"\n\tif s <> '':\n\t\tprint s"
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "name": "\u65e5\u672c"
+                },
+                "type": "ia.display.label",
+                "props": {}
+            },
+            {
+                "meta": {
+                    "name": "Dup"
+                },
+                "type": "ia.display.label",
+                "props": {}
+            },
+            {
+                "meta": {
+                    "name": "Dup"
+                },
+                "type": "ia.display.label",
+                "props": {}
+            },
+            {
+                "type": "ia.display.label",
+                "props": {}
+            },
+            {
+                "meta": "oops",
+                "type": "ia.display.label"
+            },
+            {
+                "meta": {
+                    "name": "Box"
+                },
+                "type": "ia.container.flex",
+                "props": {},
+                "children": {
+                    "not": "an array"
+                }
+            },
+            "not a component",
+            {
+                "meta": {
+                    "name": "Methods"
+                },
+                "type": "ia.display.alarmstatustable",
+                "props": {},
+                "scripts": {
+                    "customMethods": [
+                        {
+                            "name": "noArgs",
+                            "params": [],
+                            "script": "\treturn 1"
+                        },
+                        {
+                            "params": [
+                                "x"
+                            ],
+                            "script": "\treturn x"
+                        }
+                    ],
+                    "messageHandlers": [
+                        {
+                            "messageType": "deaf",
+                            "pageScope": false,
+                            "sessionScope": false,
+                            "viewScope": false,
+                            "script": "\tpass"
+                        }
+                    ],
+                    "extensionFunctions": [
+                        {
+                            "name": "filterShelvedAlarm",
+                            "enabled": false,
+                            "script": "\treturn True"
+                        },
+                        {
+                            "name": "notDeclared",
+                            "enabled": true,
+                            "script": "\treturn False"
+                        }
+                    ]
+                }
+            },
+            {
+                "meta": {
+                    "name": "Third"
+                },
+                "type": "thirdparty.widget",
+                "props": {},
+                "scripts": {
+                    "customMethods": [],
+                    "messageHandlers": [],
+                    "extensionFunctions": [
+                        {
+                            "name": "anything",
+                            "script": "\treturn 0"
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}

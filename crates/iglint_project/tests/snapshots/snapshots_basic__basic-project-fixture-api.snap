@@ -1,0 +1,117 @@
+---
+source: crates/iglint_project/tests/snapshots_basic.rs
+expression: out
+---
+# webdev com.inductiveautomation.webdev/resources/api/status in fixture-api (overridable=true, files=["config.json:webdev-config", "doDelete.py:webdev-script", "doGet.py:webdev-script", "doHead.py:webdev-script", "doOptions.py:webdev-script", "doPatch.py:webdev-script", "doPost.py:webdev-script", "doPut.py:webdev-script", "doTrace.py:webdev-script", "resource.json:resource-manifest"], missing=[])
+webdev type=Some("python-resource")
+method doGet enabled=Some(true) requireAuth=Some(false) requireHttps=Some(false) roles=Some("") header=Some(Canonical)
+  script event-file api/status@doGet scope=gateway enabled=true anchor=0..28 ign=-
+    | def doGet(request, session):
+    | →return api.handlers.status(request, session)
+method doPost enabled=Some(true) requireAuth=Some(true) requireHttps=Some(false) roles=Some("ApiWriter") header=Some(Canonical)
+  script event-file api/status@doPost scope=gateway enabled=true anchor=0..29 ign=-
+    | def doPost(request, session):
+    | →return api.handlers.ingest(request, session)
+method doPut enabled=Some(false) requireAuth=Some(false) requireHttps=Some(false) roles=Some("") header=Some(Canonical)
+  script event-file api/status@doPut scope=gateway enabled=false anchor=0..28 ign=-
+    | def doPut(request, session):
+    | →pass
+method doDelete enabled=Some(false) requireAuth=Some(false) requireHttps=Some(false) roles=Some("") header=Some(Canonical)
+  script event-file api/status@doDelete scope=gateway enabled=false anchor=0..31 ign=-
+    | def doDelete(request, session):
+    | →pass
+method doHead enabled=Some(false) requireAuth=Some(false) requireHttps=Some(false) roles=Some("") header=Some(Canonical)
+  script event-file api/status@doHead scope=gateway enabled=false anchor=0..29 ign=-
+    | def doHead(request, session):
+    | →pass
+method doOptions enabled=Some(false) requireAuth=Some(false) requireHttps=Some(false) roles=Some("") header=Some(Canonical)
+  script event-file api/status@doOptions scope=gateway enabled=false anchor=0..32 ign=-
+    | def doOptions(request, session):
+    | →pass
+method doTrace enabled=Some(false) requireAuth=Some(false) requireHttps=Some(false) roles=Some("") header=Some(Canonical)
+  script event-file api/status@doTrace scope=gateway enabled=false anchor=0..30 ign=-
+    | def doTrace(request, session):
+    | →pass
+method doPatch enabled=Some(false) requireAuth=Some(false) requireHttps=Some(false) roles=Some("") header=Some(Canonical)
+  script event-file api/status@doPatch scope=gateway enabled=false anchor=0..30 ign=-
+    | def doPatch(request, session):
+    | →pass
+
+# gateway-message ignition/message/rebuild-report in fixture-api (overridable=true, files=["handleMessage.py:event-script", "resource.json:resource-manifest"], missing=[])
+event gateway-message enabled=Some(true) message threadType=Some("Dedicated")
+header Canonical firstLine=0..27
+script event-file rebuild-report scope=gateway enabled=true anchor=0..27 ign=-
+  | def handleMessage(payload):
+  | →system.util.getLogger("fixture.api").info("rebuild %r" % payload)
+  | →return {"done": True}
+
+# gateway-scheduled ignition/scheduled/nightly-report in fixture-api (overridable=true, files=["handleScheduleEvent.py:event-script", "resource.json:resource-manifest"], missing=[])
+event gateway-scheduled enabled=Some(true) scheduled cron=Some("0 2 * * *")
+header Canonical firstLine=0..26
+script event-file nightly-report scope=gateway enabled=true anchor=0..26 ign=-
+  | def handleScheduleEvent():
+  | →system.util.sendMessage(system.util.getProjectName(), "rebuild-report", {"when": "nightly"})
+
+# script-library ignition/script-python/api/handlers in fixture-api (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module api.handlers hintScope=Some(1)
+script library-module api.handlers scope=library enabled=true anchor=0..0 ign=-
+  | import json
+  | 
+  | 
+  | def status(request, session):
+  | →return {"json": {"ok": True, "project": system.util.getProjectName()}}
+  | 
+  | 
+  | def ingest(request, session):
+  | →body = json.loads(request["postData"] or "{}")
+  | →return {"json": {"received": len(body)}}
+
+# script-library ignition/script-python/legacy in fixture-api (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module legacy hintScope=Some(2)
+script library-module legacy scope=library enabled=true anchor=0..0 ign=-
+  | VERSION = 1
+
+# script-library ignition/script-python/legacy/helpers in fixture-api (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module legacy.helpers hintScope=Some(2)
+script library-module legacy.helpers scope=library enabled=true anchor=0..0 ign=-
+  | def unreachable():
+  | →return 42
+
+# gateway-shutdown ignition/shutdown in fixture-api (overridable=true, files=["onShutdown.py:event-script", "resource.json:resource-manifest"], missing=[])
+event gateway-shutdown enabled=Some(true) -
+header Canonical firstLine=0..17
+script event-file shutdown scope=gateway enabled=true anchor=0..17 ign=-
+  | def onShutdown():
+  | →pass
+
+# gateway-startup ignition/startup in fixture-api (overridable=true, files=["onStartup.py:event-script", "resource.json:resource-manifest"], missing=[])
+event gateway-startup enabled=Some(true) -
+header Canonical firstLine=0..16
+script event-file startup scope=gateway enabled=true anchor=0..16 ign=-
+  | def onStartup():
+  | →system.util.getLogger("fixture.api").info("gateway scripts started")
+
+# gateway-tag-change ignition/tag-change/line-state in fixture-api (overridable=true, files=["onTagChange.py:event-script", "resource.json:resource-manifest"], missing=[])
+event gateway-tag-change enabled=Some(true) tagChange paths=["[default]Plant/Line1/State(valid=true)", "[default]Plant/Line2/State(valid=true)"] changeTypes=["ValueChange", "QualityChange"]
+header Canonical firstLine=0..79
+script event-file line-state scope=gateway enabled=true anchor=0..79 ign=-
+  | def onTagChange(initialChange, newValue, previousValue, event, executionCount):
+  | →if initialChange:
+  | →→return
+  | →path = str(event.tagPath)
+  | →system.util.getLogger("fixture.api").info("%s -> %s" % (path, newValue.value))
+
+# gateway-timer ignition/timer/poll-weather in fixture-api (overridable=true, files=["handleTimerEvent.py:event-script", "resource.json:resource-manifest"], missing=[])
+event gateway-timer enabled=Some(true) timer delay=60000 fixedDelay=Some(true) sharedThread=Some(false)
+header Canonical firstLine=0..23
+script event-file poll-weather scope=gateway enabled=true anchor=0..23 ign=-
+  | def handleTimerEvent():
+  | →result = system.net.httpClient().get("https://example.invalid/api/weather")
+  | →system.tag.writeBlocking(["[default]Plant/Weather"], [result.text])
+
+# gateway-update ignition/update in fixture-api (overridable=true, files=["onUpdate.py:event-script", "resource.json:resource-manifest"], missing=[])
+event gateway-update enabled=Some(false) -
+header Canonical firstLine=0..31
+script event-file update scope=gateway enabled=false anchor=0..31 ign=-
+  | def onUpdate(actor, resources):
+  | →system.util.getLogger("fixture.api").info("%s changed %d resources" % (actor, len(resources["modified"])))

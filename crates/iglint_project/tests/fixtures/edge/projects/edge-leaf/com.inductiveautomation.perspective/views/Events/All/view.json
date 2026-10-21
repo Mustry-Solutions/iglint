@@ -1,0 +1,195 @@
+{
+  "custom": {},
+  "events": {
+    "system": {
+      "onStartup": {
+        "config": {
+          "script": "\tself.custom.x \u003d 1"
+        },
+        "scope": "G",
+        "type": "script"
+      }
+    }
+  },
+  "params": {},
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "events": {
+          "component": {
+            "onActionPerformed": [
+              {
+                "config": {
+                  "script": "\tsystem.perspective.sendMessage(\u0027ping\u0027, scope\u003d\u0027page\u0027)"
+                },
+                "scope": "G",
+                "type": "script"
+              },
+              {
+                "config": {
+                  "page": "/edge/:id"
+                },
+                "scope": "C",
+                "type": "nav"
+              },
+              {
+                "config": {
+                  "newTab": true,
+                  "url": "https://example.invalid"
+                },
+                "scope": "C",
+                "type": "nav"
+              },
+              {
+                "config": {
+                  "params": {
+                    "x": 1
+                  },
+                  "view": "Mid/Only"
+                },
+                "scope": "C",
+                "type": "nav"
+              },
+              {
+                "config": {},
+                "scope": "C",
+                "type": "nav"
+              },
+              {
+                "config": {
+                  "id": "p1",
+                  "type": "open",
+                  "viewParams": {
+                    "p1": "a",
+                    "zz": 1
+                  },
+                  "viewPath": "Root/Base"
+                },
+                "scope": "C",
+                "type": "popup"
+              },
+              {
+                "config": {
+                  "id": "p2",
+                  "type": "toggle",
+                  "viewPath": "Nowhere/View"
+                },
+                "scope": "C",
+                "type": "popup"
+              },
+              {
+                "config": {
+                  "id": "p1",
+                  "type": "close"
+                },
+                "scope": "C",
+                "type": "popup"
+              },
+              {
+                "config": {
+                  "id": "left",
+                  "type": "open",
+                  "viewParams": {}
+                },
+                "scope": "C",
+                "type": "dock"
+              },
+              {
+                "config": {
+                  "view": "Mid/Only",
+                  "viewParams": {}
+                },
+                "scope": "C",
+                "type": "alter-dock"
+              },
+              {
+                "config": {},
+                "scope": "C",
+                "type": "login"
+              },
+              {
+                "config": {},
+                "scope": "C",
+                "type": "logout"
+              },
+              {
+                "config": {
+                  "name": "dark"
+                },
+                "scope": "C",
+                "type": "theme"
+              },
+              {
+                "config": {},
+                "scope": "C",
+                "type": "refresh"
+              },
+              {
+                "config": {
+                  "action": "toggle"
+                },
+                "scope": "C",
+                "type": "fullscreen"
+              },
+              {
+                "config": {
+                  "idp": "default"
+                },
+                "scope": "G",
+                "type": "auth-challenge"
+              },
+              {
+                "config": {},
+                "scope": "C",
+                "type": "native/barcode"
+              },
+              {
+                "config": {},
+                "scope": "C",
+                "type": "teleport"
+              },
+              {
+                "config": {},
+                "scope": "C"
+              },
+              {
+                "config": {
+                  "script": "\tpass"
+                },
+                "enabled": false,
+                "scope": "G",
+                "type": "script"
+              }
+            ]
+          },
+          "dom": {
+            "onClick": {
+              "config": {
+                "script": "\t"
+              },
+              "scope": "G",
+              "type": "script"
+            },
+            "onKeyDown": {
+              "config": {},
+              "scope": "G",
+              "type": "script"
+            }
+          },
+          "model": {}
+        },
+        "meta": {
+          "name": "Btn"
+        },
+        "props": {},
+        "type": "ia.input.button"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {},
+    "type": "ia.container.flex"
+  }
+}

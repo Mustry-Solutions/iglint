@@ -1,0 +1,507 @@
+//! Per-resource summaries: the owned facts the project index is built from.
+//!
+//! A summary is computed once per resource from its model (in parallel) and
+//! holds no borrowed data, so it can be cached between runs. The script
+//! layer adds what only Python analysis knows (library symbols, literal
+//! `sendMessage` calls, ...) before the index is built.
+
+use iglint_expression::{ExprKind, Reference, TagPath};
+
+use crate::ids::ResourceId;
+use crate::library::ModuleSymbols;
+use crate::model::{ModelData, ResourceModel};
+use crate::named_query::NamedQueryParamKind;
+use crate::tags::{TagFolder, TagType};
+use crate::view::{
+    ActionKind, BindingConfig, NavTarget, ParamDirection, PropCategory, SessionProps, TagMode, View,
+};
+
+/// Owned facts about one resource.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResourceSummary {
+    pub resource: ResourceId,
+    /// False when the main data file is missing or not valid JSON: the
+    /// resource exists but its content is unknown.
+    pub valid: bool,
+    pub facts: Facts,
+    /// Outgoing literal references.
+    pub references: References,
+}
+
+/// Kind-specific facts.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Facts {
+    View(ViewFacts),
+    StyleClass(StyleClassFacts),
+    NamedQuery(NamedQueryFacts),
+    PageConfig(PageConfigFacts),
+    SessionProps(SessionFacts),
+    Library(LibraryFacts),
+    Tags(TagFacts),
+    Gateway(GatewayFacts),
+    /// Project stylesheet or gateway theme: CSS class names it defines.
+    Css(CssFacts),
+    None,
+}
+
+/// CSS classes defined by a stylesheet or theme.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CssFacts {
+    pub classes: Vec<String>,
+}
+
+/// Facts about a gateway config resource.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GatewayFacts {
+    /// Tag providers: `profile.type` (`STANDARD`, `MANAGED`, `REMOTE`, ...).
+    pub provider_type: Option<String>,
+}
+
+/// Facts about a view.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ViewFacts {
+    pub params: Vec<ParamFact>,
+    pub message_handlers: Vec<HandlerFact>,
+}
+
+/// A view parameter.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParamFact {
+    pub name: String,
+    pub direction: Option<ParamDirection>,
+}
+
+/// A component message handler.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HandlerFact {
+    pub message_type: String,
+    pub page_scope: bool,
+    pub session_scope: bool,
+    pub view_scope: bool,
+}
+
+/// Facts about a style class.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StyleClassFacts {
+    pub empty: bool,
+}
+
+/// Facts about a named query.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NamedQueryFacts {
+    pub query_type: Option<String>,
+    pub database: Option<String>,
+    pub parameters: Vec<(String, NamedQueryParamKind)>,
+}
+
+/// Facts about page configuration.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PageConfigFacts {
+    pub pages: Vec<PageFact>,
+    /// Dock ids (shared and per page).
+    pub dock_ids: Vec<String>,
+}
+
+/// A page.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PageFact {
+    pub url: String,
+    pub view_path: Option<String>,
+}
+
+/// Facts about session properties.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SessionFacts {
+    /// Top-level `custom` names (including `propConfig`-only ones).
+    pub custom: Vec<String>,
+    /// Top-level `props` keys written in the file.
+    pub props: Vec<String>,
+}
+
+/// Facts about a library module.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LibraryFacts {
+    /// Top-level symbols, filled in by the Python layer
+    /// ([`ResourceSummary::set_module_symbols`]).
+    pub symbols: Option<ModuleSymbols>,
+}
+
+/// Facts about a tag folder.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TagFacts {
+    pub provider: String,
+    pub folder: String,
+    pub definitions: bool,
+    pub tags: Vec<TagFact>,
+}
+
+/// A tag.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TagFact {
+    /// Path inside the provider (or inside `_types_`).
+    pub path: String,
+    pub tag_type: TagType,
+    pub type_id: Option<String>,
+    /// UDT parameter names (definitions and instances).
+    pub parameters: Vec<String>,
+    /// False when the data file is not listed in the folder manifest (the
+    /// gateway ignores it).
+    pub listed: bool,
+    /// For UDT definitions: member paths relative to the definition.
+    pub members: Vec<String>,
+    /// For UDT definitions: nested UDT instance members (relative path,
+    /// type id).
+    pub member_instances: Vec<(String, String)>,
+}
+
+/// How a message is sent.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum MessageTarget {
+    /// `system.perspective.sendMessage(type, payload, scope=...)`; `scope` is
+    /// `session`, `page` or `view` (`None` when not literal).
+    Perspective { scope: Option<String> },
+    /// `system.util.sendMessage(project, handler, ...)` /
+    /// `sendRequest`: gateway and session message handlers of `project`
+    /// (`None` when not literal).
+    Gateway { project: Option<String> },
+}
+
+/// A literal message send.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct MessageSend {
+    pub message_type: String,
+    pub target: MessageTarget,
+}
+
+/// Outgoing literal references of a resource.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct References {
+    /// View paths.
+    pub views: Vec<String>,
+    /// Style class paths.
+    pub style_classes: Vec<String>,
+    /// Named query paths.
+    pub named_queries: Vec<String>,
+    /// Page URLs.
+    pub pages: Vec<String>,
+    /// Tag paths (`[provider]path`).
+    pub tag_paths: Vec<String>,
+    /// Dotted library names (`core.format.withUnit`).
+    pub library: Vec<String>,
+    /// Message sends (filled in by the script layer).
+    pub messages: Vec<MessageSend>,
+    /// Historian provider names.
+    pub history_providers: Vec<String>,
+    /// Database connection names.
+    pub databases: Vec<String>,
+}
+
+impl References {
+    /// Appends everything from `other`.
+    pub fn extend(&mut self, other: References) {
+        self.views.extend(other.views);
+        self.style_classes.extend(other.style_classes);
+        self.named_queries.extend(other.named_queries);
+        self.pages.extend(other.pages);
+        self.tag_paths.extend(other.tag_paths);
+        self.library.extend(other.library);
+        self.messages.extend(other.messages);
+        self.history_providers.extend(other.history_providers);
+        self.databases.extend(other.databases);
+    }
+}
+
+impl ResourceSummary {
+    /// Attaches the symbols of a library module.
+    pub fn set_module_symbols(&mut self, symbols: ModuleSymbols) {
+        if let Facts::Library(l) = &mut self.facts {
+            l.symbols = Some(symbols);
+        }
+    }
+}
+
+/// Computes the summary of a resource model.
+pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
+    let mut references = References::default();
+    let mut valid = true;
+    let facts = match &model.data {
+        ModelData::View { view, .. } => Facts::View(view_facts(view, &mut references)),
+        ModelData::StyleClass(s) => Facts::StyleClass(StyleClassFacts {
+            empty: s.is_empty(),
+        }),
+        ModelData::NamedQuery(q) => {
+            if let Some(db) = q.database.filter(|d| !d.is_empty()) {
+                references.databases.push(db.to_owned());
+            }
+            Facts::NamedQuery(NamedQueryFacts {
+                query_type: q.query_type.map(str::to_owned),
+                database: q.database.map(str::to_owned),
+                parameters: q
+                    .parameters
+                    .iter()
+                    .filter_map(|p| Some((p.identifier?.value().to_owned(), p.kind)))
+                    .collect(),
+            })
+        }
+        ModelData::PageConfig(p) => {
+            let mut facts = PageConfigFacts::default();
+            for page in &p.pages {
+                facts.pages.push(PageFact {
+                    url: page.url.value().to_owned(),
+                    view_path: page.view_path.map(|v| v.value().to_owned()),
+                });
+                references
+                    .views
+                    .extend(page.view_path.map(|v| v.value().to_owned()));
+                for d in &page.docks {
+                    facts.dock_ids.extend(d.id.map(|i| i.value().to_owned()));
+                    references
+                        .views
+                        .extend(d.view_path.map(|v| v.value().to_owned()));
+                }
+            }
+            for d in &p.shared_docks {
+                facts.dock_ids.extend(d.id.map(|i| i.value().to_owned()));
+                references
+                    .views
+                    .extend(d.view_path.map(|v| v.value().to_owned()));
+            }
+            Facts::PageConfig(facts)
+        }
+        ModelData::SessionProps { props, .. } => {
+            Facts::SessionProps(session_facts(props, &mut references))
+        }
+        ModelData::Library(_) => Facts::Library(LibraryFacts::default()),
+        ModelData::Tags(t) => Facts::Tags(tag_facts(t, &mut references)),
+        ModelData::Stylesheet { text, .. } => Facts::Css(CssFacts {
+            classes: crate::perspective::css_classes(text),
+        }),
+        ModelData::Theme { css } => {
+            let mut classes: Vec<String> = css
+                .iter()
+                .flat_map(|(_, t)| crate::perspective::css_classes(t))
+                .collect();
+            classes.sort_unstable();
+            classes.dedup();
+            Facts::Css(CssFacts { classes })
+        }
+        ModelData::Gateway(g) => Facts::Gateway(GatewayFacts {
+            provider_type: match &g.details {
+                crate::gateway::GatewayDetails::TagProvider { provider_type } => {
+                    provider_type.map(str::to_owned)
+                }
+                _ => None,
+            },
+        }),
+        ModelData::EventScript(e) => {
+            if let crate::event_resource::EventSettings::TagChange { paths, .. } = &e.settings {
+                for (s, p) in paths {
+                    if p.is_valid() && !p.is_relative() {
+                        references.tag_paths.push(s.value().to_owned());
+                    }
+                }
+            }
+            Facts::None
+        }
+        ModelData::None => {
+            valid = !matches!(
+                model.resource.kind,
+                crate::kinds::ResourceKind::View
+                    | crate::kinds::ResourceKind::StyleClass
+                    | crate::kinds::ResourceKind::PageConfig
+                    | crate::kinds::ResourceKind::SessionProps
+            );
+            Facts::None
+        }
+        _ => Facts::None,
+    };
+    if !model.errors.is_empty() {
+        valid = false;
+    }
+    ResourceSummary {
+        resource: model.resource.id,
+        valid,
+        facts,
+        references,
+    }
+}
+
+fn literal_tag_path(p: &TagPath) -> bool {
+    p.is_valid() && !p.is_relative() && p.source.is_some()
+}
+
+/// References found in expressions: `{[provider]tag}` references, literal
+/// `tag("...")` paths and `runScript("pkg.mod.func", ...)` targets.
+fn expression_refs<'e>(
+    exprs: impl Iterator<Item = &'e crate::EmbeddedExpression<'e>>,
+    refs: &mut References,
+) {
+    for e in exprs {
+        for (_, r) in e.references() {
+            if let Reference::Tag(t) = r
+                && literal_tag_path(&t)
+            {
+                refs.tag_paths.push(t.raw.clone());
+            }
+        }
+        for call in e.parsed.expr.calls() {
+            let first = call.args.first().map(|a| &a.unparenthesized().kind);
+            let Some(ExprKind::String(s)) = first else {
+                continue;
+            };
+            if call.is("runScript") {
+                refs.library
+                    .push(s.split('(').next().unwrap_or(s).trim().to_owned());
+            } else if call.is("tag") {
+                let p = iglint_expression::parse_tag_path(s, iglint_text::TextSize::ZERO);
+                if literal_tag_path(&p) {
+                    refs.tag_paths.push(s.clone());
+                }
+            }
+        }
+    }
+}
+
+fn binding_refs(bindings: &[crate::view::Binding<'_>], refs: &mut References) {
+    for b in bindings {
+        match &b.typed {
+            BindingConfig::Query(q) => refs
+                .named_queries
+                .extend(q.query_path.map(|p| p.value().to_owned())),
+            BindingConfig::Tag(t) if t.mode == TagMode::Direct => {
+                if let (Some(s), Some(p)) = (t.tag_path, &t.parsed_path)
+                    && literal_tag_path(p)
+                    && !s.value().contains('{')
+                {
+                    refs.tag_paths.push(s.value().to_owned());
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn view_facts(view: &View<'_>, refs: &mut References) -> ViewFacts {
+    let params = view
+        .params()
+        .map(|p| ParamFact {
+            name: p.name.to_owned(),
+            direction: p.direction,
+        })
+        .collect();
+    let message_handlers = view
+        .message_handlers
+        .iter()
+        .filter_map(|h| {
+            Some(HandlerFact {
+                message_type: h.message_type?.value().to_owned(),
+                page_scope: h.page_scope,
+                session_scope: h.session_scope,
+                view_scope: h.view_scope,
+            })
+        })
+        .collect();
+    for r in &view.view_refs {
+        if !r.bound {
+            refs.views.push(r.path.value().to_owned());
+        }
+    }
+    for s in &view.style_refs {
+        if !s.bound {
+            refs.style_classes
+                .extend(s.classes.iter().map(|(c, _)| (*c).to_owned()));
+        }
+    }
+    for e in &view.events {
+        for a in &e.actions {
+            if let ActionKind::Navigate(NavTarget::Page(p)) = &a.kind {
+                refs.pages.push(p.value().to_owned());
+            }
+        }
+    }
+    binding_refs(&view.bindings, refs);
+    expression_refs(view.expressions.iter(), refs);
+    ViewFacts {
+        params,
+        message_handlers,
+    }
+}
+
+fn session_facts(props: &SessionProps<'_>, refs: &mut References) -> SessionFacts {
+    binding_refs(&props.bindings, refs);
+    expression_refs(props.expressions.iter(), refs);
+    SessionFacts {
+        custom: props
+            .properties
+            .iter()
+            .filter(|p| p.category == PropCategory::Custom)
+            .map(|p| p.name.to_owned())
+            .collect(),
+        props: props
+            .props
+            .and_then(|p| p.as_object())
+            .map(|o| o.keys().map(str::to_owned).collect())
+            .unwrap_or_default(),
+    }
+}
+
+fn tag_facts(folder: &TagFolder<'_>, refs: &mut References) -> TagFacts {
+    let mut tags = Vec::with_capacity(folder.tags.len());
+    for t in &folder.tags {
+        let listed = folder
+            .files
+            .iter()
+            .find(|(f, _)| *f == t.file)
+            .is_none_or(|(_, l)| *l);
+        let mut members = Vec::new();
+        let mut member_instances = Vec::new();
+        if t.tag_type == TagType::UdtType {
+            let mut stack: Vec<_> = t.children.iter().rev().copied().collect();
+            while let Some(c) = stack.pop() {
+                let child = folder.tag(c);
+                let rel = child.path[t.path.len()..]
+                    .trim_start_matches('/')
+                    .to_owned();
+                if child.tag_type == TagType::UdtInstance
+                    && let Some(type_id) = child.type_id
+                {
+                    member_instances.push((rel.clone(), type_id.value().to_owned()));
+                }
+                members.push(rel);
+                stack.extend(child.children.iter().rev().copied());
+            }
+        }
+        if let Some(h) = t.history_provider
+            && !h.value().is_empty()
+            && !h.value().contains('{')
+        {
+            refs.history_providers.push(h.value().to_owned());
+        }
+        if let Some(d) = t.datasource
+            && !d.value().is_empty()
+            && !d.value().contains('{')
+        {
+            refs.databases.push(d.value().to_owned());
+        }
+        tags.push(TagFact {
+            path: t.path.clone(),
+            tag_type: t.tag_type,
+            type_id: t.type_id.map(|s| s.value().to_owned()),
+            parameters: t
+                .parameters
+                .iter()
+                .map(|p| p.name.value().to_owned())
+                .collect(),
+            listed,
+            members,
+            member_instances,
+        });
+    }
+    expression_refs(folder.expressions.iter(), refs);
+    TagFacts {
+        provider: folder.provider.to_owned(),
+        folder: folder.folder.to_owned(),
+        definitions: folder.definitions,
+        tags,
+    }
+}

@@ -1,0 +1,6 @@
+---
+source: crates/iglint_project/tests/snapshots_basic.rs
+expression: out
+---
+# database-connection ignition/database-connection/Production in production (overridable=true, files=["config.json:gateway-config", "resource.json:resource-manifest"], missing=[])
+gateway database-connection enabled=Some(true) details=Database { connect_url: Some("jdbc:postgresql://db-prod.example.invalid:5432/plant"), driver: Some("PostgreSQL"), translator: Some("POSTGRES"), password_type: Some("Referenced") }

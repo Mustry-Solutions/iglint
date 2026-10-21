@@ -1,0 +1,279 @@
+---
+source: crates/iglint_project/tests/snapshots_basic.rs
+expression: out
+---
+# page-config com.inductiveautomation.perspective/page-config in edge-leaf (overridable=true, files=["config.json:page-config", "resource.json:resource-manifest"], missing=[])
+page "/" view=Some("Bindings/All") title=None params=[]
+page "/edge/:id" view=Some("Root/Base") title=Some("Edge") params=["id"]
+page "/edge/fixed" view=Some("Mid/Only") title=None params=[]
+sharedDock left id=Some("left") view=Some("Mid/Only") show=Some("onDemand")
+
+# session-props com.inductiveautomation.perspective/session-props in edge-leaf (overridable=true, files=["props.json:session-props", "resource.json:resource-manifest"], missing=[])
+property session.custom.s value=1 direction=- config=false ign=custom.s
+property session.custom.configOnly value=- direction=- config=true ign=custom.configOnly
+propConfig session.custom.configOnly persistent=Some(true) direction=- access=- binding=false onChange=enabled=Some(false) ign=propConfig.custom.configOnly
+[0] script property-change session.custom.configOnly@onChange scope=perspective-session enabled=false anchor=131..139 ign=propConfig.custom.configOnly.onChange
+  | def valueChanged(self, previousValue, currentValue, origin, missedEvents):
+  | →session.custom.s = 2
+
+# view com.inductiveautomation.perspective/views/Bindings/All in edge-leaf (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
+component root type=ia.container.flex depth=0 ptr=/root ign=root.root
+component   root/Label type=ia.display.label depth=1 ptr=/root/children/0 ign=root.root.children[0].Label
+component   root/Panel type=ia.container.flex depth=1 ptr=/root/children/1 ign=root.root.children[1].Panel
+property view.params.line value="L1" direction=input config=true ign=params.line
+property view.params.tagPath value="[edge]Area/Value" direction=input config=true ign=params.tagPath
+property view.custom.a value=1 direction=- config=true ign=custom.a
+property view.custom.b value=null direction=- config=true ign=custom.b
+property view.custom.c value=null direction=- config=true ign=custom.c
+property view.custom.d value=null direction=- config=true ign=custom.d
+property view.custom.e value=null direction=- config=true ign=custom.e
+property view.custom.f value=null direction=- config=true ign=custom.f
+property view.custom.g value=null direction=- config=true ign=custom.g
+property view.custom.h value=null direction=- config=true ign=custom.h
+property view.custom.i value=null direction=- config=true ign=custom.i
+property view.custom.j value=null direction=- config=true ign=custom.j
+property view.custom.k value=null direction=- config=true ign=custom.k
+property view.custom.l value=null direction=- config=true ign=custom.l
+property root/Label.custom.local value=1 direction=- config=true ign=root.root.children.Label.custom.local
+property root/Panel.custom.value value="v" direction=- config=false ign=root.root.children.Panel.custom.value
+propConfig view.custom.a persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.a
+propConfig view.custom.b persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.b
+propConfig view.custom.c persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.c
+propConfig view.custom.d persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.d
+propConfig view.custom.e persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.e
+propConfig view.custom.f persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.f
+propConfig view.custom.g persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.g
+propConfig view.custom.h persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.h
+propConfig view.custom.i persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.i
+propConfig view.custom.j persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.j
+propConfig view.custom.k persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.k
+propConfig view.custom.l persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.l
+propConfig view.params.line persistent=None direction=input access=- binding=false onChange=- ign=propConfig.params.line
+propConfig view.params.tagPath persistent=Some(true) direction=input access=- binding=false onChange=- ign=propConfig.params.tagPath
+propConfig root/Label.custom.local persistent=None direction=- access=- binding=false onChange=enabled=Some(true) ign=root.root.children[0].Label.propConfig.custom.local
+propConfig root/Label.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[0].Label.propConfig.props.text
+propConfig root/Label.props.textStyle.classes persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[0].Label.propConfig.props.textStyle.classes
+binding view.custom.a@binding type=expr enabled=None expression=Some(ExprId(0)) ign=propConfig.custom.a
+  transform view.custom.a@binding.transforms[0] script Some(ScriptId(0)) ign=propConfig.custom.a.binding.transforms[0]
+  transform view.custom.a@binding.transforms[1] expression Some(ExprId(1)) ign=propConfig.custom.a.binding.transforms[1]
+  transform view.custom.a@binding.transforms[2] map in=Some("expression") out=Some("expression") mappings="{value} > 1"->"'big'" fallback="'small'" ign=propConfig.custom.a.binding.transforms[2]
+  transform view.custom.a@binding.transforms[3] map in=Some("range") out=Some("style-list") mappings={"max":10,"min":0}->"Root/Accent Legacy/Old" fallback="Root/Missing" ign=propConfig.custom.a.binding.transforms[3]
+  transform view.custom.a@binding.transforms[4] format Some("datetime") Some("short") ign=propConfig.custom.a.binding.transforms[4]
+  transform view.custom.a@binding.transforms[5] unknown Some("mystery") ign=propConfig.custom.a.binding.transforms[5]
+binding view.custom.b@binding type=expr-struct enabled=None leaves=["nested.y", "x"] waitOnAll=Some(false) ign=propConfig.custom.b
+binding view.custom.c@binding type=tag enabled=None mode=Direct tagPath=Some("[edge]Area/Unit1/Value") parsed=true expression=None placeholders=[] references=[] bidirectional=false fallbackDelay=Some(2.5) ign=propConfig.custom.c
+binding view.custom.d@binding type=tag enabled=None mode=Indirect tagPath=Some("[edge]{area}/{1}/Value") parsed=false expression=None placeholders=["area", "1"] references=["1=\"Unit1\"", "area=\"{view.params.line}\"(ref)", "extra=\"{this.custom.a}\"(ref)"] bidirectional=false fallbackDelay=None ign=propConfig.custom.d
+binding view.custom.e@binding type=tag enabled=None mode=Expression tagPath=Some("{view.params.tagPath} + '/Sub'") parsed=false expression=Some(ExprId(6)) placeholders=[] references=[] bidirectional=true fallbackDelay=None ign=propConfig.custom.e
+binding view.custom.f@binding type=query enabled=None queryPath=Some("Root/Q") returnFormat=Some("dataset") params=["db=Some(ExprId(7))", "id=Some(ExprId(8))", "order=Some(ExprId(9))"] polling=Some(true)/None ign=propConfig.custom.f
+binding view.custom.g@binding type=tag-history enabled=None tags=[expression ExprId(11)] dateRange={"endDate":"now(0)","startDate":"now(0)"} returnFormat=Some("tall") polling=Some(false)/Some(10.0) ign=propConfig.custom.g
+binding view.custom.h@binding type=tag-history enabled=None tags=[Some("[edge]Area/Unit1/Value")(expr=None) alias=None agg=None, Some("{view.params.tagPath}")(expr=Some(ExprId(12))) alias=Some("p") agg=None] dateRange=- returnFormat=Some("wide") polling=None/None ign=propConfig.custom.h
+binding view.custom.i@binding type=http enabled=None url=Some("'https://example.invalid/' + {view.params.line}") urlExpression=Some(ExprId(13)) method=Some("POST") auth=Some("basic") polling=Some(true) ign=propConfig.custom.i
+binding view.custom.j@binding type=property enabled=None path=Some("../Nope.props.text") parsed=true bidirectional=true ign=propConfig.custom.j
+binding view.custom.k@binding type=unknown enabled=None config=- ign=propConfig.custom.k
+binding view.custom.l@binding type=expr enabled=Some(false) expression=Some(ExprId(15)) ign=propConfig.custom.l
+binding root/Label.props.text@binding type=property enabled=None path=Some("/root/Panel.custom.value") parsed=true bidirectional=false ign=root.root.children[0].Label.propConfig.props.text
+binding root/Label.props.textStyle.classes@binding type=expr enabled=None expression=Some(ExprId(16)) ign=root.root.children[0].Label.propConfig.props.textStyle.classes
+styleRef MapOutput view.custom.a@binding.transforms[3].mappings[0].output classes=["Root/Accent", "Legacy/Old"] bound=false
+styleRef MapOutput view.custom.a@binding.transforms[3].fallback classes=["Root/Missing"] bound=false
+styleRef Property root/Label.props.style.classes classes=["Root/Accent", "Legacy/Old", "missing-one"] bound=false
+styleRef Property root/Label.props.textStyle.classes classes=["Root/Accent"] bound=true
+[0] script transform view.custom.a@binding.transforms[0] scope=perspective-component enabled=true anchor=475..481 ign=propConfig.custom.a.binding.transforms[0]
+  | def transform(self, value, quality, timestamp):
+  | →return value
+[1] script property-change root/Label.custom.local@onChange scope=perspective-component enabled=true anchor=5208..5216 ign=root.root.children[0].Label.propConfig.custom.local.onChange
+  | def valueChanged(self, previousValue, currentValue, origin, missedEvents):
+  | →self.custom.local = currentValue
+[0] expr binding view.custom.a@binding "{view.params.line} + '-' + now(1000)" valid=true tentative=false refs=["prop:view.params.line"] calls=["now"] ign=propConfig.custom.a
+[1] expr transform view.custom.a@binding.transforms[1] "{value} * 2" valid=true tentative=false refs=["value"] calls=[] ign=propConfig.custom.a.binding.transforms[1]
+[2] expr map-input view.custom.a@binding.transforms[2].mappings[0].input "{value} > 1" valid=true tentative=false refs=["value"] calls=[] ign=-
+[3] expr map-output view.custom.a@binding.transforms[2].mappings[0].output "'big'" valid=true tentative=false refs=[] calls=[] ign=-
+[4] expr struct-leaf view.custom.b@binding.struct.nested.y "{this.custom.a}" valid=true tentative=false refs=["prop:this.custom.a"] calls=[] ign=propConfig.custom.b
+[5] expr struct-leaf view.custom.b@binding.struct.x "1 + 1" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.b
+[6] expr tag-path view.custom.e@binding "{view.params.tagPath} + '/Sub'" valid=true tentative=false refs=["prop:view.params.tagPath"] calls=[] ign=propConfig.custom.e
+[7] expr query-parameter view.custom.f@binding.parameters.db "'main'" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.f
+[8] expr query-parameter view.custom.f@binding.parameters.id "{view.params.line}" valid=true tentative=false refs=["prop:view.params.line"] calls=[] ign=propConfig.custom.f
+[9] expr query-parameter view.custom.f@binding.parameters.order "'name'" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.f
+[10] expr polling-rate view.custom.f@binding.polling.rate "{view.custom.a} * 2" valid=true tentative=false refs=["prop:view.custom.a"] calls=[] ign=propConfig.custom.f
+[11] expr tag-history-tags view.custom.g@binding.tags "{view.custom.h}" valid=true tentative=false refs=["prop:view.custom.h"] calls=[] ign=propConfig.custom.g
+[12] expr tag-history-path view.custom.h@binding.tags[1].path "{view.params.tagPath}" valid=true tentative=true refs=["prop:view.params.tagPath"] calls=[] ign=propConfig.custom.h
+[13] expr http-url view.custom.i@binding.request.url "'https://example.invalid/' + {view.params.line}" valid=true tentative=true refs=["prop:view.params.line"] calls=[] ign=propConfig.custom.i
+[14] expr polling-rate view.custom.i@binding.polling.rate "5" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.i
+[15] expr binding view.custom.l@binding "1 +" valid=false tentative=false refs=[] calls=[] ign=propConfig.custom.l
+[16] expr binding root/Label.props.textStyle.classes@binding "'Root/Accent'" valid=true tentative=false refs=[] calls=[] ign=root.root.children[0].Label.propConfig.props.textStyle.classes
+
+# view com.inductiveautomation.perspective/views/Broken/Malformed in edge-leaf (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
+error view.json 46..46 unexpected end of input, expected a string key at 46..46
+(no model)
+
+# view com.inductiveautomation.perspective/views/Broken/MissingFile in edge-leaf (overridable=true, files=["resource.json:resource-manifest"], missing=["view.json", "thumbnail.png"])
+(no model)
+
+# view com.inductiveautomation.perspective/views/Broken/Unlisted in edge-leaf (overridable=true, files=["resource.json:resource-manifest", "view.json:view(unlisted)"], missing=[])
+component root type=ia.container.flex depth=0 ptr=/root ign=root.root
+
+# view com.inductiveautomation.perspective/views/Edge/Relative in edge-leaf (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
+component root type=ia.container.flex depth=0 ptr=/root ign=root.root
+component   root/A type=ia.container.flex depth=1 ptr=/root/children/0 ign=root.root.children[0].A
+component     root/A/B type=ia.display.label depth=2 ptr=/root/children/0/children/0 ign=root.root.children[0].A.children[0].B
+component   root/X type=ia.display.label depth=1 ptr=/root/children/1 ign=root.root.children[1].X
+property view.params.p value=1 direction=input config=true ign=params.p
+property view.custom.v value=1 direction=- config=true ign=custom.v
+property view.custom.onlyConfig value=- direction=- config=true ign=custom.onlyConfig
+property root/A.custom.a value=1 direction=- config=false ign=root.root.children.A.custom.a
+property root/A/B.custom.c value=2 direction=- config=false ign=root.root.children.A.children.B.custom.c
+propConfig view.custom.onlyConfig persistent=Some(false) direction=- access=- binding=false onChange=- ign=propConfig.custom.onlyConfig
+propConfig view.custom.v persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.v
+propConfig view.params.p persistent=None direction=input access=- binding=false onChange=- ign=propConfig.params.p
+propConfig root/A/B.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[0].A.children[0].B.propConfig.props.text
+binding view.custom.v@binding type=expr enabled=None expression=Some(ExprId(0)) ign=propConfig.custom.v
+binding root/A/B.props.text@binding type=expr enabled=None expression=Some(ExprId(1)) ign=root.root.children[0].A.children[0].B.propConfig.props.text
+[0] expr binding view.custom.v@binding "{this.custom.v} + {/root/A/B.custom.c} + {session.custom.s}" valid=true tentative=false refs=["prop:this.custom.v", "prop:/root/A/B.custom.c", "prop:session.custom.s"] calls=[] ign=propConfig.custom.v
+[1] expr binding root/A/B.props.text@binding "{../B.custom.c} + {.../A.custom.a} + {parent.custom.a} + {this.custom.missing} + {view.params.p} + {view.params.nope} + {../../X.props.y} + {page.props.path} + {./Kid.props.text} + {[edge]Area/Unit1/Value} + {this.props.anything}" valid=true tentative=false refs=["prop:../B.custom.c", "prop:.../A.custom.a", "prop:parent.custom.a", "prop:this.custom.missing", "prop:view.params.p", "prop:view.params.nope", "prop:../../X.props.y", "prop:page.props.path", "prop:./Kid.props.text", "tag:[edge]Area/Unit1/Value", "prop:this.props.anything"] calls=[] ign=root.root.children[0].A.children[0].B.propConfig.props.text
+
+# view com.inductiveautomation.perspective/views/Edge/Unicode in edge-leaf (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
+component root type=ia.container.coord depth=0 ptr=/root ign=root
+component   root/Café type=ia.display.label depth=1 ptr=/root/children/0 ign=root.children[0].Café
+component   root/日本 type=ia.display.label depth=1 ptr=/root/children/1 ign=root.children[1].日本
+component   root/Dup type=ia.display.label depth=1 ptr=/root/children/2 ign=root.children[2].Dup
+component   root/Dup type=ia.display.label depth=1 ptr=/root/children/3 ign=root.children[3].Dup
+component   root/ type=ia.display.label depth=1 ptr=/root/children/4 ign=root.children[4]
+component   root/ type=ia.display.label depth=1 ptr=/root/children/5 ign=root.children[5]
+component   root/Box type=ia.container.flex depth=1 ptr=/root/children/6 ign=root.children[6].Box
+component   root/Methods type=ia.display.alarmstatustable depth=1 ptr=/root/children/8 ign=root.children[8].Methods
+component   root/Third type=thirdparty.widget depth=1 ptr=/root/children/9 ign=root.children[9].Third
+property view.custom.k.with.dots value=1 direction=- config=false ign=custom.k.with.dots
+event root/Café@events.dom.onClick list=false ign=root.children[0].Café.events.dom.onClick
+  action root/Café@events.dom.onClick scope=Some("G") enabled=None script Some(ScriptId(0)) ign=root.children[0].Café.events.dom.onClick
+messageHandler root/Methods@messageHandlers.deaf type=Some("deaf") page=false session=false view=false script=Some(ScriptId(1)) ign=root.children[8].Methods.scripts.messageHandlers[0]
+customMethod root/Methods@customMethods.noArgs params=[] script=Some(ScriptId(2)) ign=root.children[8].Methods.scripts.customMethods[0]
+customMethod root/Methods@customMethods. params=["x"] script=None ign=root.children[8].Methods.scripts.customMethods[1]
+extensionFunction root/Methods@extensionFunctions.filterShelvedAlarm enabled=Some(false) declared=Some(true) script=Some(ScriptId(3)) ign=root.children[8].Methods.scripts.extensionFunctions[0]
+extensionFunction root/Methods@extensionFunctions.notDeclared enabled=Some(true) declared=Some(false) script=Some(ScriptId(4)) ign=root.children[8].Methods.scripts.extensionFunctions[1]
+extensionFunction root/Third@extensionFunctions.anything enabled=None declared=None script=Some(ScriptId(5)) ign=root.children[9].Third.scripts.extensionFunctions[0]
+[0] script event-action root/Café@events.dom.onClick scope=perspective-component enabled=true anchor=675..683 ign=root.children[0].Café.events.dom.onClick
+  | def runAction(self, event):
+  | →s = u"😀 = é"
+  | →if s <> '':
+  | →→print s
+[1] script message-handler root/Methods@messageHandlers.deaf scope=perspective-component enabled=true anchor=2951..2959 ign=root.children[8].Methods.scripts.messageHandlers[0]
+  | def onMessageReceived(self, payload):
+  | →pass
+[2] script custom-method root/Methods@customMethods.noArgs scope=perspective-component enabled=true anchor=2360..2368 ign=root.children[8].Methods.scripts.customMethods[0]
+  | def noArgs(self,):
+  | →return 1
+[3] script extension-function root/Methods@extensionFunctions.filterShelvedAlarm scope=perspective-component enabled=false anchor=3228..3236 ign=root.children[8].Methods.scripts.extensionFunctions[0]
+  | def filterShelvedAlarm(self, shelvedAlarmEvent):
+  | →return True
+[4] script extension-function root/Methods@extensionFunctions.notDeclared scope=perspective-component enabled=true anchor=3436..3444 ign=root.children[8].Methods.scripts.extensionFunctions[1]
+  | def notDeclared(self):
+  | →return False
+[5] script extension-function root/Third@extensionFunctions.anything scope=perspective-component enabled=true anchor=3989..3997 ign=root.children[9].Third.scripts.extensionFunctions[0]
+  | def anything(self):
+  | →return 0
+problem root/ 1447..1537 component has no `meta.name`
+problem root/ 1552..1645 component has no `meta.name`
+problem root/ 1579..1585 `meta` is not an object
+problem root/Box 1849..1908 `children` is not an array
+problem root 1938..1955 child component is not an object
+problem root/Methods 2436..2626 custom method has no `name`
+
+# view com.inductiveautomation.perspective/views/Events/All in edge-leaf (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
+component root type=ia.container.flex depth=0 ptr=/root ign=root.root
+component   root/Btn type=ia.input.button depth=1 ptr=/root/children/0 ign=root.root.children[0].Btn
+event view@events.system.onStartup list=false ign=events.system.onStartup
+  action view@events.system.onStartup scope=Some("G") enabled=None script Some(ScriptId(0)) ign=events.system.onStartup
+event root/Btn@events.component.onActionPerformed list=true ign=root.root.children[0].Btn.events.component.onActionPerformed
+  action root/Btn@events.component.onActionPerformed[0] scope=Some("G") enabled=None script Some(ScriptId(1)) ign=root.root.children[0].Btn.events.component.onActionPerformed[0]
+  action root/Btn@events.component.onActionPerformed[1] scope=Some("C") enabled=None nav page="/edge/:id" ign=root.root.children[0].Btn.events.component.onActionPerformed[1]
+  action root/Btn@events.component.onActionPerformed[2] scope=Some("C") enabled=None nav url="https://example.invalid" ign=root.root.children[0].Btn.events.component.onActionPerformed[2]
+  action root/Btn@events.component.onActionPerformed[3] scope=Some("C") enabled=None nav view="Mid/Only" params={"x":1} ign=root.root.children[0].Btn.events.component.onActionPerformed[3]
+  action root/Btn@events.component.onActionPerformed[4] scope=Some("C") enabled=None nav other ign=root.root.children[0].Btn.events.component.onActionPerformed[4]
+  action root/Btn@events.component.onActionPerformed[5] scope=Some("C") enabled=None popup op=Some("open") id=Some("p1") view=Some("Root/Base") params={"p1":"a","zz":1} ign=root.root.children[0].Btn.events.component.onActionPerformed[5]
+  action root/Btn@events.component.onActionPerformed[6] scope=Some("C") enabled=None popup op=Some("toggle") id=Some("p2") view=Some("Nowhere/View") params=- ign=root.root.children[0].Btn.events.component.onActionPerformed[6]
+  action root/Btn@events.component.onActionPerformed[7] scope=Some("C") enabled=None popup op=Some("close") id=Some("p1") view=None params=- ign=root.root.children[0].Btn.events.component.onActionPerformed[7]
+  action root/Btn@events.component.onActionPerformed[8] scope=Some("C") enabled=None dock op=Some("open") id=Some("left") ign=root.root.children[0].Btn.events.component.onActionPerformed[8]
+  action root/Btn@events.component.onActionPerformed[9] scope=Some("C") enabled=None alter-dock view=Some("Mid/Only") ign=root.root.children[0].Btn.events.component.onActionPerformed[9]
+  action root/Btn@events.component.onActionPerformed[10] scope=Some("C") enabled=None login ign=root.root.children[0].Btn.events.component.onActionPerformed[10]
+  action root/Btn@events.component.onActionPerformed[11] scope=Some("C") enabled=None logout ign=root.root.children[0].Btn.events.component.onActionPerformed[11]
+  action root/Btn@events.component.onActionPerformed[12] scope=Some("C") enabled=None theme Some("dark") ign=root.root.children[0].Btn.events.component.onActionPerformed[12]
+  action root/Btn@events.component.onActionPerformed[13] scope=Some("C") enabled=None other Some("refresh") ign=root.root.children[0].Btn.events.component.onActionPerformed[13]
+  action root/Btn@events.component.onActionPerformed[14] scope=Some("C") enabled=None other Some("fullscreen") ign=root.root.children[0].Btn.events.component.onActionPerformed[14]
+  action root/Btn@events.component.onActionPerformed[15] scope=Some("G") enabled=None auth-challenge ign=root.root.children[0].Btn.events.component.onActionPerformed[15]
+  action root/Btn@events.component.onActionPerformed[16] scope=Some("C") enabled=None other Some("native/barcode") ign=root.root.children[0].Btn.events.component.onActionPerformed[16]
+  action root/Btn@events.component.onActionPerformed[17] scope=Some("C") enabled=None unknown Some("teleport") ign=root.root.children[0].Btn.events.component.onActionPerformed[17]
+  action root/Btn@events.component.onActionPerformed[18] scope=Some("C") enabled=None unknown None ign=root.root.children[0].Btn.events.component.onActionPerformed[18]
+  action root/Btn@events.component.onActionPerformed[19] scope=Some("G") enabled=Some(false) script Some(ScriptId(2)) ign=root.root.children[0].Btn.events.component.onActionPerformed[19]
+event root/Btn@events.dom.onClick list=false ign=root.root.children[0].Btn.events.dom.onClick
+  action root/Btn@events.dom.onClick scope=Some("G") enabled=None script Some(ScriptId(3)) ign=root.root.children[0].Btn.events.dom.onClick
+event root/Btn@events.dom.onKeyDown list=false ign=root.root.children[0].Btn.events.dom.onKeyDown
+  action root/Btn@events.dom.onKeyDown scope=Some("G") enabled=None script None ign=root.root.children[0].Btn.events.dom.onKeyDown
+viewRef NavigateAction root/Btn@events.component.onActionPerformed[3] path="Mid/Only" params={"x":1} bound=false paramsBound=false
+viewRef PopupAction root/Btn@events.component.onActionPerformed[5] path="Root/Base" params={"p1":"a","zz":1} bound=false paramsBound=false
+viewRef PopupAction root/Btn@events.component.onActionPerformed[6] path="Nowhere/View" params=- bound=false paramsBound=false
+viewRef AlterDockAction root/Btn@events.component.onActionPerformed[9] path="Mid/Only" params={} bound=false paramsBound=false
+[0] script event-action view@events.system.onStartup scope=perspective-component enabled=true anchor=99..107 ign=events.system.onStartup
+  | def runAction(self, event):
+  | →self.custom.x = 1
+[1] script event-action root/Btn@events.component.onActionPerformed[0] scope=perspective-component enabled=true anchor=424..432 ign=root.root.children[0].Btn.events.component.onActionPerformed[0]
+  | def runAction(self, event):
+  | →system.perspective.sendMessage('ping', scope='page')
+[2] script event-action root/Btn@events.component.onActionPerformed[19] scope=perspective-component enabled=false anchor=4018..4026 ign=root.root.children[0].Btn.events.component.onActionPerformed[19]
+  | def runAction(self, event):
+  | →pass
+[3] script event-action root/Btn@events.dom.onClick scope=perspective-component enabled=true anchor=4282..4290 ign=root.root.children[0].Btn.events.dom.onClick
+  | def runAction(self, event):
+  | →
+
+# webdev com.inductiveautomation.webdev/resources/text in edge-leaf (overridable=true, files=["config.json:webdev-config", "resource.json:resource-manifest"], missing=[])
+webdev type=Some("text-resource")
+
+# gateway-message ignition/message/headerless in edge-leaf (overridable=true, files=["handleMessage.py:event-script", "resource.json:resource-manifest"], missing=[])
+event gateway-message enabled=Some(true) message threadType=Some("Bogus")
+header Missing firstLine=0..11
+script event-file headerless scope=gateway enabled=true anchor=0..0 ign=-
+  | def handleMessage(payload):
+  | x = payload
+
+# gateway-scheduled ignition/scheduled/one-line in edge-leaf (overridable=true, files=["handleScheduleEvent.py:event-script", "resource.json:resource-manifest"], missing=[])
+event gateway-scheduled enabled=Some(false) scheduled cron=Some("not a cron")
+header Replaced firstLine=0..35
+script event-file one-line scope=gateway enabled=false anchor=0..35 ign=-
+  | def handleScheduleEvent():
+
+# script-library ignition/script-python/bad-name in edge-leaf (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module bad-name hintScope=Some(2)
+script library-module bad-name scope=library enabled=true anchor=0..0 ign=-
+  | pass
+
+# script-library ignition/script-python/pkg in edge-leaf (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module pkg hintScope=Some(2)
+script library-module pkg scope=library enabled=true anchor=0..0 ign=-
+  | TOP = 1
+
+# script-library ignition/script-python/pkg/child in edge-leaf (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module pkg.child hintScope=Some(2)
+script library-module pkg.child scope=library enabled=true anchor=0..0 ign=-
+  | def f():
+  | →return 1
+
+# gateway-startup ignition/startup in edge-leaf (overridable=true, files=["onStartup.py:event-script", "resource.json:resource-manifest"], missing=[])
+event gateway-startup enabled=Some(true) -
+header Replaced firstLine=0..17
+script event-file startup scope=gateway enabled=true anchor=0..17 ign=-
+  | def onStartup():
+  |   pass
+
+# gateway-tag-change ignition/tag-change/crlf in edge-leaf (overridable=true, files=["onTagChange.py:event-script", "resource.json:resource-manifest"], missing=[])
+event gateway-tag-change enabled=Some(true) tagChange paths=[] changeTypes=["ValueChange"]
+header Canonical firstLine=0..79
+script event-file crlf scope=gateway enabled=true anchor=0..79 ign=-
+  | def onTagChange(initialChange, newValue, previousValue, event, executionCount):
+  | →if initialChange:
+  | →→return
+
+# gateway-timer ignition/timer/bad-header in edge-leaf (overridable=true, files=["handleTimerEvent.py:event-script", "resource.json:resource-manifest"], missing=[])
+event gateway-timer enabled=Some(true) timer delay=0 fixedDelay=Some(false) sharedThread=Some(true)
+header Replaced firstLine=0..30
+script event-file bad-header scope=gateway enabled=true anchor=0..30 ign=-
+  | def handleTimerEvent():
+  | →log(bogus)

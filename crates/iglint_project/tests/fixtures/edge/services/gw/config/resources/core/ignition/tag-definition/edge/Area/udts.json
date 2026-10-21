@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Unit1",
+    "tagType": "UdtInstance",
+    "typeId": "Types/Child",
+    "parameters": {
+      "Max": {
+        "dataType": "Int4",
+        "value": 5
+      },
+      "Bare": 3
+    },
+    "tags": [
+      {
+        "name": "Value",
+        "tagType": "AtomicTag",
+        "engHigh": 9
+      }
+    ]
+  },
+  {
+    "name": "Ghost",
+    "tagType": "UdtInstance",
+    "typeId": "Types/Missing"
+  }
+]

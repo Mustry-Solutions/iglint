@@ -1,0 +1,24 @@
+{
+  "custom": {},
+  "params": {
+    "p1": "",
+    "p3": true
+  },
+  "propConfig": {
+    "params.p1": {
+      "paramDirection": "input"
+    },
+    "params.p3": {
+      "paramDirection": "inout"
+    }
+  },
+  "props": {},
+  "root": {
+    "children": [],
+    "meta": {
+      "name": "root"
+    },
+    "props": {},
+    "type": "ia.container.flex"
+  }
+}

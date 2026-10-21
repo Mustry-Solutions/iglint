@@ -1,0 +1,13 @@
+---
+source: crates/iglint_project/tests/snapshots_basic.rs
+expression: out
+---
+# view com.inductiveautomation.perspective/views/Orphan/View in edge-orphan (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
+component root type=ia.container.flex depth=0 ptr=/root ign=root.root
+component   root/Embed type=ia.display.view depth=1 ptr=/root/children/0 ign=root.root.children[0].Embed
+component   root/Repeat type=ia.display.flex-repeater depth=1 ptr=/root/children/1 ign=root.root.children[1].Repeat
+propConfig root/Repeat.props.path persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[1].Repeat.propConfig.props.path
+binding root/Repeat.props.path@binding type=expr enabled=None expression=Some(ExprId(0)) ign=root.root.children[1].Repeat.propConfig.props.path
+viewRef EmbeddedView root/Embed.props.path path="Missing/Elsewhere" params={} bound=false paramsBound=false
+viewRef FlexRepeater root/Repeat.props.path path="Bound/Path" params=[] bound=true paramsBound=false
+[0] expr binding root/Repeat.props.path@binding "'X/Y'" valid=true tentative=false refs=[] calls=[] ign=root.root.children[1].Repeat.propConfig.props.path

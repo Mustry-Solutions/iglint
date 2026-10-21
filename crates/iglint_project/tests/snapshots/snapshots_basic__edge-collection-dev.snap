@@ -1,0 +1,6 @@
+---
+source: crates/iglint_project/tests/snapshots_basic.rs
+expression: out
+---
+# database-connection ignition/database-connection/DB in dev (overridable=true, files=["config.json:gateway-config", "resource.json:resource-manifest"], missing=[])
+gateway database-connection enabled=Some(true) details=Database { connect_url: Some("jdbc:sqlserver://dev.example.invalid"), driver: Some("MSSQL"), translator: Some("MSSQL"), password_type: None }

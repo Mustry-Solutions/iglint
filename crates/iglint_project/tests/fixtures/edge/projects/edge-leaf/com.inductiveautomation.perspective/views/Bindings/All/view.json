@@ -1,0 +1,290 @@
+{
+  "custom": {
+    "a": 1,
+    "b": null,
+    "c": null,
+    "d": null,
+    "e": null,
+    "f": null,
+    "g": null,
+    "h": null,
+    "i": null,
+    "j": null,
+    "k": null,
+    "l": null
+  },
+  "params": {
+    "line": "L1",
+    "tagPath": "[edge]Area/Value"
+  },
+  "propConfig": {
+    "custom.a": {
+      "binding": {
+        "config": {
+          "expression": "{view.params.line} + \u0027-\u0027 + now(1000)"
+        },
+        "transforms": [
+          {
+            "code": "\treturn value",
+            "type": "script"
+          },
+          {
+            "expression": "{value} * 2",
+            "type": "expression"
+          },
+          {
+            "fallback": "\u0027small\u0027",
+            "inputType": "expression",
+            "mappings": [
+              {
+                "input": "{value} \u003e 1",
+                "output": "\u0027big\u0027"
+              }
+            ],
+            "outputType": "expression",
+            "type": "map"
+          },
+          {
+            "fallback": "Root/Missing",
+            "inputType": "range",
+            "mappings": [
+              {
+                "input": {
+                  "max": 10,
+                  "min": 0
+                },
+                "output": "Root/Accent Legacy/Old"
+              }
+            ],
+            "outputType": "style-list",
+            "type": "map"
+          },
+          {
+            "formatType": "datetime",
+            "formatValue": "short",
+            "locale": "nl-BE",
+            "type": "format"
+          },
+          {
+            "type": "mystery"
+          }
+        ],
+        "type": "expr"
+      }
+    },
+    "custom.b": {
+      "binding": {
+        "config": {
+          "struct": {
+            "nested": {
+              "y": "{this.custom.a}"
+            },
+            "x": "1 + 1"
+          },
+          "waitOnAll": false
+        },
+        "type": "expr-struct"
+      }
+    },
+    "custom.c": {
+      "binding": {
+        "config": {
+          "fallbackDelay": 2.5,
+          "mode": "direct",
+          "tagPath": "[edge]Area/Unit1/Value"
+        },
+        "type": "tag"
+      }
+    },
+    "custom.d": {
+      "binding": {
+        "config": {
+          "mode": "indirect",
+          "references": {
+            "1": "Unit1",
+            "area": "{view.params.line}",
+            "extra": "{this.custom.a}"
+          },
+          "tagPath": "[edge]{area}/{1}/Value"
+        },
+        "type": "tag"
+      }
+    },
+    "custom.e": {
+      "binding": {
+        "config": {
+          "bidirectional": true,
+          "mode": "expression",
+          "tagPath": "{view.params.tagPath} + \u0027/Sub\u0027"
+        },
+        "type": "tag"
+      }
+    },
+    "custom.f": {
+      "binding": {
+        "config": {
+          "parameters": {
+            "db": "\u0027main\u0027",
+            "id": "{view.params.line}",
+            "order": "\u0027name\u0027"
+          },
+          "polling": {
+            "enabled": true,
+            "rate": "{view.custom.a} * 2"
+          },
+          "queryPath": "Root/Q",
+          "returnFormat": "dataset"
+        },
+        "type": "query"
+      }
+    },
+    "custom.g": {
+      "binding": {
+        "config": {
+          "dateRange": {
+            "endDate": "now(0)",
+            "startDate": "now(0)"
+          },
+          "polling": {
+            "enabled": false,
+            "rate": 10
+          },
+          "returnFormat": "tall",
+          "tags": "{view.custom.h}"
+        },
+        "type": "tag-history"
+      }
+    },
+    "custom.h": {
+      "binding": {
+        "config": {
+          "aggregate": "Average",
+          "returnFormat": "wide",
+          "tags": [
+            {
+              "path": "[edge]Area/Unit1/Value"
+            },
+            {
+              "alias": "p",
+              "path": "{view.params.tagPath}"
+            }
+          ]
+        },
+        "type": "tag-history"
+      }
+    },
+    "custom.i": {
+      "binding": {
+        "config": {
+          "polling": {
+            "enabled": true,
+            "rate": "5"
+          },
+          "request": {
+            "auth": {
+              "type": "basic",
+              "value": "user:pw"
+            },
+            "method": "POST",
+            "url": "\u0027https://example.invalid/\u0027 + {view.params.line}"
+          }
+        },
+        "type": "http"
+      }
+    },
+    "custom.j": {
+      "binding": {
+        "config": {
+          "bidirectional": true,
+          "path": "../Nope.props.text"
+        },
+        "type": "property"
+      }
+    },
+    "custom.k": {
+      "binding": {
+        "config": {},
+        "type": "bogus"
+      }
+    },
+    "custom.l": {
+      "binding": {
+        "config": {
+          "expression": "1 +"
+        },
+        "enabled": false,
+        "type": "expr"
+      }
+    },
+    "params.line": {
+      "paramDirection": "input"
+    },
+    "params.tagPath": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "custom": {
+          "local": 1
+        },
+        "meta": {
+          "name": "Label"
+        },
+        "propConfig": {
+          "custom.local": {
+            "onChange": {
+              "enabled": true,
+              "script": "\tself.custom.local \u003d currentValue"
+            }
+          },
+          "props.text": {
+            "binding": {
+              "config": {
+                "path": "/root/Panel.custom.value"
+              },
+              "type": "property"
+            }
+          },
+          "props.textStyle.classes": {
+            "binding": {
+              "config": {
+                "expression": "\u0027Root/Accent\u0027"
+              },
+              "type": "expr"
+            }
+          }
+        },
+        "props": {
+          "style": {
+            "classes": "Root/Accent  Legacy/Old missing-one"
+          },
+          "text": "x",
+          "textStyle": {
+            "classes": "Root/Accent"
+          }
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "children": [],
+        "custom": {
+          "value": "v"
+        },
+        "meta": {
+          "name": "Panel"
+        },
+        "props": {},
+        "type": "ia.container.flex"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {},
+    "type": "ia.container.flex"
+  }
+}

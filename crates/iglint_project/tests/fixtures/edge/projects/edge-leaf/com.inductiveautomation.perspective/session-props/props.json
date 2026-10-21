@@ -1,0 +1,18 @@
+{
+  "custom": {
+    "s": 1
+  },
+  "propConfig": {
+    "custom.configOnly": {
+      "onChange": {
+        "enabled": false,
+        "script": "\tsession.custom.s \u003d 2"
+      },
+      "persistent": true
+    }
+  },
+  "props": {
+    "custom-key": 1,
+    "theme": "dark"
+  }
+}
