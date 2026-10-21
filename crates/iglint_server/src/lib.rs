@@ -1,14 +1,6 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! The iglint language server.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+/// Runs the language server on stdin and stdout until the client exits.
+pub fn run() -> anyhow::Result<()> {
+    anyhow::bail!("the iglint language server is not implemented yet")
 }

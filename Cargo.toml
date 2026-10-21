@@ -21,6 +21,22 @@ iglint_linter = { path = "crates/iglint_linter" }
 iglint_config = { path = "crates/iglint_config" }
 iglint_server = { path = "crates/iglint_server" }
 
+anyhow = "1.0.100"
+clap = { version = "4.6", features = ["derive", "wrap_help"] }
+glob = "0.3.3"
+ignore = "0.4.25"
+rayon = "1.11"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.145", features = ["preserve_order"] }
+similar = "2.7"
+toml = "1"
+
+# dev
+assert_cmd = "2.1"
+insta = "1.43"
+predicates = "3.1"
+tempfile = "3.23"
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 

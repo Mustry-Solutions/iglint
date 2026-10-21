@@ -4,7 +4,7 @@
 //! linter only ever sees the resolved form. Settings for a file are the base
 //! settings with every matching override applied in order.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -121,10 +121,13 @@ pub struct Override {
     /// Rules to switch on (or reconfigure) for matching files.
     pub enable: BTreeMap<RuleCode, RuleSettings>,
     pub strict: Option<bool>,
+    /// New severities for rules that are enabled for matching files. Unlike
+    /// `enable`, this never switches a rule on.
+    pub severity: BTreeMap<RuleCode, Severity>,
 }
 
 /// Settings for a whole lint run.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct ProjectSettings {
     /// Directory that relative paths in settings are resolved against.
     pub root: PathBuf,
@@ -141,6 +144,27 @@ pub struct ProjectSettings {
     pub projects: Vec<PathBuf>,
     /// Paths of gateway configuration resource trees; empty means discover.
     pub gateways: Vec<PathBuf>,
+    /// Skip files ignored by `.gitignore`, `.ignore` and git excludes.
+    pub respect_gitignore: bool,
+    /// Rules whose fixes are never applied.
+    pub unfixable: BTreeSet<RuleCode>,
+}
+
+impl Default for ProjectSettings {
+    fn default() -> Self {
+        ProjectSettings {
+            root: PathBuf::new(),
+            base: Arc::default(),
+            overrides: Vec::new(),
+            exclude: Vec::new(),
+            rule_exclude: BTreeMap::new(),
+            whitelist: Vec::new(),
+            projects: Vec::new(),
+            gateways: Vec::new(),
+            respect_gitignore: true,
+            unfixable: BTreeSet::new(),
+        }
+    }
 }
 
 /// Matches `/`-separated relative paths against glob patterns.
@@ -310,6 +334,11 @@ impl ProjectSettings {
             }
             if let Some(strict) = o.strict {
                 settings.strict = strict;
+            }
+            for (rule, severity) in &o.severity {
+                if let Some(rule_settings) = settings.rules.get_mut(rule) {
+                    rule_settings.severity = *severity;
+                }
             }
         }
         for rule in rule_excluded {

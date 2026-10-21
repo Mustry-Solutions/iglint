@@ -133,6 +133,41 @@ pub struct RuleMeta {
     pub options: &'static [OptionMeta],
     /// Names under which ign-lint configures the equivalent rule, if any.
     pub ign_lint_names: &'static [&'static str],
+    /// How ign-lint `kwargs` of the rules in `ign_lint_names` map to this
+    /// rule's options: `(ign-lint kwarg, iglint option)`. A kwarg named
+    /// `severity` maps to the rule severity unless it is listed here. Empty
+    /// for rules without ign-lint options.
+    pub ign_lint_option_map: &'static [(&'static str, &'static str)],
+}
+
+impl RuleMeta {
+    /// Neutral values for every field, to fill in the fields a rule does not
+    /// care about: `RuleMeta { code: "SCR101", ..RuleMeta::DEFAULT }`.
+    pub const DEFAULT: RuleMeta = RuleMeta {
+        code: "",
+        name: "",
+        category: Category::View,
+        default_severity: Severity::Warning,
+        default_enabled: false,
+        fix: FixAvailability::None,
+        summary: "",
+        explanation: "",
+        options: &[],
+        ign_lint_names: &[],
+        ign_lint_option_map: &[],
+    };
+
+    pub fn option(&self, name: &str) -> Option<&'static OptionMeta> {
+        self.options.iter().find(|o| o.name == name)
+    }
+
+    /// The iglint option an ign-lint kwarg maps to, if any.
+    pub fn option_for_ign_lint_kwarg(&self, kwarg: &str) -> Option<&'static str> {
+        self.ign_lint_option_map
+            .iter()
+            .find(|(from, _)| *from == kwarg)
+            .map(|(_, to)| *to)
+    }
 }
 
 /// A cheap handle to a rule's metadata. Equality is by code.
@@ -217,6 +252,33 @@ impl Registry {
 
     pub fn iter(&self) -> impl Iterator<Item = RuleCode> + '_ {
         self.rules.iter().map(|meta| RuleCode::new(meta))
+    }
+
+    pub fn len(&self) -> usize {
+        self.rules.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.rules.is_empty()
+    }
+
+    /// Rules that ign-lint configures under `name` (a rule class name).
+    pub fn find_ign_lint<'a>(&'a self, name: &'a str) -> impl Iterator<Item = RuleCode> + 'a {
+        self.rules
+            .iter()
+            .filter(move |m| m.ign_lint_names.contains(&name))
+            .map(|meta| RuleCode::new(meta))
+    }
+
+    /// The closest rule code or name to a misspelled `key`, for "did you
+    /// mean" hints.
+    pub fn suggest(&self, key: &str) -> Option<&'static str> {
+        let candidates = self
+            .rules
+            .iter()
+            .flat_map(|m| [m.code, m.name])
+            .chain(Category::ALL.iter().map(|c| c.prefix()));
+        crate::suggest::closest(key, candidates)
     }
 
     /// Finds a rule by code (case-insensitive), kebab-case name, or ign-lint

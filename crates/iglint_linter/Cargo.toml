@@ -9,3 +9,10 @@ workspace = true
 
 [dependencies]
 iglint_text.workspace = true
+ignore.workspace = true
+rayon.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
