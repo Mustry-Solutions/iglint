@@ -1,0 +1,59 @@
+{
+  "custom": {
+    "counter": 0,
+    "unusedProp": "x"
+  },
+  "params": {
+    "lineName": "Line 1"
+  },
+  "propConfig": {
+    "custom.counter": {
+      "binding": {
+        "config": {
+          "expression": "if({view.params.lineName} \u003d \"\", 0, len({view.params.lineName}))"
+        },
+        "type": "expr"
+      }
+    },
+    "params.lineName": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 300,
+      "width": 500
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Title"
+        },
+        "position": {
+          "height": 32,
+          "width": 200
+        },
+        "props": {
+          "text": "Hello"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Spacer"
+        },
+        "type": "ia.container.flex"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "type": "ia.container.flex"
+  }
+}
