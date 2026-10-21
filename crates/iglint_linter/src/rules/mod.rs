@@ -27,7 +27,8 @@ rules![
     view::invalid_json,
     view::excessive_context_data,
     view::property_access,
-    view::property_persistence
+    view::property_persistence,
+    view::fragile_component_reference,
 ];
 
 pub static REGISTRY: Registry = Registry::new(ALL);
