@@ -27,6 +27,7 @@ mod java_double;
 mod lexer;
 mod literal;
 mod parser;
+pub mod query;
 pub mod repr;
 pub mod token;
 mod unicode_names;

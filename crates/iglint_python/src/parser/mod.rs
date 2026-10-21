@@ -11,6 +11,7 @@
 //! [`Parser::speculate`]).
 
 mod expression;
+mod python3;
 mod statement;
 mod target;
 
@@ -279,7 +280,12 @@ impl<'src> Parser<'src> {
         if token.kind == TokenKind::Error || self.speculating > 0 {
             return Failure;
         }
-        let message = message(&token);
+        let mut message = message(&token);
+        if let Some(hint) = self.python3_hint(&token) {
+            message.push_str(" (");
+            message.push_str(hint);
+            message.push(')');
+        }
         let range = if token.range.is_empty() && token.kind == TokenKind::EndOfFile {
             TextRange::empty(token.range.start())
         } else {
@@ -287,6 +293,27 @@ impl<'src> Parser<'src> {
         };
         self.record(ParseError::syntax(message, range, token.anchor.as_token()));
         Failure
+    }
+
+    /// An explanation when a syntax error at `token` is Python 3 syntax.
+    fn python3_hint(&self, token: &Token) -> Option<&'static str> {
+        let position = self.stream.position.min(self.stream.tokens.len());
+        let before = &self.stream.tokens[..position];
+        let line_start = before
+            .iter()
+            .rposition(|token| {
+                matches!(
+                    token.kind,
+                    TokenKind::Newline | TokenKind::Indent | TokenKind::Dedent | TokenKind::Semi
+                )
+            })
+            .map_or(0, |index| index + 1);
+        python3::hint(&python3::Context {
+            source: self.source,
+            line: &before[line_start..],
+            token,
+            print_function: self.print_function,
+        })
     }
 
     /// "expected X" at the current token.
