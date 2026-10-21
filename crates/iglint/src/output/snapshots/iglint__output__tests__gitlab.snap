@@ -1,0 +1,84 @@
+---
+source: crates/iglint/src/output/tests.rs
+expression: "output(OutputFormat::Gitlab, & diagnostics(), false)"
+---
+[
+  {
+    "description": "TST003: Empty range at the start",
+    "check_name": "TST003",
+    "fingerprint": "30bad17765f4dd46",
+    "severity": "info",
+    "location": {
+      "path": "/other/lib.py",
+      "lines": {
+        "begin": 1,
+        "end": 1
+      }
+    }
+  },
+  {
+    "description": "TST002: Variable `x` is unused",
+    "check_name": "TST002",
+    "fingerprint": "b91e31e97da4c401",
+    "severity": "minor",
+    "location": {
+      "path": "projects/p/ignition/script-python/a/code.py",
+      "lines": {
+        "begin": 2,
+        "end": 2
+      }
+    }
+  },
+  {
+    "description": "TST001: Undefined name `y`",
+    "check_name": "TST001",
+    "fingerprint": "bb0cd88fb36159e3",
+    "severity": "major",
+    "location": {
+      "path": "projects/p/ignition/script-python/a/code.py",
+      "lines": {
+        "begin": 3,
+        "end": 3
+      }
+    }
+  },
+  {
+    "description": "TST001: Custom property `unused` is never read",
+    "check_name": "TST001",
+    "fingerprint": "e02456ace8e7051c",
+    "severity": "major",
+    "location": {
+      "path": "projects/p/views/Main/view.json",
+      "lines": {
+        "begin": 3,
+        "end": 3
+      }
+    }
+  },
+  {
+    "description": "TST002: Name \"naïve\" <is> not camelCase; 100% sure, [really]; a]b\nsecond line",
+    "check_name": "TST002",
+    "fingerprint": "422766c711bc5561",
+    "severity": "minor",
+    "location": {
+      "path": "projects/p/views/Main/view.json",
+      "lines": {
+        "begin": 4,
+        "end": 4
+      }
+    }
+  },
+  {
+    "description": "TST003: Root is nested",
+    "check_name": "TST003",
+    "fingerprint": "949a3a2d89c2da25",
+    "severity": "info",
+    "location": {
+      "path": "projects/p/views/Main/view.json",
+      "lines": {
+        "begin": 6,
+        "end": 8
+      }
+    }
+  }
+]

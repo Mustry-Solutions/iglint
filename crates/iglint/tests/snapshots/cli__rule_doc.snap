@@ -1,0 +1,25 @@
+---
+source: crates/iglint/tests/cli.rs
+expression: doc.stdout
+---
+# unused-variable (SCR102)
+
+Local variable is never used
+
+- Category: Scripts (`SCR`)
+- Default severity: warning
+- Enabled by default: yes
+- Fix: always
+
+## What it does
+
+Reports unused local variables.
+
+## Options
+
+Set in `[rules.SCR102]`.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `ignore-names` | array of strings | `[]` | Names never reported. |
+| `dummy-pattern` | string | `"^_"` | Regex of names that may be unused. |

@@ -3,8 +3,32 @@ name = "iglint"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "A fast linter for Ignition 8.3 projects"
 
 [lints]
 workspace = true
 
+[[bin]]
+name = "iglint"
+path = "src/main.rs"
+
 [dependencies]
+iglint_config.workspace = true
+iglint_linter.workspace = true
+iglint_server.workspace = true
+iglint_text.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+glob.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+similar.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+iglint_linter = { workspace = true, features = ["testing"] }
+assert_cmd.workspace = true
+insta.workspace = true
+predicates.workspace = true
+tempfile.workspace = true

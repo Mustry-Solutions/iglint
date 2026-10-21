@@ -1,0 +1,31 @@
+---
+source: crates/iglint/src/output/tests.rs
+expression: "output(OutputFormat::Junit, & diagnostics(), false)"
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="iglint" tests="6" failures="6" errors="0">
+  <testsuite name="/other/lib.py" tests="1" failures="1" errors="0">
+    <testcase name="org.iglint.TST003" classname="/other/lib.py" file="/other/lib.py" line="1">
+      <failure message="Empty range at the start" type="info">/other/lib.py:1:1: Empty range at the start</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="projects/p/ignition/script-python/a/code.py" tests="2" failures="2" errors="0">
+    <testcase name="org.iglint.TST002" classname="projects/p/ignition/script-python/a/code.py" file="projects/p/ignition/script-python/a/code.py" line="2">
+      <failure message="Variable `x` is unused" type="warning">projects/p/ignition/script-python/a/code.py:2:2: Variable `x` is unused</failure>
+    </testcase>
+    <testcase name="org.iglint.TST001" classname="projects/p/ignition/script-python/a/code.py" file="projects/p/ignition/script-python/a/code.py" line="3">
+      <failure message="Undefined name `y`" type="error">projects/p/ignition/script-python/a/code.py:3:9: Undefined name `y`</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="projects/p/views/Main/view.json" tests="3" failures="3" errors="0">
+    <testcase name="org.iglint.TST001" classname="projects/p/views/Main/view.json" file="projects/p/views/Main/view.json" line="3">
+      <failure message="Custom property `unused` is never read" type="error">projects/p/views/Main/view.json:3:5: Custom property `unused` is never read</failure>
+    </testcase>
+    <testcase name="org.iglint.TST002" classname="projects/p/views/Main/view.json" file="projects/p/views/Main/view.json" line="4">
+      <failure message="Name &quot;naïve&quot; &lt;is&gt; not camelCase; 100% sure, [really]; a]b&#10;second line" type="warning">projects/p/views/Main/view.json:4:5: Name &quot;naïve&quot; &lt;is&gt; not camelCase; 100% sure, [really]; a]b&#10;second line</failure>
+    </testcase>
+    <testcase name="org.iglint.TST003" classname="projects/p/views/Main/view.json" file="projects/p/views/Main/view.json" line="6">
+      <failure message="Root is nested" type="info">projects/p/views/Main/view.json:6:3: Root is nested</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

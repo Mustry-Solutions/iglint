@@ -9,3 +9,15 @@ workspace = true
 
 [dependencies]
 iglint_text.workspace = true
+ignore.workspace = true
+rayon.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[features]
+# Test-only rules and analyzer (`iglint_linter::testing`).
+testing = []
+
+[dev-dependencies]
+iglint_linter = { path = ".", features = ["testing"] }
+tempfile.workspace = true

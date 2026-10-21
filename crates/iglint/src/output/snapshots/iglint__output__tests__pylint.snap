@@ -1,0 +1,10 @@
+---
+source: crates/iglint/src/output/tests.rs
+expression: "output(OutputFormat::Pylint, & diagnostics(), false)"
+---
+/other/lib.py:1: [TST003(deep-structure)] Empty range at the start
+projects/p/ignition/script-python/a/code.py:2: [TST002(bad-name)] Variable `x` is unused
+projects/p/ignition/script-python/a/code.py:3: [TST001(unused-thing)] Undefined name `y`
+projects/p/views/Main/view.json:3: [TST001(unused-thing)] Custom property `unused` is never read
+projects/p/views/Main/view.json:4: [TST002(bad-name)] Name "naïve" <is> not camelCase; 100% sure, [really]; a]b second line
+projects/p/views/Main/view.json:6: [TST003(deep-structure)] Root is nested

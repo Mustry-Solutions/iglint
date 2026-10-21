@@ -1,0 +1,12 @@
+---
+source: crates/iglint/tests/cli.rs
+expression: all.stdout
+---
+CODE     NAME                    SEVERITY  FIX  DEFAULT  SUMMARY
+BIND001  polling-interval        error          no       now() polls too often
+NAME001  component-name          warning   [*]  yes      Component name does not follow the convention
+NAME002  property-name           info           no       Property name does not follow the convention
+REF001   missing-view            error          no       Referenced view does not exist
+SCR101   undefined-name          error          yes      Name is not defined
+SCR102   unused-variable         warning   [*]  yes      Local variable is never used
+VIEW001  unused-custom-property  warning   [*]  yes      Custom property is never referenced

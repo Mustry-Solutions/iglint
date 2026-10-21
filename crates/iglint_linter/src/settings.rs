@@ -4,7 +4,7 @@
 //! linter only ever sees the resolved form. Settings for a file are the base
 //! settings with every matching override applied in order.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -121,10 +121,13 @@ pub struct Override {
     /// Rules to switch on (or reconfigure) for matching files.
     pub enable: BTreeMap<RuleCode, RuleSettings>,
     pub strict: Option<bool>,
+    /// New severities for rules that are enabled for matching files. Unlike
+    /// `enable`, this never switches a rule on.
+    pub severity: BTreeMap<RuleCode, Severity>,
 }
 
 /// Settings for a whole lint run.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct ProjectSettings {
     /// Directory that relative paths in settings are resolved against.
     pub root: PathBuf,
@@ -141,18 +144,41 @@ pub struct ProjectSettings {
     pub projects: Vec<PathBuf>,
     /// Paths of gateway configuration resource trees; empty means discover.
     pub gateways: Vec<PathBuf>,
+    /// Skip files ignored by `.gitignore`, `.ignore` and git excludes.
+    pub respect_gitignore: bool,
+    /// Rules whose fixes are never applied.
+    pub unfixable: BTreeSet<RuleCode>,
+}
+
+impl Default for ProjectSettings {
+    fn default() -> Self {
+        ProjectSettings {
+            root: PathBuf::new(),
+            base: Arc::default(),
+            overrides: Vec::new(),
+            exclude: Vec::new(),
+            rule_exclude: BTreeMap::new(),
+            whitelist: Vec::new(),
+            projects: Vec::new(),
+            gateways: Vec::new(),
+            respect_gitignore: true,
+            unfixable: BTreeSet::new(),
+        }
+    }
 }
 
 /// Matches `/`-separated relative paths against glob patterns.
 ///
 /// Supports `*` (within a segment), `**` (any number of segments), `?`, and
-/// character classes `[abc]`. A pattern without `/` matches the file name in
-/// any directory, like `.gitignore`.
+/// character classes `[abc]`. A pattern without `/` matches a file or
+/// directory name at any depth (and so everything below that directory),
+/// like `.gitignore`.
 pub fn glob_matches(pattern: &str, path: &str) -> bool {
     let pattern = pattern.strip_prefix("./").unwrap_or(pattern);
     if !pattern.contains('/') {
-        let name = path.rsplit('/').next().unwrap_or(path);
-        return segment_matches(pattern.as_bytes(), name.as_bytes())
+        return path
+            .split('/')
+            .any(|segment| segment_matches(pattern.as_bytes(), segment.as_bytes()))
             || matches_segments(pattern, path);
     }
     let pattern = pattern.strip_prefix('/').unwrap_or(pattern);
@@ -311,6 +337,11 @@ impl ProjectSettings {
             if let Some(strict) = o.strict {
                 settings.strict = strict;
             }
+            for (rule, severity) in &o.severity {
+                if let Some(rule_settings) = settings.rules.get_mut(rule) {
+                    rule_settings.severity = *severity;
+                }
+            }
         }
         for rule in rule_excluded {
             settings.rules.remove(&rule);
@@ -340,6 +371,15 @@ mod tests {
             "projects/a/views/Legacy/x/view.json"
         ));
         assert!(glob_matches("*.py", "a/b/code.py"));
+        assert!(glob_matches("build", "build/x.py"));
+        assert!(glob_matches(
+            "Legacy",
+            "projects/a/views/Legacy/x/view.json"
+        ));
+        assert!(!glob_matches(
+            "Legacy",
+            "projects/a/views/LegacyNot/x/view.json"
+        ));
         assert!(glob_matches("a/[bc]/*.py", "a/c/code.py"));
         assert!(!glob_matches("a/[!bc]/*.py", "a/c/code.py"));
         assert!(glob_matches("a/?/x", "a/b/x"));
