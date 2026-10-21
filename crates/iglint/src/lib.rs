@@ -14,6 +14,9 @@ use std::path::PathBuf;
 use iglint_linter::Registry;
 use iglint_linter::engine::Analyzer;
 
+pub mod args;
+mod check;
+pub mod commands;
 pub mod ign_lint;
 pub mod output;
 
@@ -82,6 +85,53 @@ pub fn run(args: Vec<OsString>, environment: &Environment, io: &mut Io<'_>) -> E
     if program == "ign-lint" || program == "ignition-lint" {
         return ign_lint::run(args, environment, io);
     }
-    let _ = io;
-    ExitStatus::Success
+    let args = with_default_command(args);
+    let cli = match <args::Cli as clap::Parser>::try_parse_from(&args) {
+        Ok(cli) => cli,
+        Err(error) => {
+            let text = error.render().to_string();
+            return if error.use_stderr() {
+                let _ = io.stderr.write_all(text.as_bytes());
+                ExitStatus::Error
+            } else {
+                let _ = io.stdout.write_all(text.as_bytes());
+                ExitStatus::Success
+            };
+        }
+    };
+    match cli.command {
+        args::Command::Check(check_args) => check::run(&check_args, environment, io, false),
+        args::Command::Baseline(check_args) => check::run(&check_args, environment, io, true),
+        args::Command::Rule(rule_args) => commands::rule(&rule_args, environment, io),
+        args::Command::Rules(rules_args) => commands::rules(&rules_args, environment, io),
+        args::Command::Migrate(migrate_args) => commands::migrate(&migrate_args, environment, io),
+        args::Command::Server => match iglint_server::run() {
+            Ok(()) => ExitStatus::Success,
+            Err(error) => {
+                let _ = writeln!(io.stderr, "error: {error}");
+                ExitStatus::Error
+            }
+        },
+        args::Command::IgnLint { args: rest } => {
+            let mut ign_lint_args = vec![OsString::from("ign-lint")];
+            ign_lint_args.extend(rest);
+            ign_lint::run(ign_lint_args, environment, io)
+        }
+    }
+}
+
+/// Inserts `check` when the first argument is not a subcommand or a
+/// top-level flag, so that `iglint [PATHS]...` means `iglint check`.
+fn with_default_command(mut args: Vec<OsString>) -> Vec<OsString> {
+    let first = args.get(1).map(|a| a.to_string_lossy().into_owned());
+    let explicit = match first.as_deref() {
+        None => false,
+        Some("-h" | "--help" | "-V" | "--version") => true,
+        Some(word) => args::SUBCOMMANDS.contains(&word),
+    };
+    if !explicit {
+        let at = args.len().min(1);
+        args.insert(at, OsString::from("check"));
+    }
+    args
 }

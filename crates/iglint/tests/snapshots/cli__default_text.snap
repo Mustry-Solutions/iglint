@@ -1,0 +1,19 @@
+---
+source: crates/iglint/tests/cli.rs
+expression: explicit.stdout
+---
+projects/p/ignition/script-python/lib/code.py:2:5: SCR102 [warning] `unused_var` triggers unused-variable
+  |
+2 |     unused_var = undefined_thing
+  |     ^^^^^^^^^^
+  |
+  = help: [*] Replace with `_`
+
+projects/p/ignition/script-python/lib/code.py:2:18: SCR101 [error] `undefined_thing` triggers undefined-name
+  |
+2 |     unused_var = undefined_thing
+  |                  ^^^^^^^^^^^^^^^
+  |
+
+Found 1 error and 1 warning.
+[*] 1 fixable with the `--fix` option.

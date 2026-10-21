@@ -218,7 +218,11 @@ fn safe_fixes_are_written_and_preserve_line_endings() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
     let file = write(root, "a.py", "unused_var = 1\r\nunusedProp\r\nbadName\r\n");
-    let result = check(&settings(root), &[file.clone()], &options(FixMode::Safe));
+    let result = check(
+        &settings(root),
+        std::slice::from_ref(&file),
+        &options(FixMode::Safe),
+    );
     assert_eq!(
         std::fs::read_to_string(&file).unwrap(),
         "_ = 1\r\nunusedProp\r\nBadName\r\n"
@@ -242,7 +246,7 @@ fn unsafe_fixes_diff_only_and_filters() {
 
     let result = check(
         &settings(root),
-        &[file.clone()],
+        std::slice::from_ref(&file),
         &options(FixMode::DiffOnly { unsafe_fixes: true }),
     );
     assert_eq!(
@@ -255,7 +259,11 @@ fn unsafe_fixes_diff_only_and_filters() {
 
     let mut unfixable = settings(root);
     unfixable.unfixable = BTreeSet::from([RuleCode::new(&testing::UNUSED_VARIABLE)]);
-    let result = check(&unfixable, &[file.clone()], &options(FixMode::Unsafe));
+    let result = check(
+        &unfixable,
+        std::slice::from_ref(&file),
+        &options(FixMode::Unsafe),
+    );
     assert_eq!(
         std::fs::read_to_string(&file).unwrap(),
         "usedProp unused_var\n"
@@ -267,7 +275,7 @@ fn unsafe_fixes_diff_only_and_filters() {
 
     let mut only = options(FixMode::Unsafe);
     only.fix_rules = Some(BTreeSet::from([RuleCode::new(&testing::COMPONENT_NAME)]));
-    let result = check(&settings(root), &[file.clone()], &only);
+    let result = check(&settings(root), std::slice::from_ref(&file), &only);
     assert!(result.fixed[0].applied.is_empty());
     assert_eq!(
         result.fixed[0].skipped[0].reason,
@@ -299,9 +307,9 @@ fn cache_serves_unchanged_files() {
     let mut options = options(FixMode::None);
     options.cache_dir = Some(root.join(".iglint_cache"));
     options.threads = Some(2);
-    let first = check(&settings(root), &[file.clone()], &options);
+    let first = check(&settings(root), std::slice::from_ref(&file), &options);
     assert!(!first.files[0].cached);
-    let second = check(&settings(root), &[file.clone()], &options);
+    let second = check(&settings(root), std::slice::from_ref(&file), &options);
     assert!(second.files[0].cached);
     let render = |r: &iglint_linter::CheckResult| {
         r.diagnostics
@@ -313,7 +321,7 @@ fn cache_serves_unchanged_files() {
     assert!(root.join(".iglint_cache/.gitignore").is_file());
 
     std::fs::write(&file, "undefined_thing\n").unwrap();
-    let third = check(&settings(root), &[file.clone()], &options);
+    let third = check(&settings(root), std::slice::from_ref(&file), &options);
     assert!(!third.files[0].cached);
     assert_eq!(third.diagnostics.len(), 1);
 

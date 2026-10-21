@@ -120,7 +120,6 @@ pub static COMPONENT_NAME: RuleMeta = RuleMeta {
         ("skip_names", "skip-names"),
         ("node_type_specific_rules", "per-type"),
     ],
-    ..RuleMeta::DEFAULT
 };
 
 pub static PROPERTY_NAME: RuleMeta = RuleMeta {
