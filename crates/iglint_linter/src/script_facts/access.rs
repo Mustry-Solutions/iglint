@@ -70,8 +70,12 @@ impl ScriptFacts for AstScriptFacts {
         };
         let mut found = Vec::new();
         if !unit.parsed.is_valid() {
-            // A script that does not parse may access anything.
+            // A script that does not compile never runs, so it writes
+            // nothing; it is still taken as reading everything so that
+            // unused-property findings do not depend on a script the user
+            // has to fix anyway (SCR001 reports it).
             let anchor = unit.script.anchor();
+            let start = out.len();
             let mut a = Analysis {
                 view,
                 this,
@@ -79,6 +83,9 @@ impl ScriptFacts for AstScriptFacts {
                 out,
             };
             a.everything(anchor);
+            for access in &mut a.out[start..] {
+                access.write = false;
+            }
             return;
         }
         let mut a = Analysis {

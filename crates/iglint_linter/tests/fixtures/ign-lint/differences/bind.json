@@ -41,14 +41,6 @@
       "reason": "Indirect tag binding references are property paths or literals, not expressions; `now()` there never polls."
     },
     {
-      "view": "cases/BadComponentReferences",
-      "variant": "*",
-      "rule": "ComponentReferenceValidationRule",
-      "kind": "extra",
-      "message": "root/AbsoluteRefConsumer.custom.filter@binding.struct.valid: `view.custom.paths`: custom property `paths` is not defined",
-      "reason": "BIND005 also checks that referenced custom properties and view parameters exist; ign-lint only checks component paths. The view defines no custom property `paths`."
-    },
-    {
       "view": "probes/UnusedQuirks",
       "variant": "*",
       "rule": "ComponentReferenceValidationRule",

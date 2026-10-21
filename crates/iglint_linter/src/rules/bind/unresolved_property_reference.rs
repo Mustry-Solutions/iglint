@@ -11,6 +11,8 @@ use crate::diagnostic::Severity;
 use crate::options::OptionReader;
 use crate::registry::{Category, OptionMeta, OptionType, RuleMeta};
 use crate::rule::{BindingRule, ExpressionRule, Hook, ParsedOptions, Phase, RuleImpl};
+use crate::script_facts::AccessTarget;
+use iglint_project::view::RefTarget;
 
 pub static META: RuleMeta = RuleMeta {
     code: "BIND005",
@@ -263,7 +265,7 @@ fn check(
                 name,
                 range,
             } => {
-                if may_be_created_by_scripts(cx, &category, &name) {
+                if may_be_created_by_scripts(cx, view, owner, reference, &category, &name) {
                     return None;
                 }
                 Finding {
@@ -287,11 +289,38 @@ fn check(
 /// (assigning to an undefined custom property or parameter creates it).
 /// With complete script facts this is an exact write check; otherwise any
 /// script that mentions the name as an identifier counts.
-fn may_be_created_by_scripts(cx: &Checker<'_, '_>, category: &str, name: &str) -> bool {
+fn may_be_created_by_scripts(
+    cx: &Checker<'_, '_>,
+    view: &View<'_>,
+    owner: iglint_project::Owner,
+    reference: &PropertyRef,
+    category: &str,
+    name: &str,
+) -> bool {
     let (accesses, complete) = cx.script_property_accesses();
     if complete {
+        // The object the reference points at: resolve it with a category
+        // that always exists.
+        let mut probe = reference.clone();
+        probe.segments.truncate(1);
+        if let Some(first) = probe.segments.first_mut() {
+            first.kind = iglint_expression::SegmentKind::Name("props".to_owned());
+        }
+        let target = match view.resolve_ref(owner, &probe) {
+            RefResolution::Resolved(r) => r.target,
+            _ => return true,
+        };
         return accesses.iter().any(|a| {
-            a.write && a.category.name() == category && a.name.as_deref().is_none_or(|n| n == name)
+            let same_target = match (a.target, target) {
+                (AccessTarget::View, RefTarget::View) => true,
+                (AccessTarget::Component(c), RefTarget::Component(t)) => c == t,
+                (AccessTarget::AnyComponent, RefTarget::Component(_)) => true,
+                _ => false,
+            };
+            same_target
+                && a.write
+                && a.category.name() == category
+                && a.name.as_deref().is_none_or(|n| n == name)
         });
     }
     cx.data()
