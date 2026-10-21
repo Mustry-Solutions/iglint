@@ -1,0 +1,108 @@
+{
+  "differences": [
+    {
+      "view": "probes/PollingQuirks",
+      "variant": "*",
+      "rule": "PollingIntervalRule",
+      "kind": "missing",
+      "message": "root.root.children[6].SnowCall.propConfig.props.text: 'snow(5)'",
+      "reason": "bug 10: ign-lint matches the text `now(`; `snow(5)` is a call of another function. BIND004 parses calls."
+    },
+    {
+      "view": "probes/PollingQuirks",
+      "variant": "*",
+      "rule": "PollingIntervalRule",
+      "kind": "missing",
+      "message": "root.root.children[7].NowInString.propConfig.props.text: ''call now() later''",
+      "reason": "bug 10: `now()` inside a string literal is not a call."
+    },
+    {
+      "view": "probes/PollingQuirks",
+      "variant": "*",
+      "rule": "PollingIntervalRule",
+      "kind": "missing",
+      "message": "root.root.children[2].NowDynamic.propConfig.props.text: 'now({view.custom.rate})'",
+      "reason": "A poll rate that is not a literal cannot be checked; BIND004 reports it only with `strict`."
+    },
+    {
+      "view": "probes/PollingQuirks",
+      "variant": "*",
+      "rule": "PollingIntervalRule",
+      "kind": "missing",
+      "message": "root.root.children[9].NowNegative.propConfig.props.text: 'now(-1)'",
+      "reason": "A rate of zero or less means no polling; ign-lint's regex does not accept the sign and reports it."
+    },
+    {
+      "view": "probes/PollingQuirks",
+      "variant": "*",
+      "rule": "PollingIntervalRule",
+      "kind": "missing",
+      "message": "root.root.children[11].TagIndirect.propConfig.props.text.references.a: 'now()'",
+      "reason": "Indirect tag binding references are property paths or literals, not expressions; `now()` there never polls."
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "ComponentReferenceValidationRule",
+      "kind": "extra",
+      "message": "root/AbsoluteRefConsumer.custom.filter@binding.struct.valid: `view.custom.paths`: custom property `paths` is not defined",
+      "reason": "BIND005 also checks that referenced custom properties and view parameters exist; ign-lint only checks component paths. The view defines no custom property `paths`."
+    },
+    {
+      "view": "probes/UnusedQuirks",
+      "variant": "*",
+      "rule": "ComponentReferenceValidationRule",
+      "kind": "extra",
+      "message": "root/Reader.props.text@binding: `this.custom.beta`: custom property `beta` is not defined",
+      "reason": "BIND005 also checks that referenced custom properties exist; `Reader` has no custom property `beta` (another component does)."
+    },
+    {
+      "view": "cases/ExpressionBindings",
+      "variant": "poll-1000",
+      "rule": "PollingIntervalRule",
+      "kind": "missing",
+      "message": "propConfig.custom.expressionPolling: 'now()'",
+      "reason": "`now()` polls every 1000 ms, which is not faster than a minimum of 1000 ms; ign-lint reports every argument-less `now()`."
+    },
+    {
+      "view": "cases/ExpressionBindings",
+      "variant": "poll-1000",
+      "rule": "PollingIntervalRule",
+      "kind": "missing",
+      "message": "propConfig.custom.expressionStructurePolling.badPolling: 'now()'",
+      "reason": "`now()` polls every 1000 ms, which is not faster than a minimum of 1000 ms; ign-lint reports every argument-less `now()`."
+    },
+    {
+      "view": "cases/ExpressionBindings",
+      "variant": "poll-1000",
+      "rule": "PollingIntervalRule",
+      "kind": "missing",
+      "message": "propConfig.custom.transformPolling.binding.transforms[0]: 'now()'",
+      "reason": "`now()` polls every 1000 ms, which is not faster than a minimum of 1000 ms; ign-lint reports every argument-less `now()`."
+    },
+    {
+      "view": "cases/ExpressionBindings",
+      "variant": "poll-1000",
+      "rule": "PollingIntervalRule",
+      "kind": "missing",
+      "message": "root.root.children[0].BadPollingDateTimeInput.propConfig.props.value: 'now()'",
+      "reason": "`now()` polls every 1000 ms, which is not faster than a minimum of 1000 ms; ign-lint reports every argument-less `now()`."
+    },
+    {
+      "view": "probes/PollingQuirks",
+      "variant": "poll-1000",
+      "rule": "PollingIntervalRule",
+      "kind": "missing",
+      "message": "root.root.children[0].NowEmpty.propConfig.props.text: 'now()'",
+      "reason": "`now()` polls every 1000 ms, which is not faster than a minimum of 1000 ms; ign-lint reports every argument-less `now()`."
+    },
+    {
+      "view": "probes/PollingQuirks",
+      "variant": "poll-1000",
+      "rule": "PollingIntervalRule",
+      "kind": "missing",
+      "message": "root.root.children[13].Struct.propConfig.props.text.a: 'now()'",
+      "reason": "`now()` polls every 1000 ms, which is not faster than a minimum of 1000 ms; ign-lint reports every argument-less `now()`."
+    }
+  ]
+}

@@ -10,6 +10,7 @@ use crate::registry::{Registry, RuleMeta};
 use crate::rule::RuleImpl;
 
 pub mod a11y;
+pub mod bind;
 pub mod helpers;
 pub mod perf;
 #[cfg(test)]
@@ -44,6 +45,16 @@ rules![
     view::param_without_direction,
     view::handler_never_receives,
     view::dom_and_action_click,
+    bind::expression_syntax_error,
+    bind::unknown_expression_function,
+    bind::expression_function_arity,
+    bind::polling_interval,
+    bind::unresolved_property_reference,
+    bind::indirect_tag_reference_mismatch,
+    bind::placeholder_in_direct_tag_path,
+    bind::disabled_binding,
+    bind::map_transform_duplicate_input,
+    bind::expression_type_mismatch,
 ];
 
 pub static REGISTRY: Registry = Registry::new(ALL);
