@@ -1,0 +1,372 @@
+{
+  "differences": [
+    {
+      "view": "cases/AllNodeTypes",
+      "variant": "ecd-tight",
+      "rule": "ExcessiveContextDataRule",
+      "message": "custom: Contains 12 sibling properties. Large flat structures should be stored in databases, not view JSON. Maximum recommended: 5 siblings.",
+      "kind": "extra",
+      "reason": "bug 24: ign-lint never measures the breadth of the top-level custom object; iglint does (VIEW006 test top_level_breadth_is_measured)"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[0].BadButton.propConfig.props.enabled: Expression contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[0].ParentButton.propConfig.props.enabled: Property Binding contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[0].ParentProperty.propConfig.props.enabled: Property Binding contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[1].SiblingProperty.propConfig.props.enabled: Property Binding contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[2].MissingProperty.propConfig.props.enabled: Property Binding contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[3].CousinProperty.propConfig.props.enabled: Property Binding contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[4].GrandParentProperty.propConfig.props.enabled: Property Binding contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[0].ParentExpression.propConfig.props.enabled: Expression contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[1].SiblingExpression.propConfig.props.enabled: Expression contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[2].MissingExpression.propConfig.props.enabled: Property Binding contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[3].CousinExpression.propConfig.props.enabled: Expression contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[4].GrandParentExpression.propConfig.props.enabled: Expression contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "propConfig.props.root.children.0.props.text: Expression contains '.getSibling(' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: ign-lint matches substrings in an expression that is not valid Ignition syntax (Python code in an expression binding, reported by BIND001); iglint only reports parsed relative references"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[0].BadButton.propConfig.props.enabled: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[2].ContainerWithBadScript.propConfig.props.children: Expression contains '.getChild(' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: ign-lint matches substrings in an expression that is not valid Ignition syntax (Python code in an expression binding, reported by BIND001); iglint only reports parsed relative references"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[0].ParentButton.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[0].ParentProperty.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[1].SiblingProperty.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[2].MissingProperty.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[3].CousinProperty.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[4].GrandParentProperty.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[0].ParentExpression.propConfig.props.enabled: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[1].SiblingExpression.propConfig.props.enabled: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[2].MissingExpression.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[3].CousinExpression.propConfig.props.enabled: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[4].GrandParentExpression.propConfig.props.enabled: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadContextData",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[1].Table.propConfig.props.columns[2].filter.string.value: Property Binding contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadContextData",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[1].Table.propConfig.props.columns[3].filter.string.value: Property Binding contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadContextData",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[1].Table.propConfig.props.columns[4].filter.string.value: Property Binding contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "cases/BadContextData",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[1].Table.propConfig.props.columns[2].filter.string.value: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadContextData",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[1].Table.propConfig.props.columns[3].filter.string.value: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/BadContextData",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[1].Table.propConfig.props.columns[4].filter.string.value: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/ExtensionFunctions",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[0].AlarmStatusTable.scripts.extensionFunctions[0]: Script contains '.getSibling(' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "ign-lint does not model component extension functions as scripts (like view-level events, bug 1), so it never checks them; iglint does"
+    },
+    {
+      "view": "cases/ExtensionFunctions",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[1].ShelvedAlarmTable.scripts.extensionFunctions[0]: Script contains '.getSibling(' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "ign-lint does not model component extension functions as scripts (like view-level events, bug 1), so it never checks them; iglint does"
+    },
+    {
+      "view": "probes/ReferenceQuirks",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "propConfig.custom.v: Expression contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "probes/ReferenceQuirks",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[3].Deep.propConfig.props.text: Expression contains '../' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "extra",
+      "reason": "bug 18: same finding as ign-lint's, without the spurious `./` match"
+    },
+    {
+      "view": "probes/ReferenceQuirks",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "propConfig.custom.v: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "probes/ReferenceQuirks",
+      "variant": "*",
+      "rule": "BadComponentReferenceRule",
+      "message": "root.root.children[3].Deep.propConfig.props.text: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead.",
+      "kind": "missing",
+      "reason": "bug 18: every `../` also matches the `./` substring in ign-lint; iglint parses the path and reports only `../`"
+    },
+    {
+      "view": "cases/ExpressionBindings",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "custom.test: custom property 'test' is defined but never referenced",
+      "kind": "missing",
+      "reason": "a property with a change script (`onChange`) is never unused in iglint: the script runs on every change; ign-lint ignores change scripts when crediting"
+    },
+    {
+      "view": "cases/ExpressionBindings",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "params.outputWithoutBinding: view parameter 'outputWithoutBinding' is defined but never referenced",
+      "kind": "missing",
+      "reason": "output parameters are written by the view and read by its caller; iglint leaves them to VIEW019 output-param-never-written"
+    },
+    {
+      "view": "probes/UnusedQuirks",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "params.outParam: view parameter 'outParam' is defined but never referenced",
+      "kind": "missing",
+      "reason": "output parameters are written by the view and read by its caller; iglint leaves them to VIEW019 output-param-never-written"
+    },
+    {
+      "view": "probes/ScriptLines",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "root.root.children.Btn.custom.watched: custom property 'watched' is defined but never referenced",
+      "kind": "missing",
+      "reason": "a property with a change script (`onChange`) is never unused in iglint: the script runs on every change"
+    },
+    {
+      "view": "probes/ScriptLines",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "root.root.children.Btn.propConfig.custom.watched: custom property 'watched' is defined but never referenced",
+      "kind": "missing",
+      "reason": "bug 23: ign-lint turns component propConfig leaves into a bogus definition"
+    },
+    {
+      "view": "probes/UnusedQuirks",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "custom.foo: custom property 'foo' is defined but never referenced",
+      "kind": "extra",
+      "reason": "bug 21: ign-lint credits `foo` because `{view.custom.foobar}` contains it as a substring; iglint resolves references exactly"
+    },
+    {
+      "view": "probes/UnusedQuirks",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "root.root.children.Card.custom.beta: custom property 'beta' is defined but never referenced",
+      "kind": "extra",
+      "reason": "bug 21: `{this.custom.beta}` on another component credits every component's `beta` in ign-lint; iglint resolves `this` to the binding's own component"
+    }
+  ]
+}

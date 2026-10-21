@@ -77,6 +77,12 @@ rules![
     tag::alarm_bind_type,
     tag::tag_change_paths,
     tag::invalid_cron,
+    view::excessive_context_data,
+    view::property_access,
+    view::property_persistence,
+    view::unused_custom_property,
+    view::fragile_component_reference,
+    view::output_param_never_written,
 ];
 
 pub static REGISTRY: Registry = Registry::new(ALL);
