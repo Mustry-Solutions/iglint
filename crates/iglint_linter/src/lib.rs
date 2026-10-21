@@ -3,14 +3,18 @@
 pub mod analyze;
 pub mod baseline;
 mod cache;
+pub mod checker;
 pub mod diagnostic;
 pub mod discovery;
 pub mod engine;
 mod fix;
+pub mod options;
 pub mod registry;
+pub mod rule;
 pub mod rules;
 pub mod settings;
 pub mod suggest;
+pub mod suppression;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 

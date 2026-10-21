@@ -49,8 +49,8 @@ impl FixMode {
     }
 }
 
-/// Lints one file. The default is [`crate::analyze::analyze_file`]; tests
-/// and tools can substitute their own.
+/// Lints one file in isolation. Tests and tools can substitute this for the
+/// project pipeline ([`crate::analyze`]) through [`CheckOptions::analyzer`].
 pub type Analyzer =
     Arc<dyn Fn(&SourceFile, FileKind, &LinterSettings) -> Vec<Diagnostic> + Send + Sync>;
 
@@ -69,7 +69,8 @@ pub struct CheckOptions {
     /// Lint this text as if it were the file at this path, instead of
     /// discovering files. Fixed text is returned, never written.
     pub stdin: Option<(PathBuf, String)>,
-    pub analyzer: Analyzer,
+    /// Replaces the project pipeline with a per-file analyzer (tests).
+    pub analyzer: Option<Analyzer>,
 }
 
 impl Default for CheckOptions {
@@ -81,7 +82,7 @@ impl Default for CheckOptions {
             threads: None,
             cache_dir: None,
             stdin: None,
-            analyzer: Arc::new(crate::analyze::analyze_file),
+            analyzer: None,
         }
     }
 }
@@ -233,27 +234,41 @@ pub fn check(settings: &ProjectSettings, paths: &[PathBuf], options: &CheckOptio
     result.timings.cache = cache_start.elapsed();
 
     let analysis_start = Instant::now();
-    let run = || {
-        files
-            .par_iter()
-            .map(|(path, kind, text)| {
-                lint_one(
-                    settings,
-                    options,
-                    cache.as_ref(),
-                    path,
-                    *kind,
-                    text.as_deref(),
-                )
-            })
-            .collect::<Vec<_>>()
-    };
-    let outcomes = match options.threads {
-        Some(threads) => match rayon::ThreadPoolBuilder::new().num_threads(threads).build() {
-            Ok(pool) => pool.install(run),
-            Err(_) => run(),
-        },
-        None => run(),
+    let outcomes = match &options.analyzer {
+        Some(analyzer) => {
+            let run = || {
+                files
+                    .par_iter()
+                    .map(|(path, kind, text)| {
+                        lint_one(
+                            settings,
+                            options,
+                            analyzer,
+                            cache.as_ref(),
+                            path,
+                            *kind,
+                            text.as_deref(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            in_pool(options.threads, run)
+        }
+        None => {
+            let targets: Vec<crate::analyze::Target> = files
+                .iter()
+                .map(|(path, kind, text)| crate::analyze::Target {
+                    path: path.clone(),
+                    kind: *kind,
+                    stdin: text.as_deref().map(Arc::from),
+                    settings: settings.for_file(path),
+                })
+                .collect();
+            let run = || crate::analyze::analyze(settings, paths, targets, options, cache.as_ref());
+            let analysis = in_pool(options.threads, run);
+            result.errors.extend(analysis.errors);
+            analysis.outcomes
+        }
     };
     result.timings.analysis = analysis_start.elapsed();
 
@@ -295,16 +310,28 @@ pub fn check(settings: &ProjectSettings, paths: &[PathBuf], options: &CheckOptio
     result
 }
 
-struct Outcome {
-    checked: CheckedFile,
-    diagnostics: Vec<Diagnostic>,
-    fix: Option<FixSummary>,
-    cache_entry: Option<crate::cache::Entry>,
+fn in_pool<T: Send>(threads: Option<usize>, run: impl FnOnce() -> T + Send) -> T {
+    match threads {
+        Some(threads) => match rayon::ThreadPoolBuilder::new().num_threads(threads).build() {
+            Ok(pool) => pool.install(run),
+            Err(_) => run(),
+        },
+        None => run(),
+    }
+}
+
+/// What linting one file produced.
+pub(crate) struct Outcome {
+    pub checked: CheckedFile,
+    pub diagnostics: Vec<Diagnostic>,
+    pub fix: Option<FixSummary>,
+    pub cache_entry: Option<crate::cache::Entry>,
 }
 
 fn lint_one(
     settings: &ProjectSettings,
     options: &CheckOptions,
+    analyzer: &Analyzer,
     cache: Option<&Cache>,
     path: &Path,
     kind: FileKind,
@@ -336,80 +363,28 @@ fn lint_one(
     let analysis_start = Instant::now();
     let source = SourceFile::new(path, Arc::clone(&text));
 
-    let cached = cache.and_then(|c| c.get(path, kind, &file_settings, &source));
+    let cached = cache.and_then(|c| c.get(path, kind, &file_settings, &source, 0));
     let from_cache = cached.is_some();
-    let mut diagnostics = match cached {
+    let diagnostics = match cached {
         Some(diagnostics) => diagnostics,
-        None => (options.analyzer)(&source, kind, &file_settings),
+        None => analyzer(&source, kind, &file_settings),
     };
     let cache_entry = match (cache, from_cache) {
-        (Some(c), false) => c.entry(path, kind, &file_settings, &source, &diagnostics),
+        (Some(c), false) => c.entry(path, kind, &file_settings, &source, 0, &diagnostics),
         _ => None,
     };
-
-    let mut fix_summary = None;
-    if options.fix_mode.is_fixing() {
-        let unsafe_fixes = options.fix_mode.unsafe_fixes();
-        let wanted = |d: &Diagnostic| -> Result<(), String> {
-            let fix = d.fix.as_ref().expect("only called for fixes");
-            if settings.unfixable.contains(&d.rule) {
-                return Err("the rule is marked unfixable".to_owned());
-            }
-            if let Some(rules) = &options.fix_rules
-                && !rules.contains(&d.rule)
-            {
-                return Err("filtered by the selected fix rules".to_owned());
-            }
-            if !fix::applicability_allowed(fix.applicability, unsafe_fixes) {
-                return Err(match fix.applicability {
-                    crate::diagnostic::Applicability::Unsafe => {
-                        "unsafe fix (use --unsafe-fixes)".to_owned()
-                    }
-                    _ => "the fix is only a suggestion".to_owned(),
-                });
-            }
-            Ok(())
-        };
-        let mut applied = Vec::new();
-        let mut current = String::from(&*text);
-        let mut skipped = Vec::new();
-        for pass in 0..options.max_fix_passes.max(1) {
-            let mut pass_skipped = Vec::new();
-            let Some(next) = fix::apply_pass(
-                path,
-                &current,
-                &diagnostics,
-                &wanted,
-                &mut applied,
-                &mut pass_skipped,
-            ) else {
-                skipped = pass_skipped;
-                break;
-            };
-            current = next;
-            let fixed_source = SourceFile::new(path, current.as_str());
-            diagnostics = (options.analyzer)(&fixed_source, kind, &file_settings);
-            if pass + 1 == options.max_fix_passes.max(1) {
-                skipped = pass_skipped;
-            }
-        }
-        let mut written = false;
-        if options.fix_mode.writes() && stdin.is_none() && *current != *text {
-            write_atomically(path, &current).map_err(|error| FileError {
-                path: path.to_path_buf(),
-                message: format!("failed to write fixes: {error}"),
-            })?;
-            written = true;
-        }
-        fix_summary = Some(FixSummary {
-            path: path.to_path_buf(),
-            applied,
-            skipped,
-            original: Arc::clone(&text),
-            fixed: current,
-            written,
-        });
-    }
+    let reanalyze = |text: &str| {
+        let fixed_source = SourceFile::new(path, text);
+        analyzer(&fixed_source, kind, &file_settings)
+    };
+    let (fix_summary, diagnostics) = fix_file(
+        settings,
+        options,
+        path,
+        &text,
+        diagnostics,
+        &reanalyze,
+    )?;
 
     Ok(Outcome {
         checked: CheckedFile {
@@ -423,6 +398,84 @@ fn lint_one(
         fix: fix_summary,
         cache_entry,
     })
+}
+
+/// Applies fixes to one file in passes, re-analysing after each pass with
+/// `reanalyze`, and writes the result when the fix mode says so. Returns
+/// the summary (in fix mode) and the remaining findings.
+pub(crate) fn fix_file(
+    settings: &ProjectSettings,
+    options: &CheckOptions,
+    path: &Path,
+    text: &Arc<str>,
+    mut diagnostics: Vec<Diagnostic>,
+    reanalyze: &dyn Fn(&str) -> Vec<Diagnostic>,
+) -> Result<(Option<FixSummary>, Vec<Diagnostic>), FileError> {
+    if !options.fix_mode.is_fixing() {
+        return Ok((None, diagnostics));
+    }
+    let unsafe_fixes = options.fix_mode.unsafe_fixes();
+    let wanted = |d: &Diagnostic| -> Result<(), String> {
+        let fix = d.fix.as_ref().expect("only called for fixes");
+        if settings.unfixable.contains(&d.rule) {
+            return Err("the rule is marked unfixable".to_owned());
+        }
+        if let Some(rules) = &options.fix_rules
+            && !rules.contains(&d.rule)
+        {
+            return Err("filtered by the selected fix rules".to_owned());
+        }
+        if !fix::applicability_allowed(fix.applicability, unsafe_fixes) {
+            return Err(match fix.applicability {
+                crate::diagnostic::Applicability::Unsafe => {
+                    "unsafe fix (use --unsafe-fixes)".to_owned()
+                }
+                _ => "the fix is only a suggestion".to_owned(),
+            });
+        }
+        Ok(())
+    };
+    let mut applied = Vec::new();
+    let mut current = String::from(&**text);
+    let mut skipped = Vec::new();
+    for pass in 0..options.max_fix_passes.max(1) {
+        let mut pass_skipped = Vec::new();
+        let Some(next) = fix::apply_pass(
+            path,
+            &current,
+            &diagnostics,
+            &wanted,
+            &mut applied,
+            &mut pass_skipped,
+        ) else {
+            skipped = pass_skipped;
+            break;
+        };
+        current = next;
+        diagnostics = reanalyze(&current);
+        if pass + 1 == options.max_fix_passes.max(1) {
+            skipped = pass_skipped;
+        }
+    }
+    let mut written = false;
+    if options.fix_mode.writes() && options.stdin.is_none() && *current != **text {
+        write_atomically(path, &current).map_err(|error| FileError {
+            path: path.to_path_buf(),
+            message: format!("failed to write fixes: {error}"),
+        })?;
+        written = true;
+    }
+    Ok((
+        Some(FixSummary {
+            path: path.to_path_buf(),
+            applied,
+            skipped,
+            original: Arc::clone(text),
+            fixed: current,
+            written,
+        }),
+        diagnostics,
+    ))
 }
 
 /// Writes `text` to a temporary file next to `path` and renames it over

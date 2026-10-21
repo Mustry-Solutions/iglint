@@ -428,8 +428,10 @@ impl<'a> ScriptFile<'a> {
     }
 }
 
-/// A library module script (`code.py`), parsed as written.
-pub(crate) fn library_script<'a>(text: &'a str, node_path: String) -> EmbeddedScript<'a> {
+/// A Python file as written, modelled as a library-style module script
+/// (no generated header). Used for project library modules and for Python
+/// files outside any resource.
+pub fn library_script<'a>(text: &'a str, node_path: String) -> EmbeddedScript<'a> {
     EmbeddedScript {
         kind: ScriptKind::LibraryModule,
         function_name: Cow::Borrowed(""),

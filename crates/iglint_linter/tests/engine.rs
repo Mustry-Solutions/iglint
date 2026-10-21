@@ -43,7 +43,7 @@ fn settings(root: &Path) -> ProjectSettings {
 fn options(fix_mode: FixMode) -> CheckOptions {
     CheckOptions {
         fix_mode,
-        analyzer: testing::analyzer(),
+        analyzer: Some(testing::analyzer()),
         ..CheckOptions::default()
     }
 }

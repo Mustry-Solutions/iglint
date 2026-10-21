@@ -253,7 +253,7 @@ pub fn run(
         ..CheckOptions::default()
     };
     if let Some(analyzer) = &environment.analyzer {
-        options.analyzer = analyzer.clone();
+        options.analyzer = Some(analyzer.clone());
     }
     let result = engine::check(settings, &paths, &options);
 

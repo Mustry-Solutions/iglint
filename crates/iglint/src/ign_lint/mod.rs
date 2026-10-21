@@ -498,7 +498,7 @@ fn run_inner(
                 ..CheckOptions::default()
             };
             if let Some(analyzer) = &environment.analyzer {
-                check_options.analyzer = analyzer.clone();
+                check_options.analyzer = Some(analyzer.clone());
             }
             engine::check(&rules.compat.settings, &paths, &check_options)
         }

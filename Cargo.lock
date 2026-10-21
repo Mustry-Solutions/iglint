@@ -431,13 +431,20 @@ dependencies = [
 name = "iglint_linter"
 version = "0.1.0"
 dependencies = [
+ "iglint_expression",
+ "iglint_json",
  "iglint_linter",
+ "iglint_project",
+ "iglint_stubs",
  "iglint_text",
  "ignore",
  "rayon",
+ "regex",
+ "rustc-hash",
  "serde",
  "serde_json",
  "tempfile",
+ "toml",
 ]
 
 [[package]]

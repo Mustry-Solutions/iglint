@@ -172,6 +172,12 @@ pub struct Diagnostic {
     /// Logical location inside a resource, e.g. `root/Header/Title.props.text`
     /// for views, or a script's qualified function name.
     pub node_path: Option<String>,
+    /// The node path in ign-lint's format, for rules with an ign-lint
+    /// equivalent (`iglint ign-lint` prints it instead of `node_path`).
+    pub ign_lint_path: Option<String>,
+    /// ign-lint's wording of the finding, when the rule reproduces it
+    /// (`iglint ign-lint` prints it instead of `message`).
+    pub ign_lint_message: Option<String>,
     pub labels: Vec<Label>,
     pub fix: Option<Fix>,
     /// Text that identifies the finding independently of its line, used for
@@ -195,6 +201,8 @@ impl Diagnostic {
             file,
             range,
             node_path: None,
+            ign_lint_path: None,
+            ign_lint_message: None,
             labels: Vec::new(),
             fix: None,
             fingerprint_key: None,

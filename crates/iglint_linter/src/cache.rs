@@ -44,6 +44,10 @@ struct CachedDiagnostic {
     node_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     fingerprint_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ign_lint_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ign_lint_message: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     labels: Vec<(u32, u32, String)>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -87,9 +91,10 @@ impl Cache {
         path.to_string_lossy().into_owned()
     }
 
-    fn hash(kind: FileKind, settings: &LinterSettings, file: &SourceFile) -> String {
+    fn hash(kind: FileKind, settings: &LinterSettings, file: &SourceFile, context: u64) -> String {
         let mut hasher = Fnv64::default();
         hasher.write(env!("CARGO_PKG_VERSION").as_bytes());
+        hasher.write(&context.to_le_bytes());
         hasher.write(kind.as_str().as_bytes());
         hasher.write(format!("{settings:?}").as_bytes());
         hasher.write(&(file.text().len() as u64).to_le_bytes());
@@ -103,9 +108,10 @@ impl Cache {
         kind: FileKind,
         settings: &LinterSettings,
         file: &SourceFile,
+        context: u64,
     ) -> Option<Vec<Diagnostic>> {
         let entry = self.entries.get(&Self::key(path))?;
-        if entry.hash != Self::hash(kind, settings, file) {
+        if entry.hash != Self::hash(kind, settings, file, context) {
             return None;
         }
         entry
@@ -121,6 +127,7 @@ impl Cache {
         kind: FileKind,
         settings: &LinterSettings,
         file: &SourceFile,
+        context: u64,
         diagnostics: &[Diagnostic],
     ) -> Option<Entry> {
         let diagnostics = diagnostics
@@ -129,7 +136,7 @@ impl Cache {
             .collect::<Option<Vec<_>>>()?;
         Some(Entry {
             path: Self::key(path),
-            hash: Self::hash(kind, settings, file),
+            hash: Self::hash(kind, settings, file, context),
             diagnostics,
         })
     }
@@ -206,6 +213,8 @@ fn store(d: &Diagnostic, file: &SourceFile) -> Option<CachedDiagnostic> {
         range: range(d.range),
         node_path: d.node_path.clone(),
         fingerprint_key: d.fingerprint_key.clone(),
+        ign_lint_path: d.ign_lint_path.clone(),
+        ign_lint_message: d.ign_lint_message.clone(),
         labels: d
             .labels
             .iter()
@@ -238,6 +247,8 @@ fn restore(
     );
     diagnostic.node_path = d.node_path.clone();
     diagnostic.fingerprint_key = d.fingerprint_key.clone();
+    diagnostic.ign_lint_path = d.ign_lint_path.clone();
+    diagnostic.ign_lint_message = d.ign_lint_message.clone();
     for (start, end, message) in &d.labels {
         diagnostic.labels.push(Label {
             file: file.clone(),

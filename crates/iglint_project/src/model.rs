@@ -147,7 +147,29 @@ impl<'a> ResourceModel<'a> {
     /// event files this is the runtime form ([`ScriptFile::runtime`]),
     /// which maps back to the file exactly.
     pub fn scripts(&self) -> Vec<(FileId, &EmbeddedScript<'a>)> {
-        match &self.data {
+        self.data.scripts()
+    }
+
+    /// Every expression of the resource with the file it lives in.
+    pub fn expressions(&self) -> Vec<(FileId, &EmbeddedExpression<'a>)> {
+        self.data.expressions()
+    }
+
+    /// Structural problems found while modelling.
+    pub fn problems(&self) -> &[ModelProblem] {
+        self.data.problems()
+    }
+
+    /// The view, for view resources.
+    pub fn view(&self) -> Option<&View<'a>> {
+        self.data.view()
+    }
+}
+
+impl<'a> ModelData<'a> {
+    /// Every script with the file it lives in (see [`ResourceModel::scripts`]).
+    pub fn scripts(&self) -> Vec<(FileId, &EmbeddedScript<'a>)> {
+        match self {
             ModelData::View { file, view } => view.scripts.iter().map(|s| (*file, s)).collect(),
             ModelData::SessionProps { file, props } => {
                 props.scripts.iter().map(|s| (*file, s)).collect()
@@ -175,9 +197,9 @@ impl<'a> ResourceModel<'a> {
         }
     }
 
-    /// Every expression of the resource with the file it lives in.
+    /// Every expression with the file it lives in.
     pub fn expressions(&self) -> Vec<(FileId, &EmbeddedExpression<'a>)> {
-        match &self.data {
+        match self {
             ModelData::View { file, view } => view.expressions.iter().map(|e| (*file, e)).collect(),
             ModelData::SessionProps { file, props } => {
                 props.expressions.iter().map(|e| (*file, e)).collect()
@@ -199,7 +221,7 @@ impl<'a> ResourceModel<'a> {
 
     /// Structural problems found while modelling.
     pub fn problems(&self) -> &[ModelProblem] {
-        match &self.data {
+        match self {
             ModelData::View { view, .. } => &view.problems,
             ModelData::SessionProps { props, .. } => &props.problems,
             ModelData::StyleClass(s) => &s.problems,
@@ -211,7 +233,7 @@ impl<'a> ResourceModel<'a> {
 
     /// The view, for view resources.
     pub fn view(&self) -> Option<&View<'a>> {
-        match &self.data {
+        match self {
             ModelData::View { view, .. } => Some(view),
             _ => None,
         }

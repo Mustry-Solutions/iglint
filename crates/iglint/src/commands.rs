@@ -359,7 +359,7 @@ pub fn migrate(args: &MigrateArgs, environment: &Environment, io: &mut Io<'_>) -
         let missing = whitelist.len() - files.len();
         let mut check_options = CheckOptions::default();
         if let Some(analyzer) = &environment.analyzer {
-            check_options.analyzer = Arc::clone(analyzer);
+            check_options.analyzer = Some(Arc::clone(analyzer));
         }
         let result = engine::check(&configuration.settings, &files, &check_options);
         let baseline = Baseline::from_diagnostics(&configuration.settings, &result.diagnostics);
