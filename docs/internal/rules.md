@@ -200,7 +200,7 @@ Jython builtins).
 |---|---|---|---|---|---|
 | TAG001 | unknown-udt-type | E | yes | - | `typeId` does not resolve to a UDT definition; inheritance cycles. |
 | TAG002 | undefined-udt-parameter | E | yes | - | `{Param}` in a UDT member that is not a parameter. |
-| TAG003 | unknown-tag-path | E | yes | - | Static tag path (bindings, scripts with literal paths, tag change scripts, expressions) to a provider whose tags are in the linted tree, where the tag does not exist. |
+| TAG003 | unknown-tag-path | E | no | - | Static tag path (bindings, scripts with literal paths, tag change scripts, expressions) to a provider whose tags are in the linted tree, where the tag does not exist. Opt-in: scripts create tags at run time and one repository may hold several gateways with same-named providers. |
 | TAG004 | unknown-history-provider | W | yes | - | `historyProvider` not configured on the gateway. |
 | TAG005 | invalid-alarm-bind-type | E | yes | - | Alarm property bound with `parameter` or another type alarms reject. |
 | TAG006 | tag-change-script-paths | E | yes | - | Gateway tag change script with no paths or invalid tag path syntax. |
