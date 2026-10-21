@@ -1183,8 +1183,13 @@ impl Parser<'_> {
         if !self.starts_test() {
             return Err(self.invalid_syntax());
         }
-        let lower = self.test()?.expr;
-        if self.eat(TokenKind::Colon).is_some() {
+        // Syntactic predicate `(test COLON)=>`.
+        let (lower, colon) = self.region(|parser| {
+            let lower = parser.test()?.expr;
+            let colon = parser.eat(TokenKind::Colon).is_some();
+            Ok((lower, colon))
+        })?;
+        if colon {
             return self.slice_rest(start, Some(lower));
         }
         Ok(Slice::Index(SliceIndex {
@@ -1228,16 +1233,40 @@ impl Parser<'_> {
 
     /// `testlist: test (',' test)* [',']`
     pub(super) fn testlist(&mut self) -> PResult<Operand> {
-        let first = self.test()?;
-        if !self.at(TokenKind::Comma) {
+        // Jython's predicate `(test COMMA)=>` scans the first element and a
+        // comma.
+        let (first, comma) = self.region(|parser| {
+            let first = parser.test()?;
+            let comma = parser.eat(TokenKind::Comma).is_some();
+            Ok((first, comma))
+        })?;
+        if !comma {
             return Ok(first);
         }
+        // Jython decides this loop with a DFA that also validates what
+        // follows: a token that can neither continue the tuple nor follow a
+        // `testlist` is an error right there.
         let mut elts = vec![first.expr];
-        while self.at(TokenKind::Comma) && starts_test_loosely(self.peek_kind(2)) {
-            self.bump();
+        loop {
+            // After a comma.
+            let kind = self.kind();
+            if !starts_test_loosely(kind) {
+                if kind == TokenKind::Comma || follows_testlist(kind) {
+                    break;
+                }
+                return Err(self.invalid_syntax());
+            }
             elts.push(self.test()?.expr);
+            // After an element.
+            let kind = self.kind();
+            if kind == TokenKind::Comma {
+                self.bump();
+            } else if follows_testlist(kind) {
+                break;
+            } else {
+                return Err(self.invalid_syntax());
+            }
         }
-        self.eat(TokenKind::Comma);
         Ok(Operand {
             expr: Expr::Tuple(ExprTuple {
                 range: self.range_from(first.start),
@@ -1270,16 +1299,23 @@ impl Parser<'_> {
 
     /// `exprlist: expr (',' expr)* [',']`, in the `Load` context.
     pub(super) fn exprlist(&mut self) -> PResult<Expr> {
-        let first = self.expr()?;
-        if !self.at(TokenKind::Comma) {
+        // Jython's predicate `(expr COMMA)=>` scans the first element and a
+        // comma.
+        let (first, comma) = self.region(|parser| {
+            let first = parser.expr()?;
+            let comma = parser.eat(TokenKind::Comma).is_some();
+            Ok((first, comma))
+        })?;
+        if !comma {
             return Ok(first.expr);
         }
         let mut elts = vec![first.expr];
-        while self.at(TokenKind::Comma) && starts_expr_loosely(self.peek_kind(2)) {
-            self.bump();
+        while starts_expr_loosely(self.kind()) {
             elts.push(self.expr()?.expr);
+            if self.eat(TokenKind::Comma).is_none() {
+                break;
+            }
         }
-        self.eat(TokenKind::Comma);
         Ok(Expr::Tuple(ExprTuple {
             range: self.range_from(first.start),
             anchor: first.first,
@@ -1338,6 +1374,35 @@ pub(super) struct ArgList {
     pub(super) keywords: Vec<(Expr, Expr)>,
     pub(super) starargs: Option<Box<Expr>>,
     pub(super) kwargs: Option<Box<Expr>>,
+}
+
+/// What may follow a `testlist` (the exit set of Jython's DFA for the
+/// tuple loop in `testlist`).
+fn follows_testlist(kind: TokenKind) -> bool {
+    use TokenKind::*;
+    matches!(
+        kind,
+        AmperEqual
+            | Equal
+            | CircumflexEqual
+            | Colon
+            | DoubleSlashEqual
+            | DoubleStarEqual
+            | For
+            | If
+            | LeftShiftEqual
+            | MinusEqual
+            | Newline
+            | PercentEqual
+            | PlusEqual
+            | Rsqb
+            | RightShiftEqual
+            | Rpar
+            | Semi
+            | SlashEqual
+            | StarEqual
+            | VbarEqual
+    )
 }
 
 /// Second-token set of the `exprlist` loop.

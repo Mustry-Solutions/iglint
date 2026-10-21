@@ -23,6 +23,7 @@ const KIND_STRING_END: u32 = 1;
 const KIND_SYNTHETIC: u32 = 2;
 const KIND_UNPOSITIONED: u32 = 3;
 const KIND_LOW_SURROGATE: u32 = 4;
+const KIND_STRING_TOKEN: u32 = 5;
 
 /// What an [`Anchor`] points at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -42,6 +43,10 @@ pub enum AnchorKind {
     /// The second UTF-16 code unit of the character (outside the BMP) at
     /// this byte offset.
     LowSurrogate(TextSize),
+    /// A multi-line string token itself (rather than a node anchored at
+    /// it), as in a syntax error at that token: the line of this byte offset
+    /// and column -2.
+    MultilineStringToken(TextSize),
 }
 
 impl Anchor {
@@ -75,6 +80,18 @@ impl Anchor {
         Anchor((KIND_LOW_SURROGATE << KIND_SHIFT) | offset.to_u32().min(OFFSET_MASK))
     }
 
+    /// The anchor for reporting an error at the token anchored here. Only
+    /// multi-line string tokens differ: Jython reports column -2 for them.
+    #[inline]
+    pub fn as_token(self) -> Self {
+        match self.kind() {
+            AnchorKind::MultilineString(end) => {
+                Anchor((KIND_STRING_TOKEN << KIND_SHIFT) | end.to_u32().min(OFFSET_MASK))
+            }
+            _ => self,
+        }
+    }
+
     #[inline]
     pub fn kind(self) -> AnchorKind {
         let offset = TextSize::new(self.0 & OFFSET_MASK);
@@ -83,7 +100,8 @@ impl Anchor {
             KIND_STRING_END => AnchorKind::MultilineString(offset),
             KIND_SYNTHETIC => AnchorKind::Synthetic,
             KIND_UNPOSITIONED => AnchorKind::Unpositioned,
-            _ => AnchorKind::LowSurrogate(offset),
+            KIND_LOW_SURROGATE => AnchorKind::LowSurrogate(offset),
+            _ => AnchorKind::MultilineStringToken(offset),
         }
     }
 
@@ -93,7 +111,8 @@ impl Anchor {
         match self.kind() {
             AnchorKind::Offset(offset)
             | AnchorKind::MultilineString(offset)
-            | AnchorKind::LowSurrogate(offset) => Some(offset),
+            | AnchorKind::LowSurrogate(offset)
+            | AnchorKind::MultilineStringToken(offset) => Some(offset),
             AnchorKind::Synthetic | AnchorKind::Unpositioned => None,
         }
     }
@@ -107,6 +126,7 @@ impl std::fmt::Debug for Anchor {
             AnchorKind::Synthetic => write!(f, "@synthetic"),
             AnchorKind::Unpositioned => write!(f, "@unpositioned"),
             AnchorKind::LowSurrogate(offset) => write!(f, "@{offset}+1"),
+            AnchorKind::MultilineStringToken(offset) => write!(f, "@{offset}(multiline token)"),
         }
     }
 }
@@ -202,6 +222,10 @@ impl<'src> Locator<'src> {
                     column: location.column + 1,
                 }
             }
+            AnchorKind::MultilineStringToken(end) => JythonLocation {
+                line: self.location(end).line,
+                column: -2,
+            },
         }
     }
 }

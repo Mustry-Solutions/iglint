@@ -119,10 +119,12 @@ pub(crate) struct Parser<'src> {
     suites: Vec<bool>,
     /// Nesting depth of speculative parses.
     speculating: u32,
+    /// Nesting depth of predicate regions (see [`Parser::region`]).
+    regions: u32,
     /// Current expression nesting (see [`MAX_NESTING`]).
     depth: u32,
-    /// Errors found while speculating, committed when the speculation is
-    /// kept.
+    /// Errors held back while speculating (dropped if the speculation
+    /// fails) or inside a region.
     deferred: Vec<ParseError>,
 }
 
@@ -138,6 +140,7 @@ impl<'src> Parser<'src> {
             encoding: SourceEncoding::Utf8,
             suites: Vec::new(),
             speculating: 0,
+            regions: 0,
             depth: 0,
             deferred: Vec::new(),
         };
@@ -282,9 +285,7 @@ impl<'src> Parser<'src> {
         } else {
             token.range
         };
-        self.stream
-            .errors()
-            .push(ParseError::syntax(message, range, token.anchor));
+        self.record(ParseError::syntax(message, range, token.anchor.as_token()));
         Failure
     }
 
@@ -316,7 +317,42 @@ impl<'src> Parser<'src> {
         if self.speculating > 0 {
             self.deferred.push(error);
         } else {
+            self.record(error);
+        }
+    }
+
+    /// Records an error found by the parser, after the errors of everything
+    /// Jython would have read before it.
+    fn record(&mut self, error: ParseError) {
+        if self.regions > 0 {
+            self.deferred.push(error);
+        } else {
             self.stream.errors().push(error);
+        }
+    }
+
+    /// Parses a construct that Jython guards with a syntactic predicate.
+    ///
+    /// Jython first scans such a construct (and the token after it) without
+    /// running its grammar actions, and then parses it again for real. Its
+    /// grammar actions, and so the errors they raise, therefore come after
+    /// every lexical error in the scanned tokens. This parser parses once and
+    /// holds back its own errors until the outermost region ends; `parse`
+    /// must consume or look at the token that ends Jython's scan.
+    fn region<T>(&mut self, parse: impl FnOnce(&mut Self) -> PResult<T>) -> PResult<T> {
+        self.regions += 1;
+        let result = parse(self);
+        self.regions -= 1;
+        self.flush_deferred();
+        result
+    }
+
+    /// Moves held-back errors to the error list once no region or
+    /// speculation is open.
+    fn flush_deferred(&mut self) {
+        if self.regions == 0 && self.speculating == 0 && !self.deferred.is_empty() {
+            let deferred = std::mem::take(&mut self.deferred);
+            self.stream.errors().extend(deferred);
         }
     }
 
@@ -335,10 +371,7 @@ impl<'src> Parser<'src> {
         self.speculating -= 1;
         match result {
             Ok(value) => {
-                if self.speculating == 0 {
-                    let deferred = std::mem::take(&mut self.deferred);
-                    self.stream.errors().extend(deferred);
-                }
+                self.flush_deferred();
                 Some(value)
             }
             Err(Failure) => {
@@ -356,7 +389,7 @@ impl<'src> Parser<'src> {
         if self.depth >= MAX_NESTING {
             let token = self.lt1();
             if self.speculating == 0 {
-                self.stream.errors().push(ParseError::new(
+                self.record(ParseError::new(
                     ParseErrorKind::InternalError,
                     "expression nested too deeply",
                     token.range,

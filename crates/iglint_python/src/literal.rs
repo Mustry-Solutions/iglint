@@ -163,25 +163,21 @@ pub enum SourceEncoding {
     Ascii,
     /// Windows-1252.
     Cp1252,
+    /// Another charset that Java knows. String literals are treated as
+    /// UTF-8, which only differs for non-ASCII text in plain string literals.
+    Other,
 }
 
 impl SourceEncoding {
-    /// The charset for a PEP 263 encoding name, if supported.
+    /// The charset for the name in an encoding declaration, resolved like
+    /// Jython does; `None` if Jython rejects the name.
     pub fn from_name(name: &str) -> Option<Self> {
-        let normalized = name.to_ascii_lowercase().replace('_', "-");
-        Some(match normalized.as_str() {
-            "utf-8" | "utf8" | "u8" | "utf" => SourceEncoding::Utf8,
-            "latin-1" | "latin1" | "iso-8859-1" | "iso8859-1" | "8859" | "cp819" | "l1"
-            | "iso-latin-1" => SourceEncoding::Latin1,
-            "ascii" | "us-ascii" | "646" => SourceEncoding::Ascii,
-            "cp1252" | "windows-1252" => SourceEncoding::Cp1252,
-            _ => return None,
-        })
+        crate::charsets::lookup(name)
     }
 
     fn encode(self, text: &str, out: &mut Vec<u16>) {
         match self {
-            SourceEncoding::Utf8 => {
+            SourceEncoding::Utf8 | SourceEncoding::Other => {
                 for &byte in text.as_bytes() {
                     out.push(u16::from(byte));
                 }

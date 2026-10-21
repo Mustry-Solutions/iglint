@@ -170,7 +170,7 @@ impl<'src> TokenSource<'src> {
                     self.lexer.column_of(offset)
                 }
             }
-            AnchorKind::MultilineString(_) => -2,
+            AnchorKind::MultilineString(_) | AnchorKind::MultilineStringToken(_) => -2,
             AnchorKind::Synthetic => -1,
             AnchorKind::Unpositioned => 0,
             AnchorKind::LowSurrogate(offset) => self.lexer.column_of(offset.to_usize()) + 1,

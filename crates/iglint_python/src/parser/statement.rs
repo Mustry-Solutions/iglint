@@ -307,10 +307,26 @@ impl Parser<'_> {
 
     /// `expr_stmt`: an expression, an assignment or an augmented assignment.
     fn expression_statement(&mut self) -> PResult<Stmt> {
-        let lhs = self.testlist()?;
-        let kind = self.kind();
-        if let Some(op) = augmented_operator(kind) {
-            self.bump();
+        // Jython's predicates `(testlist augassign)=>` and
+        // `(testlist ASSIGN)=>` scan the left-hand side and the operator.
+        let (lhs, operator) = self.region(|parser| {
+            let lhs = parser.testlist()?;
+            let kind = parser.kind();
+            let operator = if kind == TokenKind::Equal || augmented_operator(kind).is_some() {
+                Some(parser.bump())
+            } else {
+                None
+            };
+            Ok((lhs, operator))
+        })?;
+        let Some(operator) = operator else {
+            return Ok(Stmt::Expr(StmtExpr {
+                range: self.range_from(lhs.start),
+                anchor: lhs.first,
+                value: Box::new(lhs.expr),
+            }));
+        };
+        if let Some(op) = augmented_operator(operator.kind) {
             let value = if self.at(TokenKind::Yield) {
                 self.yield_expr()?
             } else if self.starts_test() {
@@ -331,41 +347,37 @@ impl Parser<'_> {
                 value: Box::new(value),
             }));
         }
-        if kind == TokenKind::Equal {
-            let yields = self.peek_kind(2) == TokenKind::Yield;
-            let lhs_node_anchor = lhs.expr.anchor();
-            let mut parts = vec![lhs.expr];
-            while self.eat(TokenKind::Equal).is_some() {
-                let part = if yields {
-                    self.yield_expr()?
-                } else {
-                    self.testlist()?.expr
-                };
-                parts.push(part);
+        let yields = self.at(TokenKind::Yield);
+        let lhs_node_anchor = lhs.expr.anchor();
+        let mut parts = vec![lhs.expr];
+        loop {
+            let part = if yields {
+                self.yield_expr()?
+            } else {
+                self.testlist()?.expr
+            };
+            parts.push(part);
+            if self.eat(TokenKind::Equal).is_none() {
+                break;
             }
-            let value = parts.pop().expect("an assignment has a value");
-            let mut first_error = None;
-            for target in &mut parts {
-                apply_context(target, ExprContext::Store);
-                if first_error.is_none() {
-                    first_error = check_assign(target);
-                }
-            }
-            if let Some(error) = first_error {
-                self.report(error);
-            }
-            let anchor = if yields { lhs.first } else { lhs_node_anchor };
-            return Ok(Stmt::Assign(StmtAssign {
-                range: self.range_from(lhs.start),
-                anchor,
-                targets: parts,
-                value: Box::new(value),
-            }));
         }
-        Ok(Stmt::Expr(StmtExpr {
+        let value = parts.pop().expect("an assignment has a value");
+        let mut first_error = None;
+        for target in &mut parts {
+            apply_context(target, ExprContext::Store);
+            if first_error.is_none() {
+                first_error = check_assign(target);
+            }
+        }
+        if let Some(error) = first_error {
+            self.report(error);
+        }
+        let anchor = if yields { lhs.first } else { lhs_node_anchor };
+        Ok(Stmt::Assign(StmtAssign {
             range: self.range_from(lhs.start),
-            anchor: lhs.first,
-            value: Box::new(lhs.expr),
+            anchor,
+            targets: parts,
+            value: Box::new(value),
         }))
     }
 
@@ -378,25 +390,45 @@ impl Parser<'_> {
         match self.kind() {
             TokenKind::RightShift => {
                 self.bump();
-                dest = Some(Box::new(self.test()?.expr));
                 // Syntactic predicate `(test COMMA test)=>`: without a
                 // second expression the comma is left for the caller.
-                if self.at(TokenKind::Comma) {
-                    let second = self.speculate(|parser| {
-                        parser.bump();
-                        parser.test()
-                    });
-                    if let Some(second) = second {
-                        values.push(second.expr);
-                        nl = self.print_values(&mut values)?;
-                    }
+                let second = self.region(|parser| {
+                    let dest = parser.test()?.expr;
+                    let second = if parser.at(TokenKind::Comma) {
+                        parser.speculate(|parser| {
+                            parser.bump();
+                            parser.test()
+                        })
+                    } else {
+                        None
+                    };
+                    Ok((dest, second))
+                })?;
+                dest = Some(Box::new(second.0));
+                if let Some(second) = second.1 {
+                    values.push(second.expr);
+                    nl = self.print_values(&mut values)?;
                 }
             }
             TokenKind::Newline | TokenKind::Semi => {}
             _ if self.starts_test() => {
-                values.push(self.test()?.expr);
-                if self.at(TokenKind::Comma) {
-                    nl = self.print_values(&mut values)?;
+                // Syntactic predicate `(test COMMA)=>`.
+                let (first, comma) = self.region(|parser| {
+                    let first = parser.test()?.expr;
+                    let comma = parser.eat(TokenKind::Comma).is_some();
+                    Ok((first, comma))
+                })?;
+                values.push(first);
+                if comma {
+                    nl = false;
+                    while starts_test_loosely(self.kind()) {
+                        values.push(self.test()?.expr);
+                        nl = true;
+                        if self.eat(TokenKind::Comma).is_none() {
+                            break;
+                        }
+                        nl = false;
+                    }
                 }
             }
             _ => return Err(self.invalid_syntax()),
@@ -660,16 +692,23 @@ impl Parser<'_> {
             TokenKind::With => self.with_statement(),
             TokenKind::At => {
                 let start = self.lt1();
-                let decorators = self.decorators()?;
-                match self.kind() {
-                    TokenKind::Def => self.function_definition(&start, decorators),
-                    TokenKind::Class => self.class_definition(&start, decorators),
-                    _ => Err(self.expected("'def' or 'class'")),
+                // Syntactic predicate `(decorators? DEF)=>`.
+                let (decorators, def) = self.region(|parser| {
+                    let decorators = parser.decorators()?;
+                    let def = parser.eat(TokenKind::Def);
+                    Ok((decorators, def))
+                })?;
+                if def.is_some() {
+                    self.function_definition(&start, decorators, true)
+                } else if self.at(TokenKind::Class) {
+                    self.class_definition(&start, decorators)
+                } else {
+                    Err(self.expected("'def' or 'class'"))
                 }
             }
             TokenKind::Def => {
                 let start = self.lt1();
-                self.function_definition(&start, Vec::new())
+                self.function_definition(&start, Vec::new(), false)
             }
             TokenKind::Class => {
                 let start = self.lt1();
@@ -976,8 +1015,15 @@ impl Parser<'_> {
     }
 
     /// `funcdef: [decorators] 'def' NAME parameters ':' suite`
-    fn function_definition(&mut self, start: &Token, decorator_list: Vec<Expr>) -> PResult<Stmt> {
-        self.expect(TokenKind::Def)?;
+    fn function_definition(
+        &mut self,
+        start: &Token,
+        decorator_list: Vec<Expr>,
+        def_consumed: bool,
+    ) -> PResult<Stmt> {
+        if !def_consumed {
+            self.expect(TokenKind::Def)?;
+        }
         let name_token = self.lt1();
         let name_ok = name_token.kind == TokenKind::Name
             || (name_token.kind == TokenKind::Print && self.print_function);
@@ -1144,18 +1190,22 @@ impl Parser<'_> {
                 parameter
             }
             TokenKind::Lpar => {
-                self.bump();
-                let first_token = self.lt1();
-                let first = self.fpdef(ExprContext::Store)?;
-                if self.at(TokenKind::Comma) {
+                // Syntactic predicate `(LPAREN fpdef COMMA)=>`.
+                let (first_token, first, comma) = self.region(|parser| {
+                    parser.bump();
+                    let first_token = parser.lt1();
+                    let first = parser.fpdef(ExprContext::Store)?;
+                    let comma = parser.eat(TokenKind::Comma).is_some();
+                    Ok((first_token, first, comma))
+                })?;
+                if comma {
                     let mut elts = vec![first];
-                    while self.at(TokenKind::Comma)
-                        && matches!(self.peek_kind(2), TokenKind::Name | TokenKind::Lpar)
-                    {
-                        self.bump();
+                    while matches!(self.kind(), TokenKind::Name | TokenKind::Lpar) {
                         elts.push(self.fpdef(ExprContext::Store)?);
+                        if self.eat(TokenKind::Comma).is_none() {
+                            break;
+                        }
                     }
-                    self.eat(TokenKind::Comma);
                     self.expect(TokenKind::Rpar)?;
                     Expr::Tuple(ExprTuple {
                         range: self.range_from(token.range.start()),

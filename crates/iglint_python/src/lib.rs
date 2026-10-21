@@ -19,6 +19,7 @@
 
 pub mod anchor;
 pub mod ast;
+mod charsets;
 pub mod dump;
 pub mod error;
 mod indentation;

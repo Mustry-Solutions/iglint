@@ -1,9 +1,9 @@
 //! A subset of the Unicode character name table, for `\N{...}` escapes.
 //!
 //! Covers ASCII, Latin, Greek, Cyrillic, punctuation, currency, letterlike
-//! symbols, arrows, mathematical operators, box drawing and common symbols.
-//! Escapes naming other characters are kept as written. Generated with
-//! Python's `unicodedata`.
+//! symbols, arrows, mathematical operators, box drawing and common symbols,
+//! restricted to the names IA's Jython resolves. Escapes naming other
+//! characters are kept as written.
 
 /// Looks up a character by its Unicode name (case-insensitive, as Jython).
 pub(crate) fn lookup(name: &str) -> Option<char> {
@@ -1886,7 +1886,6 @@ static NAMES: &[(&str, u32)] = &[
     ("NUMBER TWELVE FULL STOP", 0x2493),
     ("NUMBER TWENTY FULL STOP", 0x249B),
     ("NUMERO SIGN", 0x2116),
-    ("OBSERVER EYE SYMBOL", 0x23FF),
     ("OHM SIGN", 0x2126),
     ("ONE DOT LEADER", 0x2024),
     ("OPEN CENTRE ASTERISK", 0x2732),
