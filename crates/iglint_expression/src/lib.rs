@@ -97,7 +97,9 @@
 //! Docker image) on about 90,000 random expressions, 20,000 random
 //! property paths and 60,000 random tag paths, with no differences in
 //! acceptance or tree shape, and with the first error on the same token in
-//! all of the 51,000 rejected expressions.
+//! all of the 51,000 rejected expressions. The harness is in
+//! `oracle/expression/`; `tests/oracle.rs` replays a recorded fixed-seed
+//! set without Docker.
 
 mod ast;
 mod lexer;
