@@ -742,10 +742,20 @@ fn prepare(cwd: &Path, display: String) -> Prepared {
 }
 
 /// The ign-lint line of a finding.
+/// `{node path}: {message}`, in ign-lint's wording when the rule provides
+/// it.
 fn message_line(diagnostic: &Diagnostic) -> String {
-    match &diagnostic.node_path {
-        Some(path) => format!("{path}: {}", diagnostic.message),
-        None => diagnostic.message.clone(),
+    let path = diagnostic
+        .ign_lint_path
+        .as_ref()
+        .or(diagnostic.node_path.as_ref());
+    let message = diagnostic
+        .ign_lint_message
+        .as_ref()
+        .unwrap_or(&diagnostic.message);
+    match path {
+        Some(path) => format!("{path}: {message}"),
+        None => message.clone(),
     }
 }
 
