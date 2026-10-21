@@ -1,0 +1,50 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.unusedThing",
+    "message": "custom.unusedThing: custom property 'unusedThing' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.list",
+    "message": "custom.list: custom property 'list' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.inParam",
+    "message": "params.inParam: view parameter 'inParam' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.outParam",
+    "message": "params.outParam: view parameter 'outParam' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.Card.custom.alpha",
+    "message": "root.root.children.Card.custom.alpha: custom property 'alpha' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.Card.children.Inner.custom.alpha",
+    "message": "root.root.children.Card.children.Inner.custom.alpha: custom property 'alpha' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.Card.children.Inner.custom.gamma",
+    "message": "root.root.children.Card.children.Inner.custom.gamma: custom property 'gamma' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.Card.custom.delta",
+    "message": "root.root.children.Card.custom.delta: custom property 'delta' is defined but never referenced"
+  }
+]

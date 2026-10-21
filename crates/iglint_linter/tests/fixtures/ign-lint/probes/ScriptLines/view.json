@@ -1,0 +1,167 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {},
+  "root": {
+    "type": "ia.container.flex",
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "children": [
+      {
+        "type": "ia.input.button",
+        "meta": {
+          "name": "Btn"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "type": "script",
+              "scope": "G",
+              "config": {
+                "script": "\tx = 1\n\ty = undefinedName"
+              }
+            }
+          }
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "1"
+              },
+              "transforms": [
+                {
+                  "type": "script",
+                  "code": "\treturn quality"
+                }
+              ]
+            }
+          },
+          "custom.watched": {
+            "onChange": {
+              "enabled": null,
+              "script": "\tprint(missedEvents, nope)"
+            }
+          }
+        },
+        "custom": {
+          "watched": 1
+        },
+        "scripts": {
+          "customMethods": [
+            {
+              "name": "doThing",
+              "params": [
+                "a",
+                "b"
+              ],
+              "script": "\treturn a + c"
+            }
+          ],
+          "messageHandlers": [
+            {
+              "messageType": "refresh-all",
+              "pageScope": true,
+              "sessionScope": false,
+              "viewScope": false,
+              "script": "\tpayload['x'] = undefinedThing"
+            }
+          ]
+        }
+      },
+      {
+        "type": "ia.input.button",
+        "meta": {
+          "name": "Unindented"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "type": "script",
+              "scope": "G",
+              "config": {
+                "script": "x = 1\nreturn x"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.input.button",
+        "meta": {
+          "name": "Mixed"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "type": "script",
+              "scope": "G",
+              "config": {
+                "script": "\tif True:\n\t    y = 1\n\tz = 2"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.input.button",
+        "meta": {
+          "name": "CommentFirst"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "type": "script",
+              "scope": "G",
+              "config": {
+                "script": "# note\n\tq = undefinedQ"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.input.button",
+        "meta": {
+          "name": "Empty"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "type": "script",
+              "scope": "G",
+              "config": {
+                "script": ""
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

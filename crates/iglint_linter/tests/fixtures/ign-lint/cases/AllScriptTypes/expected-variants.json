@@ -1,0 +1,984 @@
+{
+  "default": {
+    "findings": [
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+        "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Line 3: Variable name \"BAD_UPPER\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+        "code": "C0103",
+        "line": 3
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+        "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Line 4: Variable name \"BaD_MIXED\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+        "code": "C0103",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+        "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Line 6: Variable name \"badCamel\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+        "code": "C0103",
+        "line": 6
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+        "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Line 5: Unused variable 'temp_var' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 5
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "propConfig.custom.bad.binding.transforms[0]",
+        "message": "propConfig.custom.bad.binding.transforms[0]: Line 2: Unused variable 'temp_var' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 2
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].BadActionButton.events.component.onActionPerformed",
+        "message": "root.root.children[1].BadActionButton.events.component.onActionPerformed: Line 2: Unused variable 'temp_var' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 2
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-component-error": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-camel-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].ActionButton",
+        "message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow camelCase for component (suggestion: 'actionButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].BadActionButton",
+        "message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow camelCase for component (suggestion: 'badActionButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ActionButton' to 'actionButton'",
+        "violation_message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow camelCase for component (suggestion: 'actionButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ActionButton' to 'actionButton'",
+            "old_value": "ActionButton",
+            "new_value": "actionButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'BadActionButton' to 'badActionButton'",
+        "violation_message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow camelCase for component (suggestion: 'badActionButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'BadActionButton' to 'badActionButton'",
+            "old_value": "BadActionButton",
+            "new_value": "badActionButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-snake-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].ActionButton",
+        "message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow snake_case for component (suggestion: 'action_button')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].BadActionButton",
+        "message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow snake_case for component (suggestion: 'bad_action_button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ActionButton' to 'action_button'",
+        "violation_message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow snake_case for component (suggestion: 'action_button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ActionButton' to 'action_button'",
+            "old_value": "ActionButton",
+            "new_value": "action_button"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'BadActionButton' to 'bad_action_button'",
+        "violation_message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow snake_case for component (suggestion: 'bad_action_button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'BadActionButton' to 'bad_action_button'",
+            "old_value": "BadActionButton",
+            "new_value": "bad_action_button"
+          }
+        ]
+      }
+    ]
+  },
+  "np-kebab-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton",
+        "message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow kebab-case for component (suggestion: 'action-button')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].BadActionButton",
+        "message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow kebab-case for component (suggestion: 'bad-action-button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ActionButton' to 'action-button'",
+        "violation_message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow kebab-case for component (suggestion: 'action-button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ActionButton' to 'action-button'",
+            "old_value": "ActionButton",
+            "new_value": "action-button"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'BadActionButton' to 'bad-action-button'",
+        "violation_message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow kebab-case for component (suggestion: 'bad-action-button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'BadActionButton' to 'bad-action-button'",
+            "old_value": "BadActionButton",
+            "new_value": "bad-action-button"
+          }
+        ]
+      }
+    ]
+  },
+  "np-screaming-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton",
+        "message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'ACTION_BUTTON')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].BadActionButton",
+        "message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'BAD_ACTION_BUTTON')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ActionButton' to 'ACTION_BUTTON'",
+        "violation_message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'ACTION_BUTTON')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ActionButton' to 'ACTION_BUTTON'",
+            "old_value": "ActionButton",
+            "new_value": "ACTION_BUTTON"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'BadActionButton' to 'BAD_ACTION_BUTTON'",
+        "violation_message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'BAD_ACTION_BUTTON')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'BadActionButton' to 'BAD_ACTION_BUTTON'",
+            "old_value": "BadActionButton",
+            "new_value": "BAD_ACTION_BUTTON"
+          }
+        ]
+      }
+    ]
+  },
+  "np-title-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton",
+        "message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow Title Case for component (suggestion: 'Action Button')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].BadActionButton",
+        "message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow Title Case for component (suggestion: 'Bad Action Button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ActionButton' to 'Action Button'",
+        "violation_message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow Title Case for component (suggestion: 'Action Button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ActionButton' to 'Action Button'",
+            "old_value": "ActionButton",
+            "new_value": "Action Button"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'BadActionButton' to 'Bad Action Button'",
+        "violation_message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow Title Case for component (suggestion: 'Bad Action Button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'BadActionButton' to 'Bad Action Button'",
+            "old_value": "BadActionButton",
+            "new_value": "Bad Action Button"
+          }
+        ]
+      }
+    ]
+  },
+  "np-lower-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton",
+        "message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'action button')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].BadActionButton",
+        "message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'bad action button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ActionButton' to 'action button'",
+        "violation_message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'action button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ActionButton' to 'action button'",
+            "old_value": "ActionButton",
+            "new_value": "action button"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'BadActionButton' to 'bad action button'",
+        "violation_message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'bad action button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'BadActionButton' to 'bad action button'",
+            "old_value": "BadActionButton",
+            "new_value": "bad action button"
+          }
+        ]
+      }
+    ]
+  },
+  "np-convention-only": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-target-string": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-component-custom-method-camel-min3": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton",
+        "message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow camelCase for component (suggestion: 'actionButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].BadActionButton",
+        "message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow camelCase for component (suggestion: 'badActionButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.customMethods[0]",
+        "message": "root.root.children[0].ActionButton.scripts.customMethods[0]: Name 'good_method' doesn't follow camelCase for custom_method (suggestion: 'goodMethod')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+        "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Name 'bad_method_variables' doesn't follow camelCase for custom_method (suggestion: 'badMethodVariables')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ActionButton' to 'actionButton'",
+        "violation_message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow camelCase for component (suggestion: 'actionButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ActionButton' to 'actionButton'",
+            "old_value": "ActionButton",
+            "new_value": "actionButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'BadActionButton' to 'badActionButton'",
+        "violation_message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow camelCase for component (suggestion: 'badActionButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'BadActionButton' to 'badActionButton'",
+            "old_value": "BadActionButton",
+            "new_value": "badActionButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-standard-component-property": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-severity-split": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-four-types": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-min5": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-max10": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton",
+        "message": "root.root.children[0].ActionButton: Name 'ActionButton' is too long (maximum 10 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].BadActionButton",
+        "message": "root.root.children[1].BadActionButton: Name 'BadActionButton' is too long (maximum 10 characters) for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-no-numbers": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-abbrev-no-autodetect": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-skip-names": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-custom-pattern-prefix": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton",
+        "message": "root.root.children[0].ActionButton: Name 'ActionButton' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].BadActionButton",
+        "message": "root.root.children[1].BadActionButton: Name 'BadActionButton' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-custom-method-camel-forbidden": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.customMethods[0]",
+        "message": "root.root.children[0].ActionButton.scripts.customMethods[0]: Name 'good_method' doesn't follow camelCase for custom_method (suggestion: 'goodMethod')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+        "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Name 'bad_method_variables' doesn't follow camelCase for custom_method (suggestion: 'badMethodVariables')"
+      }
+    ],
+    "fixes": []
+  },
+  "np-message-handler-snake-forbidden": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.messageHandlers[0]",
+        "message": "root.root.children[0].ActionButton.scripts.messageHandlers[0]: Name 'good-msg-handler' doesn't follow snake_case for message_handler (suggestion: 'good_msg_handler')"
+      }
+    ],
+    "fixes": []
+  },
+  "np-property-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-mixedcase-pattern": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-1000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-5000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-30000": {
+    "findings": [],
+    "fixes": []
+  },
+  "pylint-e-warning": {
+    "findings": [
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+        "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Line 3: Variable name \"BAD_UPPER\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+        "code": "C0103",
+        "line": 3
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+        "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Line 4: Variable name \"BaD_MIXED\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+        "code": "C0103",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+        "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Line 6: Variable name \"badCamel\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+        "code": "C0103",
+        "line": 6
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+        "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Line 5: Unused variable 'temp_var' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 5
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "propConfig.custom.bad.binding.transforms[0]",
+        "message": "propConfig.custom.bad.binding.transforms[0]: Line 2: Unused variable 'temp_var' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 2
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].BadActionButton.events.component.onActionPerformed",
+        "message": "root.root.children[1].BadActionButton.events.component.onActionPerformed: Line 2: Unused variable 'temp_var' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 2
+      }
+    ],
+    "fixes": []
+  },
+  "bcr-case-insensitive": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-sibling-only-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-scripts": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-expressions": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-property-bindings": {
+    "findings": [],
+    "fixes": []
+  },
+  "ecd-tight": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-private": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.bad",
+        "message": "custom.bad: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.good",
+        "message": "custom.good: custom property access mode is PUBLIC, expected PRIVATE"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.bad' to PRIVATE",
+        "violation_message": "custom.bad: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.bad",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.bad'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.good' to PRIVATE",
+        "violation_message": "custom.good: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.good",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.good'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      }
+    ]
+  },
+  "access-public": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-protected-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.bad",
+        "message": "custom.bad: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.good",
+        "message": "custom.good: custom property access mode is PUBLIC, expected PROTECTED"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.bad' to PROTECTED",
+        "violation_message": "custom.bad: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.bad",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.bad'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.good' to PROTECTED",
+        "violation_message": "custom.good: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.good",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.good'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-false": {
+    "findings": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.bad",
+        "message": "custom.bad: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.good",
+        "message": "custom.good: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.bad' non-persistent",
+        "violation_message": "custom.bad: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.bad",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.bad'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "bad"
+            ],
+            "description": "Remove stale stored value 'custom.bad'",
+            "old_value": "Bad Data"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.good' non-persistent",
+        "violation_message": "custom.good: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.good",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.good'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "good"
+            ],
+            "description": "Remove stale stored value 'custom.good'",
+            "old_value": "Good Data"
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-true": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-false-no-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.bad",
+        "message": "custom.bad: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.good",
+        "message": "custom.good: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.bad' non-persistent",
+        "violation_message": "custom.bad: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.bad",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.bad'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "bad"
+            ],
+            "description": "Remove stale stored value 'custom.bad'",
+            "old_value": "Bad Data"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.good' non-persistent",
+        "violation_message": "custom.good: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.good",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.good'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "good"
+            ],
+            "description": "Remove stale stored value 'custom.good'",
+            "old_value": "Good Data"
+          }
+        ]
+      }
+    ]
+  }
+}

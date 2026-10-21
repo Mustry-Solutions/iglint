@@ -1,0 +1,170 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.Btn.propConfig.custom.watched",
+    "message": "root.root.children.Btn.propConfig.custom.watched: custom property 'watched' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.Btn.custom.watched",
+    "message": "root.root.children.Btn.custom.watched: custom property 'watched' is defined but never referenced"
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[1].Unindented.events.component.onActionPerformed",
+    "message": "root.root.children[1].Unindented.events.component.onActionPerformed: Script lacks proper indentation in view.json (scripts should be indented with tabs or spaces for valid Python syntax)"
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[2].Mixed.events.component.onActionPerformed",
+    "message": "root.root.children[2].Mixed.events.component.onActionPerformed: Script mixes tabs and spaces for indentation. Use either tabs OR spaces consistently."
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[2].Mixed.events.component.onActionPerformed",
+    "message": "root.root.children[2].Mixed.events.component.onActionPerformed: Line 3: Bad indentation. Found 5 tabs, expected 2 (bad-indentation) (W0311)",
+    "code": "W0311",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].Btn.scripts.messageHandlers[0]",
+    "message": "root.root.children[0].Btn.scripts.messageHandlers[0]: Line 2: Undefined variable 'undefinedThing' (undefined-variable) (E0602)",
+    "code": "E0602",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Btn.scripts.customMethods[0]",
+    "message": "root.root.children[0].Btn.scripts.customMethods[0]: Line 1: Function name \"doThing\" doesn't conform to '^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern ('^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].Btn.scripts.customMethods[0]",
+    "message": "root.root.children[0].Btn.scripts.customMethods[0]: Line 2: Undefined variable 'c' (undefined-variable) (E0602)",
+    "code": "E0602",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].Btn.propConfig.props.text.binding.transforms[0]",
+    "message": "root.root.children[0].Btn.propConfig.props.text.binding.transforms[0]: Line 2: Undefined variable 'quality' (undefined-variable) (E0602)",
+    "code": "E0602",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].Btn.events.component.onActionPerformed",
+    "message": "root.root.children[0].Btn.events.component.onActionPerformed: Line 3: Undefined variable 'undefinedName' (undefined-variable) (E0602)",
+    "code": "E0602",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Btn.events.component.onActionPerformed",
+    "message": "root.root.children[0].Btn.events.component.onActionPerformed: Line 2: Unused variable 'x' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Btn.events.component.onActionPerformed",
+    "message": "root.root.children[0].Btn.events.component.onActionPerformed: Line 3: Unused variable 'y' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[2].Mixed.events.component.onActionPerformed",
+    "message": "root.root.children[2].Mixed.events.component.onActionPerformed: Line 2: Using a conditional statement with a constant value (using-constant-test) (W0125)",
+    "code": "W0125",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[2].Mixed.events.component.onActionPerformed",
+    "message": "root.root.children[2].Mixed.events.component.onActionPerformed: Line 3: Unused variable 'y' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[2].Mixed.events.component.onActionPerformed",
+    "message": "root.root.children[2].Mixed.events.component.onActionPerformed: Line 4: Unused variable 'z' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[3].CommentFirst.events.component.onActionPerformed",
+    "message": "root.root.children[3].CommentFirst.events.component.onActionPerformed: Line 3: Undefined variable 'undefinedQ' (undefined-variable) (E0602)",
+    "code": "E0602",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[3].CommentFirst.events.component.onActionPerformed",
+    "message": "root.root.children[3].CommentFirst.events.component.onActionPerformed: Line 3: Unused variable 'q' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Btn.propConfig.custom.watched.onChange",
+    "message": "root.root.children[0].Btn.propConfig.custom.watched.onChange: Line 1: Function name \"valueChanged\" doesn't conform to '^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern ('^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Btn.propConfig.custom.watched.onChange",
+    "message": "root.root.children[0].Btn.propConfig.custom.watched.onChange: Line 1: Argument name \"previousValue\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Btn.propConfig.custom.watched.onChange",
+    "message": "root.root.children[0].Btn.propConfig.custom.watched.onChange: Line 1: Argument name \"currentValue\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Btn.propConfig.custom.watched.onChange",
+    "message": "root.root.children[0].Btn.propConfig.custom.watched.onChange: Line 1: Argument name \"missedEvents\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].Btn.propConfig.custom.watched.onChange",
+    "message": "root.root.children[0].Btn.propConfig.custom.watched.onChange: Line 2: Undefined variable 'nope' (undefined-variable) (E0602)",
+    "code": "E0602",
+    "line": 2
+  }
+]

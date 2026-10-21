@@ -1,0 +1,1506 @@
+{
+  "default": {
+    "findings": [
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "params.valList",
+        "message": "params.valList: view parameter 'valList' is defined but never referenced"
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "params.valObj",
+        "message": "params.valObj: view parameter 'valObj' is defined but never referenced"
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "params.valDate",
+        "message": "params.valDate: view parameter 'valDate' is defined but never referenced"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "propConfig.custom.transformExpression",
+        "message": "propConfig.custom.transformExpression: 'now(5000)'"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-component-error": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-camel-component-error": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-snake-component-error": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-kebab-component": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-screaming-component": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-title-component": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-lower-component": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-convention-only": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-target-string": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-component-custom-method-camel-min3": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-standard-component-property": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-severity-split": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-four-types": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-min5": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-max10": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-no-numbers": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-abbrev-no-autodetect": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-skip-names": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-custom-pattern-prefix": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-custom-method-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-message-handler-snake-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-mixedcase-pattern": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-1000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-5000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-30000": {
+    "findings": [
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "propConfig.custom.transformExpression",
+        "message": "propConfig.custom.transformExpression: 'now(5000)'"
+      }
+    ],
+    "fixes": []
+  },
+  "pylint-e-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-case-insensitive": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-sibling-only-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-scripts": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-expressions": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-property-bindings": {
+    "findings": [],
+    "fixes": []
+  },
+  "ecd-tight": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-private": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.exprStruct",
+        "message": "custom.exprStruct: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.property",
+        "message": "custom.property: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.query",
+        "message": "custom.query: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.tag",
+        "message": "custom.tag: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.tagExpression",
+        "message": "custom.tagExpression: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.tagFolder",
+        "message": "custom.tagFolder: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.tagIndirect",
+        "message": "custom.tagIndirect: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.transformExpression",
+        "message": "custom.transformExpression: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.transformMap",
+        "message": "custom.transformMap: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.transformScript",
+        "message": "custom.transformScript: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.transofrmExpression",
+        "message": "custom.transofrmExpression: custom property access mode is PUBLIC, expected PRIVATE"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.exprStruct' to PRIVATE",
+        "violation_message": "custom.exprStruct: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.exprStruct",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.exprStruct'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.property' to PRIVATE",
+        "violation_message": "custom.property: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.property",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.property'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.query' to PRIVATE",
+        "violation_message": "custom.query: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.query",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.query'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.tag' to PRIVATE",
+        "violation_message": "custom.tag: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.tag",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.tag'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.tagExpression' to PRIVATE",
+        "violation_message": "custom.tagExpression: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.tagExpression",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.tagExpression'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.tagFolder' to PRIVATE",
+        "violation_message": "custom.tagFolder: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.tagFolder",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.tagFolder'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.tagIndirect' to PRIVATE",
+        "violation_message": "custom.tagIndirect: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.tagIndirect",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.tagIndirect'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.transformExpression' to PRIVATE",
+        "violation_message": "custom.transformExpression: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transformExpression",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.transformExpression'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.transformMap' to PRIVATE",
+        "violation_message": "custom.transformMap: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transformMap",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.transformMap'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.transformScript' to PRIVATE",
+        "violation_message": "custom.transformScript: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transformScript",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.transformScript'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.transofrmExpression' to PRIVATE",
+        "violation_message": "custom.transofrmExpression: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transofrmExpression",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.transofrmExpression'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      }
+    ]
+  },
+  "access-public": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.expr",
+        "message": "custom.expr: custom property access mode is PRIVATE, expected PUBLIC"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.expr' to PUBLIC",
+        "violation_message": "custom.expr: custom property access mode is PRIVATE, expected PUBLIC",
+        "operations": [
+          {
+            "op": "delete_key",
+            "json_path": [
+              "propConfig",
+              "custom.expr",
+              "access"
+            ],
+            "description": "Remove access declaration from propConfig entry 'custom.expr' (PUBLIC is the default)",
+            "old_value": "PRIVATE"
+          }
+        ]
+      }
+    ]
+  },
+  "access-protected-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.expr",
+        "message": "custom.expr: custom property access mode is PRIVATE, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.exprStruct",
+        "message": "custom.exprStruct: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.property",
+        "message": "custom.property: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.query",
+        "message": "custom.query: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.tag",
+        "message": "custom.tag: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.tagExpression",
+        "message": "custom.tagExpression: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.tagFolder",
+        "message": "custom.tagFolder: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.tagIndirect",
+        "message": "custom.tagIndirect: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.transformExpression",
+        "message": "custom.transformExpression: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.transformMap",
+        "message": "custom.transformMap: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.transformScript",
+        "message": "custom.transformScript: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.transofrmExpression",
+        "message": "custom.transofrmExpression: custom property access mode is PUBLIC, expected PROTECTED"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.expr' to PROTECTED",
+        "violation_message": "custom.expr: custom property access mode is PRIVATE, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.expr",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.expr'",
+            "old_value": "PRIVATE",
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.exprStruct' to PROTECTED",
+        "violation_message": "custom.exprStruct: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.exprStruct",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.exprStruct'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.property' to PROTECTED",
+        "violation_message": "custom.property: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.property",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.property'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.query' to PROTECTED",
+        "violation_message": "custom.query: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.query",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.query'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.tag' to PROTECTED",
+        "violation_message": "custom.tag: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.tag",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.tag'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.tagExpression' to PROTECTED",
+        "violation_message": "custom.tagExpression: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.tagExpression",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.tagExpression'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.tagFolder' to PROTECTED",
+        "violation_message": "custom.tagFolder: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.tagFolder",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.tagFolder'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.tagIndirect' to PROTECTED",
+        "violation_message": "custom.tagIndirect: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.tagIndirect",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.tagIndirect'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.transformExpression' to PROTECTED",
+        "violation_message": "custom.transformExpression: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transformExpression",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.transformExpression'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.transformMap' to PROTECTED",
+        "violation_message": "custom.transformMap: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transformMap",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.transformMap'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.transformScript' to PROTECTED",
+        "violation_message": "custom.transformScript: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transformScript",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.transformScript'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.transofrmExpression' to PROTECTED",
+        "violation_message": "custom.transofrmExpression: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transofrmExpression",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.transofrmExpression'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-false": {
+    "findings": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.expr",
+        "message": "custom.expr: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.exprStruct",
+        "message": "custom.exprStruct: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.property",
+        "message": "custom.property: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.query",
+        "message": "custom.query: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.transformExpression",
+        "message": "custom.transformExpression: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.transformMap",
+        "message": "custom.transformMap: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.transformScript",
+        "message": "custom.transformScript: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.transofrmExpression",
+        "message": "custom.transofrmExpression: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.expr' non-persistent",
+        "violation_message": "custom.expr: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.expr",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.expr'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "expr"
+            ],
+            "description": "Remove stale stored value 'custom.expr'",
+            "old_value": 1
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.exprStruct' non-persistent",
+        "violation_message": "custom.exprStruct: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.exprStruct",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.exprStruct'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "exprStruct"
+            ],
+            "description": "Remove stale stored value 'custom.exprStruct'",
+            "old_value": {
+              "key1": 1,
+              "key2": "VALUE"
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.property' non-persistent",
+        "violation_message": "custom.property: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.property",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.property'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "property"
+            ],
+            "description": "Remove stale stored value 'custom.property'",
+            "old_value": "value"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.query' non-persistent",
+        "violation_message": "custom.query: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.query",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.query'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "query"
+            ],
+            "description": "Remove stale stored value 'custom.query'",
+            "old_value": null
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.transformExpression' non-persistent",
+        "violation_message": "custom.transformExpression: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transformExpression",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.transformExpression'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "transformExpression"
+            ],
+            "description": "Remove stale stored value 'custom.transformExpression'",
+            "old_value": "tester: 2025-09-29 06:24:59.460"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.transformMap' non-persistent",
+        "violation_message": "custom.transformMap: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transformMap",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.transformMap'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "transformMap"
+            ],
+            "description": "Remove stale stored value 'custom.transformMap'",
+            "old_value": "test"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.transformScript' non-persistent",
+        "violation_message": "custom.transformScript: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transformScript",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.transformScript'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "transformScript"
+            ],
+            "description": "Remove stale stored value 'custom.transformScript'",
+            "old_value": "This is the script"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.transofrmExpression' non-persistent",
+        "violation_message": "custom.transofrmExpression: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transofrmExpression",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.transofrmExpression'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "transofrmExpression"
+            ],
+            "description": "Remove stale stored value 'custom.transofrmExpression'",
+            "old_value": "FALSE"
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-true": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-false-no-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.expr",
+        "message": "custom.expr: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.exprStruct",
+        "message": "custom.exprStruct: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.property",
+        "message": "custom.property: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.query",
+        "message": "custom.query: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.tag",
+        "message": "custom.tag: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.tagExpression",
+        "message": "custom.tagExpression: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.tagIndirect",
+        "message": "custom.tagIndirect: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.transformExpression",
+        "message": "custom.transformExpression: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.transformMap",
+        "message": "custom.transformMap: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.transformScript",
+        "message": "custom.transformScript: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.transofrmExpression",
+        "message": "custom.transofrmExpression: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.expr' non-persistent",
+        "violation_message": "custom.expr: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.expr",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.expr'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "expr"
+            ],
+            "description": "Remove stale stored value 'custom.expr'",
+            "old_value": 1
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.exprStruct' non-persistent",
+        "violation_message": "custom.exprStruct: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.exprStruct",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.exprStruct'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "exprStruct"
+            ],
+            "description": "Remove stale stored value 'custom.exprStruct'",
+            "old_value": {
+              "key1": 1,
+              "key2": "VALUE"
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.property' non-persistent",
+        "violation_message": "custom.property: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.property",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.property'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "property"
+            ],
+            "description": "Remove stale stored value 'custom.property'",
+            "old_value": "value"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.query' non-persistent",
+        "violation_message": "custom.query: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.query",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.query'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "query"
+            ],
+            "description": "Remove stale stored value 'custom.query'",
+            "old_value": null
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.tag' non-persistent",
+        "violation_message": "custom.tag: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.tag",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.tag'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "tag"
+            ],
+            "description": "Remove stale stored value 'custom.tag'",
+            "old_value": 1
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.tagExpression' non-persistent",
+        "violation_message": "custom.tagExpression: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.tagExpression",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.tagExpression'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "tagExpression"
+            ],
+            "description": "Remove stale stored value 'custom.tagExpression'",
+            "old_value": 2
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.tagIndirect' non-persistent",
+        "violation_message": "custom.tagIndirect: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.tagIndirect",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.tagIndirect'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "tagIndirect"
+            ],
+            "description": "Remove stale stored value 'custom.tagIndirect'",
+            "old_value": 2
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.transformExpression' non-persistent",
+        "violation_message": "custom.transformExpression: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transformExpression",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.transformExpression'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "transformExpression"
+            ],
+            "description": "Remove stale stored value 'custom.transformExpression'",
+            "old_value": "tester: 2025-09-29 06:24:59.460"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.transformMap' non-persistent",
+        "violation_message": "custom.transformMap: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transformMap",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.transformMap'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "transformMap"
+            ],
+            "description": "Remove stale stored value 'custom.transformMap'",
+            "old_value": "test"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.transformScript' non-persistent",
+        "violation_message": "custom.transformScript: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transformScript",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.transformScript'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "transformScript"
+            ],
+            "description": "Remove stale stored value 'custom.transformScript'",
+            "old_value": "This is the script"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.transofrmExpression' non-persistent",
+        "violation_message": "custom.transofrmExpression: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.transofrmExpression",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.transofrmExpression'",
+            "old_value": true,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "transofrmExpression"
+            ],
+            "description": "Remove stale stored value 'custom.transofrmExpression'",
+            "old_value": "FALSE"
+          }
+        ]
+      }
+    ]
+  }
+}

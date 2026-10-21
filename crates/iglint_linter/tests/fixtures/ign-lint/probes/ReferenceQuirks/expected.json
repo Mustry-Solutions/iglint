@@ -1,0 +1,76 @@
+[
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+    "message": "root.root.children[1].Right.events.component.onActionPerformed: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "propConfig.custom.v",
+    "message": "propConfig.custom.v: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].Left.propConfig.props.text",
+    "message": "root.root.children[0].Left.propConfig.props.text: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[3].Deep.propConfig.props.text",
+    "message": "root.root.children[3].Deep.propConfig.props.text: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+    "message": "root.root.children[1].Right.events.component.onActionPerformed: Script contains '.getSibling(' and 2 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "propConfig.custom.v",
+    "message": "propConfig.custom.v: Relative expression '{../root.props.text}' navigates above root component"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].Left.propConfig.props.text",
+    "message": "root.root.children[0].Left.propConfig.props.text: Expression references non-existent component 'Nope' in: {../Right.props.text} + {./Nope.props.text}"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[3].Deep.propConfig.props.text",
+    "message": "root.root.children[3].Deep.propConfig.props.text: Relative expression '{.../Left.props.text}' navigates above root component"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[2].Abs.propConfig.props.style.color",
+    "message": "root.root.children[2].Abs.propConfig.props.style.color: Property Binding references non-existent component 'root/Ghost' in: /root/Ghost.props.text"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+    "message": "root.root.children[1].Right.events.component.onActionPerformed: Script references non-existent sibling component 'Missing'"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+    "message": "root.root.children[1].Right.events.component.onActionPerformed: Component 'Missing' not found as sibling in: self.getSibling(\"Missing\")"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+    "message": "root.root.children[1].Right.events.component.onActionPerformed: Navigation chain goes beyond root: self.parent.parent.getChild('X')"
+  }
+]

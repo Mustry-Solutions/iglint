@@ -1,0 +1,839 @@
+{
+  "default": {
+    "findings": [
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]: Line 4: Variable name \"MyBadVariable\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+        "code": "C0103",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]: Line 4: Unused variable 'MyBadVariable' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]: Line 7: Unused variable 'process' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 7
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.customMethods[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.customMethods[0]: Line 4: Import outside toplevel (nonexistent_module) (import-outside-toplevel) (C0415)",
+        "code": "C0415",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.customMethods[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.customMethods[0]: Line 4: Unused import nonexistent_module (unused-import) (W0611)",
+        "code": "W0611",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.customMethods[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.customMethods[0]: Line 7: Unused variable 'complex_function' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 7
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "propConfig.custom.status.binding.transforms[0]",
+        "message": "propConfig.custom.status.binding.transforms[0]: Line 3: Import outside toplevel (os) (import-outside-toplevel) (C0415)",
+        "code": "C0415",
+        "line": 3
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "propConfig.custom.status.binding.transforms[0]",
+        "message": "propConfig.custom.status.binding.transforms[0]: Line 4: Import outside toplevel (datetime) (import-outside-toplevel) (C0415)",
+        "code": "C0415",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "error",
+        "node_path": "propConfig.custom.status.binding.transforms[0]",
+        "message": "propConfig.custom.status.binding.transforms[0]: Line 8: Undefined variable 'missing_var' (undefined-variable) (E0602)",
+        "code": "E0602",
+        "line": 8
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "propConfig.custom.status.binding.transforms[0]",
+        "message": "propConfig.custom.status.binding.transforms[0]: Line 3: Unused import os (unused-import) (W0611)",
+        "code": "W0611",
+        "line": 3
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "propConfig.custom.status.binding.transforms[0]",
+        "message": "propConfig.custom.status.binding.transforms[0]: Line 4: Unused import datetime (unused-import) (W0611)",
+        "code": "W0611",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 3: Import outside toplevel (json) (import-outside-toplevel) (C0415)",
+        "code": "C0415",
+        "line": 3
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 4: Import outside toplevel (sys) (import-outside-toplevel) (C0415)",
+        "code": "C0415",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 7: Undefined variable 'undefined_variable' (undefined-variable) (E0602)",
+        "code": "E0602",
+        "line": 7
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 11: Undefined variable 'some_object' (undefined-variable) (E0602)",
+        "code": "E0602",
+        "line": 11
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 3: Unused import json (unused-import) (W0611)",
+        "code": "W0611",
+        "line": 3
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 4: Unused import sys (unused-import) (W0611)",
+        "code": "W0611",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 11: Unused variable 'result' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 11
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 14: Unused variable 'helper_function' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 14
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-component-error": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-camel-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].SubmitButton",
+        "message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow camelCase for component (suggestion: 'submitButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SubmitButton' to 'submitButton'",
+        "violation_message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow camelCase for component (suggestion: 'submitButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SubmitButton' to 'submitButton'",
+            "old_value": "SubmitButton",
+            "new_value": "submitButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-snake-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].SubmitButton",
+        "message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow snake_case for component (suggestion: 'submit_button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SubmitButton' to 'submit_button'",
+        "violation_message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow snake_case for component (suggestion: 'submit_button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SubmitButton' to 'submit_button'",
+            "old_value": "SubmitButton",
+            "new_value": "submit_button"
+          }
+        ]
+      }
+    ]
+  },
+  "np-kebab-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton",
+        "message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow kebab-case for component (suggestion: 'submit-button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SubmitButton' to 'submit-button'",
+        "violation_message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow kebab-case for component (suggestion: 'submit-button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SubmitButton' to 'submit-button'",
+            "old_value": "SubmitButton",
+            "new_value": "submit-button"
+          }
+        ]
+      }
+    ]
+  },
+  "np-screaming-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton",
+        "message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SUBMIT_BUTTON')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SubmitButton' to 'SUBMIT_BUTTON'",
+        "violation_message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SUBMIT_BUTTON')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SubmitButton' to 'SUBMIT_BUTTON'",
+            "old_value": "SubmitButton",
+            "new_value": "SUBMIT_BUTTON"
+          }
+        ]
+      }
+    ]
+  },
+  "np-title-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton",
+        "message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow Title Case for component (suggestion: 'Submit Button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SubmitButton' to 'Submit Button'",
+        "violation_message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow Title Case for component (suggestion: 'Submit Button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SubmitButton' to 'Submit Button'",
+            "old_value": "SubmitButton",
+            "new_value": "Submit Button"
+          }
+        ]
+      }
+    ]
+  },
+  "np-lower-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton",
+        "message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'submit button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SubmitButton' to 'submit button'",
+        "violation_message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'submit button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SubmitButton' to 'submit button'",
+            "old_value": "SubmitButton",
+            "new_value": "submit button"
+          }
+        ]
+      }
+    ]
+  },
+  "np-convention-only": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-target-string": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-component-custom-method-camel-min3": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton",
+        "message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow camelCase for component (suggestion: 'submitButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.customMethods[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.customMethods[0]: Name 'custom_method_with_errors' doesn't follow camelCase for custom_method (suggestion: 'customMethodWithErrors')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SubmitButton' to 'submitButton'",
+        "violation_message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow camelCase for component (suggestion: 'submitButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SubmitButton' to 'submitButton'",
+            "old_value": "SubmitButton",
+            "new_value": "submitButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-standard-component-property": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-severity-split": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-four-types": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-min5": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-max10": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton",
+        "message": "root.root.children[0].SubmitButton: Name 'SubmitButton' is too long (maximum 10 characters) for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-no-numbers": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-abbrev-no-autodetect": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-skip-names": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-custom-pattern-prefix": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton",
+        "message": "root.root.children[0].SubmitButton: Name 'SubmitButton' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-custom-method-camel-forbidden": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.customMethods[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.customMethods[0]: Name 'custom_method_with_errors' doesn't follow camelCase for custom_method (suggestion: 'customMethodWithErrors')"
+      }
+    ],
+    "fixes": []
+  },
+  "np-message-handler-snake-forbidden": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]: Name 'test-message' doesn't follow snake_case for message_handler (suggestion: 'test_message')"
+      }
+    ],
+    "fixes": []
+  },
+  "np-property-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-mixedcase-pattern": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-1000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-5000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-30000": {
+    "findings": [],
+    "fixes": []
+  },
+  "pylint-e-warning": {
+    "findings": [
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]: Line 4: Variable name \"MyBadVariable\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+        "code": "C0103",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]: Line 4: Unused variable 'MyBadVariable' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]: Line 7: Unused variable 'process' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 7
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.customMethods[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.customMethods[0]: Line 4: Import outside toplevel (nonexistent_module) (import-outside-toplevel) (C0415)",
+        "code": "C0415",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.customMethods[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.customMethods[0]: Line 4: Unused import nonexistent_module (unused-import) (W0611)",
+        "code": "W0611",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.scripts.customMethods[0]",
+        "message": "root.root.children[0].SubmitButton.scripts.customMethods[0]: Line 7: Unused variable 'complex_function' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 7
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "propConfig.custom.status.binding.transforms[0]",
+        "message": "propConfig.custom.status.binding.transforms[0]: Line 3: Import outside toplevel (os) (import-outside-toplevel) (C0415)",
+        "code": "C0415",
+        "line": 3
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "propConfig.custom.status.binding.transforms[0]",
+        "message": "propConfig.custom.status.binding.transforms[0]: Line 4: Import outside toplevel (datetime) (import-outside-toplevel) (C0415)",
+        "code": "C0415",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "propConfig.custom.status.binding.transforms[0]",
+        "message": "propConfig.custom.status.binding.transforms[0]: Line 8: Undefined variable 'missing_var' (undefined-variable) (E0602)",
+        "code": "E0602",
+        "line": 8
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "propConfig.custom.status.binding.transforms[0]",
+        "message": "propConfig.custom.status.binding.transforms[0]: Line 3: Unused import os (unused-import) (W0611)",
+        "code": "W0611",
+        "line": 3
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "propConfig.custom.status.binding.transforms[0]",
+        "message": "propConfig.custom.status.binding.transforms[0]: Line 4: Unused import datetime (unused-import) (W0611)",
+        "code": "W0611",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 3: Import outside toplevel (json) (import-outside-toplevel) (C0415)",
+        "code": "C0415",
+        "line": 3
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 4: Import outside toplevel (sys) (import-outside-toplevel) (C0415)",
+        "code": "C0415",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 7: Undefined variable 'undefined_variable' (undefined-variable) (E0602)",
+        "code": "E0602",
+        "line": 7
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 11: Undefined variable 'some_object' (undefined-variable) (E0602)",
+        "code": "E0602",
+        "line": 11
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 3: Unused import json (unused-import) (W0611)",
+        "code": "W0611",
+        "line": 3
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 4: Unused import sys (unused-import) (W0611)",
+        "code": "W0611",
+        "line": 4
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 11: Unused variable 'result' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 11
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+        "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 14: Unused variable 'helper_function' (unused-variable) (W0612)",
+        "code": "W0612",
+        "line": 14
+      }
+    ],
+    "fixes": []
+  },
+  "bcr-case-insensitive": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-sibling-only-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-scripts": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-expressions": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-property-bindings": {
+    "findings": [],
+    "fixes": []
+  },
+  "ecd-tight": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-private": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.status",
+        "message": "custom.status: custom property access mode is PUBLIC, expected PRIVATE"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.status' to PRIVATE",
+        "violation_message": "custom.status: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.status",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.status'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      }
+    ]
+  },
+  "access-public": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-protected-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.status",
+        "message": "custom.status: custom property access mode is PUBLIC, expected PROTECTED"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.status' to PROTECTED",
+        "violation_message": "custom.status: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.status",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.status'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-false": {
+    "findings": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.status",
+        "message": "custom.status: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.status' non-persistent",
+        "violation_message": "custom.status: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.status",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.status'",
+            "old_value": null,
+            "new_value": false
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-true": {
+    "findings": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.status",
+        "message": "custom.status: persistent bound property has no stored default value"
+      }
+    ],
+    "fixes": []
+  },
+  "persistence-false-no-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.status",
+        "message": "custom.status: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.status' non-persistent",
+        "violation_message": "custom.status: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.status",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.status'",
+            "old_value": null,
+            "new_value": false
+          }
+        ]
+      }
+    ]
+  }
+}

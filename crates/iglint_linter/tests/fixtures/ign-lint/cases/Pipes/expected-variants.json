@@ -1,0 +1,753 @@
+{
+  "default": {
+    "findings": [
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "params.unusedRef",
+        "message": "params.unusedRef: view parameter 'unusedRef' is defined but never referenced"
+      },
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]",
+        "message": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+        "code": "W1405",
+        "line": 2
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[3].visible",
+        "message": "root.root.propConfig.props.pipes[3].visible: Expression contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[5].visible",
+        "message": "root.root.propConfig.props.pipes[5].visible: Expression contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[1].visible",
+        "message": "root.root.propConfig.props.pipes[1].visible: Property Binding contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[2].visible",
+        "message": "root.root.propConfig.props.pipes[2].visible: Property Binding contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]",
+        "message": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]: Script contains '.getChild(' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[3].visible",
+        "message": "root.root.propConfig.props.pipes[3].visible: Expression references non-existent component 'Button1' in: {./Button1.props.enabled}"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[5].visible",
+        "message": "root.root.propConfig.props.pipes[5].visible: Expression references non-existent component 'Button2' in: {./Button2.props.enabled}"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[2].visible",
+        "message": "root.root.propConfig.props.pipes[2].visible: Property Binding references non-existent component 'Button1' in: ./Button1.props.enabled"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]",
+        "message": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]: Component 'Button1' not found as child in: self.getChild(\"Button1\")"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-component-error": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-camel-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Button",
+        "message": "root.root.children[0].Button: Name 'Button' doesn't follow camelCase for component (suggestion: 'button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Button' to 'button'",
+        "violation_message": "root.root.children[0].Button: Name 'Button' doesn't follow camelCase for component (suggestion: 'button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Button' to 'button'",
+            "old_value": "Button",
+            "new_value": "button"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "propConfig",
+              "props.pipes[1].visible",
+              "binding",
+              "config",
+              "path"
+            ],
+            "description": "Update property_binding reference: 'Button' -> 'button'",
+            "old_substring": "./Button.props.enabled",
+            "new_substring": "./button.props.enabled"
+          }
+        ]
+      }
+    ]
+  },
+  "np-snake-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Button",
+        "message": "root.root.children[0].Button: Name 'Button' doesn't follow snake_case for component (suggestion: 'button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Button' to 'button'",
+        "violation_message": "root.root.children[0].Button: Name 'Button' doesn't follow snake_case for component (suggestion: 'button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Button' to 'button'",
+            "old_value": "Button",
+            "new_value": "button"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "propConfig",
+              "props.pipes[1].visible",
+              "binding",
+              "config",
+              "path"
+            ],
+            "description": "Update property_binding reference: 'Button' -> 'button'",
+            "old_substring": "./Button.props.enabled",
+            "new_substring": "./button.props.enabled"
+          }
+        ]
+      }
+    ]
+  },
+  "np-kebab-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Button",
+        "message": "root.root.children[0].Button: Name 'Button' doesn't follow kebab-case for component (suggestion: 'button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Button' to 'button'",
+        "violation_message": "root.root.children[0].Button: Name 'Button' doesn't follow kebab-case for component (suggestion: 'button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Button' to 'button'",
+            "old_value": "Button",
+            "new_value": "button"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "propConfig",
+              "props.pipes[1].visible",
+              "binding",
+              "config",
+              "path"
+            ],
+            "description": "Update property_binding reference: 'Button' -> 'button'",
+            "old_substring": "./Button.props.enabled",
+            "new_substring": "./button.props.enabled"
+          }
+        ]
+      }
+    ]
+  },
+  "np-screaming-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Button",
+        "message": "root.root.children[0].Button: Name 'Button' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'BUTTON')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Button' to 'BUTTON'",
+        "violation_message": "root.root.children[0].Button: Name 'Button' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'BUTTON')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Button' to 'BUTTON'",
+            "old_value": "Button",
+            "new_value": "BUTTON"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "propConfig",
+              "props.pipes[1].visible",
+              "binding",
+              "config",
+              "path"
+            ],
+            "description": "Update property_binding reference: 'Button' -> 'BUTTON'",
+            "old_substring": "./Button.props.enabled",
+            "new_substring": "./BUTTON.props.enabled"
+          }
+        ]
+      }
+    ]
+  },
+  "np-title-component": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-lower-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Button",
+        "message": "root.root.children[0].Button: Name 'Button' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Button' to 'button'",
+        "violation_message": "root.root.children[0].Button: Name 'Button' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Button' to 'button'",
+            "old_value": "Button",
+            "new_value": "button"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "propConfig",
+              "props.pipes[1].visible",
+              "binding",
+              "config",
+              "path"
+            ],
+            "description": "Update property_binding reference: 'Button' -> 'button'",
+            "old_substring": "./Button.props.enabled",
+            "new_substring": "./button.props.enabled"
+          }
+        ]
+      }
+    ]
+  },
+  "np-convention-only": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-target-string": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-component-custom-method-camel-min3": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Button",
+        "message": "root.root.children[0].Button: Name 'Button' doesn't follow camelCase for component (suggestion: 'button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Button' to 'button'",
+        "violation_message": "root.root.children[0].Button: Name 'Button' doesn't follow camelCase for component (suggestion: 'button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Button' to 'button'",
+            "old_value": "Button",
+            "new_value": "button"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "propConfig",
+              "props.pipes[1].visible",
+              "binding",
+              "config",
+              "path"
+            ],
+            "description": "Update property_binding reference: 'Button' -> 'button'",
+            "old_substring": "./Button.props.enabled",
+            "new_substring": "./button.props.enabled"
+          }
+        ]
+      }
+    ]
+  },
+  "np-standard-component-property": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-severity-split": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-four-types": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-min5": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-max10": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-no-numbers": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-forbidden": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Button",
+        "message": "root.root.children[0].Button: Name 'Button' is forbidden for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-abbrev-no-autodetect": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-skip-names": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-custom-pattern-prefix": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Button",
+        "message": "root.root.children[0].Button: Name 'Button' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-custom-method-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-message-handler-snake-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel-forbidden": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.props.pipes.origin.connections.connections.x",
+        "message": "root.root.props.pipes.origin.connections.connections.x: Name 'x' is too short (minimum 2 characters) for property"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.props.pipes.origin.connections.connections.y",
+        "message": "root.root.props.pipes.origin.connections.connections.y: Name 'y' is too short (minimum 2 characters) for property"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.props.pipes.origin.connections.x",
+        "message": "root.root.props.pipes.origin.connections.x: Name 'x' is too short (minimum 2 characters) for property"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.props.pipes.origin.connections.y",
+        "message": "root.root.props.pipes.origin.connections.y: Name 'y' is too short (minimum 2 characters) for property"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.props.pipes.origin.x",
+        "message": "root.root.props.pipes.origin.x: Name 'x' is too short (minimum 2 characters) for property"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.props.pipes.origin.y",
+        "message": "root.root.props.pipes.origin.y: Name 'y' is too short (minimum 2 characters) for property"
+      }
+    ],
+    "fixes": []
+  },
+  "np-mixedcase-pattern": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-1000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-5000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-30000": {
+    "findings": [],
+    "fixes": []
+  },
+  "pylint-e-warning": {
+    "findings": [
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]",
+        "message": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+        "code": "W1405",
+        "line": 2
+      }
+    ],
+    "fixes": []
+  },
+  "bcr-case-insensitive": {
+    "findings": [
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[3].visible",
+        "message": "root.root.propConfig.props.pipes[3].visible: Expression contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[5].visible",
+        "message": "root.root.propConfig.props.pipes[5].visible: Expression contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[1].visible",
+        "message": "root.root.propConfig.props.pipes[1].visible: Property Binding contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[2].visible",
+        "message": "root.root.propConfig.props.pipes[2].visible: Property Binding contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]",
+        "message": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]: Script contains '.getChild(' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      }
+    ],
+    "fixes": []
+  },
+  "bcr-sibling-only-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-scripts": {
+    "findings": [
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[3].visible",
+        "message": "root.root.propConfig.props.pipes[3].visible: Expression references non-existent component 'Button1' in: {./Button1.props.enabled}"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[5].visible",
+        "message": "root.root.propConfig.props.pipes[5].visible: Expression references non-existent component 'Button2' in: {./Button2.props.enabled}"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[2].visible",
+        "message": "root.root.propConfig.props.pipes[2].visible: Property Binding references non-existent component 'Button1' in: ./Button1.props.enabled"
+      }
+    ],
+    "fixes": []
+  },
+  "crv-no-expressions": {
+    "findings": [
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[2].visible",
+        "message": "root.root.propConfig.props.pipes[2].visible: Property Binding references non-existent component 'Button1' in: ./Button1.props.enabled"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]",
+        "message": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]: Component 'Button1' not found as child in: self.getChild(\"Button1\")"
+      }
+    ],
+    "fixes": []
+  },
+  "crv-no-property-bindings": {
+    "findings": [
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[3].visible",
+        "message": "root.root.propConfig.props.pipes[3].visible: Expression references non-existent component 'Button1' in: {./Button1.props.enabled}"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[5].visible",
+        "message": "root.root.propConfig.props.pipes[5].visible: Expression references non-existent component 'Button2' in: {./Button2.props.enabled}"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]",
+        "message": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]: Component 'Button1' not found as child in: self.getChild(\"Button1\")"
+      }
+    ],
+    "fixes": []
+  },
+  "ecd-tight": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-private": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.enabled",
+        "message": "custom.enabled: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.pipeA",
+        "message": "custom.pipeA: custom property access mode is PUBLIC, expected PRIVATE"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.enabled' to PRIVATE",
+        "violation_message": "custom.enabled: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.enabled",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.enabled'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.pipeA' to PRIVATE",
+        "violation_message": "custom.pipeA: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.pipeA",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.pipeA'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      }
+    ]
+  },
+  "access-public": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-protected-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.enabled",
+        "message": "custom.enabled: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.pipeA",
+        "message": "custom.pipeA: custom property access mode is PUBLIC, expected PROTECTED"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.enabled' to PROTECTED",
+        "violation_message": "custom.enabled: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.enabled",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.enabled'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.pipeA' to PROTECTED",
+        "violation_message": "custom.pipeA: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.pipeA",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.pipeA'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-false": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-true": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-false-no-exempt": {
+    "findings": [],
+    "fixes": []
+  }
+}

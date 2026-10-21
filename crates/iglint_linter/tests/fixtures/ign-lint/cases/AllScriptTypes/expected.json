@@ -1,0 +1,50 @@
+[
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+    "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Line 3: Variable name \"BAD_UPPER\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+    "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Line 4: Variable name \"BaD_MIXED\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+    "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Line 6: Variable name \"badCamel\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 6
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].ActionButton.scripts.customMethods[1]",
+    "message": "root.root.children[0].ActionButton.scripts.customMethods[1]: Line 5: Unused variable 'temp_var' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 5
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.bad.binding.transforms[0]",
+    "message": "propConfig.custom.bad.binding.transforms[0]: Line 2: Unused variable 'temp_var' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].BadActionButton.events.component.onActionPerformed",
+    "message": "root.root.children[1].BadActionButton.events.component.onActionPerformed: Line 2: Unused variable 'temp_var' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 2
+  }
+]

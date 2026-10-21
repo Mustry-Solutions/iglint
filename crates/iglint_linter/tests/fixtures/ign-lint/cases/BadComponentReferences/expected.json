@@ -1,0 +1,406 @@
+[
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[4].MessageHandlerComponent.scripts.messageHandlers[1]",
+    "message": "root.root.children[4].MessageHandlerComponent.scripts.messageHandlers[1]: Script lacks proper indentation in view.json (scripts should be indented with tabs or spaces for valid Python syntax)"
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]",
+    "message": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]: Script mixes tabs and spaces for indentation. Use either tabs OR spaces consistently."
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].BadButton.events.component.onActionPerformed",
+    "message": "root.root.children[0].BadButton.events.component.onActionPerformed: Script lacks proper indentation in view.json (scripts should be indented with tabs or spaces for valid Python syntax)"
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]",
+    "message": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]: Line 5: Bad indentation. Found 5 tabs, expected 2 (bad-indentation) (W0311)",
+    "code": "W0311",
+    "line": 5
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]",
+    "message": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]: Line 7: Bad indentation. Found 5 tabs, expected 2 (bad-indentation) (W0311)",
+    "code": "W0311",
+    "line": 7
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]",
+    "message": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]: Line 8: Bad indentation. Found 5 tabs, expected 2 (bad-indentation) (W0311)",
+    "code": "W0311",
+    "line": 8
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]",
+    "message": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]: Line 10: Bad indentation. Found 5 tabs, expected 2 (bad-indentation) (W0311)",
+    "code": "W0311",
+    "line": 10
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]",
+    "message": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]: Line 11: Bad indentation. Found 5 tabs, expected 2 (bad-indentation) (W0311)",
+    "code": "W0311",
+    "line": 11
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[5].TopContainer.children[1].ParentScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[1].ParentScript.events.component.onActionPerformed: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[5].TopContainer.children[1].ParentScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[1].ParentScript.events.component.onActionPerformed: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[0].ParentScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[0].ParentScript.events.component.onActionPerformed: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[1].SiblingScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[1].SiblingScript.events.component.onActionPerformed: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[2].BadScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[2].BadScript.events.component.onActionPerformed: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[3].CousinScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[3].CousinScript.events.component.onActionPerformed: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[3].CousinScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[3].CousinScript.events.component.onActionPerformed: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[4].GrandParentScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[4].GrandParentScript.events.component.onActionPerformed: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[4].MessageHandlerComponent.scripts.messageHandlers[0]",
+    "message": "root.root.children[4].MessageHandlerComponent.scripts.messageHandlers[0]: Line 4: Variable name \"statusLabel\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[4].MessageHandlerComponent.scripts.messageHandlers[1]",
+    "message": "root.root.children[4].MessageHandlerComponent.scripts.messageHandlers[1]: Line 4: Variable name \"statusLabel\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[3].CustomMethodComponent.scripts.customMethods[0]",
+    "message": "root.root.children[3].CustomMethodComponent.scripts.customMethods[0]: Line 1: Function name \"updateSibling\" doesn't conform to '^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern ('^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]",
+    "message": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]: Line 1: Function name \"navigateHierarchy\" doesn't conform to '^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern ('^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]",
+    "message": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]: Line 4: Unnecessary \"elif\" after \"return\", replace only that \"elif\" with \"if\" (no-else-return) (R1705)",
+    "code": "R1705",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[2].ContainerWithBadScript.events.dom.onClick",
+    "message": "root.root.children[2].ContainerWithBadScript.events.dom.onClick: Line 3: Undefined variable 'undefined_var' (undefined-variable) (E0602)",
+    "code": "E0602",
+    "line": 3
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[4].MessageHandlerComponent.scripts.messageHandlers[0]",
+    "message": "root.root.children[4].MessageHandlerComponent.scripts.messageHandlers[0]: Script contains '.getSibling(' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[4].MessageHandlerComponent.scripts.messageHandlers[1]",
+    "message": "root.root.children[4].MessageHandlerComponent.scripts.messageHandlers[1]: Script contains '.getSibling(' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[3].CustomMethodComponent.scripts.customMethods[0]",
+    "message": "root.root.children[3].CustomMethodComponent.scripts.customMethods[0]: Script contains '.getSibling(' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]",
+    "message": "root.root.children[3].CustomMethodComponent.scripts.customMethods[1]: Script contains '.getSibling(' and 2 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "propConfig.props.root.children.0.props.text",
+    "message": "propConfig.props.root.children.0.props.text: Expression contains '.getSibling(' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].BadButton.propConfig.props.enabled",
+    "message": "root.root.children[0].BadButton.propConfig.props.enabled: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[2].ContainerWithBadScript.propConfig.props.children",
+    "message": "root.root.children[2].ContainerWithBadScript.propConfig.props.children: Expression contains '.getChild(' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[0].ParentExpression.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[0].ParentExpression.propConfig.props.enabled: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[1].SiblingExpression.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[1].SiblingExpression.propConfig.props.enabled: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[3].CousinExpression.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[3].CousinExpression.propConfig.props.enabled: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[4].GrandParentExpression.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[4].GrandParentExpression.propConfig.props.enabled: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[9].SelfRefContainer.propConfig.props.style.classes",
+    "message": "root.root.children[9].SelfRefContainer.propConfig.props.style.classes: Expression contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[0].ParentButton.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[0].ParentButton.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[0].ParentProperty.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[0].ParentProperty.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[1].SiblingProperty.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[1].SiblingProperty.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[2].MissingProperty.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[2].MissingProperty.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[3].CousinProperty.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[3].CousinProperty.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[4].GrandParentProperty.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[4].GrandParentProperty.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[2].MissingExpression.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[2].MissingExpression.propConfig.props.enabled: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[9].SelfRefContainer.propConfig.meta.tooltip.text",
+    "message": "root.root.children[9].SelfRefContainer.propConfig.meta.tooltip.text: Property Binding contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].BadButton.events.component.onActionPerformed",
+    "message": "root.root.children[0].BadButton.events.component.onActionPerformed: Script contains '.getSibling(' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[1].ParentScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[1].ParentScript.events.component.onActionPerformed: Script contains '.getChild(' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[0].ParentScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[0].ParentScript.events.component.onActionPerformed: Script contains '.getChild(' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[1].SiblingScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[1].SiblingScript.events.component.onActionPerformed: Script contains '.getSibling(' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[2].BadScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[2].BadScript.events.component.onActionPerformed: Script contains '.getSibling(' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[3].CousinScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[3].CousinScript.events.component.onActionPerformed: Script contains '.getChild(' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[4].GrandParentScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[4].GrandParentScript.events.component.onActionPerformed: Script contains '.getChild(' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[1].SiblingExpression.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[1].SiblingExpression.propConfig.props.enabled: Expression references non-existent component 'NestedButton1' in: {../NestedButton1.props.enabled}"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[3].CousinExpression.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[3].CousinExpression.propConfig.props.enabled: Expression references non-existent component 'ParentContainerProperty/NestedButton1' in: {.../ParentContainerProperty/NestedButton1.props.enabled}"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[8].AbsoluteRefConsumer.propConfig.custom.filter",
+    "message": "root.root.children[8].AbsoluteRefConsumer.propConfig.custom.filter: Expression references non-existent component 'root/Filters/Missing/Missing Dropdown' in: {/root/Filters/Missing/Missing Dropdown.props.value}"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[1].SiblingProperty.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[1].SiblingProperty.propConfig.props.enabled: Property Binding references non-existent component 'NestedButton1' in: ../NestedButton1.props.enabled"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[2].MissingProperty.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[2].ParentContainerProperty.children[2].MissingProperty.propConfig.props.enabled: Property Binding references non-existent component 'NestedButton4' in: ../NestedButton4.props.enabled"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[2].MissingExpression.propConfig.props.enabled",
+    "message": "root.root.children[5].TopContainer.children[3].ParentContainerExpression.children[2].MissingExpression.propConfig.props.enabled: Property Binding references non-existent component 'NestedButton4' in: ../NestedButton4.props.enabled"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[2].BadScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[2].BadScript.events.component.onActionPerformed: Script references non-existent sibling component 'UnknownButton'"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[2].BadScript.events.component.onActionPerformed",
+    "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[2].BadScript.events.component.onActionPerformed: Component 'UnknownButton' not found as sibling in: self.getSibling(\"UnknownButton\")"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[6].Filters.children[0].Zone.children[0].Zone Dropdown",
+    "message": "root.root.children[6].Filters.children[0].Zone.children[0].Zone Dropdown: Name 'Zone Dropdown' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[6].Filters.children[1].Region.children[0].Region Dropdown",
+    "message": "root.root.children[6].Filters.children[1].Region.children[0].Region Dropdown: Name 'Region Dropdown' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[7].Centered Container",
+    "message": "root.root.children[7].Centered Container: Name 'Centered Container' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[9].SelfRefContainer.children[0].Inner Panel",
+    "message": "root.root.children[9].SelfRefContainer.children[0].Inner Panel: Name 'Inner Panel' doesn't follow PascalCase for component"
+  }
+]

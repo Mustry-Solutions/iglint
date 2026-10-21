@@ -1,0 +1,3732 @@
+{
+  "default": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].idleTimer",
+        "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow PascalCase for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].restartButton",
+        "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow PascalCase for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].guideLabel",
+        "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow PascalCase for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].clientPanel",
+        "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow PascalCase for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].aspectRatio",
+        "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow PascalCase for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].idle",
+        "message": "root.root.children[9].idle: Name 'idle' doesn't follow PascalCase for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-camel-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].idleTimer",
+        "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow camelCase for component (suggestion 'idleTimer' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].restartButton",
+        "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow camelCase for component (suggestion 'restartButton' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].guideLabel",
+        "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow camelCase for component (suggestion 'guideLabel' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].clientPanel",
+        "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow camelCase for component (suggestion 'clientPanel' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[4].aspectRatio",
+        "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow camelCase for component (suggestion 'aspectRatio' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow camelCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow camelCase for component (suggestion: 'dataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[9].idle",
+        "message": "root.root.children[9].idle: Name 'idle' doesn't follow camelCase for component (suggestion 'idle' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[11].HTTPServer",
+        "message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow camelCase for component (suggestion: 'hTTPServer')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow camelCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'dataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow camelCase for component (suggestion: 'dataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'dataTable'",
+            "old_value": "Data Table",
+            "new_value": "dataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'HTTPServer' to 'hTTPServer'",
+        "violation_message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow camelCase for component (suggestion: 'hTTPServer')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              11,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'HTTPServer' to 'hTTPServer'",
+            "old_value": "HTTPServer",
+            "new_value": "hTTPServer"
+          }
+        ]
+      }
+    ]
+  },
+  "np-snake-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].idleTimer",
+        "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow snake_case for component (suggestion: 'idle_timer')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].restartButton",
+        "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow snake_case for component (suggestion: 'restart_button')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].guideLabel",
+        "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow snake_case for component (suggestion: 'guide_label')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].clientPanel",
+        "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow snake_case for component (suggestion: 'client_panel')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[4].aspectRatio",
+        "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow snake_case for component (suggestion: 'aspect_ratio')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow snake_case for component (suggestion: 'simple_name')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow snake_case for component (suggestion: 'my_a_p_i_button')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow snake_case for component (suggestion: 'api_key')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow snake_case for component (suggestion: 'data_table')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow snake_case for component (suggestion: 'my_button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'idleTimer' to 'idle_timer'",
+        "violation_message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow snake_case for component (suggestion: 'idle_timer')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'idleTimer' to 'idle_timer'",
+            "old_value": "idleTimer",
+            "new_value": "idle_timer"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'restartButton' to 'restart_button'",
+        "violation_message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow snake_case for component (suggestion: 'restart_button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'restartButton' to 'restart_button'",
+            "old_value": "restartButton",
+            "new_value": "restart_button"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'guideLabel' to 'guide_label'",
+        "violation_message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow snake_case for component (suggestion: 'guide_label')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'guideLabel' to 'guide_label'",
+            "old_value": "guideLabel",
+            "new_value": "guide_label"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'clientPanel' to 'client_panel'",
+        "violation_message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow snake_case for component (suggestion: 'client_panel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'clientPanel' to 'client_panel'",
+            "old_value": "clientPanel",
+            "new_value": "client_panel"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'aspectRatio' to 'aspect_ratio'",
+        "violation_message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow snake_case for component (suggestion: 'aspect_ratio')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              4,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'aspectRatio' to 'aspect_ratio'",
+            "old_value": "aspectRatio",
+            "new_value": "aspect_ratio"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'simple_name'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow snake_case for component (suggestion: 'simple_name')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'simple_name'",
+            "old_value": "simpleName",
+            "new_value": "simple_name"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'my_a_p_i_button'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow snake_case for component (suggestion: 'my_a_p_i_button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'my_a_p_i_button'",
+            "old_value": "myAPIButton",
+            "new_value": "my_a_p_i_button"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'api_key'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow snake_case for component (suggestion: 'api_key')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'api_key'",
+            "old_value": "API Key",
+            "new_value": "api_key"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'data_table'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow snake_case for component (suggestion: 'data_table')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'data_table'",
+            "old_value": "Data Table",
+            "new_value": "data_table"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'my_button'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow snake_case for component (suggestion: 'my_button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'my_button'",
+            "old_value": "myButton1",
+            "new_value": "my_button"
+          }
+        ]
+      }
+    ]
+  },
+  "np-kebab-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].idleTimer",
+        "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow kebab-case for component (suggestion: 'idle-timer')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].restartButton",
+        "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow kebab-case for component (suggestion: 'restart-button')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].guideLabel",
+        "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow kebab-case for component (suggestion: 'guide-label')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].clientPanel",
+        "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow kebab-case for component (suggestion: 'client-panel')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].aspectRatio",
+        "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow kebab-case for component (suggestion: 'aspect-ratio')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow kebab-case for component (suggestion: 'simple-name')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow kebab-case for component (suggestion: 'my-a-p-i-button')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow kebab-case for component (suggestion: 'api-key')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow kebab-case for component (suggestion: 'data-table')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow kebab-case for component (suggestion: 'my-button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'idleTimer' to 'idle-timer'",
+        "violation_message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow kebab-case for component (suggestion: 'idle-timer')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'idleTimer' to 'idle-timer'",
+            "old_value": "idleTimer",
+            "new_value": "idle-timer"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'restartButton' to 'restart-button'",
+        "violation_message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow kebab-case for component (suggestion: 'restart-button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'restartButton' to 'restart-button'",
+            "old_value": "restartButton",
+            "new_value": "restart-button"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'guideLabel' to 'guide-label'",
+        "violation_message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow kebab-case for component (suggestion: 'guide-label')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'guideLabel' to 'guide-label'",
+            "old_value": "guideLabel",
+            "new_value": "guide-label"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'clientPanel' to 'client-panel'",
+        "violation_message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow kebab-case for component (suggestion: 'client-panel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'clientPanel' to 'client-panel'",
+            "old_value": "clientPanel",
+            "new_value": "client-panel"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'aspectRatio' to 'aspect-ratio'",
+        "violation_message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow kebab-case for component (suggestion: 'aspect-ratio')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              4,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'aspectRatio' to 'aspect-ratio'",
+            "old_value": "aspectRatio",
+            "new_value": "aspect-ratio"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'simple-name'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow kebab-case for component (suggestion: 'simple-name')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'simple-name'",
+            "old_value": "simpleName",
+            "new_value": "simple-name"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'my-a-p-i-button'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow kebab-case for component (suggestion: 'my-a-p-i-button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'my-a-p-i-button'",
+            "old_value": "myAPIButton",
+            "new_value": "my-a-p-i-button"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'api-key'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow kebab-case for component (suggestion: 'api-key')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'api-key'",
+            "old_value": "API Key",
+            "new_value": "api-key"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'data-table'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow kebab-case for component (suggestion: 'data-table')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'data-table'",
+            "old_value": "Data Table",
+            "new_value": "data-table"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'my-button'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow kebab-case for component (suggestion: 'my-button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'my-button'",
+            "old_value": "myButton1",
+            "new_value": "my-button"
+          }
+        ]
+      }
+    ]
+  },
+  "np-screaming-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SIMPLE_NAME')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'API_KEY')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'DATA_TABLE')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'MY_BUTTON')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SIMPLE_NAME'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SIMPLE_NAME')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SIMPLE_NAME'",
+            "old_value": "simpleName",
+            "new_value": "SIMPLE_NAME"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'API_KEY'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'API_KEY')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'API_KEY'",
+            "old_value": "API Key",
+            "new_value": "API_KEY"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DATA_TABLE'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'DATA_TABLE')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DATA_TABLE'",
+            "old_value": "Data Table",
+            "new_value": "DATA_TABLE"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MY_BUTTON'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'MY_BUTTON')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MY_BUTTON'",
+            "old_value": "myButton1",
+            "new_value": "MY_BUTTON"
+          }
+        ]
+      }
+    ]
+  },
+  "np-title-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].idleTimer",
+        "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow Title Case for component (suggestion: 'Idle Timer')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].restartButton",
+        "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow Title Case for component (suggestion: 'Restart Button')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].guideLabel",
+        "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow Title Case for component (suggestion: 'Guide Label')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].clientPanel",
+        "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow Title Case for component (suggestion: 'Client Panel')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].aspectRatio",
+        "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow Title Case for component (suggestion: 'Aspect Ratio')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow Title Case for component (suggestion: 'Simple Name')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow Title Case for component (suggestion: 'My A P I Button')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow Title Case for component (suggestion 'API Key' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].idle",
+        "message": "root.root.children[9].idle: Name 'idle' doesn't follow Title Case for component (suggestion: 'Idle')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow Title Case for component (suggestion: 'My Button')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[11].HTTPServer",
+        "message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow Title Case for component (suggestion: 'H T T P Server')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'idleTimer' to 'Idle Timer'",
+        "violation_message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow Title Case for component (suggestion: 'Idle Timer')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'idleTimer' to 'Idle Timer'",
+            "old_value": "idleTimer",
+            "new_value": "Idle Timer"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'restartButton' to 'Restart Button'",
+        "violation_message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow Title Case for component (suggestion: 'Restart Button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'restartButton' to 'Restart Button'",
+            "old_value": "restartButton",
+            "new_value": "Restart Button"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'guideLabel' to 'Guide Label'",
+        "violation_message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow Title Case for component (suggestion: 'Guide Label')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'guideLabel' to 'Guide Label'",
+            "old_value": "guideLabel",
+            "new_value": "Guide Label"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'clientPanel' to 'Client Panel'",
+        "violation_message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow Title Case for component (suggestion: 'Client Panel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'clientPanel' to 'Client Panel'",
+            "old_value": "clientPanel",
+            "new_value": "Client Panel"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'aspectRatio' to 'Aspect Ratio'",
+        "violation_message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow Title Case for component (suggestion: 'Aspect Ratio')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              4,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'aspectRatio' to 'Aspect Ratio'",
+            "old_value": "aspectRatio",
+            "new_value": "Aspect Ratio"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'Simple Name'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow Title Case for component (suggestion: 'Simple Name')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'Simple Name'",
+            "old_value": "simpleName",
+            "new_value": "Simple Name"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'My A P I Button'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow Title Case for component (suggestion: 'My A P I Button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'My A P I Button'",
+            "old_value": "myAPIButton",
+            "new_value": "My A P I Button"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'idle' to 'Idle'",
+        "violation_message": "root.root.children[9].idle: Name 'idle' doesn't follow Title Case for component (suggestion: 'Idle')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              9,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'idle' to 'Idle'",
+            "old_value": "idle",
+            "new_value": "Idle"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'My Button'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow Title Case for component (suggestion: 'My Button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'My Button'",
+            "old_value": "myButton1",
+            "new_value": "My Button"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'HTTPServer' to 'H T T P Server'",
+        "violation_message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow Title Case for component (suggestion: 'H T T P Server')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              11,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'HTTPServer' to 'H T T P Server'",
+            "old_value": "HTTPServer",
+            "new_value": "H T T P Server"
+          }
+        ]
+      }
+    ]
+  },
+  "np-lower-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'simple name')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'data table')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'my button')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'simple name'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'simple name')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'simple name'",
+            "old_value": "simpleName",
+            "new_value": "simple name"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'data table'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'data table')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'data table'",
+            "old_value": "Data Table",
+            "new_value": "data table"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'my button'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'my button')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'my button'",
+            "old_value": "myButton1",
+            "new_value": "my button"
+          }
+        ]
+      }
+    ]
+  },
+  "np-convention-only": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-target-string": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-property-camel": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-component-custom-method-camel-min3": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].idleTimer",
+        "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow camelCase for component (suggestion 'idleTimer' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].restartButton",
+        "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow camelCase for component (suggestion 'restartButton' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].guideLabel",
+        "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow camelCase for component (suggestion 'guideLabel' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].clientPanel",
+        "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow camelCase for component (suggestion 'clientPanel' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].aspectRatio",
+        "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow camelCase for component (suggestion 'aspectRatio' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow camelCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow camelCase for component (suggestion: 'dataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].idle",
+        "message": "root.root.children[9].idle: Name 'idle' doesn't follow camelCase for component (suggestion 'idle' already in use by a sibling; rename manually)"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[11].HTTPServer",
+        "message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow camelCase for component (suggestion: 'hTTPServer')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow camelCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'dataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow camelCase for component (suggestion: 'dataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'dataTable'",
+            "old_value": "Data Table",
+            "new_value": "dataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'HTTPServer' to 'hTTPServer'",
+        "violation_message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow camelCase for component (suggestion: 'hTTPServer')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              11,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'HTTPServer' to 'hTTPServer'",
+            "old_value": "HTTPServer",
+            "new_value": "hTTPServer"
+          }
+        ]
+      }
+    ]
+  },
+  "np-standard-component-property": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-severity-split": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-four-types": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-min5": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].idle",
+        "message": "root.root.children[9].idle: Name 'idle' is too short (minimum 5 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'idle' to 'Idle'",
+        "violation_message": "root.root.children[9].idle: Name 'idle' is too short (minimum 5 characters) for component",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              9,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'idle' to 'Idle'",
+            "old_value": "idle",
+            "new_value": "Idle"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-max10": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].restartButton",
+        "message": "root.root.children[1].restartButton: Name 'restartButton' is too long (maximum 10 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].clientPanel",
+        "message": "root.root.children[3].clientPanel: Name 'clientPanel' is too long (maximum 10 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].aspectRatio",
+        "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' is too long (maximum 10 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' is too long (maximum 10 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'restartButton' to 'RestartButton'",
+        "violation_message": "root.root.children[1].restartButton: Name 'restartButton' is too long (maximum 10 characters) for component",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'restartButton' to 'RestartButton'",
+            "old_value": "restartButton",
+            "new_value": "RestartButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'clientPanel' to 'ClientPanel'",
+        "violation_message": "root.root.children[3].clientPanel: Name 'clientPanel' is too long (maximum 10 characters) for component",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'clientPanel' to 'ClientPanel'",
+            "old_value": "clientPanel",
+            "new_value": "ClientPanel"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'aspectRatio' to 'AspectRatio'",
+        "violation_message": "root.root.children[4].aspectRatio: Name 'aspectRatio' is too long (maximum 10 characters) for component",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              4,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'aspectRatio' to 'AspectRatio'",
+            "old_value": "aspectRatio",
+            "new_value": "AspectRatio"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' is too long (maximum 10 characters) for component",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-no-numbers": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-forbidden": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-abbrev-no-autodetect": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].idleTimer",
+        "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow PascalCase for component (suggestion: 'IdleTimer')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].restartButton",
+        "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow PascalCase for component (suggestion: 'RestartButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].guideLabel",
+        "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow PascalCase for component (suggestion: 'GuideLabel')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].clientPanel",
+        "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow PascalCase for component (suggestion: 'ClientPanel')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].aspectRatio",
+        "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow PascalCase for component (suggestion: 'AspectRatio')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].idle",
+        "message": "root.root.children[9].idle: Name 'idle' doesn't follow PascalCase for component (suggestion: 'Idle')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'idleTimer' to 'IdleTimer'",
+        "violation_message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow PascalCase for component (suggestion: 'IdleTimer')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'idleTimer' to 'IdleTimer'",
+            "old_value": "idleTimer",
+            "new_value": "IdleTimer"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'restartButton' to 'RestartButton'",
+        "violation_message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow PascalCase for component (suggestion: 'RestartButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'restartButton' to 'RestartButton'",
+            "old_value": "restartButton",
+            "new_value": "RestartButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'guideLabel' to 'GuideLabel'",
+        "violation_message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow PascalCase for component (suggestion: 'GuideLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'guideLabel' to 'GuideLabel'",
+            "old_value": "guideLabel",
+            "new_value": "GuideLabel"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'clientPanel' to 'ClientPanel'",
+        "violation_message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow PascalCase for component (suggestion: 'ClientPanel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'clientPanel' to 'ClientPanel'",
+            "old_value": "clientPanel",
+            "new_value": "ClientPanel"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'aspectRatio' to 'AspectRatio'",
+        "violation_message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow PascalCase for component (suggestion: 'AspectRatio')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              4,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'aspectRatio' to 'AspectRatio'",
+            "old_value": "aspectRatio",
+            "new_value": "AspectRatio"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'idle' to 'Idle'",
+        "violation_message": "root.root.children[9].idle: Name 'idle' doesn't follow PascalCase for component (suggestion: 'Idle')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              9,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'idle' to 'Idle'",
+            "old_value": "idle",
+            "new_value": "Idle"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-skip-names": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component (suggestion: 'MyAPIButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "np-custom-pattern-prefix": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].idleTimer",
+        "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].restartButton",
+        "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].guideLabel",
+        "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].clientPanel",
+        "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].aspectRatio",
+        "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].idle",
+        "message": "root.root.children[9].idle: Name 'idle' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[11].HTTPServer",
+        "message": "root.root.children[11].HTTPServer: Name 'HTTPServer' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-custom-method-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-message-handler-snake-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-mixedcase-pattern": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[5].simpleName",
+        "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'SimpleName')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[6].myAPIButton",
+        "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'MyAPIButton')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[7].API Key",
+        "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'APIKey')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[8].Data Table",
+        "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'DataTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[10].myButton1",
+        "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'MyButton')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'simpleName' to 'SimpleName'",
+        "violation_message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'SimpleName')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'simpleName' to 'SimpleName'",
+            "old_value": "simpleName",
+            "new_value": "SimpleName"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+        "violation_message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'MyAPIButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myAPIButton' to 'MyAPIButton'",
+            "old_value": "myAPIButton",
+            "new_value": "MyAPIButton"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'API Key' to 'APIKey'",
+        "violation_message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'APIKey')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'API Key' to 'APIKey'",
+            "old_value": "API Key",
+            "new_value": "APIKey"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Data Table' to 'DataTable'",
+        "violation_message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'DataTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Data Table' to 'DataTable'",
+            "old_value": "Data Table",
+            "new_value": "DataTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'myButton1' to 'MyButton'",
+        "violation_message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'MyButton')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'myButton1' to 'MyButton'",
+            "old_value": "myButton1",
+            "new_value": "MyButton"
+          }
+        ]
+      }
+    ]
+  },
+  "poll-1000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-5000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-30000": {
+    "findings": [],
+    "fixes": []
+  },
+  "pylint-e-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-case-insensitive": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-sibling-only-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-scripts": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-expressions": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-property-bindings": {
+    "findings": [],
+    "fixes": []
+  },
+  "ecd-tight": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-private": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-public": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-protected-exempt": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-false": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-true": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-false-no-exempt": {
+    "findings": [],
+    "fixes": []
+  }
+}

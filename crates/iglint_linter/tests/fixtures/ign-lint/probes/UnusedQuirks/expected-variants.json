@@ -1,0 +1,1283 @@
+{
+  "default": {
+    "findings": [
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "custom.unusedThing",
+        "message": "custom.unusedThing: custom property 'unusedThing' is defined but never referenced"
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "custom.list",
+        "message": "custom.list: custom property 'list' is defined but never referenced"
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "params.inParam",
+        "message": "params.inParam: view parameter 'inParam' is defined but never referenced"
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "params.outParam",
+        "message": "params.outParam: view parameter 'outParam' is defined but never referenced"
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "root.root.children.Card.custom.alpha",
+        "message": "root.root.children.Card.custom.alpha: custom property 'alpha' is defined but never referenced"
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "root.root.children.Card.children.Inner.custom.alpha",
+        "message": "root.root.children.Card.children.Inner.custom.alpha: custom property 'alpha' is defined but never referenced"
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "root.root.children.Card.children.Inner.custom.gamma",
+        "message": "root.root.children.Card.children.Inner.custom.gamma: custom property 'gamma' is defined but never referenced"
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "root.root.children.Card.custom.delta",
+        "message": "root.root.children.Card.custom.delta: custom property 'delta' is defined but never referenced"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Remove unused custom property 'unusedThing'",
+        "violation_message": "custom.unusedThing: custom property 'unusedThing' is defined but never referenced",
+        "operations": [
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "unusedThing"
+            ],
+            "description": "Remove custom.unusedThing value entry",
+            "old_value": 3
+          }
+        ]
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Remove unused custom property 'list'",
+        "violation_message": "custom.list: custom property 'list' is defined but never referenced",
+        "operations": [
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "list"
+            ],
+            "description": "Remove custom.list value entry",
+            "old_value": [
+              1,
+              2,
+              3
+            ]
+          }
+        ]
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Remove unused custom property 'alpha'",
+        "violation_message": "root.root.children.Card.children.Inner.custom.alpha: custom property 'alpha' is defined but never referenced",
+        "operations": [
+          {
+            "op": "delete_key",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "children",
+              0,
+              "custom",
+              "alpha"
+            ],
+            "description": "Remove custom.alpha value entry",
+            "old_value": 3
+          }
+        ]
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Remove unused custom property 'gamma'",
+        "violation_message": "root.root.children.Card.children.Inner.custom.gamma: custom property 'gamma' is defined but never referenced",
+        "operations": [
+          {
+            "op": "delete_key",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "children",
+              0,
+              "custom",
+              "gamma"
+            ],
+            "description": "Remove custom.gamma value entry",
+            "old_value": 4
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-component-error": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-camel-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Card",
+        "message": "root.root.children[0].Card: Name 'Card' doesn't follow camelCase for component (suggestion: 'card')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Card.children[0].Inner",
+        "message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow camelCase for component (suggestion: 'inner')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Reader",
+        "message": "root.root.children[1].Reader: Name 'Reader' doesn't follow camelCase for component (suggestion: 'reader')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Card",
+        "message": "root.root.children[2].Card: Name 'Card' doesn't follow camelCase for component (suggestion: 'card')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Card' to 'card'",
+        "violation_message": "root.root.children[0].Card: Name 'Card' doesn't follow camelCase for component (suggestion: 'card')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Card' to 'card'",
+            "old_value": "Card",
+            "new_value": "card"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Inner' to 'inner'",
+        "violation_message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow camelCase for component (suggestion: 'inner')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Inner' to 'inner'",
+            "old_value": "Inner",
+            "new_value": "inner"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Reader' to 'reader'",
+        "violation_message": "root.root.children[1].Reader: Name 'Reader' doesn't follow camelCase for component (suggestion: 'reader')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Reader' to 'reader'",
+            "old_value": "Reader",
+            "new_value": "reader"
+          }
+        ]
+      }
+    ]
+  },
+  "np-snake-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Card",
+        "message": "root.root.children[0].Card: Name 'Card' doesn't follow snake_case for component (suggestion: 'card')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Card.children[0].Inner",
+        "message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow snake_case for component (suggestion: 'inner')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Reader",
+        "message": "root.root.children[1].Reader: Name 'Reader' doesn't follow snake_case for component (suggestion: 'reader')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Card",
+        "message": "root.root.children[2].Card: Name 'Card' doesn't follow snake_case for component (suggestion: 'card')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Card' to 'card'",
+        "violation_message": "root.root.children[0].Card: Name 'Card' doesn't follow snake_case for component (suggestion: 'card')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Card' to 'card'",
+            "old_value": "Card",
+            "new_value": "card"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Inner' to 'inner'",
+        "violation_message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow snake_case for component (suggestion: 'inner')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Inner' to 'inner'",
+            "old_value": "Inner",
+            "new_value": "inner"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Reader' to 'reader'",
+        "violation_message": "root.root.children[1].Reader: Name 'Reader' doesn't follow snake_case for component (suggestion: 'reader')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Reader' to 'reader'",
+            "old_value": "Reader",
+            "new_value": "reader"
+          }
+        ]
+      }
+    ]
+  },
+  "np-kebab-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Card",
+        "message": "root.root.children[0].Card: Name 'Card' doesn't follow kebab-case for component (suggestion: 'card')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Card.children[0].Inner",
+        "message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow kebab-case for component (suggestion: 'inner')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Reader",
+        "message": "root.root.children[1].Reader: Name 'Reader' doesn't follow kebab-case for component (suggestion: 'reader')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Card",
+        "message": "root.root.children[2].Card: Name 'Card' doesn't follow kebab-case for component (suggestion: 'card')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Card' to 'card'",
+        "violation_message": "root.root.children[0].Card: Name 'Card' doesn't follow kebab-case for component (suggestion: 'card')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Card' to 'card'",
+            "old_value": "Card",
+            "new_value": "card"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Inner' to 'inner'",
+        "violation_message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow kebab-case for component (suggestion: 'inner')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Inner' to 'inner'",
+            "old_value": "Inner",
+            "new_value": "inner"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Reader' to 'reader'",
+        "violation_message": "root.root.children[1].Reader: Name 'Reader' doesn't follow kebab-case for component (suggestion: 'reader')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Reader' to 'reader'",
+            "old_value": "Reader",
+            "new_value": "reader"
+          }
+        ]
+      }
+    ]
+  },
+  "np-screaming-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Card",
+        "message": "root.root.children[0].Card: Name 'Card' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'CARD')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Card.children[0].Inner",
+        "message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'INNER')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Reader",
+        "message": "root.root.children[1].Reader: Name 'Reader' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'READER')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Card",
+        "message": "root.root.children[2].Card: Name 'Card' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'CARD')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Card' to 'CARD'",
+        "violation_message": "root.root.children[0].Card: Name 'Card' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'CARD')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Card' to 'CARD'",
+            "old_value": "Card",
+            "new_value": "CARD"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Inner' to 'INNER'",
+        "violation_message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'INNER')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Inner' to 'INNER'",
+            "old_value": "Inner",
+            "new_value": "INNER"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Reader' to 'READER'",
+        "violation_message": "root.root.children[1].Reader: Name 'Reader' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'READER')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Reader' to 'READER'",
+            "old_value": "Reader",
+            "new_value": "READER"
+          }
+        ]
+      }
+    ]
+  },
+  "np-title-component": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-lower-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Card",
+        "message": "root.root.children[0].Card: Name 'Card' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'card')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Card.children[0].Inner",
+        "message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'inner')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Reader",
+        "message": "root.root.children[1].Reader: Name 'Reader' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'reader')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Card",
+        "message": "root.root.children[2].Card: Name 'Card' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'card')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Card' to 'card'",
+        "violation_message": "root.root.children[0].Card: Name 'Card' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'card')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Card' to 'card'",
+            "old_value": "Card",
+            "new_value": "card"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Inner' to 'inner'",
+        "violation_message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'inner')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Inner' to 'inner'",
+            "old_value": "Inner",
+            "new_value": "inner"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Reader' to 'reader'",
+        "violation_message": "root.root.children[1].Reader: Name 'Reader' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'reader')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Reader' to 'reader'",
+            "old_value": "Reader",
+            "new_value": "reader"
+          }
+        ]
+      }
+    ]
+  },
+  "np-convention-only": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-target-string": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-component-custom-method-camel-min3": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Card",
+        "message": "root.root.children[0].Card: Name 'Card' doesn't follow camelCase for component (suggestion: 'card')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Card.children[0].Inner",
+        "message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow camelCase for component (suggestion: 'inner')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Reader",
+        "message": "root.root.children[1].Reader: Name 'Reader' doesn't follow camelCase for component (suggestion: 'reader')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Card",
+        "message": "root.root.children[2].Card: Name 'Card' doesn't follow camelCase for component (suggestion: 'card')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Card' to 'card'",
+        "violation_message": "root.root.children[0].Card: Name 'Card' doesn't follow camelCase for component (suggestion: 'card')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Card' to 'card'",
+            "old_value": "Card",
+            "new_value": "card"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Inner' to 'inner'",
+        "violation_message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow camelCase for component (suggestion: 'inner')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Inner' to 'inner'",
+            "old_value": "Inner",
+            "new_value": "inner"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Reader' to 'reader'",
+        "violation_message": "root.root.children[1].Reader: Name 'Reader' doesn't follow camelCase for component (suggestion: 'reader')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Reader' to 'reader'",
+            "old_value": "Reader",
+            "new_value": "reader"
+          }
+        ]
+      }
+    ]
+  },
+  "np-standard-component-property": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-severity-split": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-four-types": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-min5": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Card",
+        "message": "root.root.children[0].Card: Name 'Card' is too short (minimum 5 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Card",
+        "message": "root.root.children[2].Card: Name 'Card' is too short (minimum 5 characters) for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-max10": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-no-numbers": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-abbrev-no-autodetect": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-skip-names": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-custom-pattern-prefix": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Card",
+        "message": "root.root.children[0].Card: Name 'Card' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Card.children[0].Inner",
+        "message": "root.root.children[0].Card.children[0].Inner: Name 'Inner' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Reader",
+        "message": "root.root.children[1].Reader: Name 'Reader' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Card",
+        "message": "root.root.children[2].Card: Name 'Card' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-custom-method-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-message-handler-snake-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-mixedcase-pattern": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-1000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-5000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-30000": {
+    "findings": [],
+    "fixes": []
+  },
+  "pylint-e-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-case-insensitive": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-sibling-only-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-scripts": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-expressions": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-property-bindings": {
+    "findings": [],
+    "fixes": []
+  },
+  "ecd-tight": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-private": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.foo",
+        "message": "custom.foo: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.foobar",
+        "message": "custom.foobar: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.list",
+        "message": "custom.list: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.unusedThing",
+        "message": "custom.unusedThing: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Card.custom.alpha",
+        "message": "root.root.children[0].Card.custom.alpha: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Card.custom.beta",
+        "message": "root.root.children[0].Card.custom.beta: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Card.children[0].Inner.custom.alpha",
+        "message": "root.root.children[0].Card.children[0].Inner.custom.alpha: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Card.children[0].Inner.custom.gamma",
+        "message": "root.root.children[0].Card.children[0].Inner.custom.gamma: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Card.custom.delta",
+        "message": "root.root.children[2].Card.custom.delta: custom property access mode is PUBLIC, expected PRIVATE"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.foo' to PRIVATE",
+        "violation_message": "custom.foo: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.foo"
+            ],
+            "description": "Add propConfig entry 'custom.foo' with access=PRIVATE",
+            "old_value": null,
+            "new_value": {
+              "access": "PRIVATE"
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.foobar' to PRIVATE",
+        "violation_message": "custom.foobar: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.foobar",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.foobar'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.list' to PRIVATE",
+        "violation_message": "custom.list: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.list"
+            ],
+            "description": "Add propConfig entry 'custom.list' with access=PRIVATE",
+            "old_value": null,
+            "new_value": {
+              "access": "PRIVATE"
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.unusedThing' to PRIVATE",
+        "violation_message": "custom.unusedThing: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.unusedThing"
+            ],
+            "description": "Add propConfig entry 'custom.unusedThing' with access=PRIVATE",
+            "old_value": null,
+            "new_value": {
+              "access": "PRIVATE"
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'root.root.children[0].Card.custom.alpha' to PRIVATE",
+        "violation_message": "root.root.children[0].Card.custom.alpha: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "propConfig"
+            ],
+            "description": "Create propConfig with entry 'custom.alpha' (access=PRIVATE)",
+            "old_value": null,
+            "new_value": {
+              "custom.alpha": {
+                "access": "PRIVATE"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'root.root.children[0].Card.custom.beta' to PRIVATE",
+        "violation_message": "root.root.children[0].Card.custom.beta: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "propConfig",
+              "custom.beta"
+            ],
+            "description": "Add propConfig entry 'custom.beta' with access=PRIVATE",
+            "old_value": null,
+            "new_value": {
+              "access": "PRIVATE"
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'root.root.children[0].Card.children[0].Inner.custom.alpha' to PRIVATE",
+        "violation_message": "root.root.children[0].Card.children[0].Inner.custom.alpha: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "children",
+              0,
+              "propConfig"
+            ],
+            "description": "Create propConfig with entry 'custom.alpha' (access=PRIVATE)",
+            "old_value": null,
+            "new_value": {
+              "custom.alpha": {
+                "access": "PRIVATE"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'root.root.children[0].Card.children[0].Inner.custom.gamma' to PRIVATE",
+        "violation_message": "root.root.children[0].Card.children[0].Inner.custom.gamma: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "children",
+              0,
+              "propConfig",
+              "custom.gamma"
+            ],
+            "description": "Add propConfig entry 'custom.gamma' with access=PRIVATE",
+            "old_value": null,
+            "new_value": {
+              "access": "PRIVATE"
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'root.root.children[2].Card.custom.delta' to PRIVATE",
+        "violation_message": "root.root.children[2].Card.custom.delta: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "propConfig"
+            ],
+            "description": "Create propConfig with entry 'custom.delta' (access=PRIVATE)",
+            "old_value": null,
+            "new_value": {
+              "custom.delta": {
+                "access": "PRIVATE"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "access-public": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-protected-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.foo",
+        "message": "custom.foo: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.foobar",
+        "message": "custom.foobar: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.list",
+        "message": "custom.list: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.unusedThing",
+        "message": "custom.unusedThing: custom property access mode is PUBLIC, expected PROTECTED"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.foo' to PROTECTED",
+        "violation_message": "custom.foo: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.foo"
+            ],
+            "description": "Add propConfig entry 'custom.foo' with access=PROTECTED",
+            "old_value": null,
+            "new_value": {
+              "access": "PROTECTED"
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.foobar' to PROTECTED",
+        "violation_message": "custom.foobar: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.foobar",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.foobar'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.list' to PROTECTED",
+        "violation_message": "custom.list: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.list"
+            ],
+            "description": "Add propConfig entry 'custom.list' with access=PROTECTED",
+            "old_value": null,
+            "new_value": {
+              "access": "PROTECTED"
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.unusedThing' to PROTECTED",
+        "violation_message": "custom.unusedThing: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.unusedThing"
+            ],
+            "description": "Add propConfig entry 'custom.unusedThing' with access=PROTECTED",
+            "old_value": null,
+            "new_value": {
+              "access": "PROTECTED"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-false": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-true": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-false-no-exempt": {
+    "findings": [],
+    "fixes": []
+  }
+}

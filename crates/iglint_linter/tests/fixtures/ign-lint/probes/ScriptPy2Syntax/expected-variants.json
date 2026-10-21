@@ -1,0 +1,570 @@
+{
+  "default": {
+    "findings": [
+      {
+        "rule": "PylintScriptRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Py2.events.component.onActionPerformed",
+        "message": "root.root.children[0].Py2.events.component.onActionPerformed: Line 2: Parsing failed: 'Missing parentheses in call to 'print'. Did you mean print(...)? (<tmpmodule>, line 11)' (syntax-error) (E0001)",
+        "code": "E0001",
+        "line": 2
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-component-error": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-camel-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Py2",
+        "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow camelCase for component (suggestion: 'py2')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Other",
+        "message": "root.root.children[1].Other: Name 'Other' doesn't follow camelCase for component (suggestion: 'other')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Py2' to 'py2'",
+        "violation_message": "root.root.children[0].Py2: Name 'Py2' doesn't follow camelCase for component (suggestion: 'py2')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Py2' to 'py2'",
+            "old_value": "Py2",
+            "new_value": "py2"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Other' to 'other'",
+        "violation_message": "root.root.children[1].Other: Name 'Other' doesn't follow camelCase for component (suggestion: 'other')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Other' to 'other'",
+            "old_value": "Other",
+            "new_value": "other"
+          }
+        ]
+      }
+    ]
+  },
+  "np-snake-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Py2",
+        "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow snake_case for component (suggestion: 'py2')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Other",
+        "message": "root.root.children[1].Other: Name 'Other' doesn't follow snake_case for component (suggestion: 'other')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Py2' to 'py2'",
+        "violation_message": "root.root.children[0].Py2: Name 'Py2' doesn't follow snake_case for component (suggestion: 'py2')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Py2' to 'py2'",
+            "old_value": "Py2",
+            "new_value": "py2"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Other' to 'other'",
+        "violation_message": "root.root.children[1].Other: Name 'Other' doesn't follow snake_case for component (suggestion: 'other')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Other' to 'other'",
+            "old_value": "Other",
+            "new_value": "other"
+          }
+        ]
+      }
+    ]
+  },
+  "np-kebab-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Py2",
+        "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow kebab-case for component (suggestion: 'py2')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Other",
+        "message": "root.root.children[1].Other: Name 'Other' doesn't follow kebab-case for component (suggestion: 'other')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Py2' to 'py2'",
+        "violation_message": "root.root.children[0].Py2: Name 'Py2' doesn't follow kebab-case for component (suggestion: 'py2')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Py2' to 'py2'",
+            "old_value": "Py2",
+            "new_value": "py2"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Other' to 'other'",
+        "violation_message": "root.root.children[1].Other: Name 'Other' doesn't follow kebab-case for component (suggestion: 'other')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Other' to 'other'",
+            "old_value": "Other",
+            "new_value": "other"
+          }
+        ]
+      }
+    ]
+  },
+  "np-screaming-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Py2",
+        "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'PY2')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Other",
+        "message": "root.root.children[1].Other: Name 'Other' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'OTHER')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Py2' to 'PY2'",
+        "violation_message": "root.root.children[0].Py2: Name 'Py2' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'PY2')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Py2' to 'PY2'",
+            "old_value": "Py2",
+            "new_value": "PY2"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Other' to 'OTHER'",
+        "violation_message": "root.root.children[1].Other: Name 'Other' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'OTHER')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Other' to 'OTHER'",
+            "old_value": "Other",
+            "new_value": "OTHER"
+          }
+        ]
+      }
+    ]
+  },
+  "np-title-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Py2",
+        "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow Title Case for component (suggestion 'Py2' already in use by a sibling; rename manually)"
+      }
+    ],
+    "fixes": []
+  },
+  "np-lower-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Py2",
+        "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'py2')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Other",
+        "message": "root.root.children[1].Other: Name 'Other' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'other')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Py2' to 'py2'",
+        "violation_message": "root.root.children[0].Py2: Name 'Py2' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'py2')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Py2' to 'py2'",
+            "old_value": "Py2",
+            "new_value": "py2"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Other' to 'other'",
+        "violation_message": "root.root.children[1].Other: Name 'Other' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'other')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Other' to 'other'",
+            "old_value": "Other",
+            "new_value": "other"
+          }
+        ]
+      }
+    ]
+  },
+  "np-convention-only": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-target-string": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-component-custom-method-camel-min3": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Py2",
+        "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow camelCase for component (suggestion: 'py2')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Other",
+        "message": "root.root.children[1].Other: Name 'Other' doesn't follow camelCase for component (suggestion: 'other')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Py2' to 'py2'",
+        "violation_message": "root.root.children[0].Py2: Name 'Py2' doesn't follow camelCase for component (suggestion: 'py2')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Py2' to 'py2'",
+            "old_value": "Py2",
+            "new_value": "py2"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Other' to 'other'",
+        "violation_message": "root.root.children[1].Other: Name 'Other' doesn't follow camelCase for component (suggestion: 'other')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Other' to 'other'",
+            "old_value": "Other",
+            "new_value": "other"
+          }
+        ]
+      }
+    ]
+  },
+  "np-standard-component-property": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-severity-split": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-four-types": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-min5": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Py2",
+        "message": "root.root.children[0].Py2: Name 'Py2' is too short (minimum 5 characters) for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-max10": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-no-numbers": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Py2",
+        "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow PascalCase for component (suggestion 'Py2' already in use by a sibling; rename manually)"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-abbrev-no-autodetect": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-skip-names": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-custom-pattern-prefix": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Py2",
+        "message": "root.root.children[0].Py2: Name 'Py2' is too short (minimum 4 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Other",
+        "message": "root.root.children[1].Other: Name 'Other' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-custom-method-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-message-handler-snake-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-mixedcase-pattern": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-1000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-5000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-30000": {
+    "findings": [],
+    "fixes": []
+  },
+  "pylint-e-warning": {
+    "findings": [
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Py2.events.component.onActionPerformed",
+        "message": "root.root.children[0].Py2.events.component.onActionPerformed: Line 2: Parsing failed: 'Missing parentheses in call to 'print'. Did you mean print(...)? (<tmpmodule>, line 11)' (syntax-error) (E0001)",
+        "code": "E0001",
+        "line": 2
+      }
+    ],
+    "fixes": []
+  },
+  "bcr-case-insensitive": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-sibling-only-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-scripts": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-expressions": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-property-bindings": {
+    "findings": [],
+    "fixes": []
+  },
+  "ecd-tight": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-private": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-public": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-protected-exempt": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-false": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-true": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-false-no-exempt": {
+    "findings": [],
+    "fixes": []
+  }
+}

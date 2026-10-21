@@ -1,0 +1,114 @@
+{
+  "custom": {
+    "foo": 1,
+    "foobar": 2,
+    "unusedThing": 3,
+    "list": [
+      1,
+      2,
+      3
+    ]
+  },
+  "params": {
+    "inParam": 1,
+    "outParam": 2
+  },
+  "props": {},
+  "propConfig": {
+    "params.inParam": {
+      "paramDirection": "input",
+      "persistent": true
+    },
+    "params.outParam": {
+      "paramDirection": "output",
+      "persistent": true
+    },
+    "custom.foobar": {
+      "persistent": true
+    }
+  },
+  "root": {
+    "type": "ia.container.flex",
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "children": [
+      {
+        "type": "ia.container.flex",
+        "meta": {
+          "name": "Card"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "custom": {
+          "alpha": 1,
+          "beta": 2
+        },
+        "children": [
+          {
+            "type": "ia.display.label",
+            "meta": {
+              "name": "Inner"
+            },
+            "position": {
+              "basis": "32px"
+            },
+            "props": {},
+            "custom": {
+              "alpha": 3,
+              "gamma": 4
+            }
+          }
+        ]
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "Reader"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "{this.custom.beta}"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.container.flex",
+        "meta": {
+          "name": "Card"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "custom": {
+          "delta": 5
+        }
+      }
+    ],
+    "propConfig": {
+      "props.text": {
+        "binding": {
+          "type": "expr",
+          "config": {
+            "expression": "{view.custom.foobar}"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.valList",
+    "message": "params.valList: view parameter 'valList' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.valObj",
+    "message": "params.valObj: view parameter 'valObj' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.valDate",
+    "message": "params.valDate: view parameter 'valDate' is defined but never referenced"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "propConfig.custom.transformExpression",
+    "message": "propConfig.custom.transformExpression: 'now(5000)'"
+  }
+]

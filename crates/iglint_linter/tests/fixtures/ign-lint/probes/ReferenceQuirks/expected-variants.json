@@ -1,0 +1,1622 @@
+{
+  "default": {
+    "findings": [
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+        "code": "W1405",
+        "line": 2
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "propConfig.custom.v",
+        "message": "propConfig.custom.v: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Left.propConfig.props.text",
+        "message": "root.root.children[0].Left.propConfig.props.text: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].Deep.propConfig.props.text",
+        "message": "root.root.children[3].Deep.propConfig.props.text: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Script contains '.getSibling(' and 2 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "propConfig.custom.v",
+        "message": "propConfig.custom.v: Relative expression '{../root.props.text}' navigates above root component"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Left.propConfig.props.text",
+        "message": "root.root.children[0].Left.propConfig.props.text: Expression references non-existent component 'Nope' in: {../Right.props.text} + {./Nope.props.text}"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].Deep.propConfig.props.text",
+        "message": "root.root.children[3].Deep.propConfig.props.text: Relative expression '{.../Left.props.text}' navigates above root component"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Abs.propConfig.props.style.color",
+        "message": "root.root.children[2].Abs.propConfig.props.style.color: Property Binding references non-existent component 'root/Ghost' in: /root/Ghost.props.text"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Script references non-existent sibling component 'Missing'"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Component 'Missing' not found as sibling in: self.getSibling(\"Missing\")"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Navigation chain goes beyond root: self.parent.parent.getChild('X')"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-component-error": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-camel-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Left",
+        "message": "root.root.children[0].Left: Name 'Left' doesn't follow camelCase for component (suggestion: 'left')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right",
+        "message": "root.root.children[1].Right: Name 'Right' doesn't follow camelCase for component (suggestion: 'right')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Abs",
+        "message": "root.root.children[2].Abs: Name 'Abs' doesn't follow camelCase for component (suggestion: 'abs')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].Deep",
+        "message": "root.root.children[3].Deep: Name 'Deep' doesn't follow camelCase for component (suggestion: 'deep')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 3 reference(s)",
+        "description": "Rename component 'Left' to 'left'",
+        "violation_message": "root.root.children[0].Left: Name 'Left' doesn't follow camelCase for component (suggestion: 'left')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Left' to 'left'",
+            "old_value": "Left",
+            "new_value": "left"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "events",
+              "component",
+              "onActionPerformed",
+              "config",
+              "script"
+            ],
+            "description": "Update script reference: 'Left' -> 'left'",
+            "old_substring": "getChild('Left')",
+            "new_substring": "getChild('left')"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "path"
+            ],
+            "description": "Update property_binding reference: 'Left' -> 'left'",
+            "old_substring": "/root/Left.props.text",
+            "new_substring": "/root/left.props.text"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "expression"
+            ],
+            "description": "Update expression reference: 'Left' -> 'left'",
+            "old_substring": "{.../Left.props.text}",
+            "new_substring": "{.../left.props.text}"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Right' to 'right'",
+        "violation_message": "root.root.children[1].Right: Name 'Right' doesn't follow camelCase for component (suggestion: 'right')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Right' to 'right'",
+            "old_value": "Right",
+            "new_value": "right"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "expression"
+            ],
+            "description": "Update expression reference: 'Right' -> 'right'",
+            "old_substring": "{../Right.props.text}",
+            "new_substring": "{../right.props.text}"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Abs' to 'abs'",
+        "violation_message": "root.root.children[2].Abs: Name 'Abs' doesn't follow camelCase for component (suggestion: 'abs')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Abs' to 'abs'",
+            "old_value": "Abs",
+            "new_value": "abs"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Deep' to 'deep'",
+        "violation_message": "root.root.children[3].Deep: Name 'Deep' doesn't follow camelCase for component (suggestion: 'deep')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Deep' to 'deep'",
+            "old_value": "Deep",
+            "new_value": "deep"
+          }
+        ]
+      }
+    ]
+  },
+  "np-snake-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Left",
+        "message": "root.root.children[0].Left: Name 'Left' doesn't follow snake_case for component (suggestion: 'left')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right",
+        "message": "root.root.children[1].Right: Name 'Right' doesn't follow snake_case for component (suggestion: 'right')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Abs",
+        "message": "root.root.children[2].Abs: Name 'Abs' doesn't follow snake_case for component (suggestion: 'abs')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].Deep",
+        "message": "root.root.children[3].Deep: Name 'Deep' doesn't follow snake_case for component (suggestion: 'deep')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 3 reference(s)",
+        "description": "Rename component 'Left' to 'left'",
+        "violation_message": "root.root.children[0].Left: Name 'Left' doesn't follow snake_case for component (suggestion: 'left')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Left' to 'left'",
+            "old_value": "Left",
+            "new_value": "left"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "events",
+              "component",
+              "onActionPerformed",
+              "config",
+              "script"
+            ],
+            "description": "Update script reference: 'Left' -> 'left'",
+            "old_substring": "getChild('Left')",
+            "new_substring": "getChild('left')"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "path"
+            ],
+            "description": "Update property_binding reference: 'Left' -> 'left'",
+            "old_substring": "/root/Left.props.text",
+            "new_substring": "/root/left.props.text"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "expression"
+            ],
+            "description": "Update expression reference: 'Left' -> 'left'",
+            "old_substring": "{.../Left.props.text}",
+            "new_substring": "{.../left.props.text}"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Right' to 'right'",
+        "violation_message": "root.root.children[1].Right: Name 'Right' doesn't follow snake_case for component (suggestion: 'right')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Right' to 'right'",
+            "old_value": "Right",
+            "new_value": "right"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "expression"
+            ],
+            "description": "Update expression reference: 'Right' -> 'right'",
+            "old_substring": "{../Right.props.text}",
+            "new_substring": "{../right.props.text}"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Abs' to 'abs'",
+        "violation_message": "root.root.children[2].Abs: Name 'Abs' doesn't follow snake_case for component (suggestion: 'abs')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Abs' to 'abs'",
+            "old_value": "Abs",
+            "new_value": "abs"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Deep' to 'deep'",
+        "violation_message": "root.root.children[3].Deep: Name 'Deep' doesn't follow snake_case for component (suggestion: 'deep')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Deep' to 'deep'",
+            "old_value": "Deep",
+            "new_value": "deep"
+          }
+        ]
+      }
+    ]
+  },
+  "np-kebab-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Left",
+        "message": "root.root.children[0].Left: Name 'Left' doesn't follow kebab-case for component (suggestion: 'left')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Right",
+        "message": "root.root.children[1].Right: Name 'Right' doesn't follow kebab-case for component (suggestion: 'right')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Abs",
+        "message": "root.root.children[2].Abs: Name 'Abs' doesn't follow kebab-case for component (suggestion: 'abs')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].Deep",
+        "message": "root.root.children[3].Deep: Name 'Deep' doesn't follow kebab-case for component (suggestion: 'deep')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 3 reference(s)",
+        "description": "Rename component 'Left' to 'left'",
+        "violation_message": "root.root.children[0].Left: Name 'Left' doesn't follow kebab-case for component (suggestion: 'left')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Left' to 'left'",
+            "old_value": "Left",
+            "new_value": "left"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "events",
+              "component",
+              "onActionPerformed",
+              "config",
+              "script"
+            ],
+            "description": "Update script reference: 'Left' -> 'left'",
+            "old_substring": "getChild('Left')",
+            "new_substring": "getChild('left')"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "path"
+            ],
+            "description": "Update property_binding reference: 'Left' -> 'left'",
+            "old_substring": "/root/Left.props.text",
+            "new_substring": "/root/left.props.text"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "expression"
+            ],
+            "description": "Update expression reference: 'Left' -> 'left'",
+            "old_substring": "{.../Left.props.text}",
+            "new_substring": "{.../left.props.text}"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Right' to 'right'",
+        "violation_message": "root.root.children[1].Right: Name 'Right' doesn't follow kebab-case for component (suggestion: 'right')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Right' to 'right'",
+            "old_value": "Right",
+            "new_value": "right"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "expression"
+            ],
+            "description": "Update expression reference: 'Right' -> 'right'",
+            "old_substring": "{../Right.props.text}",
+            "new_substring": "{../right.props.text}"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Abs' to 'abs'",
+        "violation_message": "root.root.children[2].Abs: Name 'Abs' doesn't follow kebab-case for component (suggestion: 'abs')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Abs' to 'abs'",
+            "old_value": "Abs",
+            "new_value": "abs"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Deep' to 'deep'",
+        "violation_message": "root.root.children[3].Deep: Name 'Deep' doesn't follow kebab-case for component (suggestion: 'deep')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Deep' to 'deep'",
+            "old_value": "Deep",
+            "new_value": "deep"
+          }
+        ]
+      }
+    ]
+  },
+  "np-screaming-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Left",
+        "message": "root.root.children[0].Left: Name 'Left' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'LEFT')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Right",
+        "message": "root.root.children[1].Right: Name 'Right' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'RIGHT')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Abs",
+        "message": "root.root.children[2].Abs: Name 'Abs' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'ABS')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].Deep",
+        "message": "root.root.children[3].Deep: Name 'Deep' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'DEEP')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 3 reference(s)",
+        "description": "Rename component 'Left' to 'LEFT'",
+        "violation_message": "root.root.children[0].Left: Name 'Left' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'LEFT')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Left' to 'LEFT'",
+            "old_value": "Left",
+            "new_value": "LEFT"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "events",
+              "component",
+              "onActionPerformed",
+              "config",
+              "script"
+            ],
+            "description": "Update script reference: 'Left' -> 'LEFT'",
+            "old_substring": "getChild('Left')",
+            "new_substring": "getChild('LEFT')"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "path"
+            ],
+            "description": "Update property_binding reference: 'Left' -> 'LEFT'",
+            "old_substring": "/root/Left.props.text",
+            "new_substring": "/root/LEFT.props.text"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "expression"
+            ],
+            "description": "Update expression reference: 'Left' -> 'LEFT'",
+            "old_substring": "{.../Left.props.text}",
+            "new_substring": "{.../LEFT.props.text}"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Right' to 'RIGHT'",
+        "violation_message": "root.root.children[1].Right: Name 'Right' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'RIGHT')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Right' to 'RIGHT'",
+            "old_value": "Right",
+            "new_value": "RIGHT"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "expression"
+            ],
+            "description": "Update expression reference: 'Right' -> 'RIGHT'",
+            "old_substring": "{../Right.props.text}",
+            "new_substring": "{../RIGHT.props.text}"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Abs' to 'ABS'",
+        "violation_message": "root.root.children[2].Abs: Name 'Abs' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'ABS')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Abs' to 'ABS'",
+            "old_value": "Abs",
+            "new_value": "ABS"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Deep' to 'DEEP'",
+        "violation_message": "root.root.children[3].Deep: Name 'Deep' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'DEEP')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Deep' to 'DEEP'",
+            "old_value": "Deep",
+            "new_value": "DEEP"
+          }
+        ]
+      }
+    ]
+  },
+  "np-title-component": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-lower-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Left",
+        "message": "root.root.children[0].Left: Name 'Left' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'left')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Right",
+        "message": "root.root.children[1].Right: Name 'Right' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'right')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Abs",
+        "message": "root.root.children[2].Abs: Name 'Abs' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'abs')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].Deep",
+        "message": "root.root.children[3].Deep: Name 'Deep' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'deep')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 3 reference(s)",
+        "description": "Rename component 'Left' to 'left'",
+        "violation_message": "root.root.children[0].Left: Name 'Left' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'left')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Left' to 'left'",
+            "old_value": "Left",
+            "new_value": "left"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "events",
+              "component",
+              "onActionPerformed",
+              "config",
+              "script"
+            ],
+            "description": "Update script reference: 'Left' -> 'left'",
+            "old_substring": "getChild('Left')",
+            "new_substring": "getChild('left')"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "path"
+            ],
+            "description": "Update property_binding reference: 'Left' -> 'left'",
+            "old_substring": "/root/Left.props.text",
+            "new_substring": "/root/left.props.text"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "expression"
+            ],
+            "description": "Update expression reference: 'Left' -> 'left'",
+            "old_substring": "{.../Left.props.text}",
+            "new_substring": "{.../left.props.text}"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Right' to 'right'",
+        "violation_message": "root.root.children[1].Right: Name 'Right' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'right')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Right' to 'right'",
+            "old_value": "Right",
+            "new_value": "right"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "expression"
+            ],
+            "description": "Update expression reference: 'Right' -> 'right'",
+            "old_substring": "{../Right.props.text}",
+            "new_substring": "{../right.props.text}"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Abs' to 'abs'",
+        "violation_message": "root.root.children[2].Abs: Name 'Abs' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'abs')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Abs' to 'abs'",
+            "old_value": "Abs",
+            "new_value": "abs"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Deep' to 'deep'",
+        "violation_message": "root.root.children[3].Deep: Name 'Deep' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'deep')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Deep' to 'deep'",
+            "old_value": "Deep",
+            "new_value": "deep"
+          }
+        ]
+      }
+    ]
+  },
+  "np-convention-only": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-target-string": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-component-custom-method-camel-min3": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Left",
+        "message": "root.root.children[0].Left: Name 'Left' doesn't follow camelCase for component (suggestion: 'left')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Right",
+        "message": "root.root.children[1].Right: Name 'Right' doesn't follow camelCase for component (suggestion: 'right')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Abs",
+        "message": "root.root.children[2].Abs: Name 'Abs' doesn't follow camelCase for component (suggestion: 'abs')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].Deep",
+        "message": "root.root.children[3].Deep: Name 'Deep' doesn't follow camelCase for component (suggestion: 'deep')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 3 reference(s)",
+        "description": "Rename component 'Left' to 'left'",
+        "violation_message": "root.root.children[0].Left: Name 'Left' doesn't follow camelCase for component (suggestion: 'left')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Left' to 'left'",
+            "old_value": "Left",
+            "new_value": "left"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "events",
+              "component",
+              "onActionPerformed",
+              "config",
+              "script"
+            ],
+            "description": "Update script reference: 'Left' -> 'left'",
+            "old_substring": "getChild('Left')",
+            "new_substring": "getChild('left')"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "path"
+            ],
+            "description": "Update property_binding reference: 'Left' -> 'left'",
+            "old_substring": "/root/Left.props.text",
+            "new_substring": "/root/left.props.text"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "expression"
+            ],
+            "description": "Update expression reference: 'Left' -> 'left'",
+            "old_substring": "{.../Left.props.text}",
+            "new_substring": "{.../left.props.text}"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Right' to 'right'",
+        "violation_message": "root.root.children[1].Right: Name 'Right' doesn't follow camelCase for component (suggestion: 'right')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Right' to 'right'",
+            "old_value": "Right",
+            "new_value": "right"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "propConfig",
+              "props.text",
+              "binding",
+              "config",
+              "expression"
+            ],
+            "description": "Update expression reference: 'Right' -> 'right'",
+            "old_substring": "{../Right.props.text}",
+            "new_substring": "{../right.props.text}"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Abs' to 'abs'",
+        "violation_message": "root.root.children[2].Abs: Name 'Abs' doesn't follow camelCase for component (suggestion: 'abs')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Abs' to 'abs'",
+            "old_value": "Abs",
+            "new_value": "abs"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Deep' to 'deep'",
+        "violation_message": "root.root.children[3].Deep: Name 'Deep' doesn't follow camelCase for component (suggestion: 'deep')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Deep' to 'deep'",
+            "old_value": "Deep",
+            "new_value": "deep"
+          }
+        ]
+      }
+    ]
+  },
+  "np-standard-component-property": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-severity-split": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-four-types": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-min5": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Left",
+        "message": "root.root.children[0].Left: Name 'Left' is too short (minimum 5 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Abs",
+        "message": "root.root.children[2].Abs: Name 'Abs' is too short (minimum 5 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].Deep",
+        "message": "root.root.children[3].Deep: Name 'Deep' is too short (minimum 5 characters) for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-max10": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-no-numbers": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-abbrev-no-autodetect": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-skip-names": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-custom-pattern-prefix": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].Left",
+        "message": "root.root.children[0].Left: Name 'Left' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Right",
+        "message": "root.root.children[1].Right: Name 'Right' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Abs",
+        "message": "root.root.children[2].Abs: Name 'Abs' is too short (minimum 4 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].Deep",
+        "message": "root.root.children[3].Deep: Name 'Deep' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-custom-method-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-message-handler-snake-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel-forbidden": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "custom.v",
+        "message": "custom.v: Name 'v' is too short (minimum 2 characters) for property"
+      }
+    ],
+    "fixes": []
+  },
+  "np-mixedcase-pattern": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-1000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-5000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-30000": {
+    "findings": [],
+    "fixes": []
+  },
+  "pylint-e-warning": {
+    "findings": [
+      {
+        "rule": "PylintScriptRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+        "code": "W1405",
+        "line": 2
+      }
+    ],
+    "fixes": []
+  },
+  "bcr-case-insensitive": {
+    "findings": [
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "propConfig.custom.v",
+        "message": "propConfig.custom.v: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Left.propConfig.props.text",
+        "message": "root.root.children[0].Left.propConfig.props.text: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].Deep.propConfig.props.text",
+        "message": "root.root.children[3].Deep.propConfig.props.text: Expression contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      },
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Script contains '.getSibling(' and 2 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      }
+    ],
+    "fixes": []
+  },
+  "bcr-sibling-only-warning": {
+    "findings": [
+      {
+        "rule": "BadComponentReferenceRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Script contains '.getSibling(' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+      }
+    ],
+    "fixes": []
+  },
+  "crv-no-scripts": {
+    "findings": [
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "propConfig.custom.v",
+        "message": "propConfig.custom.v: Relative expression '{../root.props.text}' navigates above root component"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Left.propConfig.props.text",
+        "message": "root.root.children[0].Left.propConfig.props.text: Expression references non-existent component 'Nope' in: {../Right.props.text} + {./Nope.props.text}"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].Deep.propConfig.props.text",
+        "message": "root.root.children[3].Deep.propConfig.props.text: Relative expression '{.../Left.props.text}' navigates above root component"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Abs.propConfig.props.style.color",
+        "message": "root.root.children[2].Abs.propConfig.props.style.color: Property Binding references non-existent component 'root/Ghost' in: /root/Ghost.props.text"
+      }
+    ],
+    "fixes": []
+  },
+  "crv-no-expressions": {
+    "findings": [
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Abs.propConfig.props.style.color",
+        "message": "root.root.children[2].Abs.propConfig.props.style.color: Property Binding references non-existent component 'root/Ghost' in: /root/Ghost.props.text"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Script references non-existent sibling component 'Missing'"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Component 'Missing' not found as sibling in: self.getSibling(\"Missing\")"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Navigation chain goes beyond root: self.parent.parent.getChild('X')"
+      }
+    ],
+    "fixes": []
+  },
+  "crv-no-property-bindings": {
+    "findings": [
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "propConfig.custom.v",
+        "message": "propConfig.custom.v: Relative expression '{../root.props.text}' navigates above root component"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].Left.propConfig.props.text",
+        "message": "root.root.children[0].Left.propConfig.props.text: Expression references non-existent component 'Nope' in: {../Right.props.text} + {./Nope.props.text}"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].Deep.propConfig.props.text",
+        "message": "root.root.children[3].Deep.propConfig.props.text: Relative expression '{.../Left.props.text}' navigates above root component"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Script references non-existent sibling component 'Missing'"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Component 'Missing' not found as sibling in: self.getSibling(\"Missing\")"
+      },
+      {
+        "rule": "ComponentReferenceValidationRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].Right.events.component.onActionPerformed",
+        "message": "root.root.children[1].Right.events.component.onActionPerformed: Navigation chain goes beyond root: self.parent.parent.getChild('X')"
+      }
+    ],
+    "fixes": []
+  },
+  "ecd-tight": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-private": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.v",
+        "message": "custom.v: custom property access mode is PUBLIC, expected PRIVATE"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.v' to PRIVATE",
+        "violation_message": "custom.v: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.v",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.v'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      }
+    ]
+  },
+  "access-public": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-protected-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.v",
+        "message": "custom.v: custom property access mode is PUBLIC, expected PROTECTED"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.v' to PROTECTED",
+        "violation_message": "custom.v: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.v",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.v'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-false": {
+    "findings": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.v",
+        "message": "custom.v: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.v' non-persistent",
+        "violation_message": "custom.v: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.v",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.v'",
+            "old_value": null,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "v"
+            ],
+            "description": "Remove stale stored value 'custom.v'",
+            "old_value": 1
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-true": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-false-no-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "severity": "error",
+        "node_path": "custom.v",
+        "message": "custom.v: bound property is persistent; set persistent=false to stop storing designer results in view.json"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyPersistenceRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Make bound property 'custom.v' non-persistent",
+        "violation_message": "custom.v: bound property is persistent; set persistent=false to stop storing designer results in view.json",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.v",
+              "persistent"
+            ],
+            "description": "Set persistent=false on propConfig entry 'custom.v'",
+            "old_value": null,
+            "new_value": false
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "v"
+            ],
+            "description": "Remove stale stored value 'custom.v'",
+            "old_value": 1
+          }
+        ]
+      }
+    ]
+  }
+}

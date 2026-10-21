@@ -1,0 +1,1115 @@
+{
+  "default": {
+    "findings": [
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "custom.custom_view_param",
+        "message": "custom.custom_view_param: custom property 'custom_view_param' is defined but never referenced"
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "params.view_param",
+        "message": "params.view_param: view parameter 'view_param' is defined but never referenced"
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "root.root.children.icon_snake_case.custom.component_custom_param",
+        "message": "root.root.children.icon_snake_case.custom.component_custom_param: custom property 'component_custom_param' is defined but never referenced"
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "root.root.custom.root_custom_param",
+        "message": "root.root.custom.root_custom_param: custom property 'root_custom_param' is defined but never referenced"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Remove unused custom property 'custom_view_param'",
+        "violation_message": "custom.custom_view_param: custom property 'custom_view_param' is defined but never referenced",
+        "operations": [
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "custom_view_param"
+            ],
+            "description": "Remove custom.custom_view_param value entry",
+            "old_value": "value"
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "propConfig",
+              "custom.custom_view_param"
+            ],
+            "description": "Remove propConfig entry 'custom.custom_view_param'",
+            "old_value": {
+              "persistent": true
+            }
+          }
+        ]
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Remove unused custom property 'component_custom_param'",
+        "violation_message": "root.root.children.icon_snake_case.custom.component_custom_param: custom property 'component_custom_param' is defined but never referenced",
+        "operations": [
+          {
+            "op": "delete_key",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "custom",
+              "component_custom_param"
+            ],
+            "description": "Remove custom.component_custom_param value entry",
+            "old_value": "value"
+          }
+        ]
+      },
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Remove unused custom property 'root_custom_param'",
+        "violation_message": "root.root.custom.root_custom_param: custom property 'root_custom_param' is defined but never referenced",
+        "operations": [
+          {
+            "op": "delete_key",
+            "json_path": [
+              "root",
+              "custom",
+              "root_custom_param"
+            ],
+            "description": "Remove custom.root_custom_param value entry",
+            "old_value": "value"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-camel-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow camelCase for component (suggestion: 'iconSnakeCase')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'iconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow camelCase for component (suggestion: 'iconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'iconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "iconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-snake-component-error": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-kebab-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow kebab-case for component (suggestion: 'icon-snake-case')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'icon-snake-case'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow kebab-case for component (suggestion: 'icon-snake-case')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'icon-snake-case'",
+            "old_value": "icon_snake_case",
+            "new_value": "icon-snake-case"
+          }
+        ]
+      }
+    ]
+  },
+  "np-screaming-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'ICON_SNAKE_CASE')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'ICON_SNAKE_CASE'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'ICON_SNAKE_CASE')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'ICON_SNAKE_CASE'",
+            "old_value": "icon_snake_case",
+            "new_value": "ICON_SNAKE_CASE"
+          }
+        ]
+      }
+    ]
+  },
+  "np-title-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow Title Case for component (suggestion: 'Icon Snake Case')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'Icon Snake Case'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow Title Case for component (suggestion: 'Icon Snake Case')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'Icon Snake Case'",
+            "old_value": "icon_snake_case",
+            "new_value": "Icon Snake Case"
+          }
+        ]
+      }
+    ]
+  },
+  "np-lower-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'icon snake case')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'icon snake case'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'icon snake case')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'icon snake case'",
+            "old_value": "icon_snake_case",
+            "new_value": "icon snake case"
+          }
+        ]
+      }
+    ]
+  },
+  "np-convention-only": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-target-string": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-property-camel": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "custom.custom_view_param",
+        "message": "custom.custom_view_param: Name 'custom_view_param' doesn't follow camelCase for property (suggestion: 'customViewParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "params.view_param",
+        "message": "params.view_param: Name 'view_param' doesn't follow camelCase for property (suggestion: 'viewParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children.icon_snake_case.custom.component_custom_param",
+        "message": "root.root.children.icon_snake_case.custom.component_custom_param: Name 'component_custom_param' doesn't follow camelCase for property (suggestion: 'componentCustomParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.custom.root_custom_param",
+        "message": "root.root.custom.root_custom_param: Name 'root_custom_param' doesn't follow camelCase for property (suggestion: 'rootCustomParam')"
+      }
+    ],
+    "fixes": []
+  },
+  "np-component-custom-method-camel-min3": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow camelCase for component (suggestion: 'iconSnakeCase')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'iconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow camelCase for component (suggestion: 'iconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'iconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "iconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-standard-component-property": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "custom.custom_view_param",
+        "message": "custom.custom_view_param: Name 'custom_view_param' doesn't follow camelCase for property (suggestion: 'customViewParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "params.view_param",
+        "message": "params.view_param: Name 'view_param' doesn't follow camelCase for property (suggestion: 'viewParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children.icon_snake_case.custom.component_custom_param",
+        "message": "root.root.children.icon_snake_case.custom.component_custom_param: Name 'component_custom_param' doesn't follow camelCase for property (suggestion: 'componentCustomParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.custom.root_custom_param",
+        "message": "root.root.custom.root_custom_param: Name 'root_custom_param' doesn't follow camelCase for property (suggestion: 'rootCustomParam')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-severity-split": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "custom.custom_view_param",
+        "message": "custom.custom_view_param: Name 'custom_view_param' doesn't follow camelCase for property (suggestion: 'customViewParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "params.view_param",
+        "message": "params.view_param: Name 'view_param' doesn't follow camelCase for property (suggestion: 'viewParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children.icon_snake_case.custom.component_custom_param",
+        "message": "root.root.children.icon_snake_case.custom.component_custom_param: Name 'component_custom_param' doesn't follow camelCase for property (suggestion: 'componentCustomParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.custom.root_custom_param",
+        "message": "root.root.custom.root_custom_param: Name 'root_custom_param' doesn't follow camelCase for property (suggestion: 'rootCustomParam')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-four-types": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "custom.custom_view_param",
+        "message": "custom.custom_view_param: Name 'custom_view_param' doesn't follow camelCase for property (suggestion: 'customViewParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "params.view_param",
+        "message": "params.view_param: Name 'view_param' doesn't follow camelCase for property (suggestion: 'viewParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children.icon_snake_case.custom.component_custom_param",
+        "message": "root.root.children.icon_snake_case.custom.component_custom_param: Name 'component_custom_param' doesn't follow camelCase for property (suggestion: 'componentCustomParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.custom.root_custom_param",
+        "message": "root.root.custom.root_custom_param: Name 'root_custom_param' doesn't follow camelCase for property (suggestion: 'rootCustomParam')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-min5": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-max10": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' is too long (maximum 10 characters) for component"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' is too long (maximum 10 characters) for component",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-no-numbers": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-forbidden": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-abbrev-no-autodetect": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-skip-names": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase for component (suggestion: 'IconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "np-custom-pattern-prefix": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-custom-method-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-message-handler-snake-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel-forbidden": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "custom.custom_view_param",
+        "message": "custom.custom_view_param: Name 'custom_view_param' doesn't follow camelCase for property (suggestion: 'customViewParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "params.view_param",
+        "message": "params.view_param: Name 'view_param' doesn't follow camelCase for property (suggestion: 'viewParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children.icon_snake_case.custom.component_custom_param",
+        "message": "root.root.children.icon_snake_case.custom.component_custom_param: Name 'component_custom_param' doesn't follow camelCase for property (suggestion: 'componentCustomParam')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.custom.root_custom_param",
+        "message": "root.root.custom.root_custom_param: Name 'root_custom_param' doesn't follow camelCase for property (suggestion: 'rootCustomParam')"
+      }
+    ],
+    "fixes": []
+  },
+  "np-mixedcase-pattern": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].icon_snake_case",
+        "message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'IconSnakeCase')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+        "violation_message": "root.root.children[0].icon_snake_case: Name 'icon_snake_case' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'IconSnakeCase')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'icon_snake_case' to 'IconSnakeCase'",
+            "old_value": "icon_snake_case",
+            "new_value": "IconSnakeCase"
+          }
+        ]
+      }
+    ]
+  },
+  "poll-1000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-5000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-30000": {
+    "findings": [],
+    "fixes": []
+  },
+  "pylint-e-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-case-insensitive": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-sibling-only-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-scripts": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-expressions": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-property-bindings": {
+    "findings": [],
+    "fixes": []
+  },
+  "ecd-tight": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-private": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.custom_view_param",
+        "message": "custom.custom_view_param: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "root.root.custom.root_custom_param",
+        "message": "root.root.custom.root_custom_param: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].icon_snake_case.custom.component_custom_param",
+        "message": "root.root.children[0].icon_snake_case.custom.component_custom_param: custom property access mode is PUBLIC, expected PRIVATE"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.custom_view_param' to PRIVATE",
+        "violation_message": "custom.custom_view_param: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.custom_view_param",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.custom_view_param'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'root.root.custom.root_custom_param' to PRIVATE",
+        "violation_message": "root.root.custom.root_custom_param: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "propConfig"
+            ],
+            "description": "Create propConfig with entry 'custom.root_custom_param' (access=PRIVATE)",
+            "old_value": null,
+            "new_value": {
+              "custom.root_custom_param": {
+                "access": "PRIVATE"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'root.root.children[0].icon_snake_case.custom.component_custom_param' to PRIVATE",
+        "violation_message": "root.root.children[0].icon_snake_case.custom.component_custom_param: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "propConfig"
+            ],
+            "description": "Create propConfig with entry 'custom.component_custom_param' (access=PRIVATE)",
+            "old_value": null,
+            "new_value": {
+              "custom.component_custom_param": {
+                "access": "PRIVATE"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "access-public": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-protected-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.custom_view_param",
+        "message": "custom.custom_view_param: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "root.root.custom.root_custom_param",
+        "message": "root.root.custom.root_custom_param: custom property access mode is PUBLIC, expected PROTECTED"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.custom_view_param' to PROTECTED",
+        "violation_message": "custom.custom_view_param: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.custom_view_param",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.custom_view_param'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'root.root.custom.root_custom_param' to PROTECTED",
+        "violation_message": "root.root.custom.root_custom_param: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "propConfig"
+            ],
+            "description": "Create propConfig with entry 'custom.root_custom_param' (access=PROTECTED)",
+            "old_value": null,
+            "new_value": {
+              "custom.root_custom_param": {
+                "access": "PROTECTED"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-false": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-true": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-false-no-exempt": {
+    "findings": [],
+    "fixes": []
+  }
+}
