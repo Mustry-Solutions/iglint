@@ -10,6 +10,7 @@ use crate::registry::{Registry, RuleMeta};
 use crate::rule::RuleImpl;
 
 pub mod helpers;
+pub mod script;
 #[cfg(test)]
 pub mod test_support;
 pub mod view;
@@ -23,7 +24,34 @@ macro_rules! rules {
     };
 }
 
-rules![view::invalid_json];
+rules![
+    script::syntax_error,
+    script::compile_error,
+    script::undefined_name,
+    script::unused_import,
+    script::unused_variable,
+    script::redefined_unused,
+    script::unreachable_code,
+    script::bare_except,
+    script::mutable_default,
+    script::duplicate_dict_key,
+    script::self_assignment,
+    script::literal_identity,
+    script::assert_on_tuple,
+    script::format_string,
+    script::except_order,
+    script::pointless_statement,
+    script::except_tuple,
+    script::raise_string,
+    script::redefined_builtin,
+    script::used_before_assignment,
+    script::return_in_finally,
+    script::dangerous_loop_closure,
+    script::global_at_module_level,
+    script::print_statement,
+    script::unused_suppression,
+    view::invalid_json,
+];
 
 pub static REGISTRY: Registry = Registry::new(ALL);
 

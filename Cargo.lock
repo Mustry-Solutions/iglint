@@ -436,6 +436,7 @@ dependencies = [
  "iglint_linter",
  "iglint_project",
  "iglint_python",
+ "iglint_python_semantic",
  "iglint_stubs",
  "iglint_text",
  "ignore",

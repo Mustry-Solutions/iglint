@@ -13,6 +13,7 @@ fn with_model(src: &str, injected: &[&str], f: impl FnOnce(&SemanticModel<'_>)) 
     let parsed = parse(src);
     let options = SemanticOptions {
         injected: injected.to_vec(),
+        ..SemanticOptions::default()
     };
     let model = SemanticModel::build(&parsed.module, &options);
     f(&model);
@@ -344,6 +345,7 @@ fn qualified_names_follow_imports_and_aliases() {
         &parsed.module,
         &SemanticOptions {
             injected: vec!["system"],
+            ..SemanticOptions::default()
         },
     );
     let calls: Vec<String> = parsed

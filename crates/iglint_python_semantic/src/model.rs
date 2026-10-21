@@ -277,6 +277,10 @@ pub struct Binding<'a> {
     /// The `try` statements around the binding (innermost last): the range
     /// of each `try` statement and the part the binding is in.
     pub try_parts: Vec<(TextRange, TryPart)>,
+    /// Bindings of the same name that may still be live where this one
+    /// replaces them (the reaching definitions just before it). Only for
+    /// names local to the binding's scope.
+    pub shadowed: Vec<BindingId>,
     /// References that may read this binding.
     pub references: Vec<ReferenceId>,
 }

@@ -69,6 +69,11 @@ pub struct SemanticOptions<'o> {
     /// `fpmi`, `sys`, the generated function's own name and the project's
     /// top-level library packages. `__builtins__` is always defined.
     pub injected: Vec<&'o str>,
+    /// The caller does not know every injected name (for example the
+    /// project's library is only partly known): names that are bound
+    /// nowhere resolve to [`Resolution::Dynamic`] instead of
+    /// [`Resolution::Unresolved`].
+    pub unknown_globals: bool,
 }
 
 impl<'a> SemanticModel<'a> {
@@ -76,7 +81,7 @@ impl<'a> SemanticModel<'a> {
     pub fn build(module: &'a Module, options: &SemanticOptions<'_>) -> SemanticModel<'a> {
         let injected: FxHashSet<&str> = options.injected.iter().copied().collect();
         let table = symbols::build(module);
-        let out = flow::Flow::new(module, table, &injected).run();
+        let out = flow::Flow::new(module, table, &injected, options.unknown_globals).run();
         SemanticModel {
             module,
             scopes: out.scopes,

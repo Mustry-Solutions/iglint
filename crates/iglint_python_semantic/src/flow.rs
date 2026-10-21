@@ -117,6 +117,7 @@ pub(crate) struct Flow<'a, 'o> {
     references: Vec<Reference<'a>>,
     scope_of_node: FxHashMap<usize, ScopeId>,
     injected: &'o FxHashSet<&'o str>,
+    unknown_globals: bool,
     implicit: FxHashMap<&'a str, BindingId>,
     binding_at: FxHashMap<u32, BindingId>,
     global_at: FxHashMap<u32, BindingId>,
@@ -141,6 +142,7 @@ impl<'a, 'o> Flow<'a, 'o> {
         module: &'a Module,
         table: SymbolTable<'a>,
         injected: &'o FxHashSet<&'o str>,
+        unknown_globals: bool,
     ) -> Self {
         let n = table.scopes.len();
         Flow {
@@ -150,6 +152,7 @@ impl<'a, 'o> Flow<'a, 'o> {
             references: Vec::new(),
             scope_of_node: table.scope_of_node,
             injected,
+            unknown_globals,
             implicit: FxHashMap::default(),
             binding_at: FxHashMap::default(),
             global_at: FxHashMap::default(),
@@ -332,6 +335,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                     unpacked,
                     import_guarded: kind.is_import() && self.import_guard > 0,
                     try_parts: self.try_parts.clone(),
+                    shadowed: Vec::new(),
                     references: Vec::new(),
                 });
                 self.binding_at.insert(range.start().to_u32(), id);
@@ -344,6 +348,14 @@ impl<'a, 'o> Flow<'a, 'o> {
             }
         };
         if let Some(index) = local {
+            if st.reachable {
+                let shadowed = &mut self.bindings[id.index()].shadowed;
+                for d in &st.defs[index] {
+                    if *d != UNBOUND && *d != id.0 && !shadowed.contains(&BindingId(*d)) {
+                        shadowed.push(BindingId(*d));
+                    }
+                }
+            }
             st.defs[index] = vec![id.0];
             if let Some(c) = self.collectors.last_mut() {
                 c.push(Event::Bind(index as u32, id.0));
@@ -508,6 +520,9 @@ impl<'a, 'o> Flow<'a, 'o> {
             }
             at = s.parent;
         }
+        if self.unknown_globals {
+            return (Resolution::Dynamic, Vec::new());
+        }
         (Resolution::Unresolved, Vec::new())
     }
 
@@ -539,6 +554,7 @@ impl<'a, 'o> Flow<'a, 'o> {
             unpacked: false,
             import_guarded: false,
             try_parts: Vec::new(),
+            shadowed: Vec::new(),
             references: Vec::new(),
         });
         self.implicit.insert(name, id);
@@ -798,6 +814,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                         unpacked: false,
                         import_guarded: false,
                         try_parts: self.try_parts.clone(),
+                        shadowed: Vec::new(),
                         references: Vec::new(),
                     });
                     self.global_at.insert(name.range.start().to_u32(), id);
