@@ -13,6 +13,9 @@ version = "0.1.0"
 [[package]]
 name = "iglint_expression"
 version = "0.1.0"
+dependencies = [
+ "iglint_text",
+]
 
 [[package]]
 name = "iglint_json"

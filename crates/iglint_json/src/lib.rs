@@ -11,6 +11,25 @@
 //! * [`JsonEditor`] builds minimal [`iglint_text::TextEdit`]s (remove,
 //!   insert, replace, rename) that keep the rest of the file byte-for-byte.
 //!
+//! ```
+//! use iglint_json::{JsonEditor, parse};
+//! use iglint_text::{TextRange, TextSize, apply_edits};
+//!
+//! let text = "{\n  \"a\": 1,\n  \"script\": \"\\tx = 1\\n\\ty\"\n}";
+//! let root = parse(text).unwrap();
+//!
+//! // Map a position inside an embedded script back to the file.
+//! let script = root.get("script").unwrap().as_json_string().unwrap();
+//! assert_eq!(script.value(), "\tx = 1\n\ty");
+//! let y = TextRange::at(TextSize::new(8), TextSize::new(1));
+//! assert_eq!(script.raw_range(y).slice(text), "y");
+//!
+//! // Remove a member without touching anything else.
+//! let edit = JsonEditor::new(text, &root).remove_member(&root, 0).unwrap();
+//! let out = apply_edits(text, &[edit]).unwrap();
+//! assert_eq!(out, "{\n  \"script\": \"\\tx = 1\\n\\ty\"\n}");
+//! ```
+//!
 //! The parser is strict RFC 8259 with two tolerances for files written by
 //! Ignition: a leading byte order mark is skipped and Gson's `NaN`,
 //! `Infinity` and `-Infinity` are accepted as numbers (disable with
