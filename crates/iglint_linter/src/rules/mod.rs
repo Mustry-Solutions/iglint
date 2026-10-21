@@ -9,7 +9,9 @@
 use crate::registry::{Registry, RuleMeta};
 use crate::rule::RuleImpl;
 
+pub mod a11y;
 pub mod helpers;
+pub mod perf;
 #[cfg(test)]
 pub mod test_support;
 pub mod view;
@@ -23,7 +25,26 @@ macro_rules! rules {
     };
 }
 
-rules![view::invalid_json];
+rules![
+    a11y::image_without_alt,
+    a11y::icon_button_without_text,
+    perf::deep_nesting,
+    perf::fast_query_polling,
+    perf::hidden_component_bindings,
+    perf::large_view,
+    view::invalid_json,
+    view::duplicate_component_name,
+    view::unknown_component_type,
+    view::unknown_component_prop,
+    view::invalid_position_key,
+    view::empty_script,
+    view::disabled_change_script,
+    view::unknown_action_type,
+    view::duplicate_json_key,
+    view::param_without_direction,
+    view::handler_never_receives,
+    view::dom_and_action_click,
+];
 
 pub static REGISTRY: Registry = Registry::new(ALL);
 
