@@ -1,0 +1,266 @@
+{
+  "custom": {
+    "history": null,
+    "machines": null,
+    "weather": null
+  },
+  "params": {
+    "tagPath": ""
+  },
+  "propConfig": {
+    "custom.history": {
+      "binding": {
+        "config": {
+          "avoidScanClassValidation": false,
+          "dateRange": {
+            "mostRecent": "1",
+            "mostRecentUnits": "hour"
+          },
+          "enableValueCache": true,
+          "ignoreBadQuality": false,
+          "polling": {
+            "enabled": true,
+            "rate": "60"
+          },
+          "preventInterpolation": false,
+          "returnFormat": "wide",
+          "returnSize": {
+            "numRows": 120,
+            "type": "fixed"
+          },
+          "tags": [
+            {
+              "aggregate": "Average",
+              "alias": "speed",
+              "path": "{view.params.tagPath} + \"/Speed\""
+            }
+          ],
+          "valueFormat": "dataset"
+        },
+        "type": "tag-history"
+      }
+    },
+    "custom.machines": {
+      "binding": {
+        "config": {
+          "parameters": {
+            "line": "{session.custom.selectedLine}"
+          },
+          "polling": {
+            "enabled": true,
+            "rate": "30"
+          },
+          "queryPath": "Machines/ByLine",
+          "returnFormat": "json"
+        },
+        "type": "query"
+      }
+    },
+    "custom.weather": {
+      "binding": {
+        "config": {
+          "connectTimeout": 10000,
+          "enableCookies": false,
+          "polling": {
+            "enabled": false,
+            "rate": 5
+          },
+          "request": {
+            "auth": {
+              "type": "none",
+              "value": ""
+            },
+            "body": "",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "GET",
+            "url": "https://example.invalid/api/weather"
+          },
+          "socketTimeout": 10000
+        },
+        "transforms": [
+          {
+            "expression": "jsonGet({value}, \"temperature\")",
+            "type": "expression"
+          }
+        ],
+        "type": "http"
+      }
+    },
+    "params.tagPath": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 400,
+      "width": 480
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "meta": {
+              "name": "Header"
+            },
+            "position": {
+              "basis": "32px"
+            },
+            "props": {
+              "text": "Motor"
+            },
+            "type": "ia.display.label"
+          }
+        ],
+        "meta": {
+          "name": "Small"
+        },
+        "position": {
+          "size": "small"
+        },
+        "props": {
+          "direction": "column"
+        },
+        "type": "ia.container.flex"
+      },
+      {
+        "children": [
+          {
+            "meta": {
+              "name": "Trend"
+            },
+            "position": {
+              "basis": "240px",
+              "grow": 1
+            },
+            "propConfig": {
+              "props.series[0].data": {
+                "binding": {
+                  "config": {
+                    "path": "view.custom.history"
+                  },
+                  "type": "property"
+                }
+              }
+            },
+            "props": {},
+            "type": "ia.chart.timeseries"
+          },
+          {
+            "events": {
+              "component": {
+                "onRowDoubleClick": {
+                  "config": {
+                    "script": "\tsystem.perspective.closePopup(\"motorDetail\")\n\tsystem.perspective.navigate(view\u003d\"Main/Overview\", params\u003d{\"line\": event.value[\"name\"]})"
+                  },
+                  "scope": "G",
+                  "type": "script"
+                }
+              }
+            },
+            "meta": {
+              "name": "Machines"
+            },
+            "position": {
+              "basis": "120px"
+            },
+            "propConfig": {
+              "props.data": {
+                "binding": {
+                  "config": {
+                    "path": "view.custom.machines"
+                  },
+                  "type": "property"
+                }
+              }
+            },
+            "props": {
+              "rows": {
+                "subview": {
+                  "enabled": true,
+                  "viewParams": {
+                    "tagPath": "",
+                    "title": "Detail"
+                  },
+                  "viewPath": "Components/MotorCard"
+                }
+              }
+            },
+            "type": "ia.display.table"
+          },
+          {
+            "events": {
+              "component": {
+                "onActionPerformed": {
+                  "config": {
+                    "script": "\thmi.motors.startMotor(self.view.params.tagPath)"
+                  },
+                  "scope": "G",
+                  "type": "script"
+                }
+              }
+            },
+            "meta": {
+              "name": "Start"
+            },
+            "position": {
+              "basis": "40px"
+            },
+            "props": {
+              "text": "Start"
+            },
+            "type": "ia.input.button"
+          },
+          {
+            "events": {
+              "component": {
+                "onActionPerformed": {
+                  "config": {
+                    "id": "motorDetail",
+                    "type": "close"
+                  },
+                  "scope": "C",
+                  "type": "popup"
+                }
+              }
+            },
+            "meta": {
+              "name": "Close"
+            },
+            "position": {
+              "basis": "40px"
+            },
+            "props": {
+              "text": "Close"
+            },
+            "type": "ia.input.button"
+          }
+        ],
+        "meta": {
+          "name": "Large"
+        },
+        "position": {
+          "size": "large"
+        },
+        "props": {
+          "direction": "column"
+        },
+        "type": "ia.container.flex"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "breakpoint": 600
+    },
+    "type": "ia.container.breakpt"
+  }
+}

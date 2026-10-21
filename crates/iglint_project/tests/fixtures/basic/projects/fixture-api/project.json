@@ -1,0 +1,7 @@
+{
+  "title": "Fixture API",
+  "description": "Gateway scripts and web endpoints",
+  "parent": "",
+  "enabled": true,
+  "inheritable": false
+}

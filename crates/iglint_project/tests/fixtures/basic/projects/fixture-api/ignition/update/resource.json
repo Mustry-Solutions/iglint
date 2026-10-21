@@ -1,0 +1,12 @@
+{
+  "scope": "G",
+  "version": 1,
+  "restricted": false,
+  "overridable": true,
+  "files": [
+    "onUpdate.py"
+  ],
+  "attributes": {
+    "enabled": false
+  }
+}

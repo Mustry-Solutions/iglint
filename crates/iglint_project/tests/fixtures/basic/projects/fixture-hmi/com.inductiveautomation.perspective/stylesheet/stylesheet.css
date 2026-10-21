@@ -1,0 +1,9 @@
+.psc-Brand\/Primary {
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 600px) {
+  .psc-Brand\/Muted {
+    display: none;
+  }
+}

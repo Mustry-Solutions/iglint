@@ -1,0 +1,39 @@
+[
+  {
+    "name": "Motor1",
+    "typeId": "Motors/Motor",
+    "tagType": "UdtInstance",
+    "parameters": {
+      "DeviceName": {
+        "dataType": "String",
+        "value": "PLC1"
+      },
+      "BaseAddress": {
+        "dataType": "String",
+        "value": "DB10"
+      }
+    }
+  },
+  {
+    "name": "Motor2",
+    "typeId": "Motors/Motor",
+    "tagType": "UdtInstance",
+    "parameters": {
+      "DeviceName": {
+        "dataType": "String",
+        "value": "PLC1"
+      },
+      "BaseAddress": {
+        "dataType": "String",
+        "value": "DB11"
+      }
+    },
+    "tags": [
+      {
+        "name": "Speed",
+        "tagType": "AtomicTag",
+        "engHigh": 1800.0
+      }
+    ]
+  }
+]

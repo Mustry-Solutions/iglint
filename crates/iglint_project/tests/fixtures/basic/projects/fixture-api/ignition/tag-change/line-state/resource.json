@@ -1,0 +1,20 @@
+{
+  "scope": "G",
+  "version": 1,
+  "restricted": false,
+  "overridable": true,
+  "files": [
+    "onTagChange.py"
+  ],
+  "attributes": {
+    "changeTypes": [
+      "ValueChange",
+      "QualityChange"
+    ],
+    "paths": [
+      "[default]Plant/Line1/State",
+      "[default]Plant/Line2/State"
+    ],
+    "enabled": true
+  }
+}

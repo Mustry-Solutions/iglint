@@ -1,0 +1,207 @@
+{
+  "custom": {
+    "running": false
+  },
+  "params": {
+    "selected": false,
+    "tagPath": "",
+    "title": "Motor"
+  },
+  "propConfig": {
+    "custom.running": {
+      "binding": {
+        "config": {
+          "fallbackDelay": 2.5,
+          "mode": "indirect",
+          "references": {
+            "0": "{view.params.tagPath}"
+          },
+          "tagPath": "{0}/Running"
+        },
+        "type": "tag"
+      },
+      "onChange": {
+        "enabled": true,
+        "script": "\tif not origin \u003d\u003d \"Binding\":\n\t\treturn\n\tsystem.perspective.print(\"running: %s\" % currentValue.value)"
+      },
+      "persistent": true
+    },
+    "params.selected": {
+      "paramDirection": "inout",
+      "persistent": true
+    },
+    "params.tagPath": {
+      "paramDirection": "input",
+      "persistent": true
+    },
+    "params.title": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 160,
+      "width": 240
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Title"
+        },
+        "position": {
+          "height": 24,
+          "width": 224,
+          "x": 8,
+          "y": 8
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "path": "view.params.title"
+              },
+              "type": "property"
+            }
+          }
+        },
+        "props": {
+          "textStyle": {
+            "fontSize": 14
+          }
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Speed"
+        },
+        "position": {
+          "height": 24,
+          "rotate": {
+            "anchor": "50% 50%",
+            "angle": 0
+          },
+          "width": 224,
+          "x": 8,
+          "y": 40
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "fallbackDelay": 2.5,
+                "mode": "expression",
+                "tagPath": "{view.params.tagPath} + \"/Speed\""
+              },
+              "transforms": [
+                {
+                  "code": "\treturn core.format.withUnit(round(value, 1), \"rpm\")",
+                  "type": "script"
+                }
+              ],
+              "type": "tag"
+            }
+          }
+        },
+        "props": {},
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Alarms"
+        },
+        "position": {
+          "height": 80,
+          "width": 224,
+          "x": 8,
+          "y": 72
+        },
+        "props": {},
+        "scripts": {
+          "customMethods": [],
+          "extensionFunctions": [
+            {
+              "enabled": true,
+              "name": "filterAlarm",
+              "script": "\treturn alarmEvent.get(\"source\").startswith(self.view.params.tagPath)"
+            }
+          ],
+          "messageHandlers": []
+        },
+        "type": "ia.display.alarmstatustable"
+      }
+    ],
+    "events": {
+      "dom": {
+        "onClick": [
+          {
+            "config": {
+              "script": "\tself.toggleSelected()"
+            },
+            "scope": "G",
+            "type": "script"
+          },
+          {
+            "config": {
+              "draggable": true,
+              "id": "motorDetail",
+              "modal": true,
+              "overlayDismiss": true,
+              "resizable": false,
+              "showCloseIcon": true,
+              "title": "",
+              "type": "open",
+              "viewParams": {
+                "tagPath": "[default]Plant/Line1/Motor1"
+              },
+              "viewPath": "Popups/MotorDetail",
+              "viewportBound": false
+            },
+            "scope": "C",
+            "type": "popup"
+          }
+        ]
+      }
+    },
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "mode": "fixed",
+      "style": {
+        "classes": "Brand/Primary"
+      }
+    },
+    "scripts": {
+      "customMethods": [
+        {
+          "name": "toggleSelected",
+          "params": [],
+          "script": "\tself.view.params.selected \u003d not self.view.params.selected"
+        },
+        {
+          "name": "describe",
+          "params": [
+            "prefix",
+            "suffix"
+          ],
+          "script": "\treturn \"%s%s%s\" % (prefix, self.view.params.title, suffix)"
+        }
+      ],
+      "extensionFunctions": null,
+      "messageHandlers": [
+        {
+          "messageType": "motor-refresh",
+          "pageScope": true,
+          "script": "\tif payload.get(\"tagPath\") in (None, self.view.params.tagPath):\n\t\tself.view.custom.running \u003d hmi.motors.isRunning(self.view.params.tagPath)",
+          "sessionScope": false,
+          "viewScope": false
+        }
+      ]
+    },
+    "type": "ia.container.coord"
+  }
+}

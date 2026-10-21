@@ -1,0 +1,49 @@
+{
+  "pages": {
+    "/": {
+      "title": "Overview",
+      "viewPath": "Main/Overview"
+    },
+    "/motors/:line": {
+      "title": "Motors",
+      "viewPath": "Main/Overview",
+      "docks": {
+        "right": [
+          {
+            "anchor": "fixed",
+            "autoBreakpoint": 480,
+            "content": "cover",
+            "handle": "show",
+            "iconUrl": "",
+            "id": "help",
+            "modal": false,
+            "resizable": true,
+            "show": "onDemand",
+            "size": 320,
+            "viewParams": {},
+            "viewPath": "Docks/Header"
+          }
+        ]
+      }
+    }
+  },
+  "sharedDocks": {
+    "cornerPriority": "top-bottom",
+    "top": [
+      {
+        "anchor": "fixed",
+        "autoBreakpoint": 480,
+        "content": "auto",
+        "handle": "hide",
+        "iconUrl": "",
+        "id": "header",
+        "modal": false,
+        "resizable": false,
+        "show": "visible",
+        "size": 56,
+        "viewParams": {},
+        "viewPath": "Docks/Header"
+      }
+    ]
+  }
+}

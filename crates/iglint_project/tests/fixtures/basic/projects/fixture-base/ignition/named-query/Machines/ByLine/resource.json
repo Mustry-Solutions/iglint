@@ -1,0 +1,37 @@
+{
+  "scope": "A",
+  "documentation": "Machines on one production line",
+  "version": 2,
+  "restricted": false,
+  "overridable": true,
+  "files": [
+    "query.sql"
+  ],
+  "attributes": {
+    "cacheAmount": 1,
+    "cacheEnabled": false,
+    "database": "Production",
+    "useMaxReturnSize": false,
+    "fallbackEnabled": false,
+    "autoBatchEnabled": false,
+    "permissions": [
+      {}
+    ],
+    "maxReturnSize": 100,
+    "cacheUnit": "SEC",
+    "type": "Query",
+    "parameters": [
+      {
+        "type": "Parameter",
+        "identifier": "line",
+        "sqlType": 7
+      }
+    ],
+    "enabled": true,
+    "lastModification": {
+      "actor": "designer",
+      "timestamp": "2026-03-03T08:00:00Z"
+    },
+    "lastModificationSignature": "000000000000000000000000000000000000000000000000000000005ef30aae"
+  }
+}
