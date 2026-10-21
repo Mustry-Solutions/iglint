@@ -1,5 +1,6 @@
 [package]
 name = "iglint_python"
+description = "Jython 2.7 lexer, parser and AST that match IA's Jython exactly"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,3 +9,12 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+iglint_text = { workspace = true }
+
+[[test]]
+name = "oracle"
+path = "tests/oracle.rs"
+
+[[test]]
+name = "robustness"
+path = "tests/robustness.rs"

@@ -1,0 +1,683 @@
+### empty
+ok
+Module(body=[])
+Module(body=[])
+### only newline
+ok
+Module(body=[])
+Module(body=[])
+### only comment
+ok
+Module(body=[])
+Module(body=[])
+### blank lines and comments
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=5, col_offset=0)], value=Num(n=1, lineno=5, col_offset=4), lineno=5, col_offset=0)])
+### pass
+ok
+Module(body=[Pass()])
+Module(body=[Pass( lineno=1, col_offset=0)])
+### pass semicolons
+ok
+Module(body=[Pass(), Pass()])
+Module(body=[Pass( lineno=1, col_offset=0), Pass( lineno=1, col_offset=6)])
+### expression statement
+ok
+Module(body=[Expr(value=Name(id='x', ctx=Load()))])
+Module(body=[Expr(value=Name(id='x', ctx=Load(), lineno=1, col_offset=0), lineno=1, col_offset=0)])
+### expression statement parenthesized
+ok
+Module(body=[Expr(value=Name(id='x', ctx=Load()))])
+Module(body=[Expr(value=Name(id='x', ctx=Load(), lineno=1, col_offset=1), lineno=1, col_offset=0)])
+### expression statement call on parenthesized
+ok
+Module(body=[Expr(value=Attribute(value=Call(func=Name(id='f', ctx=Load()), args=[Name(id='x', ctx=Load())], keywords=[], starargs=None, kwargs=None), attr='y', ctx=Load()))])
+Module(body=[Expr(value=Attribute(value=Call(func=Name(id='f', ctx=Load(), lineno=1, col_offset=1), args=[Name(id='x', ctx=Load(), lineno=1, col_offset=4)], keywords=[], starargs=None, kwargs=None, lineno=1, col_offset=0), attr='y', ctx=Load(), lineno=1, col_offset=0), lineno=1, col_offset=0)])
+### assign simple
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### assign chain
+ok
+Module(body=[Assign(targets=[Name(id='a', ctx=Store()), Name(id='b', ctx=Store()), Name(id='c', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=1, col_offset=0), Name(id='b', ctx=Store(), lineno=1, col_offset=4), Name(id='c', ctx=Store(), lineno=1, col_offset=8)], value=Num(n=1, lineno=1, col_offset=12), lineno=1, col_offset=0)])
+### assign tuple targets
+ok
+Module(body=[Assign(targets=[Tuple(elts=[Name(id='a', ctx=Store()), Name(id='b', ctx=Store())], ctx=Store())], value=Tuple(elts=[Num(n=1), Num(n=2)], ctx=Load()))])
+Module(body=[Assign(targets=[Tuple(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=0), Name(id='b', ctx=Store(), lineno=1, col_offset=3)], ctx=Store(), lineno=1, col_offset=0)], value=Tuple(elts=[Num(n=1, lineno=1, col_offset=7), Num(n=2, lineno=1, col_offset=10)], ctx=Load(), lineno=1, col_offset=7), lineno=1, col_offset=0)])
+### assign tuple parenthesized targets
+ok
+Module(body=[Assign(targets=[Tuple(elts=[Name(id='a', ctx=Store()), Name(id='b', ctx=Store())], ctx=Store())], value=Name(id='c', ctx=Load()))])
+Module(body=[Assign(targets=[Tuple(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=1), Name(id='b', ctx=Store(), lineno=1, col_offset=4)], ctx=Store(), lineno=1, col_offset=1)], value=Name(id='c', ctx=Load(), lineno=1, col_offset=9), lineno=1, col_offset=1)])
+### assign list target
+ok
+Module(body=[Assign(targets=[List(elts=[Name(id='a', ctx=Store()), Name(id='b', ctx=Store())], ctx=Store())], value=Name(id='c', ctx=Load()))])
+Module(body=[Assign(targets=[List(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=1), Name(id='b', ctx=Store(), lineno=1, col_offset=4)], ctx=Store(), lineno=1, col_offset=0)], value=Name(id='c', ctx=Load(), lineno=1, col_offset=9), lineno=1, col_offset=0)])
+### assign nested targets
+ok
+Module(body=[Assign(targets=[Tuple(elts=[Name(id='a', ctx=Store()), Tuple(elts=[Name(id='b', ctx=Store()), List(elts=[Name(id='c', ctx=Store()), Name(id='d', ctx=Store())], ctx=Store())], ctx=Store())], ctx=Store())], value=Name(id='x', ctx=Load()))])
+Module(body=[Assign(targets=[Tuple(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=0), Tuple(elts=[Name(id='b', ctx=Store(), lineno=1, col_offset=4), List(elts=[Name(id='c', ctx=Store(), lineno=1, col_offset=8), Name(id='d', ctx=Store(), lineno=1, col_offset=11)], ctx=Store(), lineno=1, col_offset=7)], ctx=Store(), lineno=1, col_offset=4)], ctx=Store(), lineno=1, col_offset=0)], value=Name(id='x', ctx=Load(), lineno=1, col_offset=17), lineno=1, col_offset=0)])
+### assign parenthesized name target
+ok
+Module(body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=1, col_offset=1)], value=Num(n=1, lineno=1, col_offset=6), lineno=1, col_offset=1)])
+### assign attribute and subscript
+ok
+Module(body=[Assign(targets=[Attribute(value=Name(id='a', ctx=Load()), attr='b', ctx=Store()), Subscript(value=Name(id='c', ctx=Load()), slice=Index(value=Name(id='d', ctx=Load())), ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Attribute(value=Name(id='a', ctx=Load(), lineno=1, col_offset=0), attr='b', ctx=Store(), lineno=1, col_offset=0), Subscript(value=Name(id='c', ctx=Load(), lineno=1, col_offset=6), slice=Index(value=Name(id='d', ctx=Load(), lineno=1, col_offset=8)), ctx=Store(), lineno=1, col_offset=6)], value=Num(n=1, lineno=1, col_offset=13), lineno=1, col_offset=0)])
+### assign starred-free unpack trailing comma
+ok
+Module(body=[Assign(targets=[Tuple(elts=[Name(id='a', ctx=Store())], ctx=Store())], value=Name(id='x', ctx=Load()))])
+Module(body=[Assign(targets=[Tuple(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=0)], ctx=Store(), lineno=1, col_offset=0)], value=Name(id='x', ctx=Load(), lineno=1, col_offset=5), lineno=1, col_offset=0)])
+### assign to empty list
+ok
+Module(body=[Assign(targets=[List(elts=[], ctx=Store())], value=Name(id='x', ctx=Load()))])
+Module(body=[Assign(targets=[List(elts=[], ctx=Store(), lineno=1, col_offset=0)], value=Name(id='x', ctx=Load(), lineno=1, col_offset=5), lineno=1, col_offset=0)])
+### assign yield
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Yield(value=None))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Yield(value=None, lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### assign yield value
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Yield(value=Tuple(elts=[Num(n=1), Num(n=2)], ctx=Load())))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Yield(value=Tuple(elts=[Num(n=1, lineno=1, col_offset=10), Num(n=2, lineno=1, col_offset=13)], ctx=Load(), lineno=1, col_offset=10), lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### assign yield chain
+error 1 8
+no viable alternative at input 'yield'
+### assign parenthesized yield first
+ok
+Module(body=[Assign(targets=[Name(id='a', ctx=Store())], value=Yield(value=Name(id='x', ctx=Load())))])
+Module(body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=1, col_offset=1)], value=Yield(value=Name(id='x', ctx=Load(), lineno=1, col_offset=12), lineno=1, col_offset=6), lineno=1, col_offset=0)])
+### augmented assignments
+ok
+Module(body=[AugAssign(target=Name(id='x', ctx=AugStore()), op=Add(), value=Num(n=1)), AugAssign(target=Name(id='x', ctx=AugStore()), op=Sub(), value=Num(n=1)), AugAssign(target=Name(id='x', ctx=AugStore()), op=Mult(), value=Num(n=1)), AugAssign(target=Name(id='x', ctx=AugStore()), op=Div(), value=Num(n=1)), AugAssign(target=Name(id='x', ctx=AugStore()), op=Mod(), value=Num(n=1)), AugAssign(target=Name(id='x', ctx=AugStore()), op=BitAnd(), value=Num(n=1)), AugAssign(target=Name(id='x', ctx=AugStore()), op=BitOr(), value=Num(n=1)), AugAssign(target=Name(id='x', ctx=AugStore()), op=BitXor(), value=Num(n=1)), AugAssign(target=Name(id='x', ctx=AugStore()), op=LShift(), value=Num(n=1)), AugAssign(target=Name(id='x', ctx=AugStore()), op=RShift(), value=Num(n=1)), AugAssign(target=Name(id='x', ctx=AugStore()), op=Pow(), value=Num(n=1)), AugAssign(target=Name(id='x', ctx=AugStore()), op=FloorDiv(), value=Num(n=1))])
+Module(body=[AugAssign(target=Name(id='x', ctx=AugStore(), lineno=1, col_offset=0), op=Add(), value=Num(n=1, lineno=1, col_offset=5), lineno=1, col_offset=0), AugAssign(target=Name(id='x', ctx=AugStore(), lineno=2, col_offset=0), op=Sub(), value=Num(n=1, lineno=2, col_offset=5), lineno=2, col_offset=0), AugAssign(target=Name(id='x', ctx=AugStore(), lineno=3, col_offset=0), op=Mult(), value=Num(n=1, lineno=3, col_offset=5), lineno=3, col_offset=0), AugAssign(target=Name(id='x', ctx=AugStore(), lineno=4, col_offset=0), op=Div(), value=Num(n=1, lineno=4, col_offset=5), lineno=4, col_offset=0), AugAssign(target=Name(id='x', ctx=AugStore(), lineno=5, col_offset=0), op=Mod(), value=Num(n=1, lineno=5, col_offset=5), lineno=5, col_offset=0), AugAssign(target=Name(id='x', ctx=AugStore(), lineno=6, col_offset=0), op=BitAnd(), value=Num(n=1, lineno=6, col_offset=5), lineno=6, col_offset=0), AugAssign(target=Name(id='x', ctx=AugStore(), lineno=7, col_offset=0), op=BitOr(), value=Num(n=1, lineno=7, col_offset=5), lineno=7, col_offset=0), AugAssign(target=Name(id='x', ctx=AugStore(), lineno=8, col_offset=0), op=BitXor(), value=Num(n=1, lineno=8, col_offset=5), lineno=8, col_offset=0), AugAssign(target=Name(id='x', ctx=AugStore(), lineno=9, col_offset=0), op=LShift(), value=Num(n=1, lineno=9, col_offset=6), lineno=9, col_offset=0), AugAssign(target=Name(id='x', ctx=AugStore(), lineno=10, col_offset=0), op=RShift(), value=Num(n=1, lineno=10, col_offset=6), lineno=10, col_offset=0), AugAssign(target=Name(id='x', ctx=AugStore(), lineno=11, col_offset=0), op=Pow(), value=Num(n=1, lineno=11, col_offset=6), lineno=11, col_offset=0), AugAssign(target=Name(id='x', ctx=AugStore(), lineno=12, col_offset=0), op=FloorDiv(), value=Num(n=1, lineno=12, col_offset=6), lineno=12, col_offset=0)])
+### augmented attribute subscript
+ok
+Module(body=[AugAssign(target=Attribute(value=Name(id='a', ctx=Load()), attr='b', ctx=AugStore()), op=Add(), value=Num(n=1)), AugAssign(target=Subscript(value=Name(id='c', ctx=Load()), slice=Index(value=Num(n=0)), ctx=AugStore()), op=Sub(), value=Num(n=2)), AugAssign(target=Subscript(value=Name(id='d', ctx=Load()), slice=Slice(lower=Num(n=1), upper=Num(n=2), step=None), ctx=AugStore()), op=Mult(), value=Num(n=3))])
+Module(body=[AugAssign(target=Attribute(value=Name(id='a', ctx=Load(), lineno=1, col_offset=0), attr='b', ctx=AugStore(), lineno=1, col_offset=0), op=Add(), value=Num(n=1, lineno=1, col_offset=7), lineno=1, col_offset=0), AugAssign(target=Subscript(value=Name(id='c', ctx=Load(), lineno=1, col_offset=10), slice=Index(value=Num(n=0, lineno=1, col_offset=12)), ctx=AugStore(), lineno=1, col_offset=10), op=Sub(), value=Num(n=2, lineno=1, col_offset=18), lineno=1, col_offset=10), AugAssign(target=Subscript(value=Name(id='d', ctx=Load(), lineno=1, col_offset=21), slice=Slice(lower=Num(n=1, lineno=1, col_offset=23), upper=Num(n=2, lineno=1, col_offset=25), step=None), ctx=AugStore(), lineno=1, col_offset=21), op=Mult(), value=Num(n=3, lineno=1, col_offset=31), lineno=1, col_offset=21)])
+### augmented yield
+ok
+Module(body=[AugAssign(target=Name(id='x', ctx=AugStore()), op=Add(), value=Yield(value=Name(id='y', ctx=Load())))])
+Module(body=[AugAssign(target=Name(id='x', ctx=AugStore(), lineno=1, col_offset=0), op=Add(), value=Yield(value=Name(id='y', ctx=Load(), lineno=1, col_offset=11), lineno=1, col_offset=5), lineno=1, col_offset=0)])
+### augmented parenthesized target
+ok
+Module(body=[AugAssign(target=Name(id='x', ctx=AugStore()), op=Add(), value=Num(n=1))])
+Module(body=[AugAssign(target=Name(id='x', ctx=AugStore(), lineno=1, col_offset=1), op=Add(), value=Num(n=1, lineno=1, col_offset=7), lineno=1, col_offset=1)])
+### print bare
+ok
+Module(body=[Print(dest=None, values=[], nl=True)])
+Module(body=[Print(dest=None, values=[], nl=True, lineno=1, col_offset=0)])
+### print values
+ok
+Module(body=[Print(dest=None, values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())], nl=True)])
+Module(body=[Print(dest=None, values=[Name(id='a', ctx=Load(), lineno=1, col_offset=6), Name(id='b', ctx=Load(), lineno=1, col_offset=9)], nl=True, lineno=1, col_offset=0)])
+### print trailing comma
+ok
+Module(body=[Print(dest=None, values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())], nl=False)])
+Module(body=[Print(dest=None, values=[Name(id='a', ctx=Load(), lineno=1, col_offset=6), Name(id='b', ctx=Load(), lineno=1, col_offset=9)], nl=False, lineno=1, col_offset=0)])
+### print single trailing comma
+ok
+Module(body=[Print(dest=None, values=[Name(id='a', ctx=Load())], nl=False)])
+Module(body=[Print(dest=None, values=[Name(id='a', ctx=Load(), lineno=1, col_offset=6)], nl=False, lineno=1, col_offset=0)])
+### print dest
+ok
+Module(body=[Print(dest=Name(id='f', ctx=Load()), values=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())], nl=True)])
+Module(body=[Print(dest=Name(id='f', ctx=Load(), lineno=1, col_offset=8), values=[Name(id='a', ctx=Load(), lineno=1, col_offset=11), Name(id='b', ctx=Load(), lineno=1, col_offset=14)], nl=True, lineno=1, col_offset=0)])
+### print dest trailing comma
+ok
+Module(body=[Print(dest=Name(id='f', ctx=Load()), values=[Name(id='a', ctx=Load())], nl=False)])
+Module(body=[Print(dest=Name(id='f', ctx=Load(), lineno=1, col_offset=8), values=[Name(id='a', ctx=Load(), lineno=1, col_offset=11)], nl=False, lineno=1, col_offset=0)])
+### print dest only
+ok
+Module(body=[Print(dest=Name(id='f', ctx=Load()), values=[], nl=True)])
+Module(body=[Print(dest=Name(id='f', ctx=Load(), lineno=1, col_offset=8), values=[], nl=True, lineno=1, col_offset=0)])
+### print tuple
+ok
+Module(body=[Print(dest=None, values=[Tuple(elts=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())], ctx=Load())], nl=True)])
+Module(body=[Print(dest=None, values=[Tuple(elts=[Name(id='a', ctx=Load(), lineno=1, col_offset=7), Name(id='b', ctx=Load(), lineno=1, col_offset=10)], ctx=Load(), lineno=1, col_offset=7)], nl=True, lineno=1, col_offset=0)])
+### print parenthesized
+ok
+Module(body=[Print(dest=None, values=[Name(id='a', ctx=Load())], nl=True)])
+Module(body=[Print(dest=None, values=[Name(id='a', ctx=Load(), lineno=1, col_offset=6)], nl=True, lineno=1, col_offset=0)])
+### print semicolon
+ok
+Module(body=[Print(dest=None, values=[], nl=True), Print(dest=None, values=[Name(id='a', ctx=Load())], nl=True)])
+Module(body=[Print(dest=None, values=[], nl=True, lineno=1, col_offset=0), Print(dest=None, values=[Name(id='a', ctx=Load(), lineno=1, col_offset=13)], nl=True, lineno=1, col_offset=7)])
+### del single
+ok
+Module(body=[Delete(targets=[Name(id='x', ctx=Del())])])
+Module(body=[Delete(targets=[Name(id='x', ctx=Del(), lineno=1, col_offset=4)], lineno=1, col_offset=0)])
+### del multiple
+ok
+Module(body=[Delete(targets=[Name(id='a', ctx=Del()), Attribute(value=Name(id='b', ctx=Load()), attr='c', ctx=Del()), Subscript(value=Name(id='d', ctx=Load()), slice=Index(value=Num(n=0)), ctx=Del()), Tuple(elts=[Name(id='e', ctx=Del()), Name(id='f', ctx=Del())], ctx=Del()), List(elts=[Name(id='g', ctx=Del())], ctx=Del())])])
+Module(body=[Delete(targets=[Name(id='a', ctx=Del(), lineno=1, col_offset=4), Attribute(value=Name(id='b', ctx=Load(), lineno=1, col_offset=7), attr='c', ctx=Del(), lineno=1, col_offset=7), Subscript(value=Name(id='d', ctx=Load(), lineno=1, col_offset=12), slice=Index(value=Num(n=0, lineno=1, col_offset=14)), ctx=Del(), lineno=1, col_offset=12), Tuple(elts=[Name(id='e', ctx=Del(), lineno=1, col_offset=19), Name(id='f', ctx=Del(), lineno=1, col_offset=22)], ctx=Del(), lineno=1, col_offset=19), List(elts=[Name(id='g', ctx=Del(), lineno=1, col_offset=27)], ctx=Del(), lineno=1, col_offset=26)], lineno=1, col_offset=0)])
+### del trailing comma
+ok
+Module(body=[Delete(targets=[Name(id='a', ctx=Del())])])
+Module(body=[Delete(targets=[Name(id='a', ctx=Del(), lineno=1, col_offset=4)], lineno=1, col_offset=0)])
+### del slice
+ok
+Module(body=[Delete(targets=[Subscript(value=Name(id='x', ctx=Load()), slice=Slice(lower=Num(n=1), upper=Num(n=2), step=None), ctx=Del())])])
+Module(body=[Delete(targets=[Subscript(value=Name(id='x', ctx=Load(), lineno=1, col_offset=4), slice=Slice(lower=Num(n=1, lineno=1, col_offset=6), upper=Num(n=2, lineno=1, col_offset=8), step=None), ctx=Del(), lineno=1, col_offset=4)], lineno=1, col_offset=0)])
+### return bare
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Return(value=None)], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Return(value=None, lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### return value
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Return(value=Num(n=1))], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Return(value=Num(n=1, lineno=2, col_offset=11), lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### return tuple
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Return(value=Tuple(elts=[Num(n=1), Num(n=2)], ctx=Load()))], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Return(value=Tuple(elts=[Num(n=1, lineno=2, col_offset=11), Num(n=2, lineno=2, col_offset=14)], ctx=Load(), lineno=2, col_offset=11), lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### break continue
+ok
+Module(body=[While(test=Num(n=1), body=[Break(), Continue()], orelse=[])])
+Module(body=[While(test=Num(n=1, lineno=1, col_offset=6), body=[Break( lineno=2, col_offset=4), Continue( lineno=3, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### raise bare
+ok
+Module(body=[Raise(type=None, inst=None, tback=None)])
+Module(body=[Raise(type=None, inst=None, tback=None, lineno=1, col_offset=0)])
+### raise one
+ok
+Module(body=[Raise(type=Name(id='E', ctx=Load()), inst=None, tback=None)])
+Module(body=[Raise(type=Name(id='E', ctx=Load(), lineno=1, col_offset=6), inst=None, tback=None, lineno=1, col_offset=0)])
+### raise two
+ok
+Module(body=[Raise(type=Name(id='E', ctx=Load()), inst=Name(id='v', ctx=Load()), tback=None)])
+Module(body=[Raise(type=Name(id='E', ctx=Load(), lineno=1, col_offset=6), inst=Name(id='v', ctx=Load(), lineno=1, col_offset=9), tback=None, lineno=1, col_offset=0)])
+### raise three
+ok
+Module(body=[Raise(type=Name(id='E', ctx=Load()), inst=Name(id='v', ctx=Load()), tback=Name(id='tb', ctx=Load()))])
+Module(body=[Raise(type=Name(id='E', ctx=Load(), lineno=1, col_offset=6), inst=Name(id='v', ctx=Load(), lineno=1, col_offset=9), tback=Name(id='tb', ctx=Load(), lineno=1, col_offset=12), lineno=1, col_offset=0)])
+### raise call
+ok
+Module(body=[Raise(type=Call(func=Name(id='E', ctx=Load()), args=[Str(s='x')], keywords=[], starargs=None, kwargs=None), inst=None, tback=None)])
+Module(body=[Raise(type=Call(func=Name(id='E', ctx=Load(), lineno=1, col_offset=6), args=[Str(s='x', lineno=1, col_offset=8)], keywords=[], starargs=None, kwargs=None, lineno=1, col_offset=6), inst=None, tback=None, lineno=1, col_offset=0)])
+### global
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Global(names=['a']), Global(names=['b', 'c'])], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Global(names=['a'], lineno=2, col_offset=4), Global(names=['b', 'c'], lineno=3, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### exec plain
+ok
+Module(body=[Exec(body=Name(id='code', ctx=Load()), globals=None, locals=None)])
+Module(body=[Exec(body=Name(id='code', ctx=Load(), lineno=1, col_offset=5), globals=None, locals=None, lineno=1, col_offset=0)])
+### exec in
+ok
+Module(body=[Exec(body=Name(id='code', ctx=Load()), globals=Name(id='g', ctx=Load()), locals=None)])
+Module(body=[Exec(body=Name(id='code', ctx=Load(), lineno=1, col_offset=5), globals=Name(id='g', ctx=Load(), lineno=1, col_offset=13), locals=None, lineno=1, col_offset=0)])
+### exec in two
+ok
+Module(body=[Exec(body=Name(id='code', ctx=Load()), globals=Name(id='g', ctx=Load()), locals=Name(id='l', ctx=Load()))])
+Module(body=[Exec(body=Name(id='code', ctx=Load(), lineno=1, col_offset=5), globals=Name(id='g', ctx=Load(), lineno=1, col_offset=13), locals=Name(id='l', ctx=Load(), lineno=1, col_offset=16), lineno=1, col_offset=0)])
+### exec string
+ok
+Module(body=[Exec(body=Str(s='x = 1'), globals=None, locals=None)])
+Module(body=[Exec(body=Str(s='x = 1', lineno=1, col_offset=5), globals=None, locals=None, lineno=1, col_offset=0)])
+### exec tuple
+ok
+Module(body=[Exec(body=Tuple(elts=[Name(id='code', ctx=Load()), Name(id='g', ctx=Load())], ctx=Load()), globals=None, locals=None)])
+Module(body=[Exec(body=Tuple(elts=[Name(id='code', ctx=Load(), lineno=1, col_offset=5), Name(id='g', ctx=Load(), lineno=1, col_offset=11)], ctx=Load(), lineno=1, col_offset=5), globals=None, locals=None, lineno=1, col_offset=0)])
+### assert
+ok
+Module(body=[Assert(test=Name(id='x', ctx=Load()), msg=None)])
+Module(body=[Assert(test=Name(id='x', ctx=Load(), lineno=1, col_offset=7), msg=None, lineno=1, col_offset=0)])
+### assert message
+ok
+Module(body=[Assert(test=Name(id='x', ctx=Load()), msg=Str(s='message'))])
+Module(body=[Assert(test=Name(id='x', ctx=Load(), lineno=1, col_offset=7), msg=Str(s='message', lineno=1, col_offset=10), lineno=1, col_offset=0)])
+### assert tuple
+ok
+Module(body=[Assert(test=Tuple(elts=[Name(id='x', ctx=Load()), Name(id='y', ctx=Load())], ctx=Load()), msg=None)])
+Module(body=[Assert(test=Tuple(elts=[Name(id='x', ctx=Load(), lineno=1, col_offset=8), Name(id='y', ctx=Load(), lineno=1, col_offset=11)], ctx=Load(), lineno=1, col_offset=8), msg=None, lineno=1, col_offset=0)])
+### import single
+ok
+Module(body=[Import(names=[alias(name='os', asname=None)])])
+Module(body=[Import(names=[alias(name='os', asname=None)], lineno=1, col_offset=0)])
+### import dotted
+ok
+Module(body=[Import(names=[alias(name='os.path', asname=None)])])
+Module(body=[Import(names=[alias(name='os.path', asname=None)], lineno=1, col_offset=0)])
+### import as
+ok
+Module(body=[Import(names=[alias(name='os.path', asname='p')])])
+Module(body=[Import(names=[alias(name='os.path', asname='p')], lineno=1, col_offset=0)])
+### import multiple
+ok
+Module(body=[Import(names=[alias(name='os', asname=None), alias(name='sys', asname='s'), alias(name='a.b.c', asname=None)])])
+Module(body=[Import(names=[alias(name='os', asname=None), alias(name='sys', asname='s'), alias(name='a.b.c', asname=None)], lineno=1, col_offset=0)])
+### from import
+ok
+Module(body=[ImportFrom(module='os', names=[alias(name='path', asname=None)], level=0)])
+Module(body=[ImportFrom(module='os', names=[alias(name='path', asname=None)], level=0, lineno=1, col_offset=0)])
+### from import as
+ok
+Module(body=[ImportFrom(module='os', names=[alias(name='path', asname='p'), alias(name='sep', asname=None)], level=0)])
+Module(body=[ImportFrom(module='os', names=[alias(name='path', asname='p'), alias(name='sep', asname=None)], level=0, lineno=1, col_offset=0)])
+### from import parenthesized
+ok
+Module(body=[ImportFrom(module='os', names=[alias(name='path', asname=None), alias(name='sep', asname=None)], level=0)])
+Module(body=[ImportFrom(module='os', names=[alias(name='path', asname=None), alias(name='sep', asname=None)], level=0, lineno=1, col_offset=0)])
+### from import parenthesized trailing comma
+ok
+Module(body=[ImportFrom(module='os', names=[alias(name='path', asname=None), alias(name='sep', asname=None)], level=0)])
+Module(body=[ImportFrom(module='os', names=[alias(name='path', asname=None), alias(name='sep', asname=None)], level=0, lineno=1, col_offset=0)])
+### from import star
+ok
+Module(body=[ImportFrom(module='os', names=[alias(name='*', asname=None)], level=0)])
+Module(body=[ImportFrom(module='os', names=[alias(name='*', asname=None)], level=0, lineno=1, col_offset=0)])
+### from relative
+ok
+Module(body=[ImportFrom(module='', names=[alias(name='x', asname=None)], level=1)])
+Module(body=[ImportFrom(module='', names=[alias(name='x', asname=None)], level=1, lineno=1, col_offset=0)])
+### from relative module
+ok
+Module(body=[ImportFrom(module='mod', names=[alias(name='x', asname=None)], level=1)])
+Module(body=[ImportFrom(module='mod', names=[alias(name='x', asname=None)], level=1, lineno=1, col_offset=0)])
+### from relative two
+ok
+Module(body=[ImportFrom(module='', names=[alias(name='x', asname=None)], level=2)])
+Module(body=[ImportFrom(module='', names=[alias(name='x', asname=None)], level=2, lineno=1, col_offset=0)])
+### from relative three dots
+ok
+Module(body=[ImportFrom(module='', names=[alias(name='x', asname=None)], level=3)])
+Module(body=[ImportFrom(module='', names=[alias(name='x', asname=None)], level=3, lineno=1, col_offset=0)])
+### from relative dotted
+ok
+Module(body=[ImportFrom(module='a.b', names=[alias(name='c', asname='d')], level=2)])
+Module(body=[ImportFrom(module='a.b', names=[alias(name='c', asname='d')], level=2, lineno=1, col_offset=0)])
+### from dotted
+ok
+Module(body=[ImportFrom(module='a.b.c', names=[alias(name='d', asname=None)], level=0)])
+Module(body=[ImportFrom(module='a.b.c', names=[alias(name='d', asname=None)], level=0, lineno=1, col_offset=0)])
+### future print function
+ok
+Module(body=[ImportFrom(module='__future__', names=[alias(name='print_function', asname=None)], level=0), Expr(value=Call(func=Name(id='print', ctx=Load()), args=[Num(n=1), Num(n=2)], keywords=[keyword(arg='sep', value=Str(s='')), keyword(arg='end', value=Str(s=''))], starargs=None, kwargs=None))])
+Module(body=[ImportFrom(module='__future__', names=[alias(name='print_function', asname=None)], level=0, lineno=1, col_offset=0), Expr(value=Call(func=Name(id='print', ctx=Load(), lineno=2, col_offset=0), args=[Num(n=1, lineno=2, col_offset=6), Num(n=2, lineno=2, col_offset=9)], keywords=[keyword(arg='sep', value=Str(s='', lineno=2, col_offset=16)), keyword(arg='end', value=Str(s='', lineno=2, col_offset=24))], starargs=None, kwargs=None, lineno=2, col_offset=0), lineno=2, col_offset=0)])
+### future unicode literals
+ok
+Module(body=[ImportFrom(module='__future__', names=[alias(name='unicode_literals', asname=None)], level=0), Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'a')), Assign(targets=[Name(id='y', ctx=Store())], value=Str(s='b')), Assign(targets=[Name(id='z', ctx=Store())], value=Str(s=u'c'))])
+Module(body=[ImportFrom(module='__future__', names=[alias(name='unicode_literals', asname=None)], level=0, lineno=1, col_offset=0), Assign(targets=[Name(id='x', ctx=Store(), lineno=2, col_offset=0)], value=Str(s=u'a', lineno=2, col_offset=4), lineno=2, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=3, col_offset=0)], value=Str(s='b', lineno=3, col_offset=4), lineno=3, col_offset=0), Assign(targets=[Name(id='z', ctx=Store(), lineno=4, col_offset=0)], value=Str(s=u'c', lineno=4, col_offset=4), lineno=4, col_offset=0)])
+### future multiple
+ok
+Module(body=[ImportFrom(module='__future__', names=[alias(name='absolute_import', asname=None), alias(name='division', asname=None), alias(name='print_function', asname=None)], level=0)])
+Module(body=[ImportFrom(module='__future__', names=[alias(name='absolute_import', asname=None), alias(name='division', asname=None), alias(name='print_function', asname=None)], level=0, lineno=1, col_offset=0)])
+### future parenthesized
+ok
+Module(body=[ImportFrom(module='__future__', names=[alias(name='print_function', asname=None)], level=0), Expr(value=Call(func=Name(id='print', ctx=Load()), args=[Name(id='x', ctx=Load())], keywords=[], starargs=None, kwargs=None))])
+Module(body=[ImportFrom(module='__future__', names=[alias(name='print_function', asname=None)], level=0, lineno=1, col_offset=0), Expr(value=Call(func=Name(id='print', ctx=Load(), lineno=2, col_offset=0), args=[Name(id='x', ctx=Load(), lineno=2, col_offset=6)], keywords=[], starargs=None, kwargs=None, lineno=2, col_offset=0), lineno=2, col_offset=0)])
+### if
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### if else
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Pass()], orelse=[Pass()])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Pass( lineno=2, col_offset=4)], orelse=[Pass( lineno=4, col_offset=4)], lineno=1, col_offset=0)])
+### if elif else
+ok
+Module(body=[If(test=Name(id='a', ctx=Load()), body=[Pass()], orelse=[If(test=Name(id='b', ctx=Load()), body=[Pass()], orelse=[If(test=Name(id='c', ctx=Load()), body=[Pass()], orelse=[Pass()])])])])
+Module(body=[If(test=Name(id='a', ctx=Load(), lineno=1, col_offset=3), body=[Pass( lineno=2, col_offset=4)], orelse=[If(test=Name(id='b', ctx=Load(), lineno=3, col_offset=5), body=[Pass( lineno=4, col_offset=4)], orelse=[If(test=Name(id='c', ctx=Load(), lineno=5, col_offset=5), body=[Pass( lineno=6, col_offset=4)], orelse=[Pass( lineno=8, col_offset=4)], lineno=5, col_offset=5)], lineno=3, col_offset=5)], lineno=1, col_offset=0)])
+### if elif no else
+ok
+Module(body=[If(test=Name(id='a', ctx=Load()), body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))], orelse=[If(test=Name(id='b', ctx=Load()), body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=2))], orelse=[])])])
+Module(body=[If(test=Name(id='a', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4)], orelse=[If(test=Name(id='b', ctx=Load(), lineno=3, col_offset=5), body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=4, col_offset=4)], value=Num(n=2, lineno=4, col_offset=8), lineno=4, col_offset=4)], orelse=[], lineno=3, col_offset=5)], lineno=1, col_offset=0)])
+### if inline
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Pass( lineno=1, col_offset=6)], orelse=[], lineno=1, col_offset=0)])
+### if inline multiple
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=1, col_offset=6)], value=Num(n=1, lineno=1, col_offset=10), lineno=1, col_offset=6), Assign(targets=[Name(id='b', ctx=Store(), lineno=1, col_offset=13)], value=Num(n=2, lineno=1, col_offset=17), lineno=1, col_offset=13)], orelse=[], lineno=1, col_offset=0)])
+### if inline else
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Expr(value=Name(id='a', ctx=Load()))], orelse=[Expr(value=Name(id='b', ctx=Load()))])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Expr(value=Name(id='a', ctx=Load(), lineno=1, col_offset=6), lineno=1, col_offset=6)], orelse=[Expr(value=Name(id='b', ctx=Load(), lineno=2, col_offset=6), lineno=2, col_offset=6)], lineno=1, col_offset=0)])
+### while
+ok
+Module(body=[While(test=Name(id='x', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[While(test=Name(id='x', ctx=Load(), lineno=1, col_offset=6), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### while else
+ok
+Module(body=[While(test=Name(id='x', ctx=Load()), body=[Pass()], orelse=[Pass()])])
+Module(body=[While(test=Name(id='x', ctx=Load(), lineno=1, col_offset=6), body=[Pass( lineno=2, col_offset=4)], orelse=[Pass( lineno=4, col_offset=4)], lineno=1, col_offset=0)])
+### for
+ok
+Module(body=[For(target=Name(id='x', ctx=Store()), iter=Name(id='y', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[For(target=Name(id='x', ctx=Store(), lineno=1, col_offset=4), iter=Name(id='y', ctx=Load(), lineno=1, col_offset=9), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### for tuple target
+ok
+Module(body=[For(target=Tuple(elts=[Name(id='a', ctx=Store()), Name(id='b', ctx=Store())], ctx=Store()), iter=Name(id='c', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[For(target=Tuple(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=4), Name(id='b', ctx=Store(), lineno=1, col_offset=7)], ctx=Store(), lineno=1, col_offset=4), iter=Name(id='c', ctx=Load(), lineno=1, col_offset=12), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### for parenthesized target
+ok
+Module(body=[For(target=Tuple(elts=[Name(id='a', ctx=Store()), Name(id='b', ctx=Store())], ctx=Store()), iter=Name(id='c', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[For(target=Tuple(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=5), Name(id='b', ctx=Store(), lineno=1, col_offset=8)], ctx=Store(), lineno=1, col_offset=5), iter=Name(id='c', ctx=Load(), lineno=1, col_offset=14), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### for list target
+ok
+Module(body=[For(target=List(elts=[Name(id='a', ctx=Store()), Name(id='b', ctx=Store())], ctx=Store()), iter=Name(id='c', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[For(target=List(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=5), Name(id='b', ctx=Store(), lineno=1, col_offset=8)], ctx=Store(), lineno=1, col_offset=4), iter=Name(id='c', ctx=Load(), lineno=1, col_offset=14), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### for trailing comma target
+ok
+Module(body=[For(target=Tuple(elts=[Name(id='a', ctx=Store())], ctx=Store()), iter=Name(id='c', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[For(target=Tuple(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=4)], ctx=Store(), lineno=1, col_offset=4), iter=Name(id='c', ctx=Load(), lineno=1, col_offset=10), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### for attribute target
+ok
+Module(body=[For(target=Attribute(value=Name(id='x', ctx=Load()), attr='y', ctx=Store()), iter=Name(id='z', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[For(target=Attribute(value=Name(id='x', ctx=Load(), lineno=1, col_offset=4), attr='y', ctx=Store(), lineno=1, col_offset=4), iter=Name(id='z', ctx=Load(), lineno=1, col_offset=11), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### for subscript target
+ok
+Module(body=[For(target=Subscript(value=Name(id='x', ctx=Load()), slice=Index(value=Num(n=0)), ctx=Store()), iter=Name(id='z', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[For(target=Subscript(value=Name(id='x', ctx=Load(), lineno=1, col_offset=4), slice=Index(value=Num(n=0, lineno=1, col_offset=6)), ctx=Store(), lineno=1, col_offset=4), iter=Name(id='z', ctx=Load(), lineno=1, col_offset=12), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### for else
+ok
+Module(body=[For(target=Name(id='x', ctx=Store()), iter=Name(id='y', ctx=Load()), body=[Pass()], orelse=[Pass()])])
+Module(body=[For(target=Name(id='x', ctx=Store(), lineno=1, col_offset=4), iter=Name(id='y', ctx=Load(), lineno=1, col_offset=9), body=[Pass( lineno=2, col_offset=4)], orelse=[Pass( lineno=4, col_offset=4)], lineno=1, col_offset=0)])
+### for tuple iter
+ok
+Module(body=[For(target=Name(id='x', ctx=Store()), iter=Tuple(elts=[Name(id='a', ctx=Load()), Name(id='b', ctx=Load())], ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[For(target=Name(id='x', ctx=Store(), lineno=1, col_offset=4), iter=Tuple(elts=[Name(id='a', ctx=Load(), lineno=1, col_offset=9), Name(id='b', ctx=Load(), lineno=1, col_offset=12)], ctx=Load(), lineno=1, col_offset=9), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### try except
+ok
+Module(body=[TryExcept(body=[Pass()], handlers=[ExceptHandler(type=None, name=None, body=[Pass()])], orelse=[])])
+Module(body=[TryExcept(body=[Pass( lineno=2, col_offset=4)], handlers=[ExceptHandler(type=None, name=None, body=[Pass( lineno=4, col_offset=4)], lineno=3, col_offset=0)], orelse=[], lineno=1, col_offset=0)])
+### try except type
+ok
+Module(body=[TryExcept(body=[Pass()], handlers=[ExceptHandler(type=Name(id='E', ctx=Load()), name=None, body=[Pass()])], orelse=[])])
+Module(body=[TryExcept(body=[Pass( lineno=2, col_offset=4)], handlers=[ExceptHandler(type=Name(id='E', ctx=Load(), lineno=3, col_offset=7), name=None, body=[Pass( lineno=4, col_offset=4)], lineno=3, col_offset=0)], orelse=[], lineno=1, col_offset=0)])
+### try except comma name
+ok
+Module(body=[TryExcept(body=[Pass()], handlers=[ExceptHandler(type=Name(id='E', ctx=Load()), name=Name(id='e', ctx=Store()), body=[Pass()])], orelse=[])])
+Module(body=[TryExcept(body=[Pass( lineno=2, col_offset=4)], handlers=[ExceptHandler(type=Name(id='E', ctx=Load(), lineno=3, col_offset=7), name=Name(id='e', ctx=Store(), lineno=3, col_offset=10), body=[Pass( lineno=4, col_offset=4)], lineno=3, col_offset=0)], orelse=[], lineno=1, col_offset=0)])
+### try except as name
+ok
+Module(body=[TryExcept(body=[Pass()], handlers=[ExceptHandler(type=Name(id='E', ctx=Load()), name=Name(id='e', ctx=Store()), body=[Pass()])], orelse=[])])
+Module(body=[TryExcept(body=[Pass( lineno=2, col_offset=4)], handlers=[ExceptHandler(type=Name(id='E', ctx=Load(), lineno=3, col_offset=7), name=Name(id='e', ctx=Store(), lineno=3, col_offset=12), body=[Pass( lineno=4, col_offset=4)], lineno=3, col_offset=0)], orelse=[], lineno=1, col_offset=0)])
+### try except tuple
+ok
+Module(body=[TryExcept(body=[Pass()], handlers=[ExceptHandler(type=Tuple(elts=[Name(id='A', ctx=Load()), Name(id='B', ctx=Load())], ctx=Load()), name=Name(id='e', ctx=Store()), body=[Pass()])], orelse=[])])
+Module(body=[TryExcept(body=[Pass( lineno=2, col_offset=4)], handlers=[ExceptHandler(type=Tuple(elts=[Name(id='A', ctx=Load(), lineno=3, col_offset=8), Name(id='B', ctx=Load(), lineno=3, col_offset=11)], ctx=Load(), lineno=3, col_offset=8), name=Name(id='e', ctx=Store(), lineno=3, col_offset=15), body=[Pass( lineno=4, col_offset=4)], lineno=3, col_offset=0)], orelse=[], lineno=1, col_offset=0)])
+### try except tuple name
+ok
+Module(body=[TryExcept(body=[Pass()], handlers=[ExceptHandler(type=Tuple(elts=[Name(id='A', ctx=Load()), Name(id='B', ctx=Load())], ctx=Load()), name=Tuple(elts=[Name(id='c', ctx=Store()), Name(id='d', ctx=Store())], ctx=Store()), body=[Pass()])], orelse=[])])
+Module(body=[TryExcept(body=[Pass( lineno=2, col_offset=4)], handlers=[ExceptHandler(type=Tuple(elts=[Name(id='A', ctx=Load(), lineno=3, col_offset=8), Name(id='B', ctx=Load(), lineno=3, col_offset=11)], ctx=Load(), lineno=3, col_offset=8), name=Tuple(elts=[Name(id='c', ctx=Store(), lineno=3, col_offset=16), Name(id='d', ctx=Store(), lineno=3, col_offset=19)], ctx=Store(), lineno=3, col_offset=16), body=[Pass( lineno=4, col_offset=4)], lineno=3, col_offset=0)], orelse=[], lineno=1, col_offset=0)])
+### try multiple except else
+ok
+Module(body=[TryExcept(body=[Pass()], handlers=[ExceptHandler(type=Name(id='A', ctx=Load()), name=None, body=[Pass()]), ExceptHandler(type=Name(id='B', ctx=Load()), name=None, body=[Pass()])], orelse=[Pass()])])
+Module(body=[TryExcept(body=[Pass( lineno=2, col_offset=4)], handlers=[ExceptHandler(type=Name(id='A', ctx=Load(), lineno=3, col_offset=7), name=None, body=[Pass( lineno=4, col_offset=4)], lineno=3, col_offset=0), ExceptHandler(type=Name(id='B', ctx=Load(), lineno=5, col_offset=7), name=None, body=[Pass( lineno=6, col_offset=4)], lineno=5, col_offset=0)], orelse=[Pass( lineno=8, col_offset=4)], lineno=1, col_offset=0)])
+### try finally
+ok
+Module(body=[TryFinally(body=[Pass()], finalbody=[Pass()])])
+Module(body=[TryFinally(body=[Pass( lineno=2, col_offset=4)], finalbody=[Pass( lineno=4, col_offset=4)], lineno=1, col_offset=0)])
+### try except finally
+ok
+Module(body=[TryFinally(body=[TryExcept(body=[Expr(value=Name(id='a', ctx=Load()))], handlers=[ExceptHandler(type=None, name=None, body=[Expr(value=Name(id='b', ctx=Load()))])], orelse=[])], finalbody=[Expr(value=Name(id='c', ctx=Load()))])])
+Module(body=[TryFinally(body=[TryExcept(body=[Expr(value=Name(id='a', ctx=Load(), lineno=2, col_offset=4), lineno=2, col_offset=4)], handlers=[ExceptHandler(type=None, name=None, body=[Expr(value=Name(id='b', ctx=Load(), lineno=4, col_offset=4), lineno=4, col_offset=4)], lineno=3, col_offset=0)], orelse=[], lineno=1, col_offset=0)], finalbody=[Expr(value=Name(id='c', ctx=Load(), lineno=6, col_offset=4), lineno=6, col_offset=4)], lineno=1, col_offset=0)])
+### try except else finally
+ok
+Module(body=[TryFinally(body=[TryExcept(body=[Expr(value=Name(id='a', ctx=Load()))], handlers=[ExceptHandler(type=Name(id='E', ctx=Load()), name=None, body=[Expr(value=Name(id='b', ctx=Load()))])], orelse=[Expr(value=Name(id='c', ctx=Load()))])], finalbody=[Expr(value=Name(id='d', ctx=Load()))])])
+Module(body=[TryFinally(body=[TryExcept(body=[Expr(value=Name(id='a', ctx=Load(), lineno=2, col_offset=4), lineno=2, col_offset=4)], handlers=[ExceptHandler(type=Name(id='E', ctx=Load(), lineno=3, col_offset=7), name=None, body=[Expr(value=Name(id='b', ctx=Load(), lineno=4, col_offset=4), lineno=4, col_offset=4)], lineno=3, col_offset=0)], orelse=[Expr(value=Name(id='c', ctx=Load(), lineno=6, col_offset=4), lineno=6, col_offset=4)], lineno=1, col_offset=0)], finalbody=[Expr(value=Name(id='d', ctx=Load(), lineno=8, col_offset=4), lineno=8, col_offset=4)], lineno=1, col_offset=0)])
+### with
+ok
+Module(body=[With(context_expr=Name(id='x', ctx=Load()), optional_vars=None, body=[Pass()])])
+Module(body=[With(context_expr=Name(id='x', ctx=Load(), lineno=1, col_offset=5), optional_vars=None, body=[Pass( lineno=2, col_offset=4)], lineno=1, col_offset=5)])
+### with as
+ok
+Module(body=[With(context_expr=Name(id='x', ctx=Load()), optional_vars=Name(id='y', ctx=Store()), body=[Pass()])])
+Module(body=[With(context_expr=Name(id='x', ctx=Load(), lineno=1, col_offset=5), optional_vars=Name(id='y', ctx=Store(), lineno=1, col_offset=10), body=[Pass( lineno=2, col_offset=4)], lineno=1, col_offset=5)])
+### with as tuple
+ok
+Module(body=[With(context_expr=Name(id='x', ctx=Load()), optional_vars=Tuple(elts=[Name(id='a', ctx=Store()), Name(id='b', ctx=Store())], ctx=Store()), body=[Pass()])])
+Module(body=[With(context_expr=Name(id='x', ctx=Load(), lineno=1, col_offset=5), optional_vars=Tuple(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=11), Name(id='b', ctx=Store(), lineno=1, col_offset=14)], ctx=Store(), lineno=1, col_offset=11), body=[Pass( lineno=2, col_offset=4)], lineno=1, col_offset=5)])
+### with multiple
+ok
+Module(body=[With(context_expr=Name(id='a', ctx=Load()), optional_vars=Name(id='b', ctx=Store()), body=[With(context_expr=Name(id='c', ctx=Load()), optional_vars=Name(id='d', ctx=Store()), body=[With(context_expr=Name(id='e', ctx=Load()), optional_vars=None, body=[Pass()])])])])
+Module(body=[With(context_expr=Name(id='a', ctx=Load(), lineno=1, col_offset=5), optional_vars=Name(id='b', ctx=Store(), lineno=1, col_offset=10), body=[With(context_expr=Name(id='c', ctx=Load(), lineno=1, col_offset=13), optional_vars=Name(id='d', ctx=Store(), lineno=1, col_offset=18), body=[With(context_expr=Name(id='e', ctx=Load(), lineno=1, col_offset=21), optional_vars=None, body=[Pass( lineno=2, col_offset=4)], lineno=1, col_offset=21)], lineno=1, col_offset=13)], lineno=1, col_offset=5)])
+### with attribute target
+ok
+Module(body=[With(context_expr=Name(id='x', ctx=Load()), optional_vars=Attribute(value=Name(id='self', ctx=Load()), attr='y', ctx=Store()), body=[Pass()])])
+Module(body=[With(context_expr=Name(id='x', ctx=Load(), lineno=1, col_offset=5), optional_vars=Attribute(value=Name(id='self', ctx=Load(), lineno=1, col_offset=10), attr='y', ctx=Store(), lineno=1, col_offset=10), body=[Pass( lineno=2, col_offset=4)], lineno=1, col_offset=5)])
+### def simple
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def args
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Param()), Name(id='b', ctx=Param())], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Param(), lineno=1, col_offset=6), Name(id='b', ctx=Param(), lineno=1, col_offset=9)], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def defaults
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Param()), Name(id='b', ctx=Param()), Name(id='c', ctx=Param())], vararg=None, kwarg=None, defaults=[Num(n=1), Num(n=2)]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Param(), lineno=1, col_offset=6), Name(id='b', ctx=Param(), lineno=1, col_offset=9), Name(id='c', ctx=Param(), lineno=1, col_offset=14)], vararg=None, kwarg=None, defaults=[Num(n=1, lineno=1, col_offset=11), Num(n=2, lineno=1, col_offset=16)]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def varargs
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg='args', kwarg=None, defaults=[]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg='args', kwarg=None, defaults=[]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def kwargs
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg='kwargs', defaults=[]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg='kwargs', defaults=[]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def all
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Param()), Name(id='b', ctx=Param())], vararg='args', kwarg='kwargs', defaults=[Num(n=1)]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Param(), lineno=1, col_offset=6), Name(id='b', ctx=Param(), lineno=1, col_offset=9)], vararg='args', kwarg='kwargs', defaults=[Num(n=1, lineno=1, col_offset=11)]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def star kwargs
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg='args', kwarg='kwargs', defaults=[]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg='args', kwarg='kwargs', defaults=[]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def trailing comma
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Param()), Name(id='b', ctx=Param())], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Param(), lineno=1, col_offset=6), Name(id='b', ctx=Param(), lineno=1, col_offset=9)], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def tuple parameter
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Param()), Tuple(elts=[Name(id='b', ctx=Store()), Name(id='c', ctx=Store())], ctx=Store())], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Param(), lineno=1, col_offset=6), Tuple(elts=[Name(id='b', ctx=Store(), lineno=1, col_offset=10), Name(id='c', ctx=Store(), lineno=1, col_offset=13)], ctx=Store(), lineno=1, col_offset=10)], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def nested tuple parameter
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[Tuple(elts=[Name(id='a', ctx=Store()), Tuple(elts=[Name(id='b', ctx=Store()), Name(id='c', ctx=Store())], ctx=Store())], ctx=Store()), Name(id='d', ctx=Param())], vararg=None, kwarg=None, defaults=[Num(n=1)]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[Tuple(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=7), Tuple(elts=[Name(id='b', ctx=Store(), lineno=1, col_offset=11), Name(id='c', ctx=Store(), lineno=1, col_offset=14)], ctx=Store(), lineno=1, col_offset=11)], ctx=Store(), lineno=1, col_offset=7), Name(id='d', ctx=Param(), lineno=1, col_offset=19)], vararg=None, kwarg=None, defaults=[Num(n=1, lineno=1, col_offset=21)]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def tuple parameter trailing comma
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[Tuple(elts=[Name(id='a', ctx=Store())], ctx=Store())], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[Tuple(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=7)], ctx=Store(), lineno=1, col_offset=7)], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def parenthesized parameter
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Store())], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Store(), lineno=1, col_offset=7)], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def tuple parameter default
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Param()), Tuple(elts=[Name(id='b', ctx=Store()), Name(id='c', ctx=Store())], ctx=Store())], vararg=None, kwarg=None, defaults=[Tuple(elts=[Num(n=1), Num(n=2)], ctx=Load())]), body=[Pass()], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[Name(id='a', ctx=Param(), lineno=1, col_offset=6), Tuple(elts=[Name(id='b', ctx=Store(), lineno=1, col_offset=10), Name(id='c', ctx=Store(), lineno=1, col_offset=13)], ctx=Store(), lineno=1, col_offset=10)], vararg=None, kwarg=None, defaults=[Tuple(elts=[Num(n=1, lineno=1, col_offset=17), Num(n=2, lineno=1, col_offset=20)], ctx=Load(), lineno=1, col_offset=17)]), body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def inline
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Return(value=Num(n=1))], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Return(value=Num(n=1, lineno=1, col_offset=16), lineno=1, col_offset=9)], decorator_list=[], lineno=1, col_offset=0)])
+### def docstring
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Expr(value=Str(s='Docstring.')), Return(value=Num(n=1))], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Expr(value=Str(s='Docstring.', lineno=2, col_offset=4), lineno=2, col_offset=4), Return(value=Num(n=1, lineno=3, col_offset=11), lineno=3, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### def nested
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[FunctionDef(name='g', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[FunctionDef(name='h', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[])], decorator_list=[])], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[FunctionDef(name='g', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[FunctionDef(name='h', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=4, col_offset=12)], decorator_list=[], lineno=3, col_offset=8)], decorator_list=[], lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### decorator
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[Name(id='dec', ctx=Load())])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=3, col_offset=4)], decorator_list=[Name(id='dec', ctx=Load(), lineno=1, col_offset=1)], lineno=1, col_offset=0)])
+### decorator dotted
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[Attribute(value=Attribute(value=Name(id='a', ctx=Load()), attr='b', ctx=Load()), attr='c', ctx=Load())])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=3, col_offset=4)], decorator_list=[Attribute(value=Attribute(value=Name(id='a', ctx=Load(), lineno=1, col_offset=1), attr='b', ctx=Load(), lineno=1, col_offset=3), attr='c', ctx=Load(), lineno=1, col_offset=5)], lineno=1, col_offset=0)])
+### decorator call
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[Call(func=Name(id='dec', ctx=Load()), args=[Num(n=1)], keywords=[keyword(arg='x', value=Num(n=2))], starargs=None, kwargs=None)])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=3, col_offset=4)], decorator_list=[Call(func=Name(id='dec', ctx=Load(), lineno=1, col_offset=1), args=[Num(n=1, lineno=1, col_offset=5)], keywords=[keyword(arg='x', value=Num(n=2, lineno=1, col_offset=10))], starargs=None, kwargs=None, lineno=1, col_offset=4)], lineno=1, col_offset=0)])
+### decorator dotted call
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[Call(func=Attribute(value=Name(id='a', ctx=Load()), attr='b', ctx=Load()), args=[Name(id='c', ctx=Load())], keywords=[], starargs=None, kwargs=None)])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=3, col_offset=4)], decorator_list=[Call(func=Attribute(value=Name(id='a', ctx=Load(), lineno=1, col_offset=1), attr='b', ctx=Load(), lineno=1, col_offset=3), args=[Name(id='c', ctx=Load(), lineno=1, col_offset=5)], keywords=[], starargs=None, kwargs=None, lineno=1, col_offset=4)], lineno=1, col_offset=0)])
+### decorator empty call
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[Call(func=Name(id='dec', ctx=Load()), args=[], keywords=[], starargs=None, kwargs=None)])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=3, col_offset=4)], decorator_list=[Call(func=Name(id='dec', ctx=Load(), lineno=1, col_offset=1), args=[], keywords=[], starargs=None, kwargs=None, lineno=1, col_offset=4)], lineno=1, col_offset=0)])
+### decorators multiple
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[Name(id='a', ctx=Load()), Attribute(value=Name(id='b', ctx=Load()), attr='c', ctx=Load()), Call(func=Name(id='d', ctx=Load()), args=[Name(id='e', ctx=Load())], keywords=[], starargs=None, kwargs=None)])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=5, col_offset=4)], decorator_list=[Name(id='a', ctx=Load(), lineno=1, col_offset=1), Attribute(value=Name(id='b', ctx=Load(), lineno=2, col_offset=1), attr='c', ctx=Load(), lineno=2, col_offset=3), Call(func=Name(id='d', ctx=Load(), lineno=3, col_offset=1), args=[Name(id='e', ctx=Load(), lineno=3, col_offset=3)], keywords=[], starargs=None, kwargs=None, lineno=3, col_offset=2)], lineno=1, col_offset=0)])
+### decorated class
+ok
+Module(body=[ClassDef(name='C', bases=[], body=[Pass()], decorator_list=[Name(id='dec', ctx=Load())])])
+Module(body=[ClassDef(name='C', bases=[], body=[Pass( lineno=3, col_offset=4)], decorator_list=[Name(id='dec', ctx=Load(), lineno=1, col_offset=1)], lineno=1, col_offset=0)])
+### class
+ok
+Module(body=[ClassDef(name='C', bases=[], body=[Pass()], decorator_list=[])])
+Module(body=[ClassDef(name='C', bases=[], body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### class base
+ok
+Module(body=[ClassDef(name='C', bases=[Name(id='B', ctx=Load())], body=[Pass()], decorator_list=[])])
+Module(body=[ClassDef(name='C', bases=[Name(id='B', ctx=Load(), lineno=1, col_offset=8)], body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### class bases
+ok
+Module(body=[ClassDef(name='C', bases=[Name(id='A', ctx=Load()), Name(id='B', ctx=Load())], body=[Pass()], decorator_list=[])])
+Module(body=[ClassDef(name='C', bases=[Name(id='A', ctx=Load(), lineno=1, col_offset=8), Name(id='B', ctx=Load(), lineno=1, col_offset=11)], body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### class empty parentheses
+ok
+Module(body=[ClassDef(name='C', bases=[], body=[Pass()], decorator_list=[])])
+Module(body=[ClassDef(name='C', bases=[], body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### class parenthesized tuple base
+ok
+Module(body=[ClassDef(name='C', bases=[Name(id='A', ctx=Load()), Name(id='B', ctx=Load())], body=[Pass()], decorator_list=[])])
+Module(body=[ClassDef(name='C', bases=[Name(id='A', ctx=Load(), lineno=1, col_offset=9), Name(id='B', ctx=Load(), lineno=1, col_offset=12)], body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### class empty tuple base
+ok
+Module(body=[ClassDef(name='C', bases=[], body=[Pass()], decorator_list=[])])
+Module(body=[ClassDef(name='C', bases=[], body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### class trailing comma
+ok
+Module(body=[ClassDef(name='C', bases=[Name(id='A', ctx=Load())], body=[Pass()], decorator_list=[])])
+Module(body=[ClassDef(name='C', bases=[Name(id='A', ctx=Load(), lineno=1, col_offset=8)], body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### class call base
+ok
+Module(body=[ClassDef(name='C', bases=[Call(func=Name(id='f', ctx=Load()), args=[Name(id='x', ctx=Load())], keywords=[], starargs=None, kwargs=None)], body=[Pass()], decorator_list=[])])
+Module(body=[ClassDef(name='C', bases=[Call(func=Name(id='f', ctx=Load(), lineno=1, col_offset=8), args=[Name(id='x', ctx=Load(), lineno=1, col_offset=10)], keywords=[], starargs=None, kwargs=None, lineno=1, col_offset=8)], body=[Pass( lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### class methods
+ok
+Module(body=[ClassDef(name='C', bases=[Name(id='object', ctx=Load())], body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1)), FunctionDef(name='__init__', args=arguments(args=[Name(id='self', ctx=Param()), Name(id='a', ctx=Param())], vararg=None, kwarg=None, defaults=[]), body=[Assign(targets=[Attribute(value=Name(id='self', ctx=Load()), attr='a', ctx=Store())], value=Name(id='a', ctx=Load()))], decorator_list=[]), FunctionDef(name='s', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[Name(id='staticmethod', ctx=Load())])], decorator_list=[])])
+Module(body=[ClassDef(name='C', bases=[Name(id='object', ctx=Load(), lineno=1, col_offset=8)], body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4), FunctionDef(name='__init__', args=arguments(args=[Name(id='self', ctx=Param(), lineno=3, col_offset=17), Name(id='a', ctx=Param(), lineno=3, col_offset=23)], vararg=None, kwarg=None, defaults=[]), body=[Assign(targets=[Attribute(value=Name(id='self', ctx=Load(), lineno=4, col_offset=8), attr='a', ctx=Store(), lineno=4, col_offset=8)], value=Name(id='a', ctx=Load(), lineno=4, col_offset=17), lineno=4, col_offset=8)], decorator_list=[], lineno=3, col_offset=4), FunctionDef(name='s', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=7, col_offset=8)], decorator_list=[Name(id='staticmethod', ctx=Load(), lineno=5, col_offset=5)], lineno=5, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### class inline
+ok
+Module(body=[ClassDef(name='C', bases=[], body=[Pass()], decorator_list=[])])
+Module(body=[ClassDef(name='C', bases=[], body=[Pass( lineno=1, col_offset=9)], decorator_list=[], lineno=1, col_offset=0)])
+### nested blocks dedent many
+ok
+Module(body=[If(test=Name(id='a', ctx=Load()), body=[If(test=Name(id='b', ctx=Load()), body=[If(test=Name(id='c', ctx=Load()), body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))], orelse=[])], orelse=[])], orelse=[]), Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=2))])
+Module(body=[If(test=Name(id='a', ctx=Load(), lineno=1, col_offset=3), body=[If(test=Name(id='b', ctx=Load(), lineno=2, col_offset=7), body=[If(test=Name(id='c', ctx=Load(), lineno=3, col_offset=11), body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=4, col_offset=12)], value=Num(n=1, lineno=4, col_offset=16), lineno=4, col_offset=12)], orelse=[], lineno=3, col_offset=8)], orelse=[], lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=5, col_offset=0)], value=Num(n=2, lineno=5, col_offset=4), lineno=5, col_offset=0)])
+### deep nesting
+ok
+Module(body=[If(test=Name(id='a', ctx=Load()), body=[If(test=Name(id='b', ctx=Load()), body=[If(test=Name(id='c', ctx=Load()), body=[If(test=Name(id='d', ctx=Load()), body=[If(test=Name(id='e', ctx=Load()), body=[Expr(value=Name(id='x', ctx=Load()))], orelse=[])], orelse=[])], orelse=[])], orelse=[])], orelse=[])])
+Module(body=[If(test=Name(id='a', ctx=Load(), lineno=1, col_offset=3), body=[If(test=Name(id='b', ctx=Load(), lineno=2, col_offset=4), body=[If(test=Name(id='c', ctx=Load(), lineno=3, col_offset=5), body=[If(test=Name(id='d', ctx=Load(), lineno=4, col_offset=6), body=[If(test=Name(id='e', ctx=Load(), lineno=5, col_offset=7), body=[Expr(value=Name(id='x', ctx=Load(), lineno=6, col_offset=5), lineno=6, col_offset=5)], orelse=[], lineno=5, col_offset=4)], orelse=[], lineno=4, col_offset=3)], orelse=[], lineno=3, col_offset=2)], orelse=[], lineno=2, col_offset=1)], orelse=[], lineno=1, col_offset=0)])
+### semicolon after compound inline
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Pass( lineno=1, col_offset=6)], orelse=[], lineno=1, col_offset=0)])
+### yield statement
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Expr(value=Yield(value=None))], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Expr(value=Yield(value=None, lineno=2, col_offset=4), lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### yield value statement
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Expr(value=Yield(value=Num(n=1)))], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Expr(value=Yield(value=Num(n=1, lineno=2, col_offset=10), lineno=2, col_offset=4), lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### yield tuple statement
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Expr(value=Yield(value=Tuple(elts=[Num(n=1), Num(n=2)], ctx=Load())))], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Expr(value=Yield(value=Tuple(elts=[Num(n=1, lineno=2, col_offset=10), Num(n=2, lineno=2, col_offset=13)], ctx=Load(), lineno=2, col_offset=10), lineno=2, col_offset=4), lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### lambda statement
+ok
+Module(body=[Expr(value=Lambda(args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=Num(n=0)))])
+Module(body=[Expr(value=Lambda(args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=Num(n=0, lineno=1, col_offset=8), lineno=1, col_offset=0), lineno=1, col_offset=0)])
+### multiple statements
+ok
+Module(body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2)), Assign(targets=[Name(id='c', ctx=Store())], value=Num(n=3))])
+Module(body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='b', ctx=Store(), lineno=2, col_offset=0)], value=Num(n=2, lineno=2, col_offset=4), lineno=2, col_offset=0), Assign(targets=[Name(id='c', ctx=Store(), lineno=4, col_offset=0)], value=Num(n=3, lineno=4, col_offset=4), lineno=4, col_offset=0)])
+### statement after comment line inside block
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4), Assign(targets=[Name(id='b', ctx=Store(), lineno=4, col_offset=4)], value=Num(n=2, lineno=4, col_offset=8), lineno=4, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### blank line with spaces inside block
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4), Assign(targets=[Name(id='b', ctx=Store(), lineno=4, col_offset=4)], value=Num(n=2, lineno=4, col_offset=8), lineno=4, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### continuation line
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=BinOp(left=Num(n=1), op=Add(), right=Num(n=2)))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=BinOp(left=Num(n=1, lineno=1, col_offset=4), op=Add(), right=Num(n=2, lineno=2, col_offset=4), lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### continuation in block
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=BinOp(left=Num(n=1), op=Add(), right=Num(n=2)))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=4)], value=BinOp(left=Num(n=1, lineno=2, col_offset=8), op=Add(), right=Num(n=2, lineno=3, col_offset=0), lineno=2, col_offset=8), lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### implicit joining
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=BinOp(left=Num(n=1), op=Add(), right=Num(n=2))), Assign(targets=[Name(id='y', ctx=Store())], value=List(elts=[Num(n=1), Num(n=2), Num(n=3)], ctx=Load())), Assign(targets=[Name(id='z', ctx=Store())], value=Dict(keys=[Num(n=1)], values=[Num(n=2)]))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=BinOp(left=Num(n=1, lineno=1, col_offset=5), op=Add(), right=Num(n=2, lineno=2, col_offset=5), lineno=1, col_offset=5), lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=3, col_offset=0)], value=List(elts=[Num(n=1, lineno=3, col_offset=5), Num(n=2, lineno=4, col_offset=0), Num(n=3, lineno=5, col_offset=8)], ctx=Load(), lineno=3, col_offset=4), lineno=3, col_offset=0), Assign(targets=[Name(id='z', ctx=Store(), lineno=6, col_offset=0)], value=Dict(keys=[Num(n=1, lineno=6, col_offset=5)], values=[Num(n=2, lineno=7, col_offset=2)], lineno=6, col_offset=4), lineno=6, col_offset=0)])
+### implicit joining with comments
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Tuple(elts=[Num(n=1), Num(n=2)], ctx=Load()))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Tuple(elts=[Num(n=1, lineno=1, col_offset=5), Num(n=2, lineno=2, col_offset=5)], ctx=Load(), lineno=1, col_offset=5), lineno=1, col_offset=0)])
+### tab indentation
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=1)], value=Num(n=1, lineno=2, col_offset=5), lineno=2, col_offset=1), Assign(targets=[Name(id='b', ctx=Store(), lineno=3, col_offset=1)], value=Num(n=2, lineno=3, col_offset=5), lineno=3, col_offset=1)], orelse=[], lineno=1, col_offset=0)])
+### tab and spaces equivalent
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=1)], value=Num(n=1, lineno=2, col_offset=5), lineno=2, col_offset=1), Assign(targets=[Name(id='b', ctx=Store(), lineno=3, col_offset=8)], value=Num(n=2, lineno=3, col_offset=12), lineno=3, col_offset=8)], orelse=[], lineno=1, col_offset=0)])
+### tab after spaces
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=5)], value=Num(n=1, lineno=2, col_offset=9), lineno=2, col_offset=5), Assign(targets=[Name(id='b', ctx=Store(), lineno=3, col_offset=1)], value=Num(n=2, lineno=3, col_offset=5), lineno=3, col_offset=1)], orelse=[], lineno=1, col_offset=0)])
+### docstring module
+ok
+Module(body=[Expr(value=Str(s='Module docstring.')), Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Expr(value=Str(s='Module docstring.', lineno=1, col_offset=0), lineno=1, col_offset=0), Assign(targets=[Name(id='x', ctx=Store(), lineno=2, col_offset=0)], value=Num(n=1, lineno=2, col_offset=4), lineno=2, col_offset=0)])
+### trailing whitespace at end [nonl]
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### no trailing newline [nonl]
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### no trailing newline block [nonl]
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=1))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### comment at end without newline [nonl]
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### indented comment at end without newline [nonl]
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=1))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### crlf [crlf]
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1))], orelse=[Assign(targets=[Name(id='b', ctx=Store())], value=Tuple(elts=[Num(n=1), Num(n=2)], ctx=Load()))])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=4)], value=Num(n=1, lineno=2, col_offset=8), lineno=2, col_offset=4)], orelse=[Assign(targets=[Name(id='b', ctx=Store(), lineno=4, col_offset=4)], value=Tuple(elts=[Num(n=1, lineno=4, col_offset=9), Num(n=2, lineno=5, col_offset=9)], ctx=Load(), lineno=4, col_offset=9), lineno=4, col_offset=4)], lineno=1, col_offset=0)])
+### crlf comments [crlf]
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=2, col_offset=0)], value=Num(n=1, lineno=2, col_offset=4), lineno=2, col_offset=0)])
+### crlf continuation [crlf]
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=BinOp(left=Num(n=1), op=Add(), right=Num(n=2)))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=BinOp(left=Num(n=1, lineno=1, col_offset=4), op=Add(), right=Num(n=2, lineno=2, col_offset=4), lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### crlf triple quoted [crlf]
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='a\\r\\nb'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='a\\r\\nb', lineno=2, col_offset=-1), lineno=1, col_offset=0)])
