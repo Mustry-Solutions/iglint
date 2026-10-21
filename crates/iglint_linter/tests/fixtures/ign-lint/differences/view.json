@@ -1,0 +1,12 @@
+{
+  "differences": [
+    {
+      "view": "cases/AllNodeTypes",
+      "variant": "ecd-tight",
+      "rule": "ExcessiveContextDataRule",
+      "message": "custom: Contains 12 sibling properties. Large flat structures should be stored in databases, not view JSON. Maximum recommended: 5 siblings.",
+      "kind": "extra",
+      "reason": "bug 24: ign-lint never measures the breadth of the top-level custom object; iglint does (VIEW006 test top_level_breadth_is_measured)"
+    }
+  ]
+}

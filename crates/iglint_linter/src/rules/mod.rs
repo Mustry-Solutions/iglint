@@ -25,6 +25,7 @@ macro_rules! rules {
 
 rules![
     view::invalid_json,
+    view::excessive_context_data,
     view::property_access,
     view::property_persistence
 ];

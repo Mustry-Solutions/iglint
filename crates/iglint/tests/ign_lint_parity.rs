@@ -139,6 +139,21 @@ fn expected_findings(entry: &Value, fixes: Option<&Value>) -> Vec<Finding> {
         .collect()
 }
 
+/// `generate_expected.py` runs every variant except `default` with all
+/// other ign-lint rules disabled; do the same.
+fn effective_config(variant: &str, config: &Value) -> Value {
+    let mut config = config.clone();
+    if variant != "default" {
+        let object = config.as_object_mut().expect("variant is an object");
+        for rule in iglint_config::compat::IGN_LINT_RULES {
+            object
+                .entry(rule.name.to_owned())
+                .or_insert_with(|| serde_json::json!({"enabled": false}));
+        }
+    }
+    config
+}
+
 fn actual_findings(view: &Path, config: &Value) -> Vec<Finding> {
     let text = serde_json::to_string(config).unwrap();
     let rule_config =
@@ -226,7 +241,8 @@ fn ign_lint_parity() {
                 continue;
             };
             let mut expected = expected_findings(&entry["findings"], entry.get("fixes"));
-            let mut actual = actual_findings(&dir.join("view.json"), config);
+            let mut actual =
+                actual_findings(&dir.join("view.json"), &effective_config(variant, config));
             expected.sort();
             actual.sort();
             compared += expected.len();
