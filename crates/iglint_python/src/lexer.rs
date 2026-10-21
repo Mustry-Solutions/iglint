@@ -170,7 +170,8 @@ impl<'src> Lexer<'src> {
 
     /// ANTLR's "no viable alternative at character" error.
     fn no_viable_alternative(&self, offset: usize) -> Failure {
-        let character = match self.byte(offset) {
+        let byte = self.byte(offset);
+        let character = match byte {
             EOF => "<EOF>".to_owned(),
             _ => {
                 let at = offset.min(self.source.len());
@@ -178,7 +179,16 @@ impl<'src> Lexer<'src> {
                 format!("{c:?}")
             }
         };
-        self.fatal_at(format!("invalid character {character}"), offset)
+        let failure = self.fatal_at(format!("invalid character {character}"), offset);
+        if byte >= 0xF0 && byte != EOF {
+            // Jython's error message would quote half of a surrogate pair;
+            // building the SyntaxError then fails with an internal error.
+            if let Failure::Fatal(mut error) = failure {
+                error.kind = ParseErrorKind::InternalError;
+                return Failure::Fatal(error);
+            }
+        }
+        failure
     }
 
     /// Returns the next token on the default channel.
@@ -212,7 +222,10 @@ impl<'src> Lexer<'src> {
                     self.dropped.push(DroppedText { range, reason });
                     if let Some(offset) = self.split_surrogate.take() {
                         let range = self.range(offset, self.pos);
-                        self.errors.push(ParseError::syntax(
+                        // As in `no_viable_alternative`: Jython fails with an
+                        // internal error when reporting half a surrogate pair.
+                        self.errors.push(ParseError::new(
+                            ParseErrorKind::InternalError,
                             "invalid character (unpaired low surrogate)",
                             range,
                             Anchor::low_surrogate(TextSize::from(offset)),

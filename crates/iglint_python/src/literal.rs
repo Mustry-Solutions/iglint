@@ -310,9 +310,8 @@ fn decode_string(
     Ok(unicode)
 }
 
-/// `PyString.decode_UnicodeEscape`. In byte strings `\uXXXX` with four hex
-/// digits is replaced by the UTF-8 encoding of the character (IA's Jython
-/// does this; other `\u`, `\U` and `\N` sequences stay as they are).
+/// `PyString.decode_UnicodeEscape`. In byte strings `\u`, `\U` and `\N`
+/// are not escapes and stay as they are.
 fn decode_escapes(input: &[u16], unicode: bool, out: &mut Vec<u16>) -> Result<(), LiteralError> {
     let end = input.len();
     let mut s = 0;
@@ -367,25 +366,12 @@ fn decode_escapes(input: &[u16], unicode: bool, out: &mut Vec<u16>) -> Result<()
             b'u' if unicode => {
                 let value = hex_escape(input, s, 4).ok_or(LiteralError::InvalidEscape)?;
                 s += 4;
-                out.push(value as u16);
+                push_scalar(value, out)?;
             }
-            b'u' => match hex_escape(input, s, 4).and_then(char::from_u32) {
-                Some(c) => {
-                    s += 4;
-                    let mut buffer = [0u8; 4];
-                    for &byte in c.encode_utf8(&mut buffer).as_bytes() {
-                        out.push(u16::from(byte));
-                    }
-                }
-                None => {
-                    out.push(u16::from(b'\\'));
-                    out.push(u16::from(b'u'));
-                }
-            },
             b'U' if unicode => {
                 let value = hex_escape(input, s, 8).ok_or(LiteralError::InvalidEscape)?;
                 s += 8;
-                push_code_point(value, out)?;
+                push_scalar(value, out)?;
             }
             b'N' if unicode => {
                 if input.get(s) != Some(&u16::from(b'{')) {
@@ -402,7 +388,7 @@ fn decode_escapes(input: &[u16], unicode: bool, out: &mut Vec<u16>) -> Result<()
                 match crate::unicode_names::lookup(&name) {
                     Some(c) => {
                         s = name_start + length + 1;
-                        push_code_point(c as u32, out)?;
+                        push_scalar(c as u32, out)?;
                     }
                     None if crate::unicode_names::is_complete() => {
                         return Err(LiteralError::InvalidEscape);
@@ -434,6 +420,16 @@ fn hex_escape(input: &[u16], start: usize, digits: usize) -> Option<u32> {
     Some(value)
 }
 
+/// Appends a character from an escape; like Jython's
+/// `storeUnicodeCharacter`, surrogates are rejected.
+fn push_scalar(value: u32, out: &mut Vec<u16>) -> Result<(), LiteralError> {
+    let c = char::from_u32(value).ok_or(LiteralError::InvalidEscape)?;
+    let mut buffer = [0u16; 2];
+    out.extend_from_slice(c.encode_utf16(&mut buffer));
+    Ok(())
+}
+
+/// Appends a code point, which may be a surrogate (raw unicode escapes).
 fn push_code_point(value: u32, out: &mut Vec<u16>) -> Result<(), LiteralError> {
     if value > 0x10FFFF {
         return Err(LiteralError::InvalidEscape);
@@ -516,18 +512,20 @@ mod tests {
         let decode = |token: &str| decode_strings([token], SourceEncoding::Utf8, false);
         assert_eq!(
             decode("'\\u00e9'"),
-            Ok(StringValue::Bytes(b"\xc3\xa9".to_vec().into()))
-        );
-        assert_eq!(
-            decode("'\\U0001F600'"),
-            Ok(StringValue::Bytes(b"\\U0001F600".to_vec().into()))
+            Ok(StringValue::Bytes(b"\\u00e9".to_vec().into()))
         );
         assert_eq!(decode("'\\400'"), Err(LiteralError::ByteOutOfRange));
+        // Escapes may not produce surrogates, not even as a pair...
         assert_eq!(
             decode("u'\\ud83d\\ude00'"),
+            Err(LiteralError::InvalidEscape)
+        );
+        // ...but raw escapes may, as long as the final string pairs them.
+        assert_eq!(decode("ur'\\ud83d'"), Err(LiteralError::UnpairedSurrogate));
+        assert_eq!(
+            decode_strings(["ur'\\ud83d'", "ur'\\ude00'"], SourceEncoding::Utf8, false),
             Ok(StringValue::Unicode("\u{1F600}".into()))
         );
-        assert_eq!(decode("u'\\ud83d'"), Err(LiteralError::UnpairedSurrogate));
         assert_eq!(
             decode("ur'\\u1234\\\\u1234'"),
             Ok(StringValue::Unicode("\u{1234}\\\\u1234".into()))

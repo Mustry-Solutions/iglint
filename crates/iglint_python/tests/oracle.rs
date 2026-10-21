@@ -9,7 +9,6 @@
 //! The `#[ignore]`d tests run the same comparison on larger corpora that are
 //! not part of the repository; see their documentation.
 
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 mod support;
@@ -98,19 +97,17 @@ fn hand_written_cases_match_jython() {
         let expected_path = path.with_extension("expected");
         let expected_text = std::fs::read_to_string(&expected_path)
             .unwrap_or_else(|_| panic!("missing {}", expected_path.display()));
-        let expected: BTreeMap<String, Record> =
-            parse_records(&expected_text).into_iter().collect();
-        for case in split_cases(&data) {
+        let expected = parse_records(&expected_text);
+        let cases = split_cases(&data);
+        assert_eq!(
+            cases.len(),
+            expected.len(),
+            "{} is out of date; run oracle/record-expected.sh",
+            expected_path.display()
+        );
+        for (case, (name, record)) in cases.iter().zip(&expected) {
             total += 1;
-            let key = one_line(&case.name);
-            let Some(record) = expected.get(&key) else {
-                failures.push(format!(
-                    "{}: {}: no expectation recorded",
-                    path.display(),
-                    case.name
-                ));
-                continue;
-            };
+            assert_eq!(&one_line(&case.name), name, "{}", expected_path.display());
             if let Some(difference) = compare(&case.source, record) {
                 failures.push(format!("{}: {}: {difference}", path.display(), case.name));
             }
