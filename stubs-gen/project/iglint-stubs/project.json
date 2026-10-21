@@ -1,0 +1,7 @@
+{
+  "title": "iglint stubs generator",
+  "description": "Throwaway project used by stubs-gen to introspect the gateway",
+  "parent": "",
+  "enabled": true,
+  "inheritable": false
+}
