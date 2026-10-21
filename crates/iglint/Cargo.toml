@@ -22,6 +22,7 @@ clap.workspace = true
 glob.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+regex.workspace = true
 similar.workspace = true
 
 [dev-dependencies]

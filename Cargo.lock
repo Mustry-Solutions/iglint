@@ -305,6 +305,7 @@ dependencies = [
  "iglint_text",
  "insta",
  "predicates",
+ "regex",
  "serde",
  "serde_json",
  "similar",
