@@ -1,0 +1,7 @@
+{
+  "title": "Core",
+  "description": "",
+  "enabled": true,
+  "inheritable": true,
+  "parent": "external"
+}

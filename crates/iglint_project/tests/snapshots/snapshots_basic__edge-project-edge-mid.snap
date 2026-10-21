@@ -1,0 +1,19 @@
+---
+source: crates/iglint_project/tests/snapshots_basic.rs
+expression: out
+---
+# view com.inductiveautomation.perspective/views/Mid/Only in edge-mid (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
+component root type=ia.container.coord depth=0 ptr=/root ign=root.root
+
+# view com.inductiveautomation.perspective/views/Root/Base in edge-mid (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
+component root type=ia.container.flex depth=0 ptr=/root ign=root.root
+property view.params.p1 value="" direction=input config=true ign=params.p1
+property view.params.p3 value=true direction=inout config=true ign=params.p3
+propConfig view.params.p1 persistent=None direction=input access=- binding=false onChange=- ign=propConfig.params.p1
+propConfig view.params.p3 persistent=None direction=inout access=- binding=false onChange=- ign=propConfig.params.p3
+
+# script-library ignition/script-python/shared/util in edge-mid (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module shared.util hintScope=Some(2)
+script library-module shared.util scope=library enabled=true anchor=0..0 ign=-
+  | def helper(a):
+  | →return a

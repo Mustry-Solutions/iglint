@@ -1,0 +1,7 @@
+{
+  "title": "edge-orphan",
+  "description": "",
+  "parent": "does-not-exist",
+  "enabled": true,
+  "inheritable": false
+}

@@ -1,0 +1,82 @@
+---
+source: crates/iglint_project/tests/snapshots_basic.rs
+expression: out
+---
+# style-class com.inductiveautomation.perspective/style-classes/Brand/Muted in fixture-base (overridable=true, files=["resource.json:resource-manifest", "style.json:style-class"], missing=[])
+styleClass legacy=false empty=false base={"color":"#757575","fontSize":"12px"} animation=- variants=
+
+# style-class com.inductiveautomation.perspective/style-classes/Brand/Primary in fixture-base (overridable=true, files=["resource.json:resource-manifest", "style.json:style-class"], missing=[])
+styleClass legacy=false empty=false base={"backgroundColor":"var(--neutral-10)","color":"#1B5E20","fontWeight":"bold"} animation=- variants=Some("hover")/None:{"color":"#2E7D32","cursor":"pointer"}
+
+# style-class com.inductiveautomation.perspective/style-classes/State/Faulted in fixture-base (overridable=true, files=["resource.json:resource-manifest", "style.json:style-class"], missing=[])
+styleClass legacy=false empty=false base={"backgroundColor":"#E53935","color":"#FFFFFF"} animation=- variants=
+
+# style-class com.inductiveautomation.perspective/style-classes/State/Running in fixture-base (overridable=true, files=["resource.json:resource-manifest", "style.json:style-class"], missing=[])
+styleClass legacy=false empty=false base={"backgroundColor":"#43A047"} animation={"duration":"2s","delay":"0s","direction":"alternate","iterationCount":"infin... variants=None/Some("max-width: 600px"):{"padding":"2px"}
+
+# view com.inductiveautomation.perspective/views/Common/StatusBadge in fixture-base (overridable=true, files=["resource.json:resource-manifest", "thumbnail.png:thumbnail", "view.json:view"], missing=[])
+component root type=ia.container.flex depth=0 ptr=/root ign=root.root
+component   root/Text type=ia.display.label depth=1 ptr=/root/children/0 ign=root.root.children[0].Text
+property view.params.label value="" direction=input config=true ign=params.label
+property view.params.state value="stopped" direction=input config=true ign=params.state
+propConfig view.params.label persistent=Some(true) direction=input access=- binding=false onChange=- ign=propConfig.params.label
+propConfig view.params.state persistent=Some(true) direction=input access=- binding=false onChange=- ign=propConfig.params.state
+propConfig root/Text.props.style.classes persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[0].Text.propConfig.props.style.classes
+propConfig root/Text.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[0].Text.propConfig.props.text
+binding root/Text.props.style.classes@binding type=property enabled=None path=Some("view.params.state") parsed=true bidirectional=false ign=root.root.children[0].Text.propConfig.props.style.classes
+  transform root/Text.props.style.classes@binding.transforms[0] map in=Some("scalar") out=Some("style-list") mappings="running"->"State/Running" "faulted"->"State/Faulted Brand/Primary" fallback="Brand/Muted" ign=root.root.children[0].Text.propConfig.props.style.classes.binding.transforms[0]
+binding root/Text.props.text@binding type=property enabled=None path=Some("view.params.label") parsed=true bidirectional=false ign=root.root.children[0].Text.propConfig.props.text
+styleRef MapOutput root/Text.props.style.classes@binding.transforms[0].mappings[0].output classes=["State/Running"] bound=false
+styleRef MapOutput root/Text.props.style.classes@binding.transforms[0].mappings[1].output classes=["State/Faulted", "Brand/Primary"] bound=false
+styleRef MapOutput root/Text.props.style.classes@binding.transforms[0].fallback classes=["Brand/Muted"] bound=false
+styleRef Property root/Text.props.style.classes classes=["Brand/Primary"] bound=true
+
+# named-query ignition/named-query/Machines/ByLine in fixture-base (overridable=true, files=["query.sql:named-query-sql", "resource.json:resource-manifest"], missing=[])
+namedQuery type=Some("Query") database=Some("Production") enabled=Some(true) cache=Some(false) doc=Some("Machines on one production line") params=["line:Parameter:Some(7)"] placeholders=["Colonline@TextRange { start: TextSize(57), end: TextSize(62) }"]
+
+# named-query ignition/named-query/Machines/SetState in fixture-base (overridable=true, files=["query.sql:named-query-sql", "resource.json:resource-manifest"], missing=[])
+namedQuery type=Some("UpdateQuery") database=Some("") enabled=Some(true) cache=Some(false) doc=Some("") params=["table:QueryString:Some(7)", "id:Parameter:Some(2)", "state:Parameter:Some(7)"] placeholders=["Bracetable@TextRange { start: TextSize(7), end: TextSize(14) }", "Colonstate@TextRange { start: TextSize(27), end: TextSize(33) }", "Colonid@TextRange { start: TextSize(53), end: TextSize(56) }"]
+
+# script-library ignition/script-python/core/format in fixture-base (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module core.format hintScope=Some(2)
+script library-module core.format scope=library enabled=true anchor=0..0 ign=-
+  | """Formatting helpers shared by every project."""
+  | 
+  | UNITS = {"rpm": "rev/min", "degC": u"\u00b0C"}
+  | 
+  | 
+  | def withUnit(value, unit):
+  | →return "%s %s" % (value, UNITS.get(unit, unit))
+  | 
+  | 
+  | def percent(value, digits=1):
+  | →if value is None:
+  | →→return "-"
+  | →return ("%%.%df%%%%" % digits) % (value * 100.0)
+
+# script-library ignition/script-python/core/nav in fixture-base (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module core.nav hintScope=Some(2)
+script library-module core.nav scope=library enabled=true anchor=0..0 ign=-
+  | POPUP_ID = "motorDetail"
+  | 
+  | 
+  | def openMotor(tagPath):
+  | →system.perspective.openPopup(POPUP_ID, "Popups/MotorDetail", params={"tagPath": tagPath}, modal=True)
+  | 
+  | 
+  | def goHome():
+  | →system.perspective.navigate(page="/")
+
+# script-library ignition/script-python/core/tags in fixture-base (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module core.tags hintScope=Some(7)
+script library-module core.tags scope=library enabled=true anchor=0..0 ign=-
+  | def readOne(path, default=None):
+  | →"""Read a single tag value, returning default on bad quality."""
+  | →qv = system.tag.readBlocking([path])[0]
+  | →if not qv.quality.isGood():
+  | →→return default
+  | →return qv.value
+  | 
+  | 
+  | def lineFolder(line):
+  | →return "[default]Plant/%s" % line

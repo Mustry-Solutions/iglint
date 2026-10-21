@@ -1,0 +1,86 @@
+[
+  {
+    "name": "Base",
+    "tagType": "UdtType",
+    "parameters": {
+      "Max": {
+        "dataType": "Int4",
+        "value": 1
+      }
+    },
+    "tags": [
+      {
+        "name": "Value",
+        "tagType": "AtomicTag",
+        "valueSource": "memory",
+        "opcItemPath": {
+          "bindType": "parameter",
+          "binding": "ns\u003d1;s\u003d{Device}.{Max}"
+        },
+        "tooltip": {
+          "bindType": "Expression",
+          "binding": "\u0027tip \u0027 + {Max}"
+        }
+      },
+      {
+        "name": "Sub",
+        "tagType": "UdtInstance",
+        "typeId": "Types/Leaf"
+      }
+    ]
+  },
+  {
+    "name": "Child",
+    "tagType": "UdtType",
+    "typeId": "Types/Base",
+    "parameters": {
+      "Extra": {
+        "dataType": "String",
+        "value": ""
+      }
+    },
+    "tags": [
+      {
+        "name": "Own",
+        "tagType": "AtomicTag"
+      }
+    ]
+  },
+  {
+    "name": "Leaf",
+    "tagType": "UdtType",
+    "tags": [
+      {
+        "name": "Deep",
+        "tagType": "Folder",
+        "tags": [
+          {
+            "name": "Deeper",
+            "tagType": "AtomicTag"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CycA",
+    "tagType": "UdtType",
+    "typeId": "Types/CycB"
+  },
+  {
+    "name": "CycB",
+    "tagType": "UdtType",
+    "typeId": "Types/CycA"
+  },
+  {
+    "name": "Nested",
+    "tagType": "Folder",
+    "tags": [
+      {
+        "name": "Inside",
+        "tagType": "UdtType",
+        "tags": []
+      }
+    ]
+  }
+]

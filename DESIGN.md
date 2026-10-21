@@ -74,7 +74,7 @@ Diagnostic {
   message: String,
   file: FileId,
   range: TextRange,            // in the file on disk
-  node_path: Option<String>,   // ign-lint style path, e.g. "root.Container.Button.props.text"
+  node_path: Option<String>,   // e.g. "root/Container/Button.props.text" (iglint_project::node_path); ign-lint paths are also modelled for parity output
   labels: Vec<Label>,          // secondary ranges
   fix: Option<Fix>,            // Fix { applicability: Safe | Unsafe, message, edits: Vec<(FileId, TextEdit)> }
   fingerprint: u64,            // stable across line moves; used by the baseline

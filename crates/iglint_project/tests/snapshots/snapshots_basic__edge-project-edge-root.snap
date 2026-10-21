@@ -1,0 +1,30 @@
+---
+source: crates/iglint_project/tests/snapshots_basic.rs
+expression: out
+---
+# style-class com.inductiveautomation.perspective/style-classes/Legacy/Old in edge-root (overridable=true, files=["data.bin:style-class", "resource.json:resource-manifest"], missing=[])
+styleClass legacy=true empty=false base={"color":"red"} animation=- variants=Some("hover")/None:{"color":"blue"}
+
+# style-class com.inductiveautomation.perspective/style-classes/Root/Accent in edge-root (overridable=true, files=["resource.json:resource-manifest", "style.json:style-class"], missing=[])
+styleClass legacy=false empty=true base={} animation=- variants=
+
+# view com.inductiveautomation.perspective/views/Root/Base in edge-root (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
+component root type=ia.container.flex depth=0 ptr=/root ign=root.root
+property view.params.p1 value="" direction=input config=true ign=params.p1
+property view.params.p2 value=0 direction=output config=true ign=params.p2
+propConfig view.params.p1 persistent=Some(true) direction=input access=- binding=false onChange=- ign=propConfig.params.p1
+propConfig view.params.p2 persistent=Some(true) direction=output access=- binding=false onChange=- ign=propConfig.params.p2
+
+# named-query ignition/named-query/Root/Q in edge-root (overridable=true, files=["query.sql:named-query-sql", "resource.json:resource-manifest"], missing=[])
+namedQuery type=Some("Query") database=Some("") enabled=Some(true) cache=Some(false) doc=Some("Rows by id") params=["id:Parameter:Some(2)", "db:Database:Some(7)", "order:QueryString:Some(7)"] placeholders=["Colonid@TextRange { start: TextSize(39), end: TextSize(42) }", "Braceorder@TextRange { start: TextSize(69), end: TextSize(76) }"]
+
+# script-library ignition/script-python/shared/consts in edge-root (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module shared.consts hintScope=Some(2)
+script library-module shared.consts scope=library enabled=true anchor=0..0 ign=-
+  | LIMIT = 10
+
+# script-library ignition/script-python/shared/util in edge-root (overridable=false, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module shared.util hintScope=Some(2)
+script library-module shared.util scope=library enabled=true anchor=0..0 ign=-
+  | def helper(a, b=1):
+  | →return a

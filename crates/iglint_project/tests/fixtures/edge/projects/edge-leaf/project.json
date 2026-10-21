@@ -1,0 +1,7 @@
+{
+  "title": "edge-leaf",
+  "description": "",
+  "parent": "edge-mid",
+  "enabled": true,
+  "inheritable": false
+}

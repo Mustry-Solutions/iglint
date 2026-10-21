@@ -1,0 +1,11 @@
+{
+  "connectURL": "jdbc:sqlserver://db.example.invalid",
+  "driver": "MSSQL",
+  "password": {
+    "data": {
+      "ciphertext": "x"
+    },
+    "type": "Embedded"
+  },
+  "translator": "MSSQL"
+}

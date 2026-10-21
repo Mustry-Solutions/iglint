@@ -1,0 +1,77 @@
+---
+source: crates/iglint_project/tests/snapshots_basic.rs
+expression: out
+---
+# database-connection ignition/database-connection/Production in core (overridable=true, files=["config.json:gateway-config", "resource.json:resource-manifest"], missing=[])
+gateway database-connection enabled=Some(true) details=Database { connect_url: Some("jdbc:postgresql://db.example.invalid:5432/plant"), driver: Some("PostgreSQL"), translator: Some("POSTGRES"), password_type: Some("Referenced") }
+
+# tag-definition ignition/tag-definition/default in core (overridable=true, files=["unary-resource.json:unary-resource-manifest"], missing=[])
+tags provider=default folder="" definitions=false base=[default] config={}
+
+# tag-definition ignition/tag-definition/default/Plant in core (overridable=true, files=["unary-resource.json:unary-resource-manifest"], missing=[])
+tags provider=default folder="Plant" definitions=false base=[default]Plant config={}
+
+# tag-definition ignition/tag-definition/default/Plant/Line1 in core (overridable=true, files=["tags.json:tags-json", "udts.json:udt-instances-json", "unary-resource.json:unary-resource-manifest"], missing=[])
+tags provider=default folder="Plant/Line1" definitions=false base=[default]Plant/Line1 config={"documentation":"First filling line"}
+tag     [default]Plant/Line1/State type=AtomicTag typeId=None source=Some("memory") dataType=Some("String") inDefinition=false params=[] history=None
+tag     [default]Plant/Line1/Setpoint type=AtomicTag typeId=None source=Some("memory") dataType=Some("Float8") inDefinition=false params=[] history=None
+tag     [default]Plant/Line1/Total type=AtomicTag typeId=None source=Some("expr") dataType=Some("Float8") inDefinition=false params=[] history=Some("Core Historian")
+tag     [default]Plant/Line1/Running type=AtomicTag typeId=None source=Some("reference") dataType=Some("Boolean") inDefinition=false params=[] history=None
+tag     [default]Plant/Line1/OpenOrders type=AtomicTag typeId=None source=Some("db") dataType=Some("Int4") inDefinition=false params=[] history=None
+tag     [default]Plant/Line1/SetpointPercent type=AtomicTag typeId=None source=Some("derived") dataType=Some("Float8") inDefinition=false params=[] history=None
+tag     [default]Plant/Line1/Counter type=AtomicTag typeId=None source=Some("memory") dataType=Some("Int4") inDefinition=false params=[] history=None
+  alarm [default]Plant/Line1/Counter@alarms.Overflow mode=Some("AboveValue") priority=Some("Medium") bindings=[] pipelines=["activePipeline=Notify"]
+  eventScript Some("valueChanged") enabled=None script=Some(ScriptId(0))
+  eventScript Some("qualityChanged") enabled=Some(false) script=Some(ScriptId(1))
+tag     [default]Plant/Line1/Motor1 type=UdtInstance typeId=Some("Motors/Motor") source=None dataType=None inDefinition=false params=["DeviceName", "BaseAddress"] history=None
+tag     [default]Plant/Line1/Motor2 type=UdtInstance typeId=Some("Motors/Motor") source=None dataType=None inDefinition=false params=["DeviceName", "BaseAddress"] history=None
+tag       [default]Plant/Line1/Motor2/Speed type=AtomicTag typeId=None source=None dataType=None inDefinition=false params=[] history=None
+[0] script tag-event [default]Plant/Line1/Counter@eventScripts.valueChanged scope=tag enabled=true anchor=1649..1657 ign=-
+  | def valueChanged(tag,tagPath,previousValue,currentValue,initialChange,missedEvents):
+  | →if initialChange or currentValue.value is None:
+  | →→return
+  | →if currentValue.value < previousValue.value:
+  | →→system.util.getLogger("fixture.tags").warn("%s reset" % tagPath)
+[1] script tag-event [default]Plant/Line1/Counter@eventScripts.qualityChanged scope=tag enabled=false anchor=1912..1920 ign=-
+  | def qualityChanged(tag,tagPath,previousValue,currentValue,initialChange,missedEvents):
+  | →pass
+[0] expr tag-expression [default]Plant/Line1/Total.expression "{[.]Motor1/Speed} + {[.]Motor2/Speed}" valid=true tentative=false refs=["tag:[.]Motor1/Speed", "tag:[.]Motor2/Speed"] calls=[] ign=-
+[1] expr derive-getter [default]Plant/Line1/SetpointPercent.deriveExpressionGetter "{source} / 3000.0" valid=true tentative=false refs=["other:source"] calls=[] ign=-
+[2] expr derive-setter [default]Plant/Line1/SetpointPercent.deriveExpressionSetter "{value} * 3000.0" valid=true tentative=false refs=["other:value"] calls=[] ign=-
+
+# tag-group ignition/tag-group/default/Default in core (overridable=true, files=["config.json:gateway-config", "resource.json:resource-manifest"], missing=[])
+gateway tag-group enabled=Some(true) details=TagGroup { mode: Some("Direct"), rate: Some(Value { range: TextRange { start: TextSize(159), end: TextSize(163) }, kind: Number(Number { raw: "1000" }) }) }
+
+# tag-provider ignition/tag-provider/default in core (overridable=true, files=["config.json:gateway-config", "resource.json:resource-manifest"], missing=[])
+gateway tag-provider enabled=Some(true) details=TagProvider { provider_type: Some("STANDARD") }
+
+# tag-type-definition ignition/tag-type-definition/default in core (overridable=true, files=["unary-resource.json:unary-resource-manifest"], missing=[])
+tags provider=default folder="" definitions=true base=[default]_types_ config={}
+
+# tag-type-definition ignition/tag-type-definition/default/Motors in core (overridable=true, files=["udts.json:udt-definitions-json", "unary-resource.json:unary-resource-manifest"], missing=[])
+tags provider=default folder="Motors" definitions=true base=[default]_types_/Motors config={}
+tag   [default]_types_/Motors/Motor type=UdtType typeId=None source=None dataType=None inDefinition=true params=["DeviceName", "BaseAddress", "MaxSpeed"] history=None
+tag     [default]_types_/Motors/Motor/Speed type=AtomicTag typeId=None source=Some("opc") dataType=Some("Float8") inDefinition=true params=[] history=Some("Core Historian")
+  bound opcItemPath Some("parameter") Some("ns=1;s=[{DeviceName}]{BaseAddress}.Speed") placeholders=["DeviceName", "BaseAddress"] expression=None
+  bound engHigh Some("parameter") Some("{MaxSpeed}") placeholders=["MaxSpeed"] expression=None
+  bound tooltip Some("parameter") Some("Speed of {InstanceName}") placeholders=["InstanceName"] expression=None
+  alarm [default]_types_/Motors/Motor/Speed@alarms.Overspeed mode=Some("AboveValue") priority=Some("High") bindings=["setpointA:Some(\"Tag\")", "label:Some(\"Expression\")"] pipelines=["activePipeline=Notify"]
+tag     [default]_types_/Motors/Motor/Running type=AtomicTag typeId=None source=Some("opc") dataType=Some("Boolean") inDefinition=true params=[] history=None
+  bound opcItemPath Some("parameter") Some("ns=1;s=[{DeviceName}]{BaseAddress}.Running") placeholders=["DeviceName", "BaseAddress"] expression=None
+  eventScript Some("valueChanged") enabled=None script=Some(ScriptId(0))
+  eventScript Some("alarmActive") enabled=None script=Some(ScriptId(1))
+tag     [default]_types_/Motors/Motor/Cmd type=Folder typeId=None source=None dataType=None inDefinition=true params=[] history=None
+tag       [default]_types_/Motors/Motor/Cmd/Start type=AtomicTag typeId=None source=Some("opc") dataType=Some("Boolean") inDefinition=true params=[] history=None
+  bound opcItemPath Some("parameter") Some("ns=1;s=[{DeviceName}]{BaseAddress}.Start") placeholders=["DeviceName", "BaseAddress"] expression=None
+tag     [default]_types_/Motors/Motor/Setpoints type=Folder typeId=None source=None dataType=None inDefinition=true params=[] history=None
+tag       [default]_types_/Motors/Motor/Setpoints/MaxSpeed type=AtomicTag typeId=None source=Some("memory") dataType=Some("Float8") inDefinition=true params=[] history=None
+  bound value Some("parameter") Some("{MaxSpeed}") placeholders=["MaxSpeed"] expression=None
+tag   [default]_types_/Motors/FastMotor type=UdtType typeId=Some("Motors/Motor") source=None dataType=None inDefinition=true params=["MaxSpeed"] history=None
+[0] script tag-event [default]_types_/Motors/Motor/Running@eventScripts.valueChanged scope=tag enabled=true anchor=1968..1976 ign=-
+  | def valueChanged(tag,tagPath,previousValue,currentValue,initialChange,missedEvents):
+  | →if not initialChange and currentValue.value:
+  | →→system.util.sendMessage("fixture-api", "rebuild-report", {"motor": str(tagPath)})
+[1] script tag-event [default]_types_/Motors/Motor/Running@eventScripts.alarmActive scope=tag enabled=true anchor=2195..2203 ign=-
+  | def alarmActive(tag,tagPath,alarmName,alarmEvent,alarmPath,missedEvents):
+  | →system.util.getLogger("fixture.tags").info(alarmName)
+[0] expr alarm-property [default]_types_/Motors/Motor/Speed@alarms.Overspeed.label "'Overspeed on ' + {itemName}" valid=true tentative=false refs=["other:itemName"] calls=[] ign=-

@@ -1,0 +1,9 @@
+{
+  "root": {
+    "meta": {
+      "name": "root"
+    },
+    "props": {},
+    "type": "ia.container.flex"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Embed"
+        },
+        "props": {
+          "params": {},
+          "path": "Missing/Elsewhere"
+        },
+        "type": "ia.display.view"
+      },
+      {
+        "meta": {
+          "name": "Repeat"
+        },
+        "propConfig": {
+          "props.path": {
+            "binding": {
+              "config": {
+                "expression": "\u0027X/Y\u0027"
+              },
+              "type": "expr"
+            }
+          }
+        },
+        "props": {
+          "instances": [],
+          "path": "Bound/Path"
+        },
+        "type": "ia.display.flex-repeater"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {},
+    "type": "ia.container.flex"
+  }
+}

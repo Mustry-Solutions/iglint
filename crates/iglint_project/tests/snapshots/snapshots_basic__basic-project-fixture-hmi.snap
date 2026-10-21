@@ -1,0 +1,366 @@
+---
+source: crates/iglint_project/tests/snapshots_basic.rs
+expression: out
+---
+# barcode com.inductiveautomation.perspective/barcode in fixture-hmi (overridable=true, files=["onBarcodeDataReceived.py:event-script", "resource.json:resource-manifest"], missing=[])
+event barcode enabled=Some(true) -
+header Canonical firstLine=0..50
+script event-file barcode scope=perspective-session enabled=true anchor=0..50 ign=-
+  | def onBarcodeDataReceived(session, data, context):
+  | →session.custom.lastScan = data.text
+
+# form-submission com.inductiveautomation.perspective/form-submission-handler/shift-report in fixture-hmi (overridable=true, files=["handleSubmission.py:event-script", "resource.json:resource-manifest"], missing=[])
+event form-submission enabled=Some(true) -
+header Canonical firstLine=0..78
+script event-file shift-report scope=perspective-session enabled=true anchor=0..78 ign=-
+  | def handleSubmission(session, name, data, formContext, sessionContext, retry):
+  | →system.db.runNamedQuery("Machines/SetState", {"table": "machine", "id": data["id"], "state": data["state"]})
+
+# key-event com.inductiveautomation.perspective/key-event/refresh-f5 in fixture-hmi (overridable=true, files=["onKeyEvent.py:event-script", "resource.json:resource-manifest"], missing=[])
+event key-event enabled=Some(true) keyEvent mode=Some("KEYDOWN") bound=Some("KEY") key=Some("F5") code=Some("")
+header Canonical firstLine=0..28
+script event-file refresh-f5 scope=perspective-session enabled=true anchor=0..28 ign=-
+  | def onKeyEvent(page, event):
+  | →system.perspective.sendMessage("motor-refresh", payload={}, scope="page", pageId=page.props.pageId)
+
+# session-message com.inductiveautomation.perspective/message/line-changed in fixture-hmi (overridable=true, files=["handleMessage.py:event-script", "resource.json:resource-manifest"], missing=[])
+event session-message enabled=Some(true) message threadType=Some("Shared")
+header Canonical firstLine=0..36
+script event-file line-changed scope=perspective-session enabled=true anchor=0..36 ign=-
+  | def handleMessage(session, payload):
+  | →session.custom.selectedLine = payload["line"]
+
+# page-config com.inductiveautomation.perspective/page-config in fixture-hmi (overridable=true, files=["config.json:page-config", "resource.json:resource-manifest"], missing=[])
+page "/" view=Some("Main/Overview") title=Some("Overview") params=[]
+page "/motors/:line" view=Some("Main/Overview") title=Some("Motors") params=["line"]
+  dock right id=Some("help") view=Some("Docks/Header") show=Some("onDemand")
+sharedDock top id=Some("header") view=Some("Docks/Header") show=Some("visible")
+
+# page-startup com.inductiveautomation.perspective/page-startup in fixture-hmi (overridable=true, files=["onPageStartup.py:event-script", "resource.json:resource-manifest"], missing=[])
+event page-startup enabled=Some(true) -
+header Canonical firstLine=0..24
+script event-file page-startup scope=perspective-session enabled=true anchor=0..24 ign=-
+  | def onPageStartup(page):
+  | →page.session.custom.lastPage = page.props.path
+
+# session-props com.inductiveautomation.perspective/session-props in fixture-hmi (overridable=true, files=["props.json:session-props", "resource.json:resource-manifest"], missing=[])
+property session.custom.recentAlarms value=[] direction=- config=true ign=custom.recentAlarms
+property session.custom.selectedLine value="Line1" direction=- config=true ign=custom.selectedLine
+propConfig session.custom.recentAlarms persistent=Some(false) direction=- access=- binding=true onChange=- ign=propConfig.custom.recentAlarms
+propConfig session.custom.selectedLine persistent=Some(true) direction=- access=- binding=false onChange=- ign=propConfig.custom.selectedLine
+binding session.custom.recentAlarms@binding type=expr enabled=None expression=Some(ExprId(0)) ign=propConfig.custom.recentAlarms
+  transform session.custom.recentAlarms@binding.transforms[0] script Some(ScriptId(0)) ign=propConfig.custom.recentAlarms.binding.transforms[0]
+[0] script transform session.custom.recentAlarms@binding.transforms[0] scope=perspective-session enabled=true anchor=254..260 ign=propConfig.custom.recentAlarms.binding.transforms[0]
+  | def transform(self, value, quality, timestamp):
+  | →return system.alarm.queryStatus(state=["ActiveUnacked"]).getEvents()
+[0] expr binding session.custom.recentAlarms@binding "now(5000)" valid=true tentative=false refs=[] calls=["now"] ign=propConfig.custom.recentAlarms
+
+# session-shutdown com.inductiveautomation.perspective/shutdown in fixture-hmi (overridable=true, files=["onShutdown.py:event-script", "resource.json:resource-manifest"], missing=[])
+event session-shutdown enabled=Some(false) -
+header Canonical firstLine=0..24
+script event-file shutdown scope=perspective-session enabled=false anchor=0..24 ign=-
+  | def onShutdown(session):
+  | →pass
+
+# session-startup com.inductiveautomation.perspective/startup in fixture-hmi (overridable=true, files=["onStartup.py:event-script", "resource.json:resource-manifest"], missing=[])
+event session-startup enabled=Some(true) -
+header Canonical firstLine=0..23
+script event-file startup scope=perspective-session enabled=true anchor=0..23 ign=-
+  | def onStartup(session):
+  | →session.custom.selectedLine = "Line1"
+  | →system.util.getLogger("fixture.session").info("session %s" % session.props.id)
+
+# stylesheet com.inductiveautomation.perspective/stylesheet in fixture-hmi (overridable=true, files=["resource.json:resource-manifest", "stylesheet.css:stylesheet"], missing=[])
+stylesheet classes=["psc-Brand/Muted", "psc-Brand/Primary"]
+
+# view com.inductiveautomation.perspective/views/Components/MotorCard in fixture-hmi (overridable=true, files=["resource.json:resource-manifest", "thumbnail.png:thumbnail", "view.json:view"], missing=[])
+component root type=ia.container.coord depth=0 ptr=/root ign=root.root
+component   root/Title type=ia.display.label depth=1 ptr=/root/children/0 ign=root.root.children[0].Title
+component   root/Speed type=ia.display.label depth=1 ptr=/root/children/1 ign=root.root.children[1].Speed
+component   root/Alarms type=ia.display.alarmstatustable depth=1 ptr=/root/children/2 ign=root.root.children[2].Alarms
+property view.params.selected value=false direction=inout config=true ign=params.selected
+property view.params.tagPath value="" direction=input config=true ign=params.tagPath
+property view.params.title value="Motor" direction=input config=true ign=params.title
+property view.custom.running value=false direction=- config=true ign=custom.running
+propConfig view.custom.running persistent=Some(true) direction=- access=- binding=true onChange=enabled=Some(true) ign=propConfig.custom.running
+propConfig view.params.selected persistent=Some(true) direction=inout access=- binding=false onChange=- ign=propConfig.params.selected
+propConfig view.params.tagPath persistent=Some(true) direction=input access=- binding=false onChange=- ign=propConfig.params.tagPath
+propConfig view.params.title persistent=Some(true) direction=input access=- binding=false onChange=- ign=propConfig.params.title
+propConfig root/Title.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[0].Title.propConfig.props.text
+propConfig root/Speed.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[1].Speed.propConfig.props.text
+binding view.custom.running@binding type=tag enabled=None mode=Indirect tagPath=Some("{0}/Running") parsed=false expression=None placeholders=["0"] references=["0=\"{view.params.tagPath}\"(ref)"] bidirectional=false fallbackDelay=Some(2.5) ign=propConfig.custom.running
+binding root/Title.props.text@binding type=property enabled=None path=Some("view.params.title") parsed=true bidirectional=false ign=root.root.children[0].Title.propConfig.props.text
+binding root/Speed.props.text@binding type=tag enabled=None mode=Expression tagPath=Some("{view.params.tagPath} + \"/Speed\"") parsed=false expression=Some(ExprId(0)) placeholders=[] references=[] bidirectional=false fallbackDelay=Some(2.5) ign=root.root.children[1].Speed.propConfig.props.text
+  transform root/Speed.props.text@binding.transforms[0] script Some(ScriptId(5)) ign=root.root.children[1].Speed.propConfig.props.text.binding.transforms[0]
+event root@events.dom.onClick list=true ign=root.root.events.dom.onClick
+  action root@events.dom.onClick[0] scope=Some("G") enabled=None script Some(ScriptId(1)) ign=root.root.events.dom.onClick[0]
+  action root@events.dom.onClick[1] scope=Some("C") enabled=None popup op=Some("open") id=Some("motorDetail") view=Some("Popups/MotorDetail") params={"tagPath":"[default]Plant/Line1/Motor1"} ign=root.root.events.dom.onClick[1]
+messageHandler root@messageHandlers.motor-refresh type=Some("motor-refresh") page=true session=false view=false script=Some(ScriptId(2)) ign=root.root.scripts.messageHandlers[0]
+customMethod root@customMethods.toggleSelected params=[] script=Some(ScriptId(3)) ign=root.root.scripts.customMethods[0]
+customMethod root@customMethods.describe params=["prefix", "suffix"] script=Some(ScriptId(4)) ign=root.root.scripts.customMethods[1]
+extensionFunction root/Alarms@extensionFunctions.filterAlarm enabled=Some(true) declared=Some(true) script=Some(ScriptId(6)) ign=root.root.children[2].Alarms.scripts.extensionFunctions[0]
+viewRef PopupAction root@events.dom.onClick[1] path="Popups/MotorDetail" params={"tagPath":"[default]Plant/Line1/Motor1"} bound=false paramsBound=false
+styleRef Property root.props.style.classes classes=["Brand/Primary"] bound=false
+[0] script property-change view.custom.running@onChange scope=perspective-component enabled=true anchor=477..485 ign=propConfig.custom.running.onChange
+  | def valueChanged(self, previousValue, currentValue, origin, missedEvents):
+  | →if not origin == "Binding":
+  | →→return
+  | →system.perspective.print("running: %s" % currentValue.value)
+[1] script event-action root@events.dom.onClick[0] scope=perspective-component enabled=true anchor=3148..3156 ign=root.root.events.dom.onClick[0]
+  | def runAction(self, event):
+  | →self.toggleSelected()
+[2] script message-handler root@messageHandlers.motor-refresh scope=perspective-component enabled=true anchor=4592..4600 ign=root.root.scripts.messageHandlers[0]
+  | def onMessageReceived(self, payload):
+  | →if payload.get("tagPath") in (None, self.view.params.tagPath):
+  | →→self.view.custom.running = hmi.motors.isRunning(self.view.params.tagPath)
+[3] script custom-method root@customMethods.toggleSelected scope=perspective-component enabled=true anchor=4130..4138 ign=root.root.scripts.customMethods[0]
+  | def toggleSelected(self,):
+  | →self.view.params.selected = not self.view.params.selected
+[4] script custom-method root@customMethods.describe scope=perspective-component enabled=true anchor=4346..4354 ign=root.root.scripts.customMethods[1]
+  | def describe(self,prefix,suffix):
+  | →return "%s%s%s" % (prefix, self.view.params.title, suffix)
+[5] script transform root/Speed.props.text@binding.transforms[0] scope=perspective-component enabled=true anchor=2179..2185 ign=root.root.children[1].Speed.propConfig.props.text.binding.transforms[0]
+  | def transform(self, value, quality, timestamp):
+  | →return core.format.withUnit(round(value, 1), "rpm")
+[6] script extension-function root/Alarms@extensionFunctions.filterAlarm scope=perspective-component enabled=true anchor=2830..2838 ign=root.root.children[2].Alarms.scripts.extensionFunctions[0]
+  | def filterAlarm(self, alarmEvent):
+  | →return alarmEvent.get("source").startswith(self.view.params.tagPath)
+[0] expr tag-path root/Speed.props.text@binding "{view.params.tagPath} + \"/Speed\"" valid=true tentative=false refs=["prop:view.params.tagPath"] calls=[] ign=root.root.children[1].Speed.propConfig.props.text
+
+# view com.inductiveautomation.perspective/views/Docks/Header in fixture-hmi (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
+component root type=ia.container.column depth=0 ptr=/root ign=root.root
+component   root/Title type=ia.display.label depth=1 ptr=/root/children/0 ign=root.root.children[0].Title
+component   root/User type=ia.display.label depth=1 ptr=/root/children/1 ign=root.root.children[1].User
+propConfig root/User.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[1].User.propConfig.props.text
+binding root/User.props.text@binding type=property enabled=None path=Some("session.props.auth.user.userName") parsed=true bidirectional=false ign=root.root.children[1].User.propConfig.props.text
+event root/Title@events.dom.onClick list=false ign=root.root.children[0].Title.events.dom.onClick
+  action root/Title@events.dom.onClick scope=Some("G") enabled=None script Some(ScriptId(0)) ign=root.root.children[0].Title.events.dom.onClick
+[0] script event-action root/Title@events.dom.onClick scope=perspective-component enabled=true anchor=263..271 ign=root.root.children[0].Title.events.dom.onClick
+  | def runAction(self, event):
+  | →core.nav.goHome()
+
+# view com.inductiveautomation.perspective/views/Main/Overview in fixture-hmi (overridable=true, files=["resource.json:resource-manifest", "thumbnail.png:thumbnail", "view.json:view"], missing=[])
+component root type=ia.container.flex depth=0 ptr=/root ign=root.root
+component   root/Clock type=ia.display.label depth=1 ptr=/root/children/0 ign=root.root.children[0].Clock
+component   root/LineTotal type=ia.display.label depth=1 ptr=/root/children/1 ign=root.root.children[1].LineTotal
+component   root/Summary type=ia.display.label depth=1 ptr=/root/children/2 ign=root.root.children[2].Summary
+component   root/StateIcon type=ia.display.icon depth=1 ptr=/root/children/3 ign=root.root.children[3].StateIcon
+component   root/Badge type=ia.display.view depth=1 ptr=/root/children/4 ign=root.root.children[4].Badge
+component   root/Motors type=ia.display.flex-repeater depth=1 ptr=/root/children/5 ign=root.root.children[5].Motors
+component   root/LinePicker type=ia.input.dropdown depth=1 ptr=/root/children/6 ign=root.root.children[6].LinePicker
+component   root/Setpoint type=ia.input.numeric-entry-field depth=1 ptr=/root/children/7 ign=root.root.children[7].Setpoint
+component   root/Tabs type=ia.container.tab depth=1 ptr=/root/children/8 ign=root.root.children[8].Tabs
+component     root/Tabs/TrendTab type=ia.display.view depth=2 ptr=/root/children/8/children/0 ign=root.root.children[8].Tabs.children[0].TrendTab
+component     root/Tabs/AlarmTab type=ia.display.label depth=2 ptr=/root/children/8/children/1 ign=root.root.children[8].Tabs.children[1].AlarmTab
+component   root/Carousel type=ia.display.carousel depth=1 ptr=/root/children/9 ign=root.root.children[9].Carousel
+component   root/Accordion type=ia.display.accordion depth=1 ptr=/root/children/10 ign=root.root.children[10].Accordion
+component   root/Refresh type=ia.input.button depth=1 ptr=/root/children/11 ign=root.root.children[11].Refresh
+component   root/Help type=ia.input.button depth=1 ptr=/root/children/12 ign=root.root.children[12].Help
+component   root/Logout type=ia.input.button depth=1 ptr=/root/children/13 ign=root.root.children[13].Logout
+component   root/Hidden type=ia.display.label depth=1 ptr=/root/children/14 ign=root.root.children[14].Hidden
+property view.params.line value="Line1" direction=input config=true ign=params.line
+property view.params.selectedMotor value="" direction=output config=true ign=params.selectedMotor
+property view.custom.lineState value="running" direction=- config=true ign=custom.lineState
+property view.custom.motors value=[] direction=- config=true ign=custom.motors
+propConfig view.custom.lineState persistent=Some(true) direction=- access=- binding=true onChange=- ign=propConfig.custom.lineState
+propConfig view.custom.motors persistent=Some(true) direction=- access=PRIVATE binding=true onChange=- ign=propConfig.custom.motors
+propConfig view.params.line persistent=Some(true) direction=input access=- binding=false onChange=- ign=propConfig.params.line
+propConfig view.params.selectedMotor persistent=Some(false) direction=output access=- binding=false onChange=- ign=propConfig.params.selectedMotor
+propConfig root/Clock.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[0].Clock.propConfig.props.text
+propConfig root/LineTotal.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[1].LineTotal.propConfig.props.text
+propConfig root/Summary.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[2].Summary.propConfig.props.text
+propConfig root/StateIcon.props.color persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[3].StateIcon.propConfig.props.color
+propConfig root/Badge.props.params.state persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[4].Badge.propConfig.props.params.state
+propConfig root/Motors.props.instances persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[5].Motors.propConfig.props.instances
+propConfig root/LinePicker.props.value persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[6].LinePicker.propConfig.props.value
+propConfig root/Setpoint.props.value persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[7].Setpoint.propConfig.props.value
+propConfig root/Hidden.meta.visible persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[14].Hidden.propConfig.meta.visible
+binding view.custom.lineState@binding type=tag enabled=None mode=Indirect tagPath=Some("[default]Plant/{line}/State") parsed=false expression=None placeholders=["line"] references=["line=\"{view.params.line}\"(ref)"] bidirectional=false fallbackDelay=Some(2.5) ign=propConfig.custom.lineState
+binding view.custom.motors@binding type=expr enabled=None expression=Some(ExprId(0)) ign=propConfig.custom.motors
+binding root/Clock.props.text@binding type=expr enabled=None expression=Some(ExprId(1)) ign=root.root.children[0].Clock.propConfig.props.text
+binding root/LineTotal.props.text@binding type=tag enabled=None mode=Direct tagPath=Some("[default]Plant/Line1/Total") parsed=true expression=None placeholders=[] references=[] bidirectional=false fallbackDelay=Some(2.5) ign=root.root.children[1].LineTotal.propConfig.props.text
+  transform root/LineTotal.props.text@binding.transforms[0] format Some("numeric") Some("#,##0.0") ign=root.root.children[1].LineTotal.propConfig.props.text.binding.transforms[0]
+binding root/Summary.props.text@binding type=expr-struct enabled=None leaves=["count", "line"] waitOnAll=Some(true) ign=root.root.children[2].Summary.propConfig.props.text
+  transform root/Summary.props.text@binding.transforms[0] script Some(ScriptId(3)) ign=root.root.children[2].Summary.propConfig.props.text.binding.transforms[0]
+binding root/StateIcon.props.color@binding type=tag enabled=None mode=Direct tagPath=Some("[default]Plant/Line1/Running") parsed=true expression=None placeholders=[] references=[] bidirectional=false fallbackDelay=Some(2.5) ign=root.root.children[3].StateIcon.propConfig.props.color
+  transform root/StateIcon.props.color@binding.transforms[0] map in=Some("scalar") out=Some("color") mappings=true->"#43A047" false->"#E53935" fallback="#9E9E9E" ign=root.root.children[3].StateIcon.propConfig.props.color.binding.transforms[0]
+binding root/Badge.props.params.state@binding type=property enabled=None path=Some("view.custom.lineState") parsed=true bidirectional=false ign=root.root.children[4].Badge.propConfig.props.params.state
+binding root/Motors.props.instances@binding type=property enabled=None path=Some("view.custom.motors") parsed=true bidirectional=false ign=root.root.children[5].Motors.propConfig.props.instances
+binding root/LinePicker.props.value@binding type=property enabled=None path=Some("session.custom.selectedLine") parsed=true bidirectional=true ign=root.root.children[6].LinePicker.propConfig.props.value
+binding root/Setpoint.props.value@binding type=tag enabled=None mode=Direct tagPath=Some("[default]Plant/Line1/Setpoint") parsed=true expression=None placeholders=[] references=[] bidirectional=true fallbackDelay=Some(2.5) ign=root.root.children[7].Setpoint.propConfig.props.value
+binding root/Hidden.meta.visible@binding type=expr enabled=Some(false) expression=Some(ExprId(4)) ign=root.root.children[14].Hidden.propConfig.meta.visible
+event view@events.system.onShutdown list=false ign=events.system.onShutdown
+  action view@events.system.onShutdown scope=Some("G") enabled=None script Some(ScriptId(0)) ign=events.system.onShutdown
+event view@events.system.onStartup list=false ign=events.system.onStartup
+  action view@events.system.onStartup scope=Some("G") enabled=None script Some(ScriptId(1)) ign=events.system.onStartup
+event root/Refresh@events.component.onActionPerformed list=true ign=root.root.children[11].Refresh.events.component.onActionPerformed
+  action root/Refresh@events.component.onActionPerformed[0] scope=Some("G") enabled=None script Some(ScriptId(4)) ign=root.root.children[11].Refresh.events.component.onActionPerformed[0]
+  action root/Refresh@events.component.onActionPerformed[1] scope=Some("C") enabled=None nav page="/motors/Line1" ign=root.root.children[11].Refresh.events.component.onActionPerformed[1]
+event root/Help@events.dom.onClick list=false ign=root.root.children[12].Help.events.dom.onClick
+  action root/Help@events.dom.onClick scope=Some("C") enabled=None nav url="https://example.invalid/help" ign=root.root.children[12].Help.events.dom.onClick
+event root/Help@events.dom.onDoubleClick list=false ign=root.root.children[12].Help.events.dom.onDoubleClick
+  action root/Help@events.dom.onDoubleClick scope=Some("C") enabled=None dock op=Some("toggle") id=Some("help") ign=root.root.children[12].Help.events.dom.onDoubleClick
+event root/Logout@events.component.onActionPerformed list=false ign=root.root.children[13].Logout.events.component.onActionPerformed
+  action root/Logout@events.component.onActionPerformed scope=Some("C") enabled=Some(true) logout ign=root.root.children[13].Logout.events.component.onActionPerformed
+messageHandler root@messageHandlers.line-changed type=Some("line-changed") page=false session=true view=true script=Some(ScriptId(2)) ign=root.root.scripts.messageHandlers[0]
+viewRef EmbeddedView root/Badge.props.path path="Common/StatusBadge" params={"label":"Line 1","state":"running"} bound=false paramsBound=true
+viewRef FlexRepeater root/Motors.props.path path="Components/MotorCard" params=[{"selected":false,"tagPath":"[default]Plant/Line1/Motor1","title":"Motor 1"}... bound=false paramsBound=true
+viewRef EmbeddedView root/Tabs/TrendTab.props.path path="Popups/MotorDetail" params={"tagPath":"[default]Plant/Line1/Motor1"} bound=false paramsBound=false
+viewRef Carousel root/Carousel.props.views[0].viewPath path="Common/StatusBadge" params={"label":"A","state":"running"} bound=false paramsBound=false
+viewRef Carousel root/Carousel.props.views[1].viewPath path="Common/StatusBadge" params={"label":"B","state":"faulted"} bound=false paramsBound=false
+viewRef Accordion root/Accordion.props.items[0].body.viewPath path="Components/MotorCard" params={"tagPath":"[default]Plant/Line1/Motor1"} bound=false paramsBound=false
+styleRef Property root.props.style.classes classes=["Brand/Primary", "Brand/Muted"] bound=false
+styleRef Property root/Clock.props.style.classes classes=["Brand/Muted"] bound=false
+[0] script event-action view@events.system.onShutdown scope=perspective-component enabled=true anchor=148..156 ign=events.system.onShutdown
+  | def runAction(self, event):
+  | →pass
+[1] script event-action view@events.system.onStartup scope=perspective-component enabled=true anchor=285..293 ign=events.system.onStartup
+  | def runAction(self, event):
+  | →self.custom.motors = []
+  | →system.perspective.print("overview started")
+[2] script message-handler root@messageHandlers.line-changed scope=perspective-component enabled=true anchor=12825..12833 ign=root.root.scripts.messageHandlers[0]
+  | def onMessageReceived(self, payload):
+  | →self.view.params.line = payload["line"]
+[3] script transform root/Summary.props.text@binding.transforms[0] scope=perspective-component enabled=true anchor=3215..3221 ign=root.root.children[2].Summary.propConfig.props.text.binding.transforms[0]
+  | def transform(self, value, quality, timestamp):
+  | →return "%s: %d motors" % (value.line, value.count)
+[4] script event-action root/Refresh@events.component.onActionPerformed[0] scope=perspective-component enabled=true anchor=9764..9772 ign=root.root.children[11].Refresh.events.component.onActionPerformed[0]
+  | def runAction(self, event):
+  | →system.perspective.sendMessage("motor-refresh", payload={"tagPath": None}, scope="page")
+  | →self.getSibling("Motors").refreshBinding("props.instances")
+[0] expr binding view.custom.motors@binding "runScript(\"hmi.motors.listMotors\", 0, {view.params.line})" valid=true tentative=false refs=["prop:view.params.line"] calls=["runScript"] ign=propConfig.custom.motors
+[1] expr binding root/Clock.props.text@binding "dateFormat(now(1000), \"HH:mm:ss\")" valid=true tentative=false refs=[] calls=["dateFormat", "now"] ign=root.root.children[0].Clock.propConfig.props.text
+[2] expr struct-leaf root/Summary.props.text@binding.struct.count "len({view.custom.motors})" valid=true tentative=false refs=["prop:view.custom.motors"] calls=["len"] ign=root.root.children[2].Summary.propConfig.props.text
+[3] expr struct-leaf root/Summary.props.text@binding.struct.line "{view.params.line}" valid=true tentative=false refs=["prop:view.params.line"] calls=[] ign=root.root.children[2].Summary.propConfig.props.text
+[4] expr binding root/Hidden.meta.visible@binding "{session.props.auth.user.userName} = \"admin\"" valid=true tentative=false refs=["prop:session.props.auth.user.userName"] calls=[] ign=root.root.children[14].Hidden.propConfig.meta.visible
+
+# view com.inductiveautomation.perspective/views/Popups/MotorDetail in fixture-hmi (overridable=true, files=["resource.json:resource-manifest", "thumbnail.png:thumbnail", "view.json:view"], missing=[])
+component root type=ia.container.breakpt depth=0 ptr=/root ign=root.root
+component   root/Small type=ia.container.flex depth=1 ptr=/root/children/0 ign=root.root.children[0].Small
+component     root/Small/Header type=ia.display.label depth=2 ptr=/root/children/0/children/0 ign=root.root.children[0].Small.children[0].Header
+component   root/Large type=ia.container.flex depth=1 ptr=/root/children/1 ign=root.root.children[1].Large
+component     root/Large/Trend type=ia.chart.timeseries depth=2 ptr=/root/children/1/children/0 ign=root.root.children[1].Large.children[0].Trend
+component     root/Large/Machines type=ia.display.table depth=2 ptr=/root/children/1/children/1 ign=root.root.children[1].Large.children[1].Machines
+component     root/Large/Start type=ia.input.button depth=2 ptr=/root/children/1/children/2 ign=root.root.children[1].Large.children[2].Start
+component     root/Large/Close type=ia.input.button depth=2 ptr=/root/children/1/children/3 ign=root.root.children[1].Large.children[3].Close
+property view.params.tagPath value="" direction=input config=true ign=params.tagPath
+property view.custom.history value=null direction=- config=true ign=custom.history
+property view.custom.machines value=null direction=- config=true ign=custom.machines
+property view.custom.weather value=null direction=- config=true ign=custom.weather
+propConfig view.custom.history persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.history
+propConfig view.custom.machines persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.machines
+propConfig view.custom.weather persistent=None direction=- access=- binding=true onChange=- ign=propConfig.custom.weather
+propConfig view.params.tagPath persistent=Some(true) direction=input access=- binding=false onChange=- ign=propConfig.params.tagPath
+propConfig root/Large/Trend.props.series[0].data persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[1].Large.children[0].Trend.propConfig.props.series[0].data
+propConfig root/Large/Machines.props.data persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[1].Large.children[1].Machines.propConfig.props.data
+binding view.custom.history@binding type=tag-history enabled=None tags=[Some("{view.params.tagPath} + \"/Speed\"")(expr=Some(ExprId(0))) alias=Some("speed") agg=Some("Average")] dateRange={"mostRecent":"1","mostRecentUnits":"hour"} returnFormat=Some("wide") polling=Some(true)/Some(60.0) ign=propConfig.custom.history
+binding view.custom.machines@binding type=query enabled=None queryPath=Some("Machines/ByLine") returnFormat=Some("json") params=["line=Some(ExprId(2))"] polling=Some(true)/Some(30.0) ign=propConfig.custom.machines
+binding view.custom.weather@binding type=http enabled=None url=Some("https://example.invalid/api/weather") urlExpression=None method=Some("GET") auth=Some("none") polling=Some(false) ign=propConfig.custom.weather
+  transform view.custom.weather@binding.transforms[0] expression Some(ExprId(4)) ign=propConfig.custom.weather.binding.transforms[0]
+binding root/Large/Trend.props.series[0].data@binding type=property enabled=None path=Some("view.custom.history") parsed=true bidirectional=false ign=root.root.children[1].Large.children[0].Trend.propConfig.props.series[0].data
+binding root/Large/Machines.props.data@binding type=property enabled=None path=Some("view.custom.machines") parsed=true bidirectional=false ign=root.root.children[1].Large.children[1].Machines.propConfig.props.data
+event root/Large/Machines@events.component.onRowDoubleClick list=false ign=root.root.children[1].Large.children[1].Machines.events.component.onRowDoubleClick
+  action root/Large/Machines@events.component.onRowDoubleClick scope=Some("G") enabled=None script Some(ScriptId(0)) ign=root.root.children[1].Large.children[1].Machines.events.component.onRowDoubleClick
+event root/Large/Start@events.component.onActionPerformed list=false ign=root.root.children[1].Large.children[2].Start.events.component.onActionPerformed
+  action root/Large/Start@events.component.onActionPerformed scope=Some("G") enabled=None script Some(ScriptId(1)) ign=root.root.children[1].Large.children[2].Start.events.component.onActionPerformed
+event root/Large/Close@events.component.onActionPerformed list=false ign=root.root.children[1].Large.children[3].Close.events.component.onActionPerformed
+  action root/Large/Close@events.component.onActionPerformed scope=Some("C") enabled=None popup op=Some("close") id=Some("motorDetail") view=None params=- ign=root.root.children[1].Large.children[3].Close.events.component.onActionPerformed
+viewRef TableSubview root/Large/Machines.props.rows.subview.viewPath path="Components/MotorCard" params={"tagPath":"","title":"Detail"} bound=false paramsBound=false
+[0] script event-action root/Large/Machines@events.component.onRowDoubleClick scope=perspective-component enabled=true anchor=3645..3653 ign=root.root.children[1].Large.children[1].Machines.events.component.onRowDoubleClick
+  | def runAction(self, event):
+  | →system.perspective.closePopup("motorDetail")
+  | →system.perspective.navigate(view="Main/Overview", params={"line": event.value["name"]})
+[1] script event-action root/Large/Start@events.component.onActionPerformed scope=perspective-component enabled=true anchor=4914..4922 ign=root.root.children[1].Large.children[2].Start.events.component.onActionPerformed
+  | def runAction(self, event):
+  | →hmi.motors.startMotor(self.view.params.tagPath)
+[0] expr tag-history-path view.custom.history@binding.tags[0].path "{view.params.tagPath} + \"/Speed\"" valid=true tentative=true refs=["prop:view.params.tagPath"] calls=[] ign=propConfig.custom.history
+[1] expr polling-rate view.custom.history@binding.polling.rate "60" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.history
+[2] expr query-parameter view.custom.machines@binding.parameters.line "{session.custom.selectedLine}" valid=true tentative=false refs=["prop:session.custom.selectedLine"] calls=[] ign=propConfig.custom.machines
+[3] expr polling-rate view.custom.machines@binding.polling.rate "30" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.machines
+[4] expr transform view.custom.weather@binding.transforms[0] "jsonGet({value}, \"temperature\")" valid=true tentative=false refs=["value"] calls=["jsonGet"] ign=propConfig.custom.weather.binding.transforms[0]
+
+# view com.inductiveautomation.perspective/views/Sandbox/LintSamples in fixture-hmi (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
+component root type=ia.container.flex depth=0 ptr=/root ign=root.root
+component   root/BadParam type=ia.display.label depth=1 ptr=/root/children/0 ign=root.root.children[0].BadParam
+component   root/MissingView type=ia.display.view depth=1 ptr=/root/children/1 ign=root.root.children[1].MissingView
+component   root/EmptyScript type=ia.input.button depth=1 ptr=/root/children/2 ign=root.root.children[2].EmptyScript
+component   root/BadNav type=ia.input.button depth=1 ptr=/root/children/3 ign=root.root.children[3].BadNav
+component   root/BadStyle type=ia.display.label depth=1 ptr=/root/children/4 ign=root.root.children[4].BadStyle
+component   root/BadTransform type=ia.display.label depth=1 ptr=/root/children/5 ign=root.root.children[5].BadTransform
+component   root/BadQuery type=ia.display.label depth=1 ptr=/root/children/6 ign=root.root.children[6].BadQuery
+component   root/BadName type=ia.display.label depth=1 ptr=/root/children/7 ign=root.root.children[7].BadName
+component   root/BadName type=ia.display.label depth=1 ptr=/root/children/8 ign=root.root.children[8].BadName
+property view.params.known value="" direction=input config=true ign=params.known
+property view.custom.counter value=0 direction=- config=true ign=custom.counter
+property view.custom.unused value=1 direction=- config=false ign=custom.unused
+propConfig view.custom.counter persistent=None direction=- access=- binding=false onChange=enabled=Some(false) ign=propConfig.custom.counter
+propConfig view.params.known persistent=Some(true) direction=input access=- binding=false onChange=- ign=propConfig.params.known
+propConfig root/BadParam.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[0].BadParam.propConfig.props.text
+propConfig root/BadTransform.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[5].BadTransform.propConfig.props.text
+propConfig root/BadQuery.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[6].BadQuery.propConfig.props.text
+binding root/BadParam.props.text@binding type=property enabled=None path=Some("view.params.missing") parsed=true bidirectional=false ign=root.root.children[0].BadParam.propConfig.props.text
+binding root/BadTransform.props.text@binding type=expr enabled=None expression=Some(ExprId(0)) ign=root.root.children[5].BadTransform.propConfig.props.text
+  transform root/BadTransform.props.text@binding.transforms[0] script Some(ScriptId(3)) ign=root.root.children[5].BadTransform.propConfig.props.text.binding.transforms[0]
+binding root/BadQuery.props.text@binding type=query enabled=None queryPath=Some("Machines/Nope") returnFormat=Some("scalar") params=["line=Some(ExprId(1))"] polling=None/None ign=root.root.children[6].BadQuery.propConfig.props.text
+event root/EmptyScript@events.component.onActionPerformed list=false ign=root.root.children[2].EmptyScript.events.component.onActionPerformed
+  action root/EmptyScript@events.component.onActionPerformed scope=Some("G") enabled=None script Some(ScriptId(1)) ign=root.root.children[2].EmptyScript.events.component.onActionPerformed
+event root/BadNav@events.component.onActionPerformed list=false ign=root.root.children[3].BadNav.events.component.onActionPerformed
+  action root/BadNav@events.component.onActionPerformed scope=Some("G") enabled=None script Some(ScriptId(2)) ign=root.root.children[3].BadNav.events.component.onActionPerformed
+viewRef EmbeddedView root/MissingView.props.path path="Does/Not/Exist" params=- bound=false paramsBound=false
+styleRef Property root/BadStyle.props.style.classes classes=["Brand/DoesNotExist"] bound=false
+[0] script property-change view.custom.counter@onChange scope=perspective-component enabled=false anchor=186..194 ign=propConfig.custom.counter.onChange
+  | def valueChanged(self, previousValue, currentValue, origin, missedEvents):
+  | →system.perspective.print(currentValue.value)
+[1] script event-action root/EmptyScript@events.component.onActionPerformed scope=perspective-component enabled=true anchor=1256..1264 ign=root.root.children[2].EmptyScript.events.component.onActionPerformed
+  | def runAction(self, event):
+  | →
+[2] script event-action root/BadNav@events.component.onActionPerformed scope=perspective-component enabled=true anchor=1729..1737 ign=root.root.children[3].BadNav.events.component.onActionPerformed
+  | def runAction(self, event):
+  | →system.perspective.navigate(view="Missing/View")
+  | →system.perspective.openPopup("p", "Missing/Popup")
+[3] script transform root/BadTransform.props.text@binding.transforms[0] scope=perspective-component enabled=true anchor=2805..2811 ign=root.root.children[5].BadTransform.propConfig.props.text.binding.transforms[0]
+  | def transform(self, value, quality, timestamp):
+  | →value = value * 2
+[0] expr binding root/BadTransform.props.text@binding "1 +" valid=false tentative=false refs=[] calls=[] ign=root.root.children[5].BadTransform.propConfig.props.text
+[1] expr query-parameter root/BadQuery.props.text@binding.parameters.line "\"x\"" valid=true tentative=false refs=[] calls=[] ign=root.root.children[6].BadQuery.propConfig.props.text
+
+# script-library ignition/script-python/core/format in fixture-hmi (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module core.format hintScope=Some(2)
+script library-module core.format scope=library enabled=true anchor=0..0 ign=-
+  | def withUnit(value, unit):
+  | →return "%s %s" % (value, unit)
+  | 
+  | 
+  | def percent(value, digits=0):
+  | →return ("%%.%df%%%%" % digits) % ((value or 0) * 100.0)
+
+# script-library ignition/script-python/hmi/motors in fixture-hmi (overridable=true, files=["code.py:library-module", "resource.json:resource-manifest"], missing=[])
+module hmi.motors hintScope=Some(2)
+script library-module hmi.motors scope=library enabled=true anchor=0..0 ign=-
+  | import core.tags
+  | 
+  | log = system.util.getLogger("fixture.hmi.motors")
+  | 
+  | 
+  | def startMotor(tagPath):
+  | →log.info("start %s" % tagPath)
+  | →system.tag.writeBlocking([tagPath + "/Cmd/Start"], [True])
+  | 
+  | 
+  | def isRunning(tagPath):
+  | →return bool(core.tags.readOne(tagPath + "/Running", False))
+  | 
+  | 
+  | class MotorRow(object):
+  | →def __init__(self, name, speed):
+  | →→self.name = name
+  | →→self.speed = speed
+  | 
+  | →def asDict(self):
+  | →→return {"name": self.name, "speed": self.speed}
+  | 
+  | 
+  | def listMotors(line):
+  | →folder = core.tags.lineFolder(line)
+  | →results = system.tag.browse(folder, {"tagType": "UdtInstance"}).getResults()
+  | →return [{"tagPath": str(r["fullPath"]), "title": r["name"], "selected": False} for r in results]

@@ -1,0 +1,76 @@
+---
+source: crates/iglint_project/tests/snapshots_basic.rs
+expression: out
+---
+# historian-provider com.inductiveautomation.historian/historian-provider/Hist in core (overridable=true, files=["config.json:gateway-config", "resource.json:resource-manifest"], missing=[])
+gateway historian-provider enabled=Some(true) details=None
+
+# database-connection ignition/database-connection/DB in core (overridable=true, files=["config.json:gateway-config", "resource.json:resource-manifest"], missing=[])
+gateway database-connection enabled=Some(true) details=Database { connect_url: Some("jdbc:sqlserver://db.example.invalid"), driver: Some("MSSQL"), translator: Some("MSSQL"), password_type: Some("Embedded") }
+
+# tag-definition ignition/tag-definition/edge in core (overridable=true, files=["unary-resource.json:unary-resource-manifest"], missing=[])
+tags provider=edge folder="" definitions=false base=[edge] config={}
+
+# tag-definition ignition/tag-definition/edge/Area in core (overridable=true, files=["tags.json:tags-json", "udts.json:udt-instances-json", "unary-resource.json:unary-resource-manifest"], missing=[])
+tags provider=edge folder="Area" definitions=false base=[edge]Area config={"documentation":"area"}
+tag   [edge]Area/Value type=AtomicTag typeId=None source=Some("memory") dataType=Some("Float8") inDefinition=false params=[] history=Some("Hist")
+tag   [edge]Area/Total type=AtomicTag typeId=None source=Some("expr") dataType=None inDefinition=false params=[] history=Some("NoSuchHistorian")
+tag   [edge]Area/Derived type=AtomicTag typeId=None source=Some("derived") dataType=None inDefinition=false params=[] history=None
+tag   [edge]Area/Query type=AtomicTag typeId=None source=Some("db") dataType=None inDefinition=false params=[] history=None
+tag   [edge]Area/Folder type=Folder typeId=None source=None dataType=None inDefinition=false params=[] history=None
+tag     [edge]Area/Folder/Inner type=AtomicTag typeId=None source=None dataType=None inDefinition=false params=[] history=None
+  alarm [edge]Area/Folder/Inner@alarms.High mode=Some("AboveValue") priority=Some("High") bindings=["setpointA:Some(\"parameter\")", "label:Some(\"Expression\")", "displayPath:Some(\"Tag\")"] pipelines=["activePipeline=Notify", "clearPipeline=Clear"]
+  eventScript Some("valueChanged") enabled=None script=Some(ScriptId(0))
+  eventScript Some("alarmAcked") enabled=Some(false) script=Some(ScriptId(1))
+  eventScript Some("onFoo") enabled=None script=None
+tag   [edge]Area/Weird type=Other typeId=None source=None dataType=None inDefinition=false params=[] history=None
+tag   [edge]Area/ type=AtomicTag typeId=None source=None dataType=None inDefinition=false params=[] history=None
+tag   [edge]Area/Unit1 type=UdtInstance typeId=Some("Types/Child") source=None dataType=None inDefinition=false params=["Max", "Bare"] history=None
+tag     [edge]Area/Unit1/Value type=AtomicTag typeId=None source=None dataType=None inDefinition=false params=[] history=None
+tag   [edge]Area/Ghost type=UdtInstance typeId=Some("Types/Missing") source=None dataType=None inDefinition=false params=[] history=None
+[0] script tag-event [edge]Area/Folder/Inner@eventScripts.valueChanged scope=tag enabled=true anchor=939..947 ign=-
+  | def valueChanged(tag,tagPath,previousValue,currentValue,initialChange,missedEvents):
+  | →print currentValue
+[1] script tag-event [edge]Area/Folder/Inner@eventScripts.alarmAcked scope=tag enabled=false anchor=1046..1054 ign=-
+  | def alarmAcked(tag,tagPath,alarmName,alarmEvent,alarmPath,ackedBy,missedEvents):
+  | →print ackedBy
+[0] expr tag-expression [edge]Area/Total.expression "{[.]Value} * 2 + {[edge]Area/Value}" valid=true tentative=false refs=["tag:[.]Value", "tag:[edge]Area/Value"] calls=[] ign=-
+[1] expr derive-getter [edge]Area/Derived.deriveExpressionGetter "{source} * 10" valid=true tentative=false refs=["other:source"] calls=[] ign=-
+[2] expr derive-setter [edge]Area/Derived.deriveExpressionSetter "{value} / 10" valid=true tentative=false refs=["other:value"] calls=[] ign=-
+[3] expr alarm-property [edge]Area/Folder/Inner@alarms.High.label "'High ' + {itemName}" valid=true tentative=false refs=["other:itemName"] calls=[] ign=-
+problem [edge]Area/ 1874..1906 tag has no `name`
+
+# tag-definition ignition/tag-definition/edge/Bad in core (overridable=true, files=["tags.json:tags-json", "unary-resource.json:unary-resource-manifest"], missing=[])
+tags provider=edge folder="Bad" definitions=false base=[edge]Bad config={}
+problem [edge]Bad 0..26 tag file is not a JSON array
+
+# tag-definition ignition/tag-definition/edge/Hidden in core (overridable=true, files=["tags.json:tags-json(unlisted)", "unary-resource.json:unary-resource-manifest"], missing=[])
+tags provider=edge folder="Hidden" definitions=false base=[edge]Hidden config={}
+tag   [edge]Hidden/Secret type=AtomicTag typeId=None source=None dataType=None inDefinition=false params=[] history=None
+
+# tag-provider ignition/tag-provider/edge in core (overridable=true, files=["config.json:gateway-config", "resource.json:resource-manifest"], missing=[])
+gateway tag-provider enabled=Some(true) details=TagProvider { provider_type: Some("STANDARD") }
+
+# tag-provider ignition/tag-provider/remote in core (overridable=true, files=["config.json:gateway-config", "resource.json:resource-manifest"], missing=[])
+gateway tag-provider enabled=Some(true) details=TagProvider { provider_type: Some("REMOTE") }
+
+# tag-type-definition ignition/tag-type-definition/edge in core (overridable=true, files=["unary-resource.json:unary-resource-manifest"], missing=[])
+tags provider=edge folder="" definitions=true base=[edge]_types_ config={}
+
+# tag-type-definition ignition/tag-type-definition/edge/Types in core (overridable=true, files=["udts.json:udt-definitions-json", "unary-resource.json:unary-resource-manifest"], missing=[])
+tags provider=edge folder="Types" definitions=true base=[edge]_types_/Types config={}
+tag   [edge]_types_/Types/Base type=UdtType typeId=None source=None dataType=None inDefinition=true params=["Max"] history=None
+tag     [edge]_types_/Types/Base/Value type=AtomicTag typeId=None source=Some("memory") dataType=None inDefinition=true params=[] history=None
+  bound opcItemPath Some("parameter") Some("ns=1;s={Device}.{Max}") placeholders=["Device", "Max"] expression=None
+  bound tooltip Some("Expression") Some("'tip ' + {Max}") placeholders=[] expression=Some(ExprId(0))
+tag     [edge]_types_/Types/Base/Sub type=UdtInstance typeId=Some("Types/Leaf") source=None dataType=None inDefinition=true params=[] history=None
+tag   [edge]_types_/Types/Child type=UdtType typeId=Some("Types/Base") source=None dataType=None inDefinition=true params=["Extra"] history=None
+tag     [edge]_types_/Types/Child/Own type=AtomicTag typeId=None source=None dataType=None inDefinition=true params=[] history=None
+tag   [edge]_types_/Types/Leaf type=UdtType typeId=None source=None dataType=None inDefinition=true params=[] history=None
+tag     [edge]_types_/Types/Leaf/Deep type=Folder typeId=None source=None dataType=None inDefinition=true params=[] history=None
+tag       [edge]_types_/Types/Leaf/Deep/Deeper type=AtomicTag typeId=None source=None dataType=None inDefinition=true params=[] history=None
+tag   [edge]_types_/Types/CycA type=UdtType typeId=Some("Types/CycB") source=None dataType=None inDefinition=true params=[] history=None
+tag   [edge]_types_/Types/CycB type=UdtType typeId=Some("Types/CycA") source=None dataType=None inDefinition=true params=[] history=None
+tag   [edge]_types_/Types/Nested type=Folder typeId=None source=None dataType=None inDefinition=true params=[] history=None
+tag     [edge]_types_/Types/Nested/Inside type=UdtType typeId=None source=None dataType=None inDefinition=true params=[] history=None
+[0] expr tag-property [edge]_types_/Types/Base/Value.tooltip "'tip ' + {Max}" valid=true tentative=false refs=["other:Max"] calls=[] ign=-

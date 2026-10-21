@@ -1,0 +1,86 @@
+[
+  {
+    "name": "Value",
+    "tagType": "AtomicTag",
+    "valueSource": "memory",
+    "dataType": "Float8",
+    "value": 1.5,
+    "historyEnabled": true,
+    "historyProvider": "Hist"
+  },
+  {
+    "name": "Total",
+    "tagType": "AtomicTag",
+    "valueSource": "expr",
+    "expression": "{[.]Value} * 2 + {[edge]Area/Value}",
+    "historyProvider": "NoSuchHistorian"
+  },
+  {
+    "name": "Derived",
+    "tagType": "AtomicTag",
+    "valueSource": "derived",
+    "sourceTagPath": "[.]Value",
+    "deriveExpressionGetter": "{source} * 10",
+    "deriveExpressionSetter": "{value} / 10"
+  },
+  {
+    "name": "Query",
+    "tagType": "AtomicTag",
+    "valueSource": "db",
+    "datasource": "DB",
+    "query": "SELECT 1"
+  },
+  {
+    "name": "Folder",
+    "tagType": "Folder",
+    "tags": [
+      {
+        "name": "Inner",
+        "tagType": "AtomicTag",
+        "eventScripts": [
+          {
+            "eventid": "valueChanged",
+            "script": "\tprint currentValue"
+          },
+          {
+            "eventid": "alarmAcked",
+            "script": "\tprint ackedBy",
+            "enabled": false
+          },
+          {
+            "eventid": "onFoo",
+            "script": "\tpass"
+          }
+        ],
+        "alarms": [
+          {
+            "name": "High",
+            "mode": "AboveValue",
+            "priority": "High",
+            "setpointA": {
+              "bindType": "parameter",
+              "value": "{Max}"
+            },
+            "label": {
+              "bindType": "Expression",
+              "value": "\u0027High \u0027 + {itemName}"
+            },
+            "displayPath": {
+              "bindType": "Tag",
+              "value": "[.]../Value"
+            },
+            "activePipeline": "Notify",
+            "clearPipeline": "Clear"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Weird",
+    "tagType": "Bogus"
+  },
+  {
+    "tagType": "AtomicTag"
+  }
+]
