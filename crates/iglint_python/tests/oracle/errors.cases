@@ -1,0 +1,658 @@
+### missing colon if
+if x
+    pass
+### missing colon def
+def f()
+    pass
+### missing paren def
+def f(:
+    pass
+### unclosed paren eof
+x = (1,
+### unclosed bracket eof
+x = [1, 2
+### unclosed brace eof
+x = {1: 2
+### unclosed call eof
+f(a, b
+### unclosed paren then statements
+x = (1,
+y = 2
+z = 3
+### extra closing paren
+x = 1)
+### extra closing bracket
+x = [1]]
+### unexpected indent
+x = 1
+    y = 2
+### unexpected indent first line
+  x = 1
+### unindent mismatch
+if x:
+    a = 1
+  b = 2
+### unindent mismatch deeper
+if x:
+    if y:
+        a = 1
+      b = 2
+### expected indented block
+if x:
+pass
+### expected indented block at eof
+if x:
+### expected indented block def eof
+def f():
+### empty suite comment
+if x:
+    # nothing
+y = 1
+### else without if
+else:
+    pass
+### elif without if
+elif x:
+    pass
+### except without try
+except:
+    pass
+### try without except
+try:
+    pass
+x = 1
+### finally without try
+finally:
+    pass
+### assign to literal
+1 = x
+### assign to string
+'a' = x
+### assign to call
+f() = x
+### assign to operator
+a + b = x
+### assign to bool op
+a or b = x
+### assign to lambda
+lambda: 0 = x
+### assign to repr
+`a` = x
+### assign to conditional
+a if b else c = x
+### assign to list comprehension
+[a for a in b] = x
+### assign to generator
+(a for a in b) = x
+### assign to set comprehension
+{a for a in b} = x
+### assign to yield
+def f():
+    (yield) = x
+### assign to None
+None = 1
+### assign to None in tuple
+a, None = 1, 2
+### assign to None attribute ok
+x.None = 1
+### assign to empty tuple
+() = x
+### assign second target literal
+a = 1 = 2
+### assign chain error position
+a = b = f() = 3
+### assign to unary accepted
+-a = 1
+### assign to compare accepted
+a < b = 1
+### assign to dict accepted
+{a: b} = 1
+### assign to set accepted
+{a} = 1
+### assign to not accepted
+not a = 1
+### augmented assign to tuple
+a, b += 1
+### augmented assign to list
+[a] += 1
+### augmented assign to literal
+1 += 1
+### augmented assign to None
+None += 1
+### augmented assign to call
+f() += 1
+### delete call
+del f()
+### delete literal
+del 1
+### delete string
+del 'a'
+### delete empty tuple
+del ()
+### delete nested call
+del (a, f())
+### delete None accepted
+del None
+### delete operator accepted
+del a + b
+### delete comparison
+del a < b
+### for target call accepted
+for f() in x:
+    pass
+### for target literal accepted
+for 1 in x:
+    pass
+### for target None
+for None in x:
+    pass
+### for target None tuple first
+for None, a in x:
+    pass
+### for target None tuple second
+for a, None in x:
+    pass
+### for target None attribute
+for None.x in y:
+    pass
+### for target operator accepted
+for a + b in c:
+    pass
+### comprehension target literal accepted
+[x for 1 in y]
+### comprehension target None accepted
+[x for None in y]
+### with target literal
+with a as 1:
+    pass
+### with target None
+with a as None:
+    pass
+### with target call
+with a as f():
+    pass
+### except name call accepted
+try:
+    pass
+except E, f():
+    pass
+### except name literal accepted
+try:
+    pass
+except E, 1:
+    pass
+### except name None accepted
+try:
+    pass
+except E, None:
+    pass
+### keyword repeated
+f(a=1, a=2)
+### keyword repeated parenthesized
+f(a=1, (a)=2)
+### keyword not a name
+f(a.b=1)
+### keyword literal
+f(1=2)
+### keyword None
+f(None=1)
+### keyword empty tuple
+f(()=1)
+### positional after keyword
+f(a=1, b)
+### positional after star
+f(*a, b)
+### keyword after star accepted
+f(*a, b=1)
+### star after kwargs
+f(**k, *a)
+### positional after kwargs
+f(**k, a)
+### double star twice
+f(**a, **b)
+### star twice
+f(*a, *b)
+### star trailing comma
+f(*a,)
+### kwargs trailing comma
+f(**a,)
+### generator not sole argument
+f(x for x in y, 1)
+### generator not sole argument second
+f(1, x for x in y)
+### generator with keyword
+f(x for x in y, a=1)
+### generator with star
+f(x for x in y, *a)
+### non default after default
+def f(a=1, b):
+    pass
+### non default after default tuple
+def f(a=1, (b, c)):
+    pass
+### parameter None
+def f(None):
+    pass
+### parameter None in tuple
+def f((a, None)):
+    pass
+### vararg None
+def f(*None):
+    pass
+### kwarg None
+def f(**None):
+    pass
+### function named None
+def None():
+    pass
+### class named None
+class None:
+    pass
+### lambda parameter None
+lambda None: 0
+### decorator attribute None
+@a.None
+def f():
+    pass
+### decorator name None accepted
+@None
+def f():
+    pass
+### decorator keyword attribute
+@a.if
+def f():
+    pass
+### decorator subscript
+@a[0]
+def f():
+    pass
+### decorator without function
+@dec
+x = 1
+### decorator call keyword repeated
+@dec(a=1, a=2)
+def f():
+    pass
+### def keyword name
+def if():
+    pass
+### def print without future
+def print():
+    pass
+### def print with future
+from __future__ import print_function
+def print():
+    pass
+### class keyword base
+class A(if):
+    pass
+### lambda star trailing comma
+lambda *a,: 0
+### lambda kwargs then arg
+lambda **k, a: 0
+### lambda default then plain
+lambda a=1, b: 0
+### varargs then plain
+def f(*a, b):
+    pass
+### varargs trailing comma
+def f(*a,):
+    pass
+### kwargs trailing comma
+def f(**k,):
+    pass
+### bare star
+def f(*):
+    pass
+### continue in finally
+for x in y:
+    try:
+        pass
+    finally:
+        continue
+### continue in finally inline
+for x in y:
+    try: pass
+    finally: continue
+### continue in finally nested if
+for x in y:
+    try:
+        pass
+    finally:
+        if x:
+            continue
+### continue in finally nested loop
+try:
+    pass
+finally:
+    for x in y:
+        continue
+### continue in finally nested try
+for x in y:
+    try:
+        pass
+    finally:
+        try:
+            continue
+        except:
+            pass
+### continue in finally nested try else
+for x in y:
+    try:
+        pass
+    finally:
+        try:
+            pass
+        except:
+            pass
+        else:
+            continue
+### continue in finally nested try finally
+for x in y:
+    try:
+        pass
+    finally:
+        try:
+            pass
+        finally:
+            continue
+### continue in except
+for x in y:
+    try:
+        pass
+    except:
+        continue
+### continue in finally def
+try:
+    pass
+finally:
+    def f():
+        continue
+### continue outside loop accepted
+continue
+### break outside loop accepted
+break
+### return outside function accepted
+return 1
+### yield outside function accepted
+yield 1
+### return with yield accepted
+def f():
+    yield 1
+    return 2
+### import keyword
+import if
+### import keyword second part accepted
+import a.if.b
+### import as keyword
+import a as if
+### from import keyword
+from a import if
+### from keyword module part accepted
+from a.print import b
+### from import trailing comma without parens
+from a import b,
+### from import parens empty
+from a import ()
+### from import star parens
+from a import (*)
+### from relative only no import
+from .
+### import star without from
+import *
+### global keyword
+global if
+### global trailing comma
+global a,
+### print trailing comma after dest
+print >>f,
+### print dest comma bad
+print >>f, )
+### print dest comma bad expression
+print >>f, (1 2)
+### print double comma
+print a,,
+### print after future
+from __future__ import print_function
+print a
+### print as name without future
+x = print
+### print keyword argument without future
+f(print=1)
+### exec in tuple
+exec a in b, c, d
+### exec conditional
+exec a if b else c
+### assert three
+assert a, b, c
+### raise four
+raise a, b, c, d
+### raise trailing comma
+raise a,
+### return trailing comma accepted
+def f():
+    return a,
+### del trailing comma only
+del ,
+### lambda without colon
+lambda x
+### lambda keyword body
+lambda: if
+### if expression without else
+x = a if b
+### if expression else without if
+x = a else b
+### if expression assign to
+1 if 2 else 3 = 4
+### else after if expression in assign
+1 = a else b
+### not without operand
+x = not
+### not in incomplete
+x = a not b
+### is not incomplete
+x = a is not
+### comparison incomplete
+x = a <
+### binary incomplete
+x = a +
+### power incomplete
+x = a **
+### unary incomplete
+x = -
+### double operator
+x = a + * b
+### subscript empty
+x[]
+### subscript incomplete
+x[1
+### slice too many colons
+x[1:2:3:4]
+### attribute missing
+x.
+### attribute number
+x.1
+### call keyword missing value
+f(a=)
+### dict missing value
+{a:}
+### dict mixed with set
+{a: b, c}
+### set mixed with dict
+{a, b: c}
+### dict comprehension then pair
+{a: b for a in c, d: e}
+### list comprehension then element
+[a for a in b, c]
+### generator trailing comma
+(a for a in b,)
+### generator without parens in list
+[a, b for b in c]
+### repr empty
+``
+### repr trailing comma
+`a,`
+### tuple double comma
+x = 1,,
+### starred assignment python3
+a, *b = c
+### keyword only arguments python3
+def f(a, *, b):
+    pass
+### annotations python3
+def f(a: int) -> int:
+    pass
+### return annotation python3
+def f() -> int:
+    pass
+### yield from python3
+def f():
+    yield from x
+### async def python3
+async def f():
+    pass
+### await python3
+async = 1
+await x
+### nonlocal statement python3
+def f():
+    nonlocal x
+### raise from python3
+raise X from Y
+### fstring python3
+x = f'a'
+### matrix multiplication python3
+x = a @ b
+### walrus python3
+if (x := 1):
+    pass
+### print function keyword without future
+print(1, end='')
+### print function sep without future
+print('a', 'b', sep='')
+### print function file without future
+print('a', file=sys.stderr)
+### exec function form accepted
+exec('x')
+### ellipsis literal python3
+x = ...
+### star expression in call python3 unpack
+f(*a, *b)
+### dict unpack python3
+x = {**a}
+### set unpack python3
+x = {*a}
+### bytes rb prefix
+x = rb'a'
+### unicode string prefix u raw order
+x = ru'a'
+### lambda tuple default python3 style
+lambda a, *, b: 0
+### semicolon only
+;
+### double semicolon
+x = 1;;
+### keyword as name
+class = 1
+### keyword as attribute target accepted
+x.class = 1
+### colon alone
+:
+### backtick unclosed
+x = `a
+### dollar sign
+x = $a
+### question mark
+x = a?
+### non ascii identifier
+x = caf\xe9
+### exclamation alone dropped
+x = !a
+### exclamation equal ok
+x = a != b
+### elif after else
+if a:
+    pass
+else:
+    pass
+elif b:
+    pass
+### double else
+if a:
+    pass
+else:
+    pass
+else:
+    pass
+### else on while after else
+while a:
+    pass
+else:
+    pass
+else:
+    pass
+### except after finally
+try:
+    pass
+finally:
+    pass
+except:
+    pass
+### except after else
+try:
+    pass
+except:
+    pass
+else:
+    pass
+except:
+    pass
+### bare except not last accepted
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### with without target or colon
+with a
+### with as missing target
+with a as:
+    pass
+### class with keyword argument python3
+class A(metaclass=M):
+    pass
+### class bases star
+class A(*b):
+    pass
+### deep error inside block
+def f():
+    if x:
+        y = (1 +
+### error after valid code
+x = 1
+y = 2
+z = (3 +
+### error in second line of statement
+x = (1,
+     2 3)
+### error far after
+x = 1
+y = [
+    1,
+    2,
+    3
+    4,
+]
+### indentation in parens ok
+x = (1,
+  2,
+        3)
+### tab mix inconsistent accepted
+if x:
+        a = 1
+	b = 2
+### form feed then code
+x = 1
+
+y = 2

@@ -1,0 +1,542 @@
+### empty
+### only newline
+
+### only comment
+# just a comment
+### blank lines and comments
+# a
+
+  # indented comment
+
+x = 1
+### pass
+pass
+### pass semicolons
+pass; pass;
+### expression statement
+x
+### expression statement parenthesized
+(x)
+### expression statement call on parenthesized
+(f)(x).y
+### assign simple
+x = 1
+### assign chain
+a = b = c = 1
+### assign tuple targets
+a, b = 1, 2
+### assign tuple parenthesized targets
+(a, b) = c
+### assign list target
+[a, b] = c
+### assign nested targets
+a, (b, [c, d]) = x
+### assign parenthesized name target
+(a) = 1
+### assign attribute and subscript
+a.b = c[d] = 1
+### assign starred-free unpack trailing comma
+a, = x
+### assign to empty list
+[] = x
+### assign yield
+x = yield
+### assign yield value
+x = yield 1, 2
+### assign yield chain
+a = b = yield c
+### assign parenthesized yield first
+(a) = yield x
+### augmented assignments
+x += 1
+x -= 1
+x *= 1
+x /= 1
+x %= 1
+x &= 1
+x |= 1
+x ^= 1
+x <<= 1
+x >>= 1
+x **= 1
+x //= 1
+### augmented attribute subscript
+a.b += 1; c[0] -= 2; d[1:2] *= 3
+### augmented yield
+x += yield y
+### augmented parenthesized target
+(x) += 1
+### print bare
+print
+### print values
+print a, b
+### print trailing comma
+print a, b,
+### print single trailing comma
+print a,
+### print dest
+print >>f, a, b
+### print dest trailing comma
+print >>f, a,
+### print dest only
+print >>f
+### print tuple
+print (a, b)
+### print parenthesized
+print(a)
+### print semicolon
+print; print a
+### del single
+del x
+### del multiple
+del a, b.c, d[0], (e, f), [g]
+### del trailing comma
+del a,
+### del slice
+del x[1:2]
+### return bare
+def f():
+    return
+### return value
+def f():
+    return 1
+### return tuple
+def f():
+    return 1, 2
+### break continue
+while 1:
+    break
+    continue
+### raise bare
+raise
+### raise one
+raise E
+### raise two
+raise E, v
+### raise three
+raise E, v, tb
+### raise call
+raise E("x")
+### global
+def f():
+    global a
+    global b, c
+### exec plain
+exec code
+### exec in
+exec code in g
+### exec in two
+exec code in g, l
+### exec string
+exec "x = 1"
+### exec tuple
+exec(code, g)
+### assert
+assert x
+### assert message
+assert x, "message"
+### assert tuple
+assert (x, y)
+### import single
+import os
+### import dotted
+import os.path
+### import as
+import os.path as p
+### import multiple
+import os, sys as s, a.b.c
+### from import
+from os import path
+### from import as
+from os import path as p, sep
+### from import parenthesized
+from os import (path, sep)
+### from import parenthesized trailing comma
+from os import (path, sep,)
+### from import star
+from os import *
+### from relative
+from . import x
+### from relative module
+from .mod import x
+### from relative two
+from .. import x
+### from relative three dots
+from ... import x
+### from relative dotted
+from ..a.b import c as d
+### from dotted
+from a.b.c import d
+### future print function
+from __future__ import print_function
+print(1, 2, sep='', end='')
+### future unicode literals
+from __future__ import unicode_literals
+x = 'a'
+y = b'b'
+z = r'c'
+### future multiple
+from __future__ import absolute_import, division, print_function
+### future parenthesized
+from __future__ import (print_function)
+print(x)
+### if
+if x:
+    pass
+### if else
+if x:
+    pass
+else:
+    pass
+### if elif else
+if a:
+    pass
+elif b:
+    pass
+elif c:
+    pass
+else:
+    pass
+### if elif no else
+if a:
+    x = 1
+elif b:
+    x = 2
+### if inline
+if x: pass
+### if inline multiple
+if x: a = 1; b = 2
+### if inline else
+if x: a
+else: b
+### while
+while x:
+    pass
+### while else
+while x:
+    pass
+else:
+    pass
+### for
+for x in y:
+    pass
+### for tuple target
+for a, b in c:
+    pass
+### for parenthesized target
+for (a, b) in c:
+    pass
+### for list target
+for [a, b] in c:
+    pass
+### for trailing comma target
+for a, in c:
+    pass
+### for attribute target
+for x.y in z:
+    pass
+### for subscript target
+for x[0] in z:
+    pass
+### for else
+for x in y:
+    pass
+else:
+    pass
+### for tuple iter
+for x in a, b:
+    pass
+### try except
+try:
+    pass
+except:
+    pass
+### try except type
+try:
+    pass
+except E:
+    pass
+### try except comma name
+try:
+    pass
+except E, e:
+    pass
+### try except as name
+try:
+    pass
+except E as e:
+    pass
+### try except tuple
+try:
+    pass
+except (A, B), e:
+    pass
+### try except tuple name
+try:
+    pass
+except (A, B), (c, d):
+    pass
+### try multiple except else
+try:
+    pass
+except A:
+    pass
+except B:
+    pass
+else:
+    pass
+### try finally
+try:
+    pass
+finally:
+    pass
+### try except finally
+try:
+    a
+except:
+    b
+finally:
+    c
+### try except else finally
+try:
+    a
+except E:
+    b
+else:
+    c
+finally:
+    d
+### with
+with x:
+    pass
+### with as
+with x as y:
+    pass
+### with as tuple
+with x as (a, b):
+    pass
+### with multiple
+with a as b, c as d, e:
+    pass
+### with attribute target
+with x as self.y:
+    pass
+### def simple
+def f():
+    pass
+### def args
+def f(a, b):
+    pass
+### def defaults
+def f(a, b=1, c=2):
+    pass
+### def varargs
+def f(*args):
+    pass
+### def kwargs
+def f(**kwargs):
+    pass
+### def all
+def f(a, b=1, *args, **kwargs):
+    pass
+### def star kwargs
+def f(*args, **kwargs):
+    pass
+### def trailing comma
+def f(a, b,):
+    pass
+### def tuple parameter
+def f(a, (b, c)):
+    pass
+### def nested tuple parameter
+def f((a, (b, c)), d=1):
+    pass
+### def tuple parameter trailing comma
+def f((a,)):
+    pass
+### def parenthesized parameter
+def f((a)):
+    pass
+### def tuple parameter default
+def f(a, (b, c)=(1, 2)):
+    pass
+### def inline
+def f(): return 1
+### def docstring
+def f():
+    """Docstring."""
+    return 1
+### def nested
+def f():
+    def g():
+        def h():
+            pass
+### decorator
+@dec
+def f():
+    pass
+### decorator dotted
+@a.b.c
+def f():
+    pass
+### decorator call
+@dec(1, x=2)
+def f():
+    pass
+### decorator dotted call
+@a.b(c)
+def f():
+    pass
+### decorator empty call
+@dec()
+def f():
+    pass
+### decorators multiple
+@a
+@b.c
+@d(e)
+def f():
+    pass
+### decorated class
+@dec
+class C:
+    pass
+### class
+class C:
+    pass
+### class base
+class C(B):
+    pass
+### class bases
+class C(A, B):
+    pass
+### class empty parentheses
+class C():
+    pass
+### class parenthesized tuple base
+class C((A, B)):
+    pass
+### class empty tuple base
+class C(()):
+    pass
+### class trailing comma
+class C(A,):
+    pass
+### class call base
+class C(f(x)):
+    pass
+### class methods
+class C(object):
+    x = 1
+    def __init__(self, a):
+        self.a = a
+    @staticmethod
+    def s():
+        pass
+### class inline
+class C: pass
+### nested blocks dedent many
+if a:
+    if b:
+        if c:
+            x = 1
+y = 2
+### deep nesting
+if a:
+ if b:
+  if c:
+   if d:
+    if e:
+     x
+### semicolon after compound inline
+if x: pass;
+### yield statement
+def f():
+    yield
+### yield value statement
+def f():
+    yield 1
+### yield tuple statement
+def f():
+    yield 1, 2
+### lambda statement
+lambda: 0
+### multiple statements
+a = 1
+b = 2
+
+c = 3
+### statement after comment line inside block
+if x:
+    a = 1
+# comment at column 0
+    b = 2
+### blank line with spaces inside block
+if x:
+    a = 1
+
+    b = 2
+### continuation line
+x = 1 + \
+    2
+### continuation in block
+if x:
+    a = 1 + \
+2
+### implicit joining
+x = (1 +
+     2)
+y = [1,
+2,
+        3]
+z = {1:
+  2}
+### implicit joining with comments
+x = (1,  # one
+     2)  # two
+### tab indentation
+if x:
+	a = 1
+	b = 2
+### tab and spaces equivalent
+if x:
+	a = 1
+        b = 2
+### tab after spaces
+if x:
+    	a = 1
+	b = 2
+### docstring module
+"""Module docstring."""
+x = 1
+### trailing whitespace at end [nonl]
+x = 1
+
+### no trailing newline [nonl]
+x = 1
+### no trailing newline block [nonl]
+if x:
+    y = 1
+### comment at end without newline [nonl]
+x = 1
+# end
+### indented comment at end without newline [nonl]
+if x:
+    y = 1
+    # end
+### crlf [crlf]
+if x:
+    a = 1
+else:
+    b = (1,
+         2)
+### crlf comments [crlf]
+# c
+x = 1  # c
+# c
+### crlf continuation [crlf]
+x = 1 + \
+    2
+### crlf triple quoted [crlf]
+x = """a
+b"""

@@ -1,0 +1,762 @@
+### missing colon if
+error 1 4
+mismatched input '\\n' expecting COLON
+### missing colon def
+error 1 7
+mismatched input '\\n' expecting COLON
+### missing paren def
+error 1 6
+no viable alternative at input ':'
+### unclosed paren eof
+error 1 6
+mismatched input '\\n' expecting RPAREN
+### unclosed bracket eof
+error 1 8
+mismatched input '\\n' expecting RBRACK
+### unclosed brace eof
+error 1 8
+no viable alternative at input '\\n'
+### unclosed call eof
+error 1 5
+no viable alternative at input '\\n'
+### unclosed paren then statements
+error 2 2
+mismatched input '=' expecting RPAREN
+### extra closing paren
+error 1 5
+mismatched input ')' expecting NEWLINE
+### extra closing bracket
+error 1 7
+mismatched input ']' expecting NEWLINE
+### unexpected indent
+error 2 4
+mismatched input '' expecting EOF
+### unexpected indent first line
+error 1 2
+mismatched input '  ' expecting EOF
+### unindent mismatch
+error 3 2
+unindent does not match any outer indentation level
+### unindent mismatch deeper
+error 4 6
+unindent does not match any outer indentation level
+### expected indented block
+error 2 0
+mismatched input 'pass' expecting INDENT
+### expected indented block at eof
+error 1 5
+mismatched input '\\n' expecting INDENT
+### expected indented block def eof
+error 1 8
+mismatched input '\\n' expecting INDENT
+### empty suite comment
+error 3 0
+mismatched input 'y' expecting INDENT
+### else without if
+error 1 0
+mismatched input 'else' expecting EOF
+### elif without if
+error 1 0
+mismatched input 'elif' expecting EOF
+### except without try
+error 1 0
+mismatched input 'except' expecting EOF
+### try without except
+error 3 0
+no viable alternative at input 'x'
+### finally without try
+error 1 0
+mismatched input 'finally' expecting EOF
+### assign to literal
+error 1 0
+can't assign to number
+### assign to string
+error 1 0
+can't assign to string
+### assign to call
+error 1 0
+can't assign to function call
+### assign to operator
+error 1 0
+can't assign to operator
+### assign to bool op
+error 1 0
+can't assign to operator
+### assign to lambda
+error 1 0
+can't assign to lambda
+### assign to repr
+error 1 0
+can't assign to repr
+### assign to conditional
+error 1 0
+can't assign to conditional expression
+### assign to list comprehension
+error 1 1
+can't assign to list comprehension
+### assign to generator
+error 1 1
+can't assign to generator expression
+### assign to set comprehension
+error 1 0
+can't assign to set comprehension
+### assign to yield
+error 2 5
+can't assign to yield expression
+### assign to None
+error 1 0
+assignment to None
+### assign to None in tuple
+error 1 3
+assignment to None
+### assign to None attribute ok
+ok
+Module(body=[Assign(targets=[Attribute(value=Name(id='x', ctx=Load()), attr='None', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Attribute(value=Name(id='x', ctx=Load(), lineno=1, col_offset=0), attr='None', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=9), lineno=1, col_offset=0)])
+### assign to empty tuple
+error 1 0
+can't assign to ()
+### assign second target literal
+error 1 4
+can't assign to number
+### assign chain error position
+error 1 8
+can't assign to function call
+### assign to unary accepted
+ok
+Module(body=[Assign(targets=[UnaryOp(op=USub(), operand=Name(id='a', ctx=Store()))], value=Num(n=1))])
+Module(body=[Assign(targets=[UnaryOp(op=USub(), operand=Name(id='a', ctx=Store(), lineno=1, col_offset=1), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=5), lineno=1, col_offset=0)])
+### assign to compare accepted
+ok
+Module(body=[Assign(targets=[Compare(left=Name(id='a', ctx=Store()), ops=[Lt()], comparators=[Name(id='b', ctx=Store())])], value=Num(n=1))])
+Module(body=[Assign(targets=[Compare(left=Name(id='a', ctx=Store(), lineno=1, col_offset=0), ops=[Lt()], comparators=[Name(id='b', ctx=Store(), lineno=1, col_offset=4)], lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=8), lineno=1, col_offset=0)])
+### assign to dict accepted
+ok
+Module(body=[Assign(targets=[Dict(keys=[Name(id='a', ctx=Load())], values=[Name(id='b', ctx=Load())])], value=Num(n=1))])
+Module(body=[Assign(targets=[Dict(keys=[Name(id='a', ctx=Load(), lineno=1, col_offset=1)], values=[Name(id='b', ctx=Load(), lineno=1, col_offset=4)], lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=9), lineno=1, col_offset=0)])
+### assign to set accepted
+ok
+Module(body=[Assign(targets=[Set(elts=[Name(id='a', ctx=Load())])], value=Num(n=1))])
+Module(body=[Assign(targets=[Set(elts=[Name(id='a', ctx=Load(), lineno=1, col_offset=1)], lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=6), lineno=1, col_offset=0)])
+### assign to not accepted
+ok
+Module(body=[Assign(targets=[UnaryOp(op=Not(), operand=Name(id='a', ctx=Store()))], value=Num(n=1))])
+Module(body=[Assign(targets=[UnaryOp(op=Not(), operand=Name(id='a', ctx=Store(), lineno=1, col_offset=4), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=8), lineno=1, col_offset=0)])
+### augmented assign to tuple
+error 1 0
+assignment to tuple illegal for augmented assignment
+### augmented assign to list
+error 1 0
+assignment to list illegal for augmented assignment
+### augmented assign to literal
+error 1 0
+can't assign to number
+### augmented assign to None
+error 1 0
+assignment to None
+### augmented assign to call
+error 1 0
+can't assign to function call
+### delete call
+error 1 4
+can't delete function call
+### delete literal
+error 1 4
+can't delete number
+### delete string
+error 1 4
+can't delete string
+### delete empty tuple
+error 1 4
+can't delete ()
+### delete nested call
+error 1 8
+can't delete function call
+### delete None accepted
+ok
+Module(body=[Delete(targets=[Name(id='None', ctx=Del())])])
+Module(body=[Delete(targets=[Name(id='None', ctx=Del(), lineno=1, col_offset=4)], lineno=1, col_offset=0)])
+### delete operator accepted
+ok
+Module(body=[Delete(targets=[BinOp(left=Name(id='a', ctx=Del()), op=Add(), right=Name(id='b', ctx=Del()))])])
+Module(body=[Delete(targets=[BinOp(left=Name(id='a', ctx=Del(), lineno=1, col_offset=4), op=Add(), right=Name(id='b', ctx=Del(), lineno=1, col_offset=8), lineno=1, col_offset=4)], lineno=1, col_offset=0)])
+### delete comparison
+error 1 6
+mismatched input '<' expecting NEWLINE
+### for target call accepted
+ok
+Module(body=[For(target=Call(func=Name(id='f', ctx=Load()), args=[], keywords=[], starargs=None, kwargs=None), iter=Name(id='x', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[For(target=Call(func=Name(id='f', ctx=Load(), lineno=1, col_offset=4), args=[], keywords=[], starargs=None, kwargs=None, lineno=1, col_offset=4), iter=Name(id='x', ctx=Load(), lineno=1, col_offset=11), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### for target literal accepted
+ok
+Module(body=[For(target=Num(n=1), iter=Name(id='x', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[For(target=Num(n=1, lineno=1, col_offset=4), iter=Name(id='x', ctx=Load(), lineno=1, col_offset=9), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### for target None
+error 1 4
+can't be None
+### for target None tuple first
+error 1 4
+can't be None
+### for target None tuple second
+ok
+Module(body=[For(target=Tuple(elts=[Name(id='a', ctx=Store()), Name(id='None', ctx=Store())], ctx=Store()), iter=Name(id='x', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[For(target=Tuple(elts=[Name(id='a', ctx=Store(), lineno=1, col_offset=4), Name(id='None', ctx=Store(), lineno=1, col_offset=7)], ctx=Store(), lineno=1, col_offset=4), iter=Name(id='x', ctx=Load(), lineno=1, col_offset=15), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### for target None attribute
+error 1 4
+can't be None
+### for target operator accepted
+ok
+Module(body=[For(target=BinOp(left=Name(id='a', ctx=Store()), op=Add(), right=Name(id='b', ctx=Store())), iter=Name(id='c', ctx=Load()), body=[Pass()], orelse=[])])
+Module(body=[For(target=BinOp(left=Name(id='a', ctx=Store(), lineno=1, col_offset=4), op=Add(), right=Name(id='b', ctx=Store(), lineno=1, col_offset=8), lineno=1, col_offset=4), iter=Name(id='c', ctx=Load(), lineno=1, col_offset=13), body=[Pass( lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### comprehension target literal accepted
+ok
+Module(body=[Expr(value=ListComp(elt=Name(id='x', ctx=Load()), generators=[comprehension(target=Num(n=1), iter=Name(id='y', ctx=Load()), ifs=[])]))])
+Module(body=[Expr(value=ListComp(elt=Name(id='x', ctx=Load(), lineno=1, col_offset=1), generators=[comprehension(target=Num(n=1, lineno=1, col_offset=7), iter=Name(id='y', ctx=Load(), lineno=1, col_offset=12), ifs=[])], lineno=1, col_offset=1), lineno=1, col_offset=0)])
+### comprehension target None accepted
+ok
+Module(body=[Expr(value=ListComp(elt=Name(id='x', ctx=Load()), generators=[comprehension(target=Name(id='None', ctx=Store()), iter=Name(id='y', ctx=Load()), ifs=[])]))])
+Module(body=[Expr(value=ListComp(elt=Name(id='x', ctx=Load(), lineno=1, col_offset=1), generators=[comprehension(target=Name(id='None', ctx=Store(), lineno=1, col_offset=7), iter=Name(id='y', ctx=Load(), lineno=1, col_offset=15), ifs=[])], lineno=1, col_offset=1), lineno=1, col_offset=0)])
+### with target literal
+error 1 10
+can't assign to number
+### with target None
+error 1 10
+assignment to None
+### with target call
+error 1 10
+can't assign to function call
+### except name call accepted
+ok
+Module(body=[TryExcept(body=[Pass()], handlers=[ExceptHandler(type=Name(id='E', ctx=Load()), name=Call(func=Name(id='f', ctx=Load()), args=[], keywords=[], starargs=None, kwargs=None), body=[Pass()])], orelse=[])])
+Module(body=[TryExcept(body=[Pass( lineno=2, col_offset=4)], handlers=[ExceptHandler(type=Name(id='E', ctx=Load(), lineno=3, col_offset=7), name=Call(func=Name(id='f', ctx=Load(), lineno=3, col_offset=10), args=[], keywords=[], starargs=None, kwargs=None, lineno=3, col_offset=10), body=[Pass( lineno=4, col_offset=4)], lineno=3, col_offset=0)], orelse=[], lineno=1, col_offset=0)])
+### except name literal accepted
+ok
+Module(body=[TryExcept(body=[Pass()], handlers=[ExceptHandler(type=Name(id='E', ctx=Load()), name=Num(n=1), body=[Pass()])], orelse=[])])
+Module(body=[TryExcept(body=[Pass( lineno=2, col_offset=4)], handlers=[ExceptHandler(type=Name(id='E', ctx=Load(), lineno=3, col_offset=7), name=Num(n=1, lineno=3, col_offset=10), body=[Pass( lineno=4, col_offset=4)], lineno=3, col_offset=0)], orelse=[], lineno=1, col_offset=0)])
+### except name None accepted
+ok
+Module(body=[TryExcept(body=[Pass()], handlers=[ExceptHandler(type=Name(id='E', ctx=Load()), name=Name(id='None', ctx=Store()), body=[Pass()])], orelse=[])])
+Module(body=[TryExcept(body=[Pass( lineno=2, col_offset=4)], handlers=[ExceptHandler(type=Name(id='E', ctx=Load(), lineno=3, col_offset=7), name=Name(id='None', ctx=Store(), lineno=3, col_offset=10), body=[Pass( lineno=4, col_offset=4)], lineno=3, col_offset=0)], orelse=[], lineno=1, col_offset=0)])
+### keyword repeated
+error 1 7
+keyword arguments repeated
+### keyword repeated parenthesized
+error 1 8
+keyword arguments repeated
+### keyword not a name
+error 1 2
+keyword must be a name
+### keyword literal
+error 1 2
+can't assign to number
+### keyword None
+error 1 2
+assignment to None
+### keyword empty tuple
+error 1 2
+can't assign to ()
+### positional after keyword
+error 1 7
+non-keyword arg after keyword arg
+### positional after star
+error 1 6
+only named arguments may follow *expression
+### keyword after star accepted
+ok
+Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[], keywords=[keyword(arg='b', value=Num(n=1))], starargs=Name(id='a', ctx=Load()), kwargs=None))])
+Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load(), lineno=1, col_offset=0), args=[], keywords=[keyword(arg='b', value=Num(n=1, lineno=1, col_offset=8))], starargs=Name(id='a', ctx=Load(), lineno=1, col_offset=3), kwargs=None, lineno=1, col_offset=0), lineno=1, col_offset=0)])
+### star after kwargs
+error 1 5
+mismatched input ',' expecting RPAREN
+### positional after kwargs
+error 1 5
+mismatched input ',' expecting RPAREN
+### double star twice
+error 1 5
+mismatched input ',' expecting RPAREN
+### star twice
+error 1 6
+mismatched input '*' expecting DOUBLESTAR
+### star trailing comma
+error 1 5
+mismatched input ')' expecting DOUBLESTAR
+### kwargs trailing comma
+error 1 5
+mismatched input ',' expecting RPAREN
+### generator not sole argument
+error 1 2
+Generator expression must be parenthesized if not sole argument
+### generator not sole argument second
+error 1 7
+Generator expression must be parenthesized if not sole argument
+### generator with keyword
+ok
+Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[GeneratorExp(elt=Name(id='x', ctx=Load()), generators=[comprehension(target=Name(id='x', ctx=Store()), iter=Name(id='y', ctx=Load()), ifs=[])])], keywords=[keyword(arg='a', value=Num(n=1))], starargs=None, kwargs=None))])
+Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load(), lineno=1, col_offset=0), args=[GeneratorExp(elt=Name(id='x', ctx=Load(), lineno=1, col_offset=2), generators=[comprehension(target=Name(id='x', ctx=Store(), lineno=1, col_offset=8), iter=Name(id='y', ctx=Load(), lineno=1, col_offset=13), ifs=[])], lineno=1, col_offset=2)], keywords=[keyword(arg='a', value=Num(n=1, lineno=1, col_offset=18))], starargs=None, kwargs=None, lineno=1, col_offset=0), lineno=1, col_offset=0)])
+### generator with star
+ok
+Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load()), args=[GeneratorExp(elt=Name(id='x', ctx=Load()), generators=[comprehension(target=Name(id='x', ctx=Store()), iter=Name(id='y', ctx=Load()), ifs=[])])], keywords=[], starargs=Name(id='a', ctx=Load()), kwargs=None))])
+Module(body=[Expr(value=Call(func=Name(id='f', ctx=Load(), lineno=1, col_offset=0), args=[GeneratorExp(elt=Name(id='x', ctx=Load(), lineno=1, col_offset=2), generators=[comprehension(target=Name(id='x', ctx=Store(), lineno=1, col_offset=8), iter=Name(id='y', ctx=Load(), lineno=1, col_offset=13), ifs=[])], lineno=1, col_offset=2)], keywords=[], starargs=Name(id='a', ctx=Load(), lineno=1, col_offset=17), kwargs=None, lineno=1, col_offset=0), lineno=1, col_offset=0)])
+### non default after default
+error 1 11
+non-default argument follows default argument
+### non default after default tuple
+error 1 12
+non-default argument follows default argument
+### parameter None
+error 1 6
+assignment to None
+### parameter None in tuple
+error 1 10
+assignment to None
+### vararg None
+error 1 7
+can't be None
+### kwarg None
+error 1 8
+can't be None
+### function named None
+error 1 4
+can't be None
+### class named None
+error 1 6
+can't be None
+### lambda parameter None
+error 1 7
+assignment to None
+### decorator attribute None
+error 1 3
+can't be None
+### decorator name None accepted
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[Name(id='None', ctx=Load())])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=3, col_offset=4)], decorator_list=[Name(id='None', ctx=Load(), lineno=1, col_offset=1)], lineno=1, col_offset=0)])
+### decorator keyword attribute
+error 1 3
+mismatched input 'if' expecting NAME
+### decorator subscript
+error 1 2
+no viable alternative at input '['
+### decorator without function
+error 2 0
+mismatched input 'x' expecting CLASS
+### decorator call keyword repeated
+error 1 10
+keyword arguments repeated
+### def keyword name
+error 1 4
+rule name_or_print failed predicate: {printFunction}?
+### def print without future
+error 1 4
+rule name_or_print failed predicate: {printFunction}?
+### def print with future
+ok
+Module(body=[ImportFrom(module='__future__', names=[alias(name='print_function', asname=None)], level=0), FunctionDef(name='print', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass()], decorator_list=[])])
+Module(body=[ImportFrom(module='__future__', names=[alias(name='print_function', asname=None)], level=0, lineno=1, col_offset=0), FunctionDef(name='print', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Pass( lineno=3, col_offset=4)], decorator_list=[], lineno=2, col_offset=0)])
+### class keyword base
+error 1 8
+mismatched input 'if' expecting RPAREN
+### lambda star trailing comma
+error 1 10
+mismatched input ':' expecting DOUBLESTAR
+### lambda kwargs then arg
+error 1 10
+mismatched input ',' expecting COLON
+### lambda default then plain
+error 1 12
+non-default argument follows default argument
+### varargs then plain
+error 1 10
+mismatched input 'b' expecting DOUBLESTAR
+### varargs trailing comma
+error 1 9
+mismatched input ')' expecting DOUBLESTAR
+### kwargs trailing comma
+error 1 9
+mismatched input ',' expecting RPAREN
+### bare star
+error 1 7
+mismatched input ')' expecting NAME
+### continue in finally
+error 5 8
+'continue' not supported inside 'finally' clause
+### continue in finally inline
+error 3 13
+'continue' not supported inside 'finally' clause
+### continue in finally nested if
+ok
+Module(body=[For(target=Name(id='x', ctx=Store()), iter=Name(id='y', ctx=Load()), body=[TryFinally(body=[Pass()], finalbody=[If(test=Name(id='x', ctx=Load()), body=[Continue()], orelse=[])])], orelse=[])])
+Module(body=[For(target=Name(id='x', ctx=Store(), lineno=1, col_offset=4), iter=Name(id='y', ctx=Load(), lineno=1, col_offset=9), body=[TryFinally(body=[Pass( lineno=3, col_offset=8)], finalbody=[If(test=Name(id='x', ctx=Load(), lineno=5, col_offset=11), body=[Continue( lineno=6, col_offset=12)], orelse=[], lineno=5, col_offset=8)], lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### continue in finally nested loop
+ok
+Module(body=[TryFinally(body=[Pass()], finalbody=[For(target=Name(id='x', ctx=Store()), iter=Name(id='y', ctx=Load()), body=[Continue()], orelse=[])])])
+Module(body=[TryFinally(body=[Pass( lineno=2, col_offset=4)], finalbody=[For(target=Name(id='x', ctx=Store(), lineno=4, col_offset=8), iter=Name(id='y', ctx=Load(), lineno=4, col_offset=13), body=[Continue( lineno=5, col_offset=8)], orelse=[], lineno=4, col_offset=4)], lineno=1, col_offset=0)])
+### continue in finally nested try
+error 6 12
+'continue' not supported inside 'finally' clause
+### continue in finally nested try else
+error 10 12
+'continue' not supported inside 'finally' clause
+### continue in finally nested try finally
+error 8 12
+'continue' not supported inside 'finally' clause
+### continue in except
+ok
+Module(body=[For(target=Name(id='x', ctx=Store()), iter=Name(id='y', ctx=Load()), body=[TryExcept(body=[Pass()], handlers=[ExceptHandler(type=None, name=None, body=[Continue()])], orelse=[])], orelse=[])])
+Module(body=[For(target=Name(id='x', ctx=Store(), lineno=1, col_offset=4), iter=Name(id='y', ctx=Load(), lineno=1, col_offset=9), body=[TryExcept(body=[Pass( lineno=3, col_offset=8)], handlers=[ExceptHandler(type=None, name=None, body=[Continue( lineno=5, col_offset=8)], lineno=4, col_offset=4)], orelse=[], lineno=2, col_offset=4)], orelse=[], lineno=1, col_offset=0)])
+### continue in finally def
+ok
+Module(body=[TryFinally(body=[Pass()], finalbody=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Continue()], decorator_list=[])])])
+Module(body=[TryFinally(body=[Pass( lineno=2, col_offset=4)], finalbody=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Continue( lineno=5, col_offset=8)], decorator_list=[], lineno=4, col_offset=4)], lineno=1, col_offset=0)])
+### continue outside loop accepted
+ok
+Module(body=[Continue()])
+Module(body=[Continue( lineno=1, col_offset=0)])
+### break outside loop accepted
+ok
+Module(body=[Break()])
+Module(body=[Break( lineno=1, col_offset=0)])
+### return outside function accepted
+ok
+Module(body=[Return(value=Num(n=1))])
+Module(body=[Return(value=Num(n=1, lineno=1, col_offset=7), lineno=1, col_offset=0)])
+### yield outside function accepted
+ok
+Module(body=[Expr(value=Yield(value=Num(n=1)))])
+Module(body=[Expr(value=Yield(value=Num(n=1, lineno=1, col_offset=6), lineno=1, col_offset=0), lineno=1, col_offset=0)])
+### return with yield accepted
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Expr(value=Yield(value=Num(n=1))), Return(value=Num(n=2))], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Expr(value=Yield(value=Num(n=1, lineno=2, col_offset=10), lineno=2, col_offset=4), lineno=2, col_offset=4), Return(value=Num(n=2, lineno=3, col_offset=11), lineno=3, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### import keyword
+error 1 7
+mismatched input 'if' expecting NAME
+### import keyword second part accepted
+ok
+Module(body=[Import(names=[alias(name='a.if.b', asname=None)])])
+Module(body=[Import(names=[alias(name='a.if.b', asname=None)], lineno=1, col_offset=0)])
+### import as keyword
+error 1 12
+mismatched input 'if' expecting NAME
+### from import keyword
+error 1 14
+no viable alternative at input 'if'
+### from keyword module part accepted
+ok
+Module(body=[ImportFrom(module='a.print', names=[alias(name='b', asname=None)], level=0)])
+Module(body=[ImportFrom(module='a.print', names=[alias(name='b', asname=None)], level=0, lineno=1, col_offset=0)])
+### from import trailing comma without parens
+error 1 15
+mismatched input ',' expecting NEWLINE
+### from import parens empty
+error 1 15
+mismatched input ')' expecting NAME
+### from import star parens
+error 1 15
+mismatched input '*' expecting NAME
+### from relative only no import
+error 1 6
+no viable alternative at input '\\n\\n\\n'
+### import star without from
+error 1 7
+mismatched input '*' expecting NAME
+### global keyword
+error 1 7
+mismatched input 'if' expecting NAME
+### global trailing comma
+error 1 9
+mismatched input '\\n\\n\\n' expecting NAME
+### print trailing comma after dest
+error 1 9
+mismatched input ',' expecting NEWLINE
+### print dest comma bad
+error 1 9
+mismatched input ',' expecting NEWLINE
+### print dest comma bad expression
+error 1 9
+mismatched input ',' expecting NEWLINE
+### print double comma
+error 1 8
+mismatched input ',' expecting NEWLINE
+### print after future
+error 2 6
+no viable alternative at input 'a'
+### print as name without future
+error 1 4
+no viable alternative at input 'print'
+### print keyword argument without future
+error 1 2
+no viable alternative at input 'print'
+### exec in tuple
+error 1 14
+mismatched input ',' expecting NEWLINE
+### exec conditional
+error 1 7
+mismatched input 'if' expecting NEWLINE
+### assert three
+error 1 11
+mismatched input ',' expecting NEWLINE
+### raise four
+error 1 13
+mismatched input ',' expecting NEWLINE
+### raise trailing comma
+error 1 8
+no viable alternative at input '\\n\\n\\n'
+### return trailing comma accepted
+ok
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Return(value=Tuple(elts=[Name(id='a', ctx=Load())], ctx=Load()))], decorator_list=[])])
+Module(body=[FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Return(value=Tuple(elts=[Name(id='a', ctx=Load(), lineno=2, col_offset=11)], ctx=Load(), lineno=2, col_offset=11), lineno=2, col_offset=4)], decorator_list=[], lineno=1, col_offset=0)])
+### del trailing comma only
+error 1 4
+no viable alternative at input ','
+### lambda without colon
+error 1 8
+mismatched input '\\n\\n\\n' expecting COLON
+### lambda keyword body
+error 1 8
+no viable alternative at input 'if'
+### if expression without else
+error 1 6
+mismatched input 'if' expecting NEWLINE
+### if expression else without if
+error 1 6
+no viable alternative at input 'else'
+### if expression assign to
+error 1 0
+can't assign to conditional expression
+### else after if expression in assign
+error 1 6
+no viable alternative at input 'else'
+### not without operand
+error 1 7
+no viable alternative at input '\\n\\n\\n'
+### not in incomplete
+error 1 10
+mismatched input 'b' expecting IN
+### is not incomplete
+error 1 12
+no viable alternative at input '\\n\\n\\n'
+### comparison incomplete
+error 1 7
+no viable alternative at input '\\n\\n\\n'
+### binary incomplete
+error 1 7
+no viable alternative at input '\\n\\n\\n'
+### power incomplete
+error 1 8
+no viable alternative at input '\\n\\n\\n'
+### unary incomplete
+error 1 5
+no viable alternative at input '\\n\\n\\n'
+### double operator
+error 1 8
+no viable alternative at input '*'
+### subscript empty
+error 1 2
+no viable alternative at input ']'
+### subscript incomplete
+error 1 2
+mismatched input '\\n' expecting RBRACK
+### slice too many colons
+error 1 7
+mismatched input ':' expecting RBRACK
+### attribute missing
+error 1 2
+mismatched input '\\n\\n\\n' expecting set null
+### attribute number
+error 1 1
+no viable alternative at input '.1'
+### call keyword missing value
+error 1 4
+no viable alternative at input ')'
+### dict missing value
+error 1 3
+no viable alternative at input '}'
+### dict mixed with set
+error 1 8
+mismatched input '}' expecting COLON
+### set mixed with dict
+error 1 5
+mismatched input ':' expecting RCURLY
+### dict comprehension then pair
+error 1 18
+mismatched input 'd' expecting RCURLY
+### list comprehension then element
+ok
+Module(body=[Expr(value=ListComp(elt=Name(id='a', ctx=Load()), generators=[comprehension(target=Name(id='a', ctx=Store()), iter=Tuple(elts=[Name(id='b', ctx=Load()), Name(id='c', ctx=Load())], ctx=Load()), ifs=[])]))])
+Module(body=[Expr(value=ListComp(elt=Name(id='a', ctx=Load(), lineno=1, col_offset=1), generators=[comprehension(target=Name(id='a', ctx=Store(), lineno=1, col_offset=7), iter=Tuple(elts=[Name(id='b', ctx=Load(), lineno=1, col_offset=12), Name(id='c', ctx=Load(), lineno=1, col_offset=15)], ctx=Load(), lineno=1, col_offset=12), ifs=[])], lineno=1, col_offset=1), lineno=1, col_offset=0)])
+### generator trailing comma
+error 1 13
+mismatched input ',' expecting RPAREN
+### generator without parens in list
+error 1 6
+mismatched input 'for' expecting RBRACK
+### repr empty
+error 1 2
+no viable alternative at input '\\n\\n\\n'
+### repr trailing comma
+error 1 4
+no viable alternative at input '\\n\\n\\n'
+### tuple double comma
+error 1 6
+mismatched input ',' expecting NEWLINE
+### starred assignment python3
+error 1 3
+no viable alternative at input '*'
+### keyword only arguments python3
+error 1 10
+mismatched input ',' expecting NAME
+### annotations python3
+error 1 7
+mismatched input ':' expecting RPAREN
+### return annotation python3
+error 1 8
+mismatched input '-' expecting COLON
+### yield from python3
+error 2 10
+mismatched input 'from' expecting NEWLINE
+### async def python3
+error 1 6
+no viable alternative at input 'def'
+### await python3
+error 2 6
+no viable alternative at input 'x'
+### nonlocal statement python3
+error 2 13
+no viable alternative at input 'x'
+### raise from python3
+error 1 8
+no viable alternative at input 'from'
+### fstring python3
+error 1 5
+no viable alternative at input ''a''
+### matrix multiplication python3
+error 1 6
+no viable alternative at input '@'
+### walrus python3
+error 1 6
+no viable alternative at input ':'
+### print function keyword without future
+error 1 12
+mismatched input '=' expecting RPAREN
+### print function sep without future
+error 1 19
+mismatched input '=' expecting RPAREN
+### print function file without future
+error 1 15
+mismatched input '=' expecting RPAREN
+### exec function form accepted
+ok
+Module(body=[Exec(body=Str(s='x'), globals=None, locals=None)])
+Module(body=[Exec(body=Str(s='x', lineno=1, col_offset=5), globals=None, locals=None, lineno=1, col_offset=0)])
+### ellipsis literal python3
+error 1 4
+no viable alternative at input '.'
+### star expression in call python3 unpack
+error 1 6
+mismatched input '*' expecting DOUBLESTAR
+### dict unpack python3
+error 1 5
+no viable alternative at input '**'
+### set unpack python3
+error 1 5
+no viable alternative at input '*'
+### bytes rb prefix
+error 1 6
+no viable alternative at input ''a''
+### unicode string prefix u raw order
+error 1 6
+no viable alternative at input ''a''
+### lambda tuple default python3 style
+error 1 11
+mismatched input ',' expecting NAME
+### semicolon only
+error 1 0
+mismatched input ';' expecting EOF
+### double semicolon
+error 1 6
+mismatched input ';' expecting NEWLINE
+### keyword as name
+error 1 6
+mismatched input '=' expecting NAME
+### keyword as attribute target accepted
+ok
+Module(body=[Assign(targets=[Attribute(value=Name(id='x', ctx=Load()), attr='class', ctx=Store())], value=Num(n=1))])
+Module(body=[Assign(targets=[Attribute(value=Name(id='x', ctx=Load(), lineno=1, col_offset=0), attr='class', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=10), lineno=1, col_offset=0)])
+### colon alone
+error 1 0
+mismatched input ':' expecting EOF
+### backtick unclosed
+error 1 6
+mismatched input '\\n\\n\\n' expecting BACKQUOTE
+### dollar sign
+error 1 4
+no viable alternative at character '$'
+### question mark
+error 1 5
+no viable alternative at character '?'
+### non ascii identifier
+error 1 9
+no viable alternative at input 'e9'
+### exclamation alone dropped
+error 1 6
+no viable alternative at input '\\n\\n\\n'
+### exclamation equal ok
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Compare(left=Name(id='a', ctx=Load()), ops=[NotEq()], comparators=[Name(id='b', ctx=Load())]))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Compare(left=Name(id='a', ctx=Load(), lineno=1, col_offset=4), ops=[NotEq()], comparators=[Name(id='b', ctx=Load(), lineno=1, col_offset=9)], lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### elif after else
+error 5 0
+mismatched input 'elif' expecting EOF
+### double else
+error 5 0
+mismatched input 'else' expecting EOF
+### else on while after else
+error 5 0
+mismatched input 'else' expecting EOF
+### except after finally
+error 5 0
+mismatched input 'except' expecting EOF
+### except after else
+error 7 0
+mismatched input 'except' expecting EOF
+### bare except not last accepted
+ok
+Module(body=[TryExcept(body=[Pass()], handlers=[ExceptHandler(type=None, name=None, body=[Pass()]), ExceptHandler(type=Name(id='E', ctx=Load()), name=None, body=[Pass()])], orelse=[])])
+Module(body=[TryExcept(body=[Pass( lineno=2, col_offset=4)], handlers=[ExceptHandler(type=None, name=None, body=[Pass( lineno=4, col_offset=4)], lineno=3, col_offset=0), ExceptHandler(type=Name(id='E', ctx=Load(), lineno=5, col_offset=7), name=None, body=[Pass( lineno=6, col_offset=4)], lineno=5, col_offset=0)], orelse=[], lineno=1, col_offset=0)])
+### with without target or colon
+error 1 6
+mismatched input '\\n\\n\\n' expecting COLON
+### with as missing target
+error 1 9
+no viable alternative at input ':'
+### class with keyword argument python3
+error 1 17
+mismatched input '=' expecting RPAREN
+### class bases star
+error 1 8
+mismatched input '*' expecting RPAREN
+### deep error inside block
+error 3 15
+no viable alternative at input '\\n'
+### error after valid code
+error 3 7
+no viable alternative at input '\\n'
+### error in second line of statement
+error 2 7
+no viable alternative at input '3'
+### error far after
+error 6 4
+no viable alternative at input '4'
+### indentation in parens ok
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Tuple(elts=[Num(n=1), Num(n=2), Num(n=3)], ctx=Load()))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Tuple(elts=[Num(n=1, lineno=1, col_offset=5), Num(n=2, lineno=2, col_offset=2), Num(n=3, lineno=3, col_offset=8)], ctx=Load(), lineno=1, col_offset=5), lineno=1, col_offset=0)])
+### tab mix inconsistent accepted
+ok
+Module(body=[If(test=Name(id='x', ctx=Load()), body=[Assign(targets=[Name(id='a', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='b', ctx=Store())], value=Num(n=2))], orelse=[])])
+Module(body=[If(test=Name(id='x', ctx=Load(), lineno=1, col_offset=3), body=[Assign(targets=[Name(id='a', ctx=Store(), lineno=2, col_offset=8)], value=Num(n=1, lineno=2, col_offset=12), lineno=2, col_offset=8), Assign(targets=[Name(id='b', ctx=Store(), lineno=3, col_offset=1)], value=Num(n=2, lineno=3, col_offset=5), lineno=3, col_offset=1)], orelse=[], lineno=1, col_offset=0)])
+### form feed then code
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='y', ctx=Store())], value=Num(n=2))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=3, col_offset=0)], value=Num(n=2, lineno=3, col_offset=4), lineno=3, col_offset=0)])

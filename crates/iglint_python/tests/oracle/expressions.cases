@@ -1,0 +1,218 @@
+### names
+x; _y; A1; __init__
+### none true false names
+None; True; False
+### nonlocal async await are names
+nonlocal = async = await = 1
+### attribute
+a.b.c
+### attribute keywords
+x.from; x.print; x.if; x.class; x.def; x.import; x.lambda; x.yield; x.and; x.not; x.exec; x.as; x.with
+### attribute keyword more
+x.assert; x.break; x.continue; x.del; x.elif; x.else; x.except; x.finally; x.for; x.global; x.in; x.is; x.or; x.pass; x.raise; x.return; x.try; x.while
+### attribute on parenthesized
+(a).b; (a + b).c; (a, b).c
+### attribute on literal
+"x".join; (1).real; 1.0.real; 1..real
+### attribute assignment to keyword name
+x.from = 1
+### subscript
+x[0]; x[a]; x[a][b]
+### subscript tuple
+x[1, 2]; x[1,]; x[a, b, c]
+### subscript slices
+x[:]; x[1:]; x[:2]; x[1:2]; x[::]; x[1::]; x[:2:]; x[::3]; x[1:2:3]; x[a:b:c]
+### subscript ext slice
+x[1:2, 3]; x[:, 1]; x[1, :]; x[::, ::]; x[1:2,]
+### subscript ellipsis
+x[...]; x[..., 1]; x[1, ...]; x[. . .]
+### subscript nested
+x[y[0]][z[1:2]]
+### call
+f(); f(1); f(1, 2); f(a)(b)(c)
+### call keywords
+f(a=1); f(1, b=2); f(a=1, b=2)
+### call star
+f(*a); f(1, *a); f(*a, **k); f(1, *a, **k); f(**k); f(1, **k)
+### call star then keyword
+f(*a, b=1); f(*a, b=1, **k); f(1, *a, b=2, **k)
+### call trailing comma
+f(1,); f(a=1,); f(1, 2,)
+### call generator
+f(x for x in y); f(x for x in y if x)
+### call parenthesized keyword
+f((a)=1)
+### call print keyword with future
+from __future__ import print_function
+f(print=1)
+print(1, file=None)
+### unary
+-x; +x; ~x; not x; - - x; -+~x; not not x
+### negative literals
+-1; -1L; -1.5; -1j; -0; -0.0; -0L; -0j
+### negative literal parenthesized
+-(1); -(1.5)
+### double negative literal
+- -1; - -1.5; - -0.0
+### negative literal power
+-2 ** 2; (-2) ** 2; 2 ** -1
+### negative big
+-2147483648; -2147483647; -9999999999999
+### binary arithmetic
+a + b; a - b; a * b; a / b; a % b; a // b; a ** b
+### binary bitwise
+a | b; a ^ b; a & b; a << b; a >> b
+### binary chains
+a + b + c - d; a * b / c % d // e; a | b | c | d; a ^ b ^ c; a & b & c; a << b >> c
+### binary precedence
+a + b * c - d / e ** f ** g | h & i ^ j << k
+### binary parenthesized operands
+(a) + b; (a + b) * c; (a) | b | c; ((a)) * (b) * (c)
+### binary mixed chains
+a * b + c * d; a | b & c | d ^ e
+### power chains
+a ** b ** c; a.b ** c.d; f(x) ** 2; x[0] ** -x[1]
+### compare
+a < b; a > b; a == b; a >= b; a <= b; a != b; a <> b
+### compare membership identity
+a in b; a not in b; a is b; a is not b
+### compare chain
+a < b <= c == d != e <> f in g not in h is i is not j
+### compare parenthesized
+(a) < (b) < c
+### bool ops
+a and b; a or b; a and b and c; a or b or c; a and b or c and d; not a and not b
+### bool parenthesized
+(a or b) and c; (a) or b
+### if expression
+a if b else c
+### if expression nested
+a if b else c if d else e
+### if expression in call
+f(a if b else c)
+### if expression with lambda
+a if b else lambda: c
+### if expression parenthesized body
+(a) if b else c
+### lambda
+lambda: 0
+### lambda args
+lambda a, b=1, *c, **d: a
+### lambda tuple parameter
+lambda (a, b), c: a
+### lambda nested
+lambda a: lambda b: a + b
+### lambda in default
+def f(a=lambda: 1):
+    pass
+### tuple
+1, 2; (1, 2); (1,); (); 1,
+### tuple nested
+((1, 2), (3,), ())
+### list
+[]; [1]; [1, 2]; [1, 2,]; [[1], [2]]
+### list comprehension
+[x for x in y]
+### list comprehension conditions
+[x for x in y if x if not x]
+### list comprehension nested
+[x + y for x in a for y in b if x for z in c]
+### list comprehension tuple target
+[a for a, b in c]
+### list comprehension tuple iter
+[x for x in a, b]
+### list comprehension trailing comma
+[x for x in y,]
+### list comprehension conditional iter
+[x for x in a if b else c]
+### list comprehension conditional condition
+[x for x in y if a if b else c]
+### list comprehension lambda
+[lambda: x for x in y]
+### generator
+(x for x in y)
+### generator conditions
+(x for x in y if x if y)
+### generator nested
+(x for x in a for y in b)
+### generator tuple elt
+((a, b) for a in c)
+### generator in call with other parens
+sum((x for x in y), 0)
+### set
+{1}; {1, 2}; {1, 2,}
+### set comprehension
+{x for x in y}; {x for x in y if x}
+### dict
+{}; {1: 2}; {1: 2, 3: 4}; {1: 2,}
+### dict comprehension
+{k: v for k, v in x}
+### dict comprehension trailing comma
+{k: v for k in x,}
+### dict comprehension in list
+[{k: v for k in x}, 1]
+### repr
+`x`; `1, 2`; `(a)`; ``x``
+### string concatenation
+'a' 'b' "c"
+### string concatenation lines
+x = ('a'
+     'b'
+     "c")
+### numbers int
+0; 1; 42; 2147483647; 2147483648; 4294967296
+### numbers long
+0L; 1l; 12345678901234567890L; 0x10L; 0777L; 0o7L; 0b1L
+### numbers octal hex binary
+0777; 0o777; 0O17; 0x1f; 0XFF; 0b101; 0B11; 00; 007
+### numbers digits threshold
+99999999999; 999999999999; 00000000000000000001; 0x7fffffff; 0x80000000; 0xffffffff; 0b111111111111
+### numbers float
+1.0; 1.; .5; 1e5; 1E5; 1e+5; 1e-5; 1.5e10; 0.1; 3.14159; 1e16; 1e15; 1e-4; 1e-5; 123456789.123
+### numbers float edge
+1e308; 1e309; 2.2250738585072014e-308; 5e-324; 1.7976931348623157e308; 0.30000000000000004
+### numbers float leading zero
+00.5; 09.5; 0e0; 09e1; 0777e1
+### numbers complex
+1j; 1J; 1.5j; .5j; 1e5j; 0j; 09j; 1.j; 1e-5j
+### numbers big
+123456789012345678901234567890; 0xdeadbeefdeadbeefdeadbeef; 0o7777777777777777777777777
+### yield expressions
+def f():
+    x = yield
+    y = (yield)
+    z = (yield 1)
+    f((yield))
+    w = [(yield)]
+### call on literals
+"%s" % x; "a".join(b); [1][0]; {1: 2}[1]
+### complex expression
+f(a, *b, **c)[d:e:f].g(h=i)(j)[k]
+### starargs expression
+f(*a or b, **c and d)
+### keyword value lambda
+f(key=lambda x: x)
+### chained calls with newlines
+x = (foo
+     .bar()
+     .baz)
+### print as name after future in expression
+from __future__ import print_function
+x = print
+y = [print]
+### unicode literal concat with str
+u'a' 'b'
+### parenthesized yield in call
+f((yield x))
+### conditional expression in list
+[a if b else c, d]
+### conditional expression in subscript
+x[a if b else c]
+### lambda in subscript slice
+x[lambda: 0:]
+### not in comparisons
+not a in b; not a is b
+### unary on call and attribute
+-f(x).y; ~x[0]; not f()
+### comparison of bool ops parenthesized
+(a or b) < (c and d)
