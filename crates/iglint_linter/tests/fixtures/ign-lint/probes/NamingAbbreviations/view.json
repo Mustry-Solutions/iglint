@@ -1,0 +1,136 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {},
+  "root": {
+    "type": "ia.container.flex",
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "children": [
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "idleTimer"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {}
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "restartButton"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {}
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "guideLabel"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {}
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "clientPanel"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {}
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "aspectRatio"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {}
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "simpleName"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {}
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "myAPIButton"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {}
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "API Key"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {}
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "Data Table"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {}
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "idle"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {}
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "myButton1"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {}
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "HTTPServer"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {}
+      }
+    ]
+  }
+}

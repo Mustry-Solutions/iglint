@@ -1,0 +1,110 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.PrettyBigIssue",
+    "message": "custom.PrettyBigIssue: custom property 'PrettyBigIssue' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.THISIsQuestionable",
+    "message": "custom.THISIsQuestionable: custom property 'THISIsQuestionable' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.TRYAGAIN",
+    "message": "custom.TRYAGAIN: custom property 'TRYAGAIN' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.goodKey",
+    "message": "custom.goodKey: custom property 'goodKey' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.this_is_illegal",
+    "message": "custom.this_is_illegal: custom property 'this_is_illegal' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.VeryBadPractice",
+    "message": "params.VeryBadPractice: view parameter 'VeryBadPractice' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.GoodLabelName.custom.BadLabelCustomProp",
+    "message": "root.root.children.GoodLabelName.custom.BadLabelCustomProp: custom property 'BadLabelCustomProp' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.GoodLabelName.custom.key",
+    "message": "root.root.children.GoodLabelName.custom.key: custom property 'key' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.GoodLabelName.custom.labelCustomProperty",
+    "message": "root.root.children.GoodLabelName.custom.labelCustomProperty: custom property 'labelCustomProperty' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.GoodLabelName.custom.sneakyBad",
+    "message": "root.root.children.GoodLabelName.custom.sneakyBad: custom property 'sneakyBad' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.FlexContainer.children.EmbeddedPotato.custom.key",
+    "message": "root.root.children.FlexContainer.children.EmbeddedPotato.custom.key: custom property 'key' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.FlexContainer.children.EmbeddedPotato.custom.notSoBad",
+    "message": "root.root.children.FlexContainer.children.EmbeddedPotato.custom.notSoBad: custom property 'notSoBad' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.FlexContainer.children.badEmbeddedPotato_0.custom.VeryVeryBadProperty",
+    "message": "root.root.children.FlexContainer.children.badEmbeddedPotato_0.custom.VeryVeryBadProperty: custom property 'VeryVeryBadProperty' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.bad potato.custom.VeryVeryBadProperty",
+    "message": "root.root.children.bad potato.custom.VeryVeryBadProperty: custom property 'VeryVeryBadProperty' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.anotherBadPotato.custom.VeryVeryBadProperty",
+    "message": "root.root.children.anotherBadPotato.custom.VeryVeryBadProperty: custom property 'VeryVeryBadProperty' is defined but never referenced"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0",
+    "message": "root.root.children[1].FlexContainer.children[1].badEmbeddedPotato_0: Name 'badEmbeddedPotato_0' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[2].bad potato",
+    "message": "root.root.children[2].bad potato: Name 'bad potato' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[3].anotherBadPotato",
+    "message": "root.root.children[3].anotherBadPotato: Name 'anotherBadPotato' doesn't follow PascalCase for component"
+  }
+]

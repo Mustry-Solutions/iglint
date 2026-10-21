@@ -1,0 +1,154 @@
+[
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]",
+    "message": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]: Line 4: Variable name \"MyBadVariable\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]",
+    "message": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]: Line 4: Unused variable 'MyBadVariable' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]",
+    "message": "root.root.children[0].SubmitButton.scripts.messageHandlers[0]: Line 7: Unused variable 'process' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 7
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].SubmitButton.scripts.customMethods[0]",
+    "message": "root.root.children[0].SubmitButton.scripts.customMethods[0]: Line 4: Import outside toplevel (nonexistent_module) (import-outside-toplevel) (C0415)",
+    "code": "C0415",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].SubmitButton.scripts.customMethods[0]",
+    "message": "root.root.children[0].SubmitButton.scripts.customMethods[0]: Line 4: Unused import nonexistent_module (unused-import) (W0611)",
+    "code": "W0611",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].SubmitButton.scripts.customMethods[0]",
+    "message": "root.root.children[0].SubmitButton.scripts.customMethods[0]: Line 7: Unused variable 'complex_function' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 7
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.status.binding.transforms[0]",
+    "message": "propConfig.custom.status.binding.transforms[0]: Line 3: Import outside toplevel (os) (import-outside-toplevel) (C0415)",
+    "code": "C0415",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.status.binding.transforms[0]",
+    "message": "propConfig.custom.status.binding.transforms[0]: Line 4: Import outside toplevel (datetime) (import-outside-toplevel) (C0415)",
+    "code": "C0415",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "propConfig.custom.status.binding.transforms[0]",
+    "message": "propConfig.custom.status.binding.transforms[0]: Line 8: Undefined variable 'missing_var' (undefined-variable) (E0602)",
+    "code": "E0602",
+    "line": 8
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.status.binding.transforms[0]",
+    "message": "propConfig.custom.status.binding.transforms[0]: Line 3: Unused import os (unused-import) (W0611)",
+    "code": "W0611",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.status.binding.transforms[0]",
+    "message": "propConfig.custom.status.binding.transforms[0]: Line 4: Unused import datetime (unused-import) (W0611)",
+    "code": "W0611",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+    "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 3: Import outside toplevel (json) (import-outside-toplevel) (C0415)",
+    "code": "C0415",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+    "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 4: Import outside toplevel (sys) (import-outside-toplevel) (C0415)",
+    "code": "C0415",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+    "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 7: Undefined variable 'undefined_variable' (undefined-variable) (E0602)",
+    "code": "E0602",
+    "line": 7
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+    "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 11: Undefined variable 'some_object' (undefined-variable) (E0602)",
+    "code": "E0602",
+    "line": 11
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+    "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 3: Unused import json (unused-import) (W0611)",
+    "code": "W0611",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+    "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 4: Unused import sys (unused-import) (W0611)",
+    "code": "W0611",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+    "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 11: Unused variable 'result' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 11
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].SubmitButton.events.component.onActionPerformed",
+    "message": "root.root.children[0].SubmitButton.events.component.onActionPerformed: Line 14: Unused variable 'helper_function' (unused-variable) (W0612)",
+    "code": "W0612",
+    "line": 14
+  }
+]

@@ -1,0 +1,1601 @@
+{
+  "default": {
+    "findings": [
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "severity": "error",
+        "node_path": "custom.unusedProp",
+        "message": "custom.unusedProp: custom property 'unusedProp' is defined but never referenced"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "UnusedCustomPropertiesRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Remove unused custom property 'unusedProp'",
+        "violation_message": "custom.unusedProp: custom property 'unusedProp' is defined but never referenced",
+        "operations": [
+          {
+            "op": "delete_key",
+            "json_path": [
+              "custom",
+              "unusedProp"
+            ],
+            "description": "Remove custom.unusedProp value entry",
+            "old_value": true
+          },
+          {
+            "op": "delete_key",
+            "json_path": [
+              "propConfig",
+              "custom.unusedProp"
+            ],
+            "description": "Remove propConfig entry 'custom.unusedProp'",
+            "old_value": {
+              "persistent": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-camel-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].AlarmStatusTable",
+        "message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow camelCase for component (suggestion: 'alarmStatusTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].ShelvedAlarmTable",
+        "message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow camelCase for component (suggestion: 'shelvedAlarmTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow camelCase for component (suggestion: 'statusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'AlarmStatusTable' to 'alarmStatusTable'",
+        "violation_message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow camelCase for component (suggestion: 'alarmStatusTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'AlarmStatusTable' to 'alarmStatusTable'",
+            "old_value": "AlarmStatusTable",
+            "new_value": "alarmStatusTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ShelvedAlarmTable' to 'shelvedAlarmTable'",
+        "violation_message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow camelCase for component (suggestion: 'shelvedAlarmTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ShelvedAlarmTable' to 'shelvedAlarmTable'",
+            "old_value": "ShelvedAlarmTable",
+            "new_value": "shelvedAlarmTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'statusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow camelCase for component (suggestion: 'statusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'statusLabel'",
+            "old_value": "Status Label",
+            "new_value": "statusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'statusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('statusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-snake-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].AlarmStatusTable",
+        "message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow snake_case for component (suggestion: 'alarm_status_table')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].ShelvedAlarmTable",
+        "message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow snake_case for component (suggestion: 'shelved_alarm_table')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow snake_case for component (suggestion: 'status_label')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'AlarmStatusTable' to 'alarm_status_table'",
+        "violation_message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow snake_case for component (suggestion: 'alarm_status_table')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'AlarmStatusTable' to 'alarm_status_table'",
+            "old_value": "AlarmStatusTable",
+            "new_value": "alarm_status_table"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ShelvedAlarmTable' to 'shelved_alarm_table'",
+        "violation_message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow snake_case for component (suggestion: 'shelved_alarm_table')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ShelvedAlarmTable' to 'shelved_alarm_table'",
+            "old_value": "ShelvedAlarmTable",
+            "new_value": "shelved_alarm_table"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'status_label'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow snake_case for component (suggestion: 'status_label')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'status_label'",
+            "old_value": "Status Label",
+            "new_value": "status_label"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'status_label'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('status_label')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-kebab-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].AlarmStatusTable",
+        "message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow kebab-case for component (suggestion: 'alarm-status-table')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].ShelvedAlarmTable",
+        "message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow kebab-case for component (suggestion: 'shelved-alarm-table')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow kebab-case for component (suggestion: 'status-label')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'AlarmStatusTable' to 'alarm-status-table'",
+        "violation_message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow kebab-case for component (suggestion: 'alarm-status-table')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'AlarmStatusTable' to 'alarm-status-table'",
+            "old_value": "AlarmStatusTable",
+            "new_value": "alarm-status-table"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ShelvedAlarmTable' to 'shelved-alarm-table'",
+        "violation_message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow kebab-case for component (suggestion: 'shelved-alarm-table')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ShelvedAlarmTable' to 'shelved-alarm-table'",
+            "old_value": "ShelvedAlarmTable",
+            "new_value": "shelved-alarm-table"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'status-label'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow kebab-case for component (suggestion: 'status-label')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'status-label'",
+            "old_value": "Status Label",
+            "new_value": "status-label"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'status-label'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('status-label')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-screaming-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].AlarmStatusTable",
+        "message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'ALARM_STATUS_TABLE')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].ShelvedAlarmTable",
+        "message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SHELVED_ALARM_TABLE')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'STATUS_LABEL')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'AlarmStatusTable' to 'ALARM_STATUS_TABLE'",
+        "violation_message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'ALARM_STATUS_TABLE')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'AlarmStatusTable' to 'ALARM_STATUS_TABLE'",
+            "old_value": "AlarmStatusTable",
+            "new_value": "ALARM_STATUS_TABLE"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ShelvedAlarmTable' to 'SHELVED_ALARM_TABLE'",
+        "violation_message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SHELVED_ALARM_TABLE')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ShelvedAlarmTable' to 'SHELVED_ALARM_TABLE'",
+            "old_value": "ShelvedAlarmTable",
+            "new_value": "SHELVED_ALARM_TABLE"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'STATUS_LABEL'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'STATUS_LABEL')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'STATUS_LABEL'",
+            "old_value": "Status Label",
+            "new_value": "STATUS_LABEL"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'STATUS_LABEL'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('STATUS_LABEL')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-title-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].AlarmStatusTable",
+        "message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow Title Case for component (suggestion: 'Alarm Status Table')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].ShelvedAlarmTable",
+        "message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow Title Case for component (suggestion: 'Shelved Alarm Table')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'AlarmStatusTable' to 'Alarm Status Table'",
+        "violation_message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow Title Case for component (suggestion: 'Alarm Status Table')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'AlarmStatusTable' to 'Alarm Status Table'",
+            "old_value": "AlarmStatusTable",
+            "new_value": "Alarm Status Table"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ShelvedAlarmTable' to 'Shelved Alarm Table'",
+        "violation_message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow Title Case for component (suggestion: 'Shelved Alarm Table')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ShelvedAlarmTable' to 'Shelved Alarm Table'",
+            "old_value": "ShelvedAlarmTable",
+            "new_value": "Shelved Alarm Table"
+          }
+        ]
+      }
+    ]
+  },
+  "np-lower-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].AlarmStatusTable",
+        "message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'alarm status table')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].ShelvedAlarmTable",
+        "message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'shelved alarm table')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'status label')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'AlarmStatusTable' to 'alarm status table'",
+        "violation_message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'alarm status table')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'AlarmStatusTable' to 'alarm status table'",
+            "old_value": "AlarmStatusTable",
+            "new_value": "alarm status table"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ShelvedAlarmTable' to 'shelved alarm table'",
+        "violation_message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'shelved alarm table')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ShelvedAlarmTable' to 'shelved alarm table'",
+            "old_value": "ShelvedAlarmTable",
+            "new_value": "shelved alarm table"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'status label'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'status label')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'status label'",
+            "old_value": "Status Label",
+            "new_value": "status label"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'status label'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('status label')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-convention-only": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-target-string": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-property-camel": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-component-custom-method-camel-min3": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].AlarmStatusTable",
+        "message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow camelCase for component (suggestion: 'alarmStatusTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].ShelvedAlarmTable",
+        "message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow camelCase for component (suggestion: 'shelvedAlarmTable')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow camelCase for component (suggestion: 'statusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'AlarmStatusTable' to 'alarmStatusTable'",
+        "violation_message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow camelCase for component (suggestion: 'alarmStatusTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'AlarmStatusTable' to 'alarmStatusTable'",
+            "old_value": "AlarmStatusTable",
+            "new_value": "alarmStatusTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ShelvedAlarmTable' to 'shelvedAlarmTable'",
+        "violation_message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow camelCase for component (suggestion: 'shelvedAlarmTable')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ShelvedAlarmTable' to 'shelvedAlarmTable'",
+            "old_value": "ShelvedAlarmTable",
+            "new_value": "shelvedAlarmTable"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'statusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow camelCase for component (suggestion: 'statusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'statusLabel'",
+            "old_value": "Status Label",
+            "new_value": "statusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'statusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('statusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-standard-component-property": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-severity-split": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-four-types": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-min5": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-max10": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].AlarmStatusTable",
+        "message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' is too long (maximum 10 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].ShelvedAlarmTable",
+        "message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' is too long (maximum 10 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' is too long (maximum 10 characters) for component"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' is too long (maximum 10 characters) for component",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-no-numbers": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-forbidden": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-abbrev-no-autodetect": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-pascal-skip-names": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component (suggestion: 'StatusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "np-custom-pattern-prefix": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].AlarmStatusTable",
+        "message": "root.root.children[0].AlarmStatusTable: Name 'AlarmStatusTable' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].ShelvedAlarmTable",
+        "message": "root.root.children[1].ShelvedAlarmTable: Name 'ShelvedAlarmTable' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-custom-method-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-message-handler-snake-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-mixedcase-pattern": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].Status Label",
+        "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'StatusLabel')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": false,
+        "safety_notes": "updates 1 reference(s)",
+        "description": "Rename component 'Status Label' to 'StatusLabel'",
+        "violation_message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase or SCREAMING_SNAKE_CASE for component (suggestion: 'StatusLabel')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Status Label' to 'StatusLabel'",
+            "old_value": "Status Label",
+            "new_value": "StatusLabel"
+          },
+          {
+            "op": "string_replace",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "scripts",
+              "extensionFunctions",
+              0,
+              "script"
+            ],
+            "description": "Update script reference: 'Status Label' -> 'StatusLabel'",
+            "old_substring": "getSibling('Status Label')",
+            "new_substring": "getSibling('StatusLabel')"
+          }
+        ]
+      }
+    ]
+  },
+  "poll-1000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-5000": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-30000": {
+    "findings": [],
+    "fixes": []
+  },
+  "pylint-e-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-case-insensitive": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-sibling-only-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-scripts": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-expressions": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-property-bindings": {
+    "findings": [],
+    "fixes": []
+  },
+  "ecd-tight": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-private": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.unusedProp",
+        "message": "custom.unusedProp: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.usedProp",
+        "message": "custom.usedProp: custom property access mode is PUBLIC, expected PRIVATE"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.unusedProp' to PRIVATE",
+        "violation_message": "custom.unusedProp: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.unusedProp",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.unusedProp'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.usedProp' to PRIVATE",
+        "violation_message": "custom.usedProp: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.usedProp",
+              "access"
+            ],
+            "description": "Set access=PRIVATE on propConfig entry 'custom.usedProp'",
+            "old_value": null,
+            "new_value": "PRIVATE"
+          }
+        ]
+      }
+    ]
+  },
+  "access-public": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-protected-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.unusedProp",
+        "message": "custom.unusedProp: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.usedProp",
+        "message": "custom.usedProp: custom property access mode is PUBLIC, expected PROTECTED"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.unusedProp' to PROTECTED",
+        "violation_message": "custom.unusedProp: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.unusedProp",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.unusedProp'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.usedProp' to PROTECTED",
+        "violation_message": "custom.usedProp: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.usedProp",
+              "access"
+            ],
+            "description": "Set access=PROTECTED on propConfig entry 'custom.usedProp'",
+            "old_value": null,
+            "new_value": "PROTECTED"
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-false": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-true": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-false-no-exempt": {
+    "findings": [],
+    "fixes": []
+  }
+}

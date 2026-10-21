@@ -1,0 +1,68 @@
+[
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].SCREAMING_SNAKE_CASE_LABEL",
+    "message": "root.root.children[1].SCREAMING_SNAKE_CASE_LABEL: Name 'SCREAMING_SNAKE_CASE_LABEL' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[2].DAT_02_TT_123_A",
+    "message": "root.root.children[2].DAT_02_TT_123_A: Name 'DAT_02_TT_123_A' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[4].UPPER_WITH_NUMBERS_456",
+    "message": "root.root.children[4].UPPER_WITH_NUMBERS_456: Name 'UPPER_WITH_NUMBERS_456' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[5].camelCaseInvalid",
+    "message": "root.root.children[5].camelCaseInvalid: Name 'camelCaseInvalid' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[6].snake_case_invalid",
+    "message": "root.root.children[6].snake_case_invalid: Name 'snake_case_invalid' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[7].kebab-case-invalid",
+    "message": "root.root.children[7].kebab-case-invalid: Name 'kebab-case-invalid' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[8].Mixed_PascalCase_Invalid",
+    "message": "root.root.children[8].Mixed_PascalCase_Invalid: Name 'Mixed_PascalCase_Invalid' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[13].API_CLIENT_HTTP",
+    "message": "root.root.children[13].API_CLIENT_HTTP: Name 'API_CLIENT_HTTP' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[14].HTTP_API_URL",
+    "message": "root.root.children[14].HTTP_API_URL: Name 'HTTP_API_URL' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[15].TT_DAT_API_123",
+    "message": "root.root.children[15].TT_DAT_API_123: Name 'TT_DAT_API_123' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[17].CPU_GPU_MONITOR",
+    "message": "root.root.children[17].CPU_GPU_MONITOR: Name 'CPU_GPU_MONITOR' doesn't follow PascalCase for component"
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.unusedProp",
+    "message": "custom.unusedProp: custom property 'unusedProp' is defined but never referenced"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[2].Status Label",
+    "message": "root.root.children[2].Status Label: Name 'Status Label' doesn't follow PascalCase for component"
+  }
+]

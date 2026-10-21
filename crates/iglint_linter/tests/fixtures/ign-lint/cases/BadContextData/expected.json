@@ -1,0 +1,102 @@
+[
+  {
+    "rule": "ExcessiveContextDataRule",
+    "severity": "error",
+    "node_path": "custom.filteredData",
+    "message": "custom.filteredData: Custom property 'filteredData' contains 784 items. Large datasets should be stored in databases, not view JSON. Maximum recommended: 50 items."
+  },
+  {
+    "rule": "ExcessiveContextDataRule",
+    "severity": "error",
+    "node_path": "custom.paths",
+    "message": "custom.paths: Custom property 'paths' contains 784 items. Large datasets should be stored in databases, not view JSON. Maximum recommended: 50 items."
+  },
+  {
+    "rule": "ExcessiveContextDataRule",
+    "severity": "error",
+    "node_path": "custom",
+    "message": "custom: Contains 20456 total data points across all custom properties. Large volumes of data should be stored in databases, not view JSON. Maximum recommended: 1000 data points."
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].Table.events.component.onRowClick",
+    "message": "root.root.children[1].Table.events.component.onRowClick: Line 3: Bad indentation. Found 4 tabs, expected 1 (bad-indentation) (W0311)",
+    "code": "W0311",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].Table.events.component.onRowClick",
+    "message": "root.root.children[1].Table.events.component.onRowClick: Line 4: Bad indentation. Found 4 tabs, expected 1 (bad-indentation) (W0311)",
+    "code": "W0311",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].Table.events.component.onRowClick",
+    "message": "root.root.children[1].Table.events.component.onRowClick: Line 5: Bad indentation. Found 4 tabs, expected 1 (bad-indentation) (W0311)",
+    "code": "W0311",
+    "line": 5
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "propConfig.custom.filteredData.binding.transforms[0]",
+    "message": "propConfig.custom.filteredData.binding.transforms[0]: Line 2: Undefined variable 'Perspective' (undefined-variable) (E0602)",
+    "code": "E0602",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].Table.events.component.onRowClick",
+    "message": "root.root.children[1].Table.events.component.onRowClick: Line 1: Function name \"onRowClick\" doesn't conform to '^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern ('^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[1].Table.propConfig.props.columns[2].filter.string.value",
+    "message": "root.root.children[1].Table.propConfig.props.columns[2].filter.string.value: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[1].Table.propConfig.props.columns[3].filter.string.value",
+    "message": "root.root.children[1].Table.propConfig.props.columns[3].filter.string.value: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.children[1].Table.propConfig.props.columns[4].filter.string.value",
+    "message": "root.root.children[1].Table.propConfig.props.columns[4].filter.string.value: Property Binding contains '../' and 1 other object traversal pattern(s) which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.children[1].Table.propConfig.props.columns[3].filter.string.value",
+    "message": "root.root.children[1].Table.propConfig.props.columns[3].filter.string.value: Property Binding references non-existent component 'Filters/Equipment/Equipment Dropdown' in: ../Filters/Equipment/Equipment Dropdown.props.value"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Filters.children[0].Wing.children[1].Wing Dropdown",
+    "message": "root.root.children[0].Filters.children[0].Wing.children[1].Wing Dropdown: Name 'Wing Dropdown' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Filters.children[1].Section.children[1].Section Dropdown",
+    "message": "root.root.children[0].Filters.children[1].Section.children[1].Section Dropdown: Name 'Section Dropdown' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Filters.children[2].Device.children[1].Device Dropdown",
+    "message": "root.root.children[0].Filters.children[2].Device.children[1].Device Dropdown: Name 'Device Dropdown' doesn't follow PascalCase for component"
+  }
+]

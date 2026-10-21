@@ -1,0 +1,32 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.CUSTOM_VIEW_PARAM",
+    "message": "custom.CUSTOM_VIEW_PARAM: custom property 'CUSTOM_VIEW_PARAM' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.VIEW_PARAM",
+    "message": "params.VIEW_PARAM: view parameter 'VIEW_PARAM' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.ICON_UPPER_CASE.custom.COMPONENT_CUSTOM_PARAM",
+    "message": "root.root.children.ICON_UPPER_CASE.custom.COMPONENT_CUSTOM_PARAM: custom property 'COMPONENT_CUSTOM_PARAM' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.custom.ROOT_CUSTOM_PARAM",
+    "message": "root.root.custom.ROOT_CUSTOM_PARAM: custom property 'ROOT_CUSTOM_PARAM' is defined but never referenced"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].ICON_UPPER_CASE",
+    "message": "root.root.children[0].ICON_UPPER_CASE: Name 'ICON_UPPER_CASE' doesn't follow PascalCase for component"
+  }
+]

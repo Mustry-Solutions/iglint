@@ -1,0 +1,117 @@
+{
+  "custom": {
+    "v": 1
+  },
+  "params": {},
+  "props": {},
+  "propConfig": {
+    "custom.v": {
+      "binding": {
+        "type": "expr",
+        "config": {
+          "expression": "{../root.props.text}"
+        }
+      }
+    }
+  },
+  "root": {
+    "type": "ia.container.flex",
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "children": [
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "Left"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "{../Right.props.text} + {./Nope.props.text}"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.input.button",
+        "meta": {
+          "name": "Right"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "type": "script",
+              "scope": "G",
+              "config": {
+                "script": "\tself.getSibling(\"Missing\").props.text = 1\n\tself.parent.getChild('Left').props.text = 2\n\tself.parent.parent.getChild('X')"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "Abs"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "property",
+              "config": {
+                "path": "/root/Left.props.text"
+              }
+            }
+          },
+          "props.style.color": {
+            "binding": {
+              "type": "property",
+              "config": {
+                "path": "/root/Ghost.props.text"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "Deep"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "{.../Left.props.text}"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

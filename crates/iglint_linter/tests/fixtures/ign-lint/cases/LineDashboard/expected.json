@@ -1,0 +1,304 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.custom.key",
+    "message": "root.root.custom.key: custom property 'key' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.custom.urlParams",
+    "message": "root.root.custom.urlParams: custom property 'urlParams' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.adjusted_time",
+    "message": "custom.adjusted_time: custom property 'adjusted_time' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.end_date",
+    "message": "custom.end_date: custom property 'end_date' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.start_date",
+    "message": "custom.start_date: custom property 'start_date' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.update",
+    "message": "custom.update: custom property 'update' is defined but never referenced"
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.scripts.messageHandlers[0]",
+    "message": "root.root.scripts.messageHandlers[0]: Line 2: Quote delimiter ' is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.scripts.messageHandlers[0]",
+    "message": "root.root.scripts.messageHandlers[0]: Line 3: Quote delimiter ' is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.scripts.messageHandlers[0]",
+    "message": "root.root.scripts.messageHandlers[0]: Line 4: Quote delimiter ' is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 4
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.scripts.messageHandlers[0]",
+    "message": "root.root.scripts.messageHandlers[0]: Line 5: Quote delimiter ' is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 5
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[1].Custom Dashboard Button.scripts.customMethods[0]",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[1].Custom Dashboard Button.scripts.customMethods[0]: Line 2: Quote delimiter ' is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[1].Custom Dashboard Button.scripts.customMethods[0]",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[1].Custom Dashboard Button.scripts.customMethods[0]: Line 2: Quote delimiter ' is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.kpiData.binding.transforms[0]",
+    "message": "propConfig.custom.kpiData.binding.transforms[0]: Line 3: Quote delimiter ' is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 3
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.kpiTargets.binding.transforms[0]",
+    "message": "propConfig.custom.kpiTargets.binding.transforms[0]: Line 2: Quote delimiter ' is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[0].Line Name.propConfig.props.text.binding.transforms[0]",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[0].Line Name.propConfig.props.text.binding.transforms[0]: Line 2: Quote delimiter ' is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[2].KPI Repeater Static.events.dom.onClick",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[2].KPI Repeater Static.events.dom.onClick: Line 2: Quote delimiter ' is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[2].KPI Repeater Static.events.dom.onClick",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[2].KPI Repeater Static.events.dom.onClick: Line 2: Quote delimiter ' is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[2].KPI Repeater Static.events.dom.onClick",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[2].KPI Repeater Static.events.dom.onClick: Line 2: Quote delimiter ' is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[1].Custom Dashboard Button.scripts.customMethods[0]",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[1].Custom Dashboard Button.scripts.customMethods[0]: Line 1: Function name \"openCustomDash\" doesn't conform to '^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern ('^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[1].Custom Dashboard Button.scripts.customMethods[0]",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[1].Custom Dashboard Button.scripts.customMethods[0]: Line 1: Argument name \"newTab\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[1].Breadcrumb.scripts.customMethods[0]",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[1].Breadcrumb.scripts.customMethods[0]: Line 1: Function name \"navigateBreadcrumb\" doesn't conform to '^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern ('^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[1].Breadcrumb.scripts.customMethods[0]",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[1].Breadcrumb.scripts.customMethods[0]: Line 1: Argument name \"newTab\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[1].Breadcrumb.scripts.customMethods[0]",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[1].Breadcrumb.scripts.customMethods[0]: Line 2: Undefined variable 'url' (undefined-variable) (E0602)",
+    "code": "E0602",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.kpiData.binding.transforms[0]",
+    "message": "propConfig.custom.kpiData.binding.transforms[0]: Line 2: Disallowed name \"data\" (disallowed-name) (C0104)",
+    "code": "C0104",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.kpiTargets.binding.transforms[0]",
+    "message": "propConfig.custom.kpiTargets.binding.transforms[0]: Line 2: Use a generator instead 'any(val == None or val == '' for val in dict(value).values())' (use-a-generator) (R1729)",
+    "code": "R1729",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.kpiTargets.binding.transforms[0]",
+    "message": "propConfig.custom.kpiTargets.binding.transforms[0]: Line 2: Consider merging these comparisons with 'in' by using 'val in (None, '')'. Use a set instead if elements are hashable. (consider-using-in) (R1714)",
+    "code": "R1714",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.kpiTargets.binding.transforms[0]",
+    "message": "propConfig.custom.kpiTargets.binding.transforms[0]: Line 2: Comparison 'val == None' should be 'val is None' (singleton-comparison) (C0121)",
+    "code": "C0121",
+    "line": 2
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[0].Line Name.events.dom.onContextMenu",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[0].Line Name.events.dom.onContextMenu: Line 1: Function name \"onContextMenu\" doesn't conform to '^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern ('^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[0].Line Name.events.dom.onDoubleClick",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[0].Line Name.events.dom.onDoubleClick: Line 1: Function name \"onDoubleClick\" doesn't conform to '^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern ('^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[1].Breadcrumb.events.component.onItemClicked",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[1].Breadcrumb.events.component.onItemClicked: Line 1: Function name \"onItemClicked\" doesn't conform to '^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern ('^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[1].Breadcrumb.events.dom.onPointerEnter",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[1].Breadcrumb.events.dom.onPointerEnter: Line 1: Function name \"onPointerEnter\" doesn't conform to '^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern ('^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[0].Line Image",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[0].Line Image: Name 'Line Image' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[0].Line Name",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[0].Line Name: Name 'Line Name' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[1].Custom Dashboard Button",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels.children[0].Name.children[1].Custom Dashboard Button: Name 'Custom Dashboard Button' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[1].Left Labels: Name 'Left Labels' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[0].FlexContainer.children[2].KPI Repeater Static",
+    "message": "root.root.children[0].Header.children[0].FlexContainer.children[2].KPI Repeater Static: Name 'KPI Repeater Static' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Header.children[1].Production Picker",
+    "message": "root.root.children[0].Header.children[1].Production Picker: Name 'Production Picker' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].Data.children[0].Left Container.children[0].Production Orders",
+    "message": "root.root.children[1].Data.children[0].Left Container.children[0].Production Orders: Name 'Production Orders' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].Data.children[0].Left Container.children[1].Equipment States",
+    "message": "root.root.children[1].Data.children[0].Left Container.children[1].Equipment States: Name 'Equipment States' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].Data.children[0].Left Container.children[2].KPI Charts",
+    "message": "root.root.children[1].Data.children[0].Left Container.children[2].KPI Charts: Name 'KPI Charts' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].Data.children[0].Left Container",
+    "message": "root.root.children[1].Data.children[0].Left Container: Name 'Left Container' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].Data.children[1].SplitContainer.children[1].Top Drivers",
+    "message": "root.root.children[1].Data.children[1].SplitContainer.children[1].Top Drivers: Name 'Top Drivers' doesn't follow PascalCase for component"
+  }
+]

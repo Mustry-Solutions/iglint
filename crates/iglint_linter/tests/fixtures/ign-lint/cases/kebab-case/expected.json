@@ -1,0 +1,32 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.custom-view-param",
+    "message": "custom.custom-view-param: custom property 'custom-view-param' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.view-param",
+    "message": "params.view-param: view parameter 'view-param' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.icon-kebab-case.custom.component-custom-param",
+    "message": "root.root.children.icon-kebab-case.custom.component-custom-param: custom property 'component-custom-param' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.custom.root-custom-param",
+    "message": "root.root.custom.root-custom-param: custom property 'root-custom-param' is defined but never referenced"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].icon-kebab-case",
+    "message": "root.root.children[0].icon-kebab-case: Name 'icon-kebab-case' doesn't follow PascalCase for component"
+  }
+]

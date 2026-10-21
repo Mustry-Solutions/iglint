@@ -1,0 +1,74 @@
+[
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].NowEmpty.propConfig.props.text",
+    "message": "root.root.children[0].NowEmpty.propConfig.props.text: 'now()'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[2].NowDynamic.propConfig.props.text",
+    "message": "root.root.children[2].NowDynamic.propConfig.props.text: 'now({view.custom.rate})'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[3].NowMixed.propConfig.props.text",
+    "message": "root.root.children[3].NowMixed.propConfig.props.text: 'now(500) + now(20000)'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[6].SnowCall.propConfig.props.text",
+    "message": "root.root.children[6].SnowCall.propConfig.props.text: 'snow(5)'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[7].NowInString.propConfig.props.text",
+    "message": "root.root.children[7].NowInString.propConfig.props.text: ''call now() later''"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[8].NowSpaced.propConfig.props.text",
+    "message": "root.root.children[8].NowSpaced.propConfig.props.text: 'now ( 2000 )'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[9].NowNegative.propConfig.props.text",
+    "message": "root.root.children[9].NowNegative.propConfig.props.text: 'now(-1)'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[14].ExprTransform.propConfig.props.text.binding.transforms[0]",
+    "message": "root.root.children[14].ExprTransform.propConfig.props.text.binding.transforms[0]: 'now(1)'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[13].Struct.propConfig.props.text.a",
+    "message": "root.root.children[13].Struct.propConfig.props.text.a: 'now()'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[10].TagExpr.propConfig.props.text",
+    "message": "root.root.children[10].TagExpr.propConfig.props.text: ''[default]A' + now(100)'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[11].TagIndirect.propConfig.props.text.references.a",
+    "message": "root.root.children[11].TagIndirect.propConfig.props.text.references.a: 'now()'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[12].Query.propConfig.props.data.t",
+    "message": "root.root.children[12].Query.propConfig.props.data.t: 'now(10)'"
+  }
+]

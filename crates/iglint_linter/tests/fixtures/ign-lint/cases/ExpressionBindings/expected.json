@@ -1,0 +1,88 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.test",
+    "message": "custom.test: custom property 'test' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.unusedCustomProp",
+    "message": "custom.unusedCustomProp: custom property 'unusedCustomProp' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.outputWithoutBinding",
+    "message": "params.outputWithoutBinding: view parameter 'outputWithoutBinding' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.unusedInputParam",
+    "message": "params.unusedInputParam: view parameter 'unusedInputParam' is defined but never referenced"
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.test.onChange",
+    "message": "propConfig.custom.test.onChange: Line 1: Function name \"valueChanged\" doesn't conform to '^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern ('^(?:(?P<exempt>setUp|tearDown|setUpModule|tearDownModule|onMessageReceived|onClick|onActionPerformed|onStartup|onShutdown|onBreakpointHit|onBreakpointCleared|onMouseOut|onMouseOver)|(?P<camel_case>_?[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_?[a-z][a-z0-9_]*))$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.test.onChange",
+    "message": "propConfig.custom.test.onChange: Line 1: Argument name \"previousValue\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.test.onChange",
+    "message": "propConfig.custom.test.onChange: Line 1: Argument name \"currentValue\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "propConfig.custom.test.onChange",
+    "message": "propConfig.custom.test.onChange: Line 1: Argument name \"missedEvents\" doesn't conform to '^[a-z_][a-z0-9_]*$' pattern ('^[a-z_][a-z0-9_]*$' pattern) (invalid-name) (C0103)",
+    "code": "C0103",
+    "line": 1
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "propConfig.custom.expressionPolling",
+    "message": "propConfig.custom.expressionPolling: 'now()'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "propConfig.custom.transformPolling.binding.transforms[0]",
+    "message": "propConfig.custom.transformPolling.binding.transforms[0]: 'now()'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "propConfig.custom.transformPolling.binding.transforms[1]",
+    "message": "propConfig.custom.transformPolling.binding.transforms[1]: 'now(5000)'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].BadPollingDateTimeInput.propConfig.props.value",
+    "message": "root.root.children[0].BadPollingDateTimeInput.propConfig.props.value: 'now()'"
+  },
+  {
+    "rule": "PollingIntervalRule",
+    "severity": "error",
+    "node_path": "propConfig.custom.expressionStructurePolling.badPolling",
+    "message": "propConfig.custom.expressionStructurePolling.badPolling: 'now()'"
+  }
+]

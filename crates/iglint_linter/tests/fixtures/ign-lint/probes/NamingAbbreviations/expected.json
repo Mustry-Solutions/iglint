@@ -1,0 +1,68 @@
+[
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].idleTimer",
+    "message": "root.root.children[0].idleTimer: Name 'idleTimer' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[1].restartButton",
+    "message": "root.root.children[1].restartButton: Name 'restartButton' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[2].guideLabel",
+    "message": "root.root.children[2].guideLabel: Name 'guideLabel' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[3].clientPanel",
+    "message": "root.root.children[3].clientPanel: Name 'clientPanel' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[4].aspectRatio",
+    "message": "root.root.children[4].aspectRatio: Name 'aspectRatio' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[5].simpleName",
+    "message": "root.root.children[5].simpleName: Name 'simpleName' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[6].myAPIButton",
+    "message": "root.root.children[6].myAPIButton: Name 'myAPIButton' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[7].API Key",
+    "message": "root.root.children[7].API Key: Name 'API Key' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[8].Data Table",
+    "message": "root.root.children[8].Data Table: Name 'Data Table' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[9].idle",
+    "message": "root.root.children[9].idle: Name 'idle' doesn't follow PascalCase for component"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[10].myButton1",
+    "message": "root.root.children[10].myButton1: Name 'myButton1' doesn't follow PascalCase for component"
+  }
+]

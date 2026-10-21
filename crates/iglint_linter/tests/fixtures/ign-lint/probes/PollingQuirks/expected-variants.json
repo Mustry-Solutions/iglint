@@ -1,0 +1,3596 @@
+{
+  "default": {
+    "findings": [
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].NowEmpty.propConfig.props.text",
+        "message": "root.root.children[0].NowEmpty.propConfig.props.text: 'now()'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].NowDynamic.propConfig.props.text",
+        "message": "root.root.children[2].NowDynamic.propConfig.props.text: 'now({view.custom.rate})'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].NowMixed.propConfig.props.text",
+        "message": "root.root.children[3].NowMixed.propConfig.props.text: 'now(500) + now(20000)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[6].SnowCall.propConfig.props.text",
+        "message": "root.root.children[6].SnowCall.propConfig.props.text: 'snow(5)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[7].NowInString.propConfig.props.text",
+        "message": "root.root.children[7].NowInString.propConfig.props.text: ''call now() later''"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[8].NowSpaced.propConfig.props.text",
+        "message": "root.root.children[8].NowSpaced.propConfig.props.text: 'now ( 2000 )'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[9].NowNegative.propConfig.props.text",
+        "message": "root.root.children[9].NowNegative.propConfig.props.text: 'now(-1)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[14].ExprTransform.propConfig.props.text.binding.transforms[0]",
+        "message": "root.root.children[14].ExprTransform.propConfig.props.text.binding.transforms[0]: 'now(1)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[13].Struct.propConfig.props.text.a",
+        "message": "root.root.children[13].Struct.propConfig.props.text.a: 'now()'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[10].TagExpr.propConfig.props.text",
+        "message": "root.root.children[10].TagExpr.propConfig.props.text: ''[default]A' + now(100)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[11].TagIndirect.propConfig.props.text.references.a",
+        "message": "root.root.children[11].TagIndirect.propConfig.props.text.references.a: 'now()'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[12].Query.propConfig.props.data.t",
+        "message": "root.root.children[12].Query.propConfig.props.data.t: 'now(10)'"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-component-error": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-camel-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].NowEmpty",
+        "message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow camelCase for component (suggestion: 'nowEmpty')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].NowZero",
+        "message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow camelCase for component (suggestion: 'nowZero')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].NowDynamic",
+        "message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow camelCase for component (suggestion: 'nowDynamic')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].NowMixed",
+        "message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow camelCase for component (suggestion: 'nowMixed')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[4].NowMixedDynamic",
+        "message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow camelCase for component (suggestion: 'nowMixedDynamic')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[5].SnowWord",
+        "message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow camelCase for component (suggestion: 'snowWord')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[6].SnowCall",
+        "message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow camelCase for component (suggestion: 'snowCall')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[7].NowInString",
+        "message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow camelCase for component (suggestion: 'nowInString')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[8].NowSpaced",
+        "message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow camelCase for component (suggestion: 'nowSpaced')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[9].NowNegative",
+        "message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow camelCase for component (suggestion: 'nowNegative')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[10].TagExpr",
+        "message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow camelCase for component (suggestion: 'tagExpr')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[11].TagIndirect",
+        "message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow camelCase for component (suggestion: 'tagIndirect')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[12].Query",
+        "message": "root.root.children[12].Query: Name 'Query' doesn't follow camelCase for component (suggestion: 'query')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[13].Struct",
+        "message": "root.root.children[13].Struct: Name 'Struct' doesn't follow camelCase for component (suggestion: 'struct')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[14].ExprTransform",
+        "message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow camelCase for component (suggestion: 'exprTransform')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowEmpty' to 'nowEmpty'",
+        "violation_message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow camelCase for component (suggestion: 'nowEmpty')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowEmpty' to 'nowEmpty'",
+            "old_value": "NowEmpty",
+            "new_value": "nowEmpty"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowZero' to 'nowZero'",
+        "violation_message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow camelCase for component (suggestion: 'nowZero')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowZero' to 'nowZero'",
+            "old_value": "NowZero",
+            "new_value": "nowZero"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowDynamic' to 'nowDynamic'",
+        "violation_message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow camelCase for component (suggestion: 'nowDynamic')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowDynamic' to 'nowDynamic'",
+            "old_value": "NowDynamic",
+            "new_value": "nowDynamic"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixed' to 'nowMixed'",
+        "violation_message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow camelCase for component (suggestion: 'nowMixed')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixed' to 'nowMixed'",
+            "old_value": "NowMixed",
+            "new_value": "nowMixed"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixedDynamic' to 'nowMixedDynamic'",
+        "violation_message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow camelCase for component (suggestion: 'nowMixedDynamic')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              4,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixedDynamic' to 'nowMixedDynamic'",
+            "old_value": "NowMixedDynamic",
+            "new_value": "nowMixedDynamic"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowWord' to 'snowWord'",
+        "violation_message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow camelCase for component (suggestion: 'snowWord')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowWord' to 'snowWord'",
+            "old_value": "SnowWord",
+            "new_value": "snowWord"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowCall' to 'snowCall'",
+        "violation_message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow camelCase for component (suggestion: 'snowCall')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowCall' to 'snowCall'",
+            "old_value": "SnowCall",
+            "new_value": "snowCall"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowInString' to 'nowInString'",
+        "violation_message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow camelCase for component (suggestion: 'nowInString')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowInString' to 'nowInString'",
+            "old_value": "NowInString",
+            "new_value": "nowInString"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowSpaced' to 'nowSpaced'",
+        "violation_message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow camelCase for component (suggestion: 'nowSpaced')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowSpaced' to 'nowSpaced'",
+            "old_value": "NowSpaced",
+            "new_value": "nowSpaced"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowNegative' to 'nowNegative'",
+        "violation_message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow camelCase for component (suggestion: 'nowNegative')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              9,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowNegative' to 'nowNegative'",
+            "old_value": "NowNegative",
+            "new_value": "nowNegative"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagExpr' to 'tagExpr'",
+        "violation_message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow camelCase for component (suggestion: 'tagExpr')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagExpr' to 'tagExpr'",
+            "old_value": "TagExpr",
+            "new_value": "tagExpr"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagIndirect' to 'tagIndirect'",
+        "violation_message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow camelCase for component (suggestion: 'tagIndirect')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              11,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagIndirect' to 'tagIndirect'",
+            "old_value": "TagIndirect",
+            "new_value": "tagIndirect"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Query' to 'query'",
+        "violation_message": "root.root.children[12].Query: Name 'Query' doesn't follow camelCase for component (suggestion: 'query')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              12,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Query' to 'query'",
+            "old_value": "Query",
+            "new_value": "query"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Struct' to 'struct'",
+        "violation_message": "root.root.children[13].Struct: Name 'Struct' doesn't follow camelCase for component (suggestion: 'struct')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              13,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Struct' to 'struct'",
+            "old_value": "Struct",
+            "new_value": "struct"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ExprTransform' to 'exprTransform'",
+        "violation_message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow camelCase for component (suggestion: 'exprTransform')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              14,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ExprTransform' to 'exprTransform'",
+            "old_value": "ExprTransform",
+            "new_value": "exprTransform"
+          }
+        ]
+      }
+    ]
+  },
+  "np-snake-component-error": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].NowEmpty",
+        "message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow snake_case for component (suggestion: 'now_empty')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[1].NowZero",
+        "message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow snake_case for component (suggestion: 'now_zero')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].NowDynamic",
+        "message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow snake_case for component (suggestion: 'now_dynamic')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].NowMixed",
+        "message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow snake_case for component (suggestion: 'now_mixed')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[4].NowMixedDynamic",
+        "message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow snake_case for component (suggestion: 'now_mixed_dynamic')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[5].SnowWord",
+        "message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow snake_case for component (suggestion: 'snow_word')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[6].SnowCall",
+        "message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow snake_case for component (suggestion: 'snow_call')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[7].NowInString",
+        "message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow snake_case for component (suggestion: 'now_in_string')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[8].NowSpaced",
+        "message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow snake_case for component (suggestion: 'now_spaced')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[9].NowNegative",
+        "message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow snake_case for component (suggestion: 'now_negative')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[10].TagExpr",
+        "message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow snake_case for component (suggestion: 'tag_expr')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[11].TagIndirect",
+        "message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow snake_case for component (suggestion: 'tag_indirect')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[12].Query",
+        "message": "root.root.children[12].Query: Name 'Query' doesn't follow snake_case for component (suggestion: 'query')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[13].Struct",
+        "message": "root.root.children[13].Struct: Name 'Struct' doesn't follow snake_case for component (suggestion: 'struct')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "error",
+        "node_path": "root.root.children[14].ExprTransform",
+        "message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow snake_case for component (suggestion: 'expr_transform')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowEmpty' to 'now_empty'",
+        "violation_message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow snake_case for component (suggestion: 'now_empty')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowEmpty' to 'now_empty'",
+            "old_value": "NowEmpty",
+            "new_value": "now_empty"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowZero' to 'now_zero'",
+        "violation_message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow snake_case for component (suggestion: 'now_zero')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowZero' to 'now_zero'",
+            "old_value": "NowZero",
+            "new_value": "now_zero"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowDynamic' to 'now_dynamic'",
+        "violation_message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow snake_case for component (suggestion: 'now_dynamic')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowDynamic' to 'now_dynamic'",
+            "old_value": "NowDynamic",
+            "new_value": "now_dynamic"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixed' to 'now_mixed'",
+        "violation_message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow snake_case for component (suggestion: 'now_mixed')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixed' to 'now_mixed'",
+            "old_value": "NowMixed",
+            "new_value": "now_mixed"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixedDynamic' to 'now_mixed_dynamic'",
+        "violation_message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow snake_case for component (suggestion: 'now_mixed_dynamic')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              4,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixedDynamic' to 'now_mixed_dynamic'",
+            "old_value": "NowMixedDynamic",
+            "new_value": "now_mixed_dynamic"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowWord' to 'snow_word'",
+        "violation_message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow snake_case for component (suggestion: 'snow_word')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowWord' to 'snow_word'",
+            "old_value": "SnowWord",
+            "new_value": "snow_word"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowCall' to 'snow_call'",
+        "violation_message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow snake_case for component (suggestion: 'snow_call')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowCall' to 'snow_call'",
+            "old_value": "SnowCall",
+            "new_value": "snow_call"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowInString' to 'now_in_string'",
+        "violation_message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow snake_case for component (suggestion: 'now_in_string')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowInString' to 'now_in_string'",
+            "old_value": "NowInString",
+            "new_value": "now_in_string"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowSpaced' to 'now_spaced'",
+        "violation_message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow snake_case for component (suggestion: 'now_spaced')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowSpaced' to 'now_spaced'",
+            "old_value": "NowSpaced",
+            "new_value": "now_spaced"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowNegative' to 'now_negative'",
+        "violation_message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow snake_case for component (suggestion: 'now_negative')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              9,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowNegative' to 'now_negative'",
+            "old_value": "NowNegative",
+            "new_value": "now_negative"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagExpr' to 'tag_expr'",
+        "violation_message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow snake_case for component (suggestion: 'tag_expr')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagExpr' to 'tag_expr'",
+            "old_value": "TagExpr",
+            "new_value": "tag_expr"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagIndirect' to 'tag_indirect'",
+        "violation_message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow snake_case for component (suggestion: 'tag_indirect')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              11,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagIndirect' to 'tag_indirect'",
+            "old_value": "TagIndirect",
+            "new_value": "tag_indirect"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Query' to 'query'",
+        "violation_message": "root.root.children[12].Query: Name 'Query' doesn't follow snake_case for component (suggestion: 'query')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              12,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Query' to 'query'",
+            "old_value": "Query",
+            "new_value": "query"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Struct' to 'struct'",
+        "violation_message": "root.root.children[13].Struct: Name 'Struct' doesn't follow snake_case for component (suggestion: 'struct')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              13,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Struct' to 'struct'",
+            "old_value": "Struct",
+            "new_value": "struct"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ExprTransform' to 'expr_transform'",
+        "violation_message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow snake_case for component (suggestion: 'expr_transform')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              14,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ExprTransform' to 'expr_transform'",
+            "old_value": "ExprTransform",
+            "new_value": "expr_transform"
+          }
+        ]
+      }
+    ]
+  },
+  "np-kebab-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].NowEmpty",
+        "message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow kebab-case for component (suggestion: 'now-empty')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].NowZero",
+        "message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow kebab-case for component (suggestion: 'now-zero')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].NowDynamic",
+        "message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow kebab-case for component (suggestion: 'now-dynamic')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].NowMixed",
+        "message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow kebab-case for component (suggestion: 'now-mixed')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].NowMixedDynamic",
+        "message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow kebab-case for component (suggestion: 'now-mixed-dynamic')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].SnowWord",
+        "message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow kebab-case for component (suggestion: 'snow-word')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].SnowCall",
+        "message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow kebab-case for component (suggestion: 'snow-call')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].NowInString",
+        "message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow kebab-case for component (suggestion: 'now-in-string')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].NowSpaced",
+        "message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow kebab-case for component (suggestion: 'now-spaced')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].NowNegative",
+        "message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow kebab-case for component (suggestion: 'now-negative')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].TagExpr",
+        "message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow kebab-case for component (suggestion: 'tag-expr')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[11].TagIndirect",
+        "message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow kebab-case for component (suggestion: 'tag-indirect')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[12].Query",
+        "message": "root.root.children[12].Query: Name 'Query' doesn't follow kebab-case for component (suggestion: 'query')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[13].Struct",
+        "message": "root.root.children[13].Struct: Name 'Struct' doesn't follow kebab-case for component (suggestion: 'struct')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[14].ExprTransform",
+        "message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow kebab-case for component (suggestion: 'expr-transform')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowEmpty' to 'now-empty'",
+        "violation_message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow kebab-case for component (suggestion: 'now-empty')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowEmpty' to 'now-empty'",
+            "old_value": "NowEmpty",
+            "new_value": "now-empty"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowZero' to 'now-zero'",
+        "violation_message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow kebab-case for component (suggestion: 'now-zero')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowZero' to 'now-zero'",
+            "old_value": "NowZero",
+            "new_value": "now-zero"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowDynamic' to 'now-dynamic'",
+        "violation_message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow kebab-case for component (suggestion: 'now-dynamic')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowDynamic' to 'now-dynamic'",
+            "old_value": "NowDynamic",
+            "new_value": "now-dynamic"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixed' to 'now-mixed'",
+        "violation_message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow kebab-case for component (suggestion: 'now-mixed')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixed' to 'now-mixed'",
+            "old_value": "NowMixed",
+            "new_value": "now-mixed"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixedDynamic' to 'now-mixed-dynamic'",
+        "violation_message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow kebab-case for component (suggestion: 'now-mixed-dynamic')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              4,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixedDynamic' to 'now-mixed-dynamic'",
+            "old_value": "NowMixedDynamic",
+            "new_value": "now-mixed-dynamic"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowWord' to 'snow-word'",
+        "violation_message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow kebab-case for component (suggestion: 'snow-word')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowWord' to 'snow-word'",
+            "old_value": "SnowWord",
+            "new_value": "snow-word"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowCall' to 'snow-call'",
+        "violation_message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow kebab-case for component (suggestion: 'snow-call')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowCall' to 'snow-call'",
+            "old_value": "SnowCall",
+            "new_value": "snow-call"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowInString' to 'now-in-string'",
+        "violation_message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow kebab-case for component (suggestion: 'now-in-string')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowInString' to 'now-in-string'",
+            "old_value": "NowInString",
+            "new_value": "now-in-string"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowSpaced' to 'now-spaced'",
+        "violation_message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow kebab-case for component (suggestion: 'now-spaced')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowSpaced' to 'now-spaced'",
+            "old_value": "NowSpaced",
+            "new_value": "now-spaced"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowNegative' to 'now-negative'",
+        "violation_message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow kebab-case for component (suggestion: 'now-negative')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              9,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowNegative' to 'now-negative'",
+            "old_value": "NowNegative",
+            "new_value": "now-negative"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagExpr' to 'tag-expr'",
+        "violation_message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow kebab-case for component (suggestion: 'tag-expr')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagExpr' to 'tag-expr'",
+            "old_value": "TagExpr",
+            "new_value": "tag-expr"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagIndirect' to 'tag-indirect'",
+        "violation_message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow kebab-case for component (suggestion: 'tag-indirect')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              11,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagIndirect' to 'tag-indirect'",
+            "old_value": "TagIndirect",
+            "new_value": "tag-indirect"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Query' to 'query'",
+        "violation_message": "root.root.children[12].Query: Name 'Query' doesn't follow kebab-case for component (suggestion: 'query')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              12,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Query' to 'query'",
+            "old_value": "Query",
+            "new_value": "query"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Struct' to 'struct'",
+        "violation_message": "root.root.children[13].Struct: Name 'Struct' doesn't follow kebab-case for component (suggestion: 'struct')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              13,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Struct' to 'struct'",
+            "old_value": "Struct",
+            "new_value": "struct"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ExprTransform' to 'expr-transform'",
+        "violation_message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow kebab-case for component (suggestion: 'expr-transform')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              14,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ExprTransform' to 'expr-transform'",
+            "old_value": "ExprTransform",
+            "new_value": "expr-transform"
+          }
+        ]
+      }
+    ]
+  },
+  "np-screaming-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].NowEmpty",
+        "message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_EMPTY')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].NowZero",
+        "message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_ZERO')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].NowDynamic",
+        "message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_DYNAMIC')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].NowMixed",
+        "message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_MIXED')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].NowMixedDynamic",
+        "message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_MIXED_DYNAMIC')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].SnowWord",
+        "message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SNOW_WORD')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].SnowCall",
+        "message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SNOW_CALL')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].NowInString",
+        "message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_IN_STRING')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].NowSpaced",
+        "message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_SPACED')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].NowNegative",
+        "message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_NEGATIVE')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].TagExpr",
+        "message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'TAG_EXPR')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[11].TagIndirect",
+        "message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'TAG_INDIRECT')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[12].Query",
+        "message": "root.root.children[12].Query: Name 'Query' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'QUERY')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[13].Struct",
+        "message": "root.root.children[13].Struct: Name 'Struct' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'STRUCT')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[14].ExprTransform",
+        "message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'EXPR_TRANSFORM')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowEmpty' to 'NOW_EMPTY'",
+        "violation_message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_EMPTY')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowEmpty' to 'NOW_EMPTY'",
+            "old_value": "NowEmpty",
+            "new_value": "NOW_EMPTY"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowZero' to 'NOW_ZERO'",
+        "violation_message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_ZERO')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowZero' to 'NOW_ZERO'",
+            "old_value": "NowZero",
+            "new_value": "NOW_ZERO"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowDynamic' to 'NOW_DYNAMIC'",
+        "violation_message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_DYNAMIC')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowDynamic' to 'NOW_DYNAMIC'",
+            "old_value": "NowDynamic",
+            "new_value": "NOW_DYNAMIC"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixed' to 'NOW_MIXED'",
+        "violation_message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_MIXED')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixed' to 'NOW_MIXED'",
+            "old_value": "NowMixed",
+            "new_value": "NOW_MIXED"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixedDynamic' to 'NOW_MIXED_DYNAMIC'",
+        "violation_message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_MIXED_DYNAMIC')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              4,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixedDynamic' to 'NOW_MIXED_DYNAMIC'",
+            "old_value": "NowMixedDynamic",
+            "new_value": "NOW_MIXED_DYNAMIC"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowWord' to 'SNOW_WORD'",
+        "violation_message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SNOW_WORD')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowWord' to 'SNOW_WORD'",
+            "old_value": "SnowWord",
+            "new_value": "SNOW_WORD"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowCall' to 'SNOW_CALL'",
+        "violation_message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SNOW_CALL')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowCall' to 'SNOW_CALL'",
+            "old_value": "SnowCall",
+            "new_value": "SNOW_CALL"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowInString' to 'NOW_IN_STRING'",
+        "violation_message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_IN_STRING')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowInString' to 'NOW_IN_STRING'",
+            "old_value": "NowInString",
+            "new_value": "NOW_IN_STRING"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowSpaced' to 'NOW_SPACED'",
+        "violation_message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_SPACED')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowSpaced' to 'NOW_SPACED'",
+            "old_value": "NowSpaced",
+            "new_value": "NOW_SPACED"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowNegative' to 'NOW_NEGATIVE'",
+        "violation_message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'NOW_NEGATIVE')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              9,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowNegative' to 'NOW_NEGATIVE'",
+            "old_value": "NowNegative",
+            "new_value": "NOW_NEGATIVE"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagExpr' to 'TAG_EXPR'",
+        "violation_message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'TAG_EXPR')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagExpr' to 'TAG_EXPR'",
+            "old_value": "TagExpr",
+            "new_value": "TAG_EXPR"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagIndirect' to 'TAG_INDIRECT'",
+        "violation_message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'TAG_INDIRECT')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              11,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagIndirect' to 'TAG_INDIRECT'",
+            "old_value": "TagIndirect",
+            "new_value": "TAG_INDIRECT"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Query' to 'QUERY'",
+        "violation_message": "root.root.children[12].Query: Name 'Query' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'QUERY')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              12,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Query' to 'QUERY'",
+            "old_value": "Query",
+            "new_value": "QUERY"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Struct' to 'STRUCT'",
+        "violation_message": "root.root.children[13].Struct: Name 'Struct' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'STRUCT')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              13,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Struct' to 'STRUCT'",
+            "old_value": "Struct",
+            "new_value": "STRUCT"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ExprTransform' to 'EXPR_TRANSFORM'",
+        "violation_message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'EXPR_TRANSFORM')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              14,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ExprTransform' to 'EXPR_TRANSFORM'",
+            "old_value": "ExprTransform",
+            "new_value": "EXPR_TRANSFORM"
+          }
+        ]
+      }
+    ]
+  },
+  "np-title-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].NowEmpty",
+        "message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow Title Case for component (suggestion: 'Now Empty')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].NowZero",
+        "message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow Title Case for component (suggestion: 'Now Zero')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].NowDynamic",
+        "message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow Title Case for component (suggestion: 'Now Dynamic')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].NowMixed",
+        "message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow Title Case for component (suggestion: 'Now Mixed')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].NowMixedDynamic",
+        "message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow Title Case for component (suggestion: 'Now Mixed Dynamic')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].SnowWord",
+        "message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow Title Case for component (suggestion: 'Snow Word')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].SnowCall",
+        "message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow Title Case for component (suggestion: 'Snow Call')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].NowInString",
+        "message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow Title Case for component (suggestion: 'Now In String')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].NowSpaced",
+        "message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow Title Case for component (suggestion: 'Now Spaced')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].NowNegative",
+        "message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow Title Case for component (suggestion: 'Now Negative')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].TagExpr",
+        "message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow Title Case for component (suggestion: 'Tag Expr')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[11].TagIndirect",
+        "message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow Title Case for component (suggestion: 'Tag Indirect')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[14].ExprTransform",
+        "message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow Title Case for component (suggestion: 'Expr Transform')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowEmpty' to 'Now Empty'",
+        "violation_message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow Title Case for component (suggestion: 'Now Empty')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowEmpty' to 'Now Empty'",
+            "old_value": "NowEmpty",
+            "new_value": "Now Empty"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowZero' to 'Now Zero'",
+        "violation_message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow Title Case for component (suggestion: 'Now Zero')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowZero' to 'Now Zero'",
+            "old_value": "NowZero",
+            "new_value": "Now Zero"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowDynamic' to 'Now Dynamic'",
+        "violation_message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow Title Case for component (suggestion: 'Now Dynamic')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowDynamic' to 'Now Dynamic'",
+            "old_value": "NowDynamic",
+            "new_value": "Now Dynamic"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixed' to 'Now Mixed'",
+        "violation_message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow Title Case for component (suggestion: 'Now Mixed')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixed' to 'Now Mixed'",
+            "old_value": "NowMixed",
+            "new_value": "Now Mixed"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixedDynamic' to 'Now Mixed Dynamic'",
+        "violation_message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow Title Case for component (suggestion: 'Now Mixed Dynamic')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              4,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixedDynamic' to 'Now Mixed Dynamic'",
+            "old_value": "NowMixedDynamic",
+            "new_value": "Now Mixed Dynamic"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowWord' to 'Snow Word'",
+        "violation_message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow Title Case for component (suggestion: 'Snow Word')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowWord' to 'Snow Word'",
+            "old_value": "SnowWord",
+            "new_value": "Snow Word"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowCall' to 'Snow Call'",
+        "violation_message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow Title Case for component (suggestion: 'Snow Call')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowCall' to 'Snow Call'",
+            "old_value": "SnowCall",
+            "new_value": "Snow Call"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowInString' to 'Now In String'",
+        "violation_message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow Title Case for component (suggestion: 'Now In String')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowInString' to 'Now In String'",
+            "old_value": "NowInString",
+            "new_value": "Now In String"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowSpaced' to 'Now Spaced'",
+        "violation_message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow Title Case for component (suggestion: 'Now Spaced')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowSpaced' to 'Now Spaced'",
+            "old_value": "NowSpaced",
+            "new_value": "Now Spaced"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowNegative' to 'Now Negative'",
+        "violation_message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow Title Case for component (suggestion: 'Now Negative')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              9,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowNegative' to 'Now Negative'",
+            "old_value": "NowNegative",
+            "new_value": "Now Negative"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagExpr' to 'Tag Expr'",
+        "violation_message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow Title Case for component (suggestion: 'Tag Expr')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagExpr' to 'Tag Expr'",
+            "old_value": "TagExpr",
+            "new_value": "Tag Expr"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagIndirect' to 'Tag Indirect'",
+        "violation_message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow Title Case for component (suggestion: 'Tag Indirect')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              11,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagIndirect' to 'Tag Indirect'",
+            "old_value": "TagIndirect",
+            "new_value": "Tag Indirect"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ExprTransform' to 'Expr Transform'",
+        "violation_message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow Title Case for component (suggestion: 'Expr Transform')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              14,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ExprTransform' to 'Expr Transform'",
+            "old_value": "ExprTransform",
+            "new_value": "Expr Transform"
+          }
+        ]
+      }
+    ]
+  },
+  "np-lower-component": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].NowEmpty",
+        "message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now empty')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].NowZero",
+        "message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now zero')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].NowDynamic",
+        "message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now dynamic')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].NowMixed",
+        "message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now mixed')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].NowMixedDynamic",
+        "message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now mixed dynamic')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].SnowWord",
+        "message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'snow word')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].SnowCall",
+        "message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'snow call')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].NowInString",
+        "message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now in string')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].NowSpaced",
+        "message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now spaced')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].NowNegative",
+        "message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now negative')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].TagExpr",
+        "message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'tag expr')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[11].TagIndirect",
+        "message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'tag indirect')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[12].Query",
+        "message": "root.root.children[12].Query: Name 'Query' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'query')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[13].Struct",
+        "message": "root.root.children[13].Struct: Name 'Struct' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'struct')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[14].ExprTransform",
+        "message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'expr transform')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowEmpty' to 'now empty'",
+        "violation_message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now empty')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowEmpty' to 'now empty'",
+            "old_value": "NowEmpty",
+            "new_value": "now empty"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowZero' to 'now zero'",
+        "violation_message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now zero')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowZero' to 'now zero'",
+            "old_value": "NowZero",
+            "new_value": "now zero"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowDynamic' to 'now dynamic'",
+        "violation_message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now dynamic')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowDynamic' to 'now dynamic'",
+            "old_value": "NowDynamic",
+            "new_value": "now dynamic"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixed' to 'now mixed'",
+        "violation_message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now mixed')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixed' to 'now mixed'",
+            "old_value": "NowMixed",
+            "new_value": "now mixed"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixedDynamic' to 'now mixed dynamic'",
+        "violation_message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now mixed dynamic')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              4,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixedDynamic' to 'now mixed dynamic'",
+            "old_value": "NowMixedDynamic",
+            "new_value": "now mixed dynamic"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowWord' to 'snow word'",
+        "violation_message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'snow word')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowWord' to 'snow word'",
+            "old_value": "SnowWord",
+            "new_value": "snow word"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowCall' to 'snow call'",
+        "violation_message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'snow call')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowCall' to 'snow call'",
+            "old_value": "SnowCall",
+            "new_value": "snow call"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowInString' to 'now in string'",
+        "violation_message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now in string')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowInString' to 'now in string'",
+            "old_value": "NowInString",
+            "new_value": "now in string"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowSpaced' to 'now spaced'",
+        "violation_message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now spaced')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowSpaced' to 'now spaced'",
+            "old_value": "NowSpaced",
+            "new_value": "now spaced"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowNegative' to 'now negative'",
+        "violation_message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'now negative')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              9,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowNegative' to 'now negative'",
+            "old_value": "NowNegative",
+            "new_value": "now negative"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagExpr' to 'tag expr'",
+        "violation_message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'tag expr')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagExpr' to 'tag expr'",
+            "old_value": "TagExpr",
+            "new_value": "tag expr"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagIndirect' to 'tag indirect'",
+        "violation_message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'tag indirect')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              11,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagIndirect' to 'tag indirect'",
+            "old_value": "TagIndirect",
+            "new_value": "tag indirect"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Query' to 'query'",
+        "violation_message": "root.root.children[12].Query: Name 'Query' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'query')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              12,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Query' to 'query'",
+            "old_value": "Query",
+            "new_value": "query"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Struct' to 'struct'",
+        "violation_message": "root.root.children[13].Struct: Name 'Struct' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'struct')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              13,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Struct' to 'struct'",
+            "old_value": "Struct",
+            "new_value": "struct"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ExprTransform' to 'expr transform'",
+        "violation_message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow lower case with spaces (e.g., my button, data table) for component (suggestion: 'expr transform')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              14,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ExprTransform' to 'expr transform'",
+            "old_value": "ExprTransform",
+            "new_value": "expr transform"
+          }
+        ]
+      }
+    ]
+  },
+  "np-convention-only": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-target-string": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-component-custom-method-camel-min3": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].NowEmpty",
+        "message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow camelCase for component (suggestion: 'nowEmpty')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].NowZero",
+        "message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow camelCase for component (suggestion: 'nowZero')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].NowDynamic",
+        "message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow camelCase for component (suggestion: 'nowDynamic')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].NowMixed",
+        "message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow camelCase for component (suggestion: 'nowMixed')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].NowMixedDynamic",
+        "message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow camelCase for component (suggestion: 'nowMixedDynamic')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].SnowWord",
+        "message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow camelCase for component (suggestion: 'snowWord')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].SnowCall",
+        "message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow camelCase for component (suggestion: 'snowCall')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].NowInString",
+        "message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow camelCase for component (suggestion: 'nowInString')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].NowSpaced",
+        "message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow camelCase for component (suggestion: 'nowSpaced')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].NowNegative",
+        "message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow camelCase for component (suggestion: 'nowNegative')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].TagExpr",
+        "message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow camelCase for component (suggestion: 'tagExpr')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[11].TagIndirect",
+        "message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow camelCase for component (suggestion: 'tagIndirect')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[12].Query",
+        "message": "root.root.children[12].Query: Name 'Query' doesn't follow camelCase for component (suggestion: 'query')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[13].Struct",
+        "message": "root.root.children[13].Struct: Name 'Struct' doesn't follow camelCase for component (suggestion: 'struct')"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[14].ExprTransform",
+        "message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow camelCase for component (suggestion: 'exprTransform')"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowEmpty' to 'nowEmpty'",
+        "violation_message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow camelCase for component (suggestion: 'nowEmpty')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              0,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowEmpty' to 'nowEmpty'",
+            "old_value": "NowEmpty",
+            "new_value": "nowEmpty"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowZero' to 'nowZero'",
+        "violation_message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow camelCase for component (suggestion: 'nowZero')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              1,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowZero' to 'nowZero'",
+            "old_value": "NowZero",
+            "new_value": "nowZero"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowDynamic' to 'nowDynamic'",
+        "violation_message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow camelCase for component (suggestion: 'nowDynamic')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              2,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowDynamic' to 'nowDynamic'",
+            "old_value": "NowDynamic",
+            "new_value": "nowDynamic"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixed' to 'nowMixed'",
+        "violation_message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow camelCase for component (suggestion: 'nowMixed')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              3,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixed' to 'nowMixed'",
+            "old_value": "NowMixed",
+            "new_value": "nowMixed"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowMixedDynamic' to 'nowMixedDynamic'",
+        "violation_message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow camelCase for component (suggestion: 'nowMixedDynamic')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              4,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowMixedDynamic' to 'nowMixedDynamic'",
+            "old_value": "NowMixedDynamic",
+            "new_value": "nowMixedDynamic"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowWord' to 'snowWord'",
+        "violation_message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow camelCase for component (suggestion: 'snowWord')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              5,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowWord' to 'snowWord'",
+            "old_value": "SnowWord",
+            "new_value": "snowWord"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'SnowCall' to 'snowCall'",
+        "violation_message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow camelCase for component (suggestion: 'snowCall')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              6,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'SnowCall' to 'snowCall'",
+            "old_value": "SnowCall",
+            "new_value": "snowCall"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowInString' to 'nowInString'",
+        "violation_message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow camelCase for component (suggestion: 'nowInString')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              7,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowInString' to 'nowInString'",
+            "old_value": "NowInString",
+            "new_value": "nowInString"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowSpaced' to 'nowSpaced'",
+        "violation_message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow camelCase for component (suggestion: 'nowSpaced')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              8,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowSpaced' to 'nowSpaced'",
+            "old_value": "NowSpaced",
+            "new_value": "nowSpaced"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'NowNegative' to 'nowNegative'",
+        "violation_message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow camelCase for component (suggestion: 'nowNegative')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              9,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'NowNegative' to 'nowNegative'",
+            "old_value": "NowNegative",
+            "new_value": "nowNegative"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagExpr' to 'tagExpr'",
+        "violation_message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow camelCase for component (suggestion: 'tagExpr')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              10,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagExpr' to 'tagExpr'",
+            "old_value": "TagExpr",
+            "new_value": "tagExpr"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'TagIndirect' to 'tagIndirect'",
+        "violation_message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow camelCase for component (suggestion: 'tagIndirect')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              11,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'TagIndirect' to 'tagIndirect'",
+            "old_value": "TagIndirect",
+            "new_value": "tagIndirect"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Query' to 'query'",
+        "violation_message": "root.root.children[12].Query: Name 'Query' doesn't follow camelCase for component (suggestion: 'query')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              12,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Query' to 'query'",
+            "old_value": "Query",
+            "new_value": "query"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'Struct' to 'struct'",
+        "violation_message": "root.root.children[13].Struct: Name 'Struct' doesn't follow camelCase for component (suggestion: 'struct')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              13,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'Struct' to 'struct'",
+            "old_value": "Struct",
+            "new_value": "struct"
+          }
+        ]
+      },
+      {
+        "rule": "NamePatternRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Rename component 'ExprTransform' to 'exprTransform'",
+        "violation_message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow camelCase for component (suggestion: 'exprTransform')",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "root",
+              "children",
+              14,
+              "meta",
+              "name"
+            ],
+            "description": "Rename component 'ExprTransform' to 'exprTransform'",
+            "old_value": "ExprTransform",
+            "new_value": "exprTransform"
+          }
+        ]
+      }
+    ]
+  },
+  "np-standard-component-property": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-severity-split": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-four-types": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-min5": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-max10": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].NowMixedDynamic",
+        "message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' is too long (maximum 10 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].NowInString",
+        "message": "root.root.children[7].NowInString: Name 'NowInString' is too long (maximum 10 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].NowNegative",
+        "message": "root.root.children[9].NowNegative: Name 'NowNegative' is too long (maximum 10 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[11].TagIndirect",
+        "message": "root.root.children[11].TagIndirect: Name 'TagIndirect' is too long (maximum 10 characters) for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[14].ExprTransform",
+        "message": "root.root.children[14].ExprTransform: Name 'ExprTransform' is too long (maximum 10 characters) for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-pascal-no-numbers": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-abbrev-no-autodetect": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-pascal-skip-names": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-custom-pattern-prefix": {
+    "findings": [
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[0].NowEmpty",
+        "message": "root.root.children[0].NowEmpty: Name 'NowEmpty' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[1].NowZero",
+        "message": "root.root.children[1].NowZero: Name 'NowZero' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[2].NowDynamic",
+        "message": "root.root.children[2].NowDynamic: Name 'NowDynamic' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[3].NowMixed",
+        "message": "root.root.children[3].NowMixed: Name 'NowMixed' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[4].NowMixedDynamic",
+        "message": "root.root.children[4].NowMixedDynamic: Name 'NowMixedDynamic' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[5].SnowWord",
+        "message": "root.root.children[5].SnowWord: Name 'SnowWord' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[6].SnowCall",
+        "message": "root.root.children[6].SnowCall: Name 'SnowCall' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[7].NowInString",
+        "message": "root.root.children[7].NowInString: Name 'NowInString' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[8].NowSpaced",
+        "message": "root.root.children[8].NowSpaced: Name 'NowSpaced' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[9].NowNegative",
+        "message": "root.root.children[9].NowNegative: Name 'NowNegative' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[10].TagExpr",
+        "message": "root.root.children[10].TagExpr: Name 'TagExpr' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[11].TagIndirect",
+        "message": "root.root.children[11].TagIndirect: Name 'TagIndirect' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[12].Query",
+        "message": "root.root.children[12].Query: Name 'Query' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[13].Struct",
+        "message": "root.root.children[13].Struct: Name 'Struct' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      },
+      {
+        "rule": "NamePatternRule",
+        "severity": "warning",
+        "node_path": "root.root.children[14].ExprTransform",
+        "message": "root.root.children[14].ExprTransform: Name 'ExprTransform' doesn't follow custom pattern: ^(btn|lbl|pnl)[A-Z][a-zA-Z0-9]*$ for component"
+      }
+    ],
+    "fixes": []
+  },
+  "np-custom-method-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-message-handler-snake-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-property-camel-forbidden": {
+    "findings": [],
+    "fixes": []
+  },
+  "np-mixedcase-pattern": {
+    "findings": [],
+    "fixes": []
+  },
+  "poll-1000": {
+    "findings": [
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].NowEmpty.propConfig.props.text",
+        "message": "root.root.children[0].NowEmpty.propConfig.props.text: 'now()'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].NowDynamic.propConfig.props.text",
+        "message": "root.root.children[2].NowDynamic.propConfig.props.text: 'now({view.custom.rate})'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].NowMixed.propConfig.props.text",
+        "message": "root.root.children[3].NowMixed.propConfig.props.text: 'now(500) + now(20000)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[6].SnowCall.propConfig.props.text",
+        "message": "root.root.children[6].SnowCall.propConfig.props.text: 'snow(5)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[7].NowInString.propConfig.props.text",
+        "message": "root.root.children[7].NowInString.propConfig.props.text: ''call now() later''"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[9].NowNegative.propConfig.props.text",
+        "message": "root.root.children[9].NowNegative.propConfig.props.text: 'now(-1)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[14].ExprTransform.propConfig.props.text.binding.transforms[0]",
+        "message": "root.root.children[14].ExprTransform.propConfig.props.text.binding.transforms[0]: 'now(1)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[13].Struct.propConfig.props.text.a",
+        "message": "root.root.children[13].Struct.propConfig.props.text.a: 'now()'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[10].TagExpr.propConfig.props.text",
+        "message": "root.root.children[10].TagExpr.propConfig.props.text: ''[default]A' + now(100)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[11].TagIndirect.propConfig.props.text.references.a",
+        "message": "root.root.children[11].TagIndirect.propConfig.props.text.references.a: 'now()'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[12].Query.propConfig.props.data.t",
+        "message": "root.root.children[12].Query.propConfig.props.data.t: 'now(10)'"
+      }
+    ],
+    "fixes": []
+  },
+  "poll-5000": {
+    "findings": [
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].NowEmpty.propConfig.props.text",
+        "message": "root.root.children[0].NowEmpty.propConfig.props.text: 'now()'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].NowDynamic.propConfig.props.text",
+        "message": "root.root.children[2].NowDynamic.propConfig.props.text: 'now({view.custom.rate})'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].NowMixed.propConfig.props.text",
+        "message": "root.root.children[3].NowMixed.propConfig.props.text: 'now(500) + now(20000)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[6].SnowCall.propConfig.props.text",
+        "message": "root.root.children[6].SnowCall.propConfig.props.text: 'snow(5)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[7].NowInString.propConfig.props.text",
+        "message": "root.root.children[7].NowInString.propConfig.props.text: ''call now() later''"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[8].NowSpaced.propConfig.props.text",
+        "message": "root.root.children[8].NowSpaced.propConfig.props.text: 'now ( 2000 )'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[9].NowNegative.propConfig.props.text",
+        "message": "root.root.children[9].NowNegative.propConfig.props.text: 'now(-1)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[14].ExprTransform.propConfig.props.text.binding.transforms[0]",
+        "message": "root.root.children[14].ExprTransform.propConfig.props.text.binding.transforms[0]: 'now(1)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[13].Struct.propConfig.props.text.a",
+        "message": "root.root.children[13].Struct.propConfig.props.text.a: 'now()'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[10].TagExpr.propConfig.props.text",
+        "message": "root.root.children[10].TagExpr.propConfig.props.text: ''[default]A' + now(100)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[11].TagIndirect.propConfig.props.text.references.a",
+        "message": "root.root.children[11].TagIndirect.propConfig.props.text.references.a: 'now()'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[12].Query.propConfig.props.data.t",
+        "message": "root.root.children[12].Query.propConfig.props.data.t: 'now(10)'"
+      }
+    ],
+    "fixes": []
+  },
+  "poll-30000": {
+    "findings": [
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[0].NowEmpty.propConfig.props.text",
+        "message": "root.root.children[0].NowEmpty.propConfig.props.text: 'now()'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[2].NowDynamic.propConfig.props.text",
+        "message": "root.root.children[2].NowDynamic.propConfig.props.text: 'now({view.custom.rate})'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[3].NowMixed.propConfig.props.text",
+        "message": "root.root.children[3].NowMixed.propConfig.props.text: 'now(500) + now(20000)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[4].NowMixedDynamic.propConfig.props.text",
+        "message": "root.root.children[4].NowMixedDynamic.propConfig.props.text: 'now(20000) + now({view.custom.rate})'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[6].SnowCall.propConfig.props.text",
+        "message": "root.root.children[6].SnowCall.propConfig.props.text: 'snow(5)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[7].NowInString.propConfig.props.text",
+        "message": "root.root.children[7].NowInString.propConfig.props.text: ''call now() later''"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[8].NowSpaced.propConfig.props.text",
+        "message": "root.root.children[8].NowSpaced.propConfig.props.text: 'now ( 2000 )'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[9].NowNegative.propConfig.props.text",
+        "message": "root.root.children[9].NowNegative.propConfig.props.text: 'now(-1)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[14].ExprTransform.propConfig.props.text.binding.transforms[0]",
+        "message": "root.root.children[14].ExprTransform.propConfig.props.text.binding.transforms[0]: 'now(1)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[13].Struct.propConfig.props.text.a",
+        "message": "root.root.children[13].Struct.propConfig.props.text.a: 'now()'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[10].TagExpr.propConfig.props.text",
+        "message": "root.root.children[10].TagExpr.propConfig.props.text: ''[default]A' + now(100)'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[11].TagIndirect.propConfig.props.text.references.a",
+        "message": "root.root.children[11].TagIndirect.propConfig.props.text.references.a: 'now()'"
+      },
+      {
+        "rule": "PollingIntervalRule",
+        "severity": "error",
+        "node_path": "root.root.children[12].Query.propConfig.props.data.t",
+        "message": "root.root.children[12].Query.propConfig.props.data.t: 'now(10)'"
+      }
+    ],
+    "fixes": []
+  },
+  "pylint-e-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-case-insensitive": {
+    "findings": [],
+    "fixes": []
+  },
+  "bcr-sibling-only-warning": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-scripts": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-expressions": {
+    "findings": [],
+    "fixes": []
+  },
+  "crv-no-property-bindings": {
+    "findings": [],
+    "fixes": []
+  },
+  "ecd-tight": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-private": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.rate",
+        "message": "custom.rate: custom property access mode is PUBLIC, expected PRIVATE"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.snowfall",
+        "message": "custom.snowfall: custom property access mode is PUBLIC, expected PRIVATE"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.rate' to PRIVATE",
+        "violation_message": "custom.rate: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig"
+            ],
+            "description": "Create propConfig with entry 'custom.rate' (access=PRIVATE)",
+            "old_value": null,
+            "new_value": {
+              "custom.rate": {
+                "access": "PRIVATE"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.snowfall' to PRIVATE",
+        "violation_message": "custom.snowfall: custom property access mode is PUBLIC, expected PRIVATE",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.snowfall"
+            ],
+            "description": "Add propConfig entry 'custom.snowfall' with access=PRIVATE",
+            "old_value": null,
+            "new_value": {
+              "access": "PRIVATE"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "access-public": {
+    "findings": [],
+    "fixes": []
+  },
+  "access-protected-exempt": {
+    "findings": [
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.rate",
+        "message": "custom.rate: custom property access mode is PUBLIC, expected PROTECTED"
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "severity": "error",
+        "node_path": "custom.snowfall",
+        "message": "custom.snowfall: custom property access mode is PUBLIC, expected PROTECTED"
+      }
+    ],
+    "fixes": [
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.rate' to PROTECTED",
+        "violation_message": "custom.rate: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig"
+            ],
+            "description": "Create propConfig with entry 'custom.rate' (access=PROTECTED)",
+            "old_value": null,
+            "new_value": {
+              "custom.rate": {
+                "access": "PROTECTED"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "rule": "PropertyAccessRule",
+        "is_safe": true,
+        "safety_notes": null,
+        "description": "Set access mode of 'custom.snowfall' to PROTECTED",
+        "violation_message": "custom.snowfall: custom property access mode is PUBLIC, expected PROTECTED",
+        "operations": [
+          {
+            "op": "set_value",
+            "json_path": [
+              "propConfig",
+              "custom.snowfall"
+            ],
+            "description": "Add propConfig entry 'custom.snowfall' with access=PROTECTED",
+            "old_value": null,
+            "new_value": {
+              "access": "PROTECTED"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "persistence-false": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-true": {
+    "findings": [],
+    "fixes": []
+  },
+  "persistence-false-no-exempt": {
+    "findings": [],
+    "fixes": []
+  }
+}

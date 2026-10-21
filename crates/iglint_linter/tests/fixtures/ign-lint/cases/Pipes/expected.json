@@ -1,0 +1,70 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.unusedRef",
+    "message": "params.unusedRef: view parameter 'unusedRef' is defined but never referenced"
+  },
+  {
+    "rule": "PylintScriptRule",
+    "severity": "warning",
+    "node_path": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]",
+    "message": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]: Line 2: Quote delimiter \" is inconsistent with the rest of the file (inconsistent-quotes) (W1405)",
+    "code": "W1405",
+    "line": 2
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.propConfig.props.pipes[3].visible",
+    "message": "root.root.propConfig.props.pipes[3].visible: Expression contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.propConfig.props.pipes[5].visible",
+    "message": "root.root.propConfig.props.pipes[5].visible: Expression contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.propConfig.props.pipes[1].visible",
+    "message": "root.root.propConfig.props.pipes[1].visible: Property Binding contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.propConfig.props.pipes[2].visible",
+    "message": "root.root.propConfig.props.pipes[2].visible: Property Binding contains './' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "BadComponentReferenceRule",
+    "severity": "error",
+    "node_path": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]",
+    "message": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]: Script contains '.getChild(' which creates brittle view structure dependencies. Consider using view.custom properties or message handling for component communication instead."
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.propConfig.props.pipes[3].visible",
+    "message": "root.root.propConfig.props.pipes[3].visible: Expression references non-existent component 'Button1' in: {./Button1.props.enabled}"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.propConfig.props.pipes[5].visible",
+    "message": "root.root.propConfig.props.pipes[5].visible: Expression references non-existent component 'Button2' in: {./Button2.props.enabled}"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.propConfig.props.pipes[2].visible",
+    "message": "root.root.propConfig.props.pipes[2].visible: Property Binding references non-existent component 'Button1' in: ./Button1.props.enabled"
+  },
+  {
+    "rule": "ComponentReferenceValidationRule",
+    "severity": "error",
+    "node_path": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]",
+    "message": "root.root.propConfig.props.pipes[4].visible.binding.transforms[0]: Component 'Button1' not found as child in: self.getChild(\"Button1\")"
+  }
+]

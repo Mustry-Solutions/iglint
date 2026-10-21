@@ -1,0 +1,342 @@
+{
+  "custom": {
+    "rate": 1000,
+    "snowfall": 1
+  },
+  "params": {},
+  "props": {},
+  "root": {
+    "type": "ia.container.flex",
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "children": [
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "NowEmpty"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "now()"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "NowZero"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "now(0)"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "NowDynamic"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "now({view.custom.rate})"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "NowMixed"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "now(500) + now(20000)"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "NowMixedDynamic"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "now(20000) + now({view.custom.rate})"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "SnowWord"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "{view.custom.snowfall}"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "SnowCall"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "snow(5)"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "NowInString"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "'call now() later'"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "NowSpaced"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "now ( 2000 )"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "NowNegative"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr",
+              "config": {
+                "expression": "now(-1)"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "TagExpr"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "tag",
+              "config": {
+                "mode": "expression",
+                "tagPath": "'[default]A' + now(100)",
+                "fallbackDelay": 2.5
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "TagIndirect"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "tag",
+              "config": {
+                "mode": "indirect",
+                "tagPath": "[default]{a}/x",
+                "references": {
+                  "a": "now()"
+                },
+                "fallbackDelay": 2.5
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "Query"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.data": {
+            "binding": {
+              "type": "query",
+              "config": {
+                "queryPath": "q",
+                "parameters": {
+                  "t": "now(10)"
+                },
+                "polling": {
+                  "enabled": false,
+                  "rate": "0"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "Struct"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "expr-struct",
+              "config": {
+                "struct": {
+                  "a": "now()",
+                  "b": "1"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "ExprTransform"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {},
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "property",
+              "config": {
+                "path": "view.custom.rate"
+              },
+              "transforms": [
+                {
+                  "type": "expression",
+                  "expression": "now(1)"
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "rule": "PylintScriptRule",
+    "severity": "error",
+    "node_path": "root.root.children[0].Py2.events.component.onActionPerformed",
+    "message": "root.root.children[0].Py2.events.component.onActionPerformed: Line 2: Parsing failed: 'Missing parentheses in call to 'print'. Did you mean print(...)? (<tmpmodule>, line 11)' (syntax-error) (E0001)",
+    "code": "E0001",
+    "line": 2
+  }
+]

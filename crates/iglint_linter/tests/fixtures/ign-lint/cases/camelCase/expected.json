@@ -1,0 +1,44 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.customViewParam",
+    "message": "custom.customViewParam: custom property 'customViewParam' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.viewParam",
+    "message": "params.viewParam: view parameter 'viewParam' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.iconCamelCase.custom.componentCustomParam",
+    "message": "root.root.children.iconCamelCase.custom.componentCustomParam: custom property 'componentCustomParam' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.custom.rootCustomParam",
+    "message": "root.root.custom.rootCustomParam: custom property 'rootCustomParam' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.snake_case_test_custom",
+    "message": "custom.snake_case_test_custom: custom property 'snake_case_test_custom' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.snake_case_test_param",
+    "message": "params.snake_case_test_param: view parameter 'snake_case_test_param' is defined but never referenced"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].iconCamelCase",
+    "message": "root.root.children[0].iconCamelCase: Name 'iconCamelCase' doesn't follow PascalCase for component"
+  }
+]

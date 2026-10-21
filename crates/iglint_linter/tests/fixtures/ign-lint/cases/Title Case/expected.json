@@ -1,0 +1,14 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.ViewParam",
+    "message": "params.ViewParam: view parameter 'ViewParam' is defined but never referenced"
+  },
+  {
+    "rule": "NamePatternRule",
+    "severity": "warning",
+    "node_path": "root.root.children[0].Icon Title Case",
+    "message": "root.root.children[0].Icon Title Case: Name 'Icon Title Case' doesn't follow PascalCase for component"
+  }
+]

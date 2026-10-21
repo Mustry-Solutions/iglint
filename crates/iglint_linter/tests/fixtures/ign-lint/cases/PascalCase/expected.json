@@ -1,0 +1,26 @@
+[
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "custom.CustomViewParam",
+    "message": "custom.CustomViewParam: custom property 'CustomViewParam' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "params.ViewParam",
+    "message": "params.ViewParam: view parameter 'ViewParam' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.children.IconPascalCase.custom.ComponentCustomParam",
+    "message": "root.root.children.IconPascalCase.custom.ComponentCustomParam: custom property 'ComponentCustomParam' is defined but never referenced"
+  },
+  {
+    "rule": "UnusedCustomPropertiesRule",
+    "severity": "error",
+    "node_path": "root.root.custom.RootCustomParam",
+    "message": "root.root.custom.RootCustomParam: custom property 'RootCustomParam' is defined but never referenced"
+  }
+]
