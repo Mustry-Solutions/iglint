@@ -23,7 +23,11 @@ macro_rules! rules {
     };
 }
 
-rules![view::invalid_json];
+rules![
+    view::invalid_json,
+    view::property_access,
+    view::property_persistence
+];
 
 pub static REGISTRY: Registry = Registry::new(ALL);
 
