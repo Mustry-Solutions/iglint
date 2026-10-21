@@ -188,6 +188,25 @@ fn credit(view: &View<'_>, usage: &mut Usage, resolution: RefResolution, write: 
     let _ = view;
 }
 
+/// Property references written as `{path}` inside a string.
+fn braced_refs(text: &str) -> Vec<iglint_expression::PropertyRef> {
+    let mut out = Vec::new();
+    let mut rest = text;
+    while let Some(start) = rest.find('{') {
+        let after = &rest[start + 1..];
+        let Some(end) = after.find(['{', '}']) else {
+            break;
+        };
+        if after.as_bytes()[end] == b'}'
+            && let Some(r) = parse_property_ref(&after[..end], TextSize::ZERO)
+        {
+            out.push(r);
+        }
+        rest = &after[end..];
+    }
+    out
+}
+
 /// Computes what the view reads and writes.
 pub(crate) fn usage(view: &View<'_>, accesses: &[PropertyAccess]) -> Usage {
     let n = view.properties.len();
@@ -216,6 +235,31 @@ pub(crate) fn usage(view: &View<'_>, accesses: &[PropertyAccess]) -> Usage {
                 }
             }
         }
+    }
+    // `{...}` references in any other string of the view: settings of
+    // bindings that are not modelled as expressions (tag history date
+    // ranges, HTTP parameters), action parameters, ... Crediting them can
+    // only hide findings, never add one.
+    let mut braced: Vec<(Owner, iglint_expression::PropertyRef)> = Vec::new();
+    let mut collect = |owner: Owner, value: &iglint_json::Value<'_>, skip: &str| {
+        let Some(o) = value.as_object() else {
+            return;
+        };
+        for m in o.iter().filter(|m| m.key() != skip) {
+            m.value.walk(|_, v| {
+                if let Some(text) = v.as_str() {
+                    braced.extend(braced_refs(text).into_iter().map(|r| (owner, r)));
+                }
+                true
+            });
+        }
+    };
+    collect(Owner::View, view.root, "root");
+    for c in &view.components {
+        collect(Owner::Component(c.id), c.value, "children");
+    }
+    for (owner, r) in braced {
+        credit(view, &mut usage, view.resolve_ref(owner, &r), false);
     }
     // Property bindings (read, and written back when bidirectional) and
     // indirect tag references.
@@ -360,18 +404,19 @@ impl ViewRule for UnusedCustomProperty {
                 PropCategory::Custom => fix(cx, view, file, def),
                 PropCategory::Params => None,
             };
-            cx.report_in(
-                file,
-                def_range(view, def),
-                format!("{kind} `{}` is never read", def.name),
-            )
-            .node_path(def.node_path.clone())
-            .ign_lint_path(Some(def.ign_lint_path.clone()))
-            .ign_lint_message(format!(
-                "{ign_kind} '{}' is defined but never referenced",
-                def.name
-            ))
-            .fix_opt(fix);
+            let message = if usage.is_written(i, def) {
+                format!("{kind} `{}` is written but never read", def.name)
+            } else {
+                format!("{kind} `{}` is never read", def.name)
+            };
+            cx.report_in(file, def_range(view, def), message)
+                .node_path(def.node_path.clone())
+                .ign_lint_path(Some(def.ign_lint_path.clone()))
+                .ign_lint_message(format!(
+                    "{ign_kind} '{}' is defined but never referenced",
+                    def.name
+                ))
+                .fix_opt(fix);
         }
     }
 }
@@ -565,6 +610,34 @@ mod tests {
             "{}",
         );
         assert!(unused(&broken).is_empty());
+    }
+
+    #[test]
+    fn references_in_other_settings() {
+        let action = view(
+            r#"{"url": 1}"#,
+            "{}",
+            &[label(
+                "A",
+                r#", "events": {"dom": {"onClick": {"type": "nav", "scope": "C", "config": {"url": "{view.custom.url}", "newTab": true}}}}"#,
+            )],
+            "{}",
+        );
+        assert!(unused(&action).is_empty());
+    }
+
+    #[test]
+    fn references_in_other_binding_settings() {
+        let v = view(
+            r#"{"range": 1}"#,
+            "{}",
+            &[label(
+                "A",
+                r#", "propConfig": {"props.data": {"binding": {"type": "tag-history", "config": {"dateRange": {"mostRecent": "{view.custom.range}", "mostRecentUnits": "HOUR"}, "tags": []}}}}"#,
+            )],
+            "{}",
+        );
+        assert!(unused(&v).is_empty());
     }
 
     #[test]

@@ -30,6 +30,7 @@ rules![
     view::property_persistence,
     view::unused_custom_property,
     view::fragile_component_reference,
+    view::output_param_never_written,
 ];
 
 pub static REGISTRY: Registry = Registry::new(ALL);

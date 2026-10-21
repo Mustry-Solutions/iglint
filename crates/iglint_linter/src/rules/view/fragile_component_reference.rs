@@ -296,6 +296,16 @@ fn path_hit(target: &PropertyTarget, range: TextRange) -> Option<(Hit, TextRange
 
 struct FragileReference;
 
+/// Expressions of one ign-lint node: node path, ign-lint path, hits, text,
+/// anchor.
+type ExpressionGroup = (
+    String,
+    Option<String>,
+    Vec<(Hit, TextRange)>,
+    String,
+    TextRange,
+);
+
 impl ViewRule for FragileReference {
     fn check_view(&self, cx: &mut Checker<'_, '_>, view: &View<'_>) {
         let ModelData::View { file, .. } = cx.data() else {
@@ -329,13 +339,7 @@ impl ViewRule for FragileReference {
         }
         // Expressions, grouped by their ign-lint node (a struct binding is
         // one node).
-        let mut groups: Vec<(
-            String,
-            Option<String>,
-            Vec<(Hit, TextRange)>,
-            String,
-            TextRange,
-        )> = Vec::new();
+        let mut groups: Vec<ExpressionGroup> = Vec::new();
         for e in &view.expressions {
             if !matches!(
                 e.kind,

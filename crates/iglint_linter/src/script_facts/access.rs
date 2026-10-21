@@ -6,7 +6,7 @@
 //! | expression | value |
 //! |---|---|
 //! | `self` | the owning component (the view in view-level scripts) |
-//! | `<component>.view` | the view |
+//! | `<component>.view`, `<view>.view` | the view |
 //! | `<component>.parent`, `.getParent()` | the parent component |
 //! | `<component>.getSibling('A')`, `.getChild('A/B')` | that component (any component when the name is not a literal) |
 //! | `<component>.children`, `.getChildren()` | any component |
@@ -251,9 +251,9 @@ impl<'v, 'a> Analysis<'v, 'a, '_> {
                     .view
                     .root_component()
                     .map(|r| Val::Object(AccessTarget::Component(r.id))),
-                (AccessTarget::Component(_) | AccessTarget::AnyComponent, "view") => {
-                    Some(Val::Object(AccessTarget::View))
-                }
+                // `self.view` also works on the view itself (view-level
+                // bindings and events).
+                (_, "view") => Some(Val::Object(AccessTarget::View)),
                 (AccessTarget::Component(_) | AccessTarget::AnyComponent, "parent") => {
                     Some(Val::Object(self.parent(t)))
                 }
@@ -335,7 +335,8 @@ impl<'v, 'a> Analysis<'v, 'a, '_> {
     /// A followed value escapes: everything reachable may be accessed.
     fn escape(&mut self, val: Val, range: TextRange) {
         match val {
-            Val::Container(t, c) => self.record(t, c, None, ExprContext::Load, range),
+            // A container passed on may be read and written.
+            Val::Container(t, c) => self.record(t, c, None, ExprContext::AugLoad, range),
             Val::Object(_) => self.everything(range),
         }
     }
@@ -627,7 +628,10 @@ mod tests {
             accesses("\tk = 'a'\n\tself.view.custom[k]"),
             vec!["view.custom.* r"]
         );
-        assert_eq!(accesses("\tdata = dict(self.custom)"), vec!["B.custom.* r"]);
+        assert_eq!(
+            accesses("\tdata = dict(self.custom)"),
+            vec!["B.custom.* r w"]
+        );
         assert_eq!(
             accesses("\tfor k in self.view.custom.keys(): pass"),
             vec!["view.custom.* r"]
