@@ -11,6 +11,8 @@ pub mod registry;
 pub mod rules;
 pub mod settings;
 pub mod suggest;
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
 
 pub use diagnostic::{Applicability, Diagnostic, FileEdit, Fix, Label, Severity, SourceFile};
 pub use discovery::FileKind;

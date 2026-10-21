@@ -317,6 +317,7 @@ name = "iglint_config"
 version = "0.1.0"
 dependencies = [
  "iglint_linter",
+ "iglint_text",
  "serde",
  "serde_json",
  "tempfile",
@@ -335,6 +336,7 @@ version = "0.1.0"
 name = "iglint_linter"
 version = "0.1.0"
 dependencies = [
+ "iglint_linter",
  "iglint_text",
  "ignore",
  "rayon",

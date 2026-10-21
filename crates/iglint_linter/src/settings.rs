@@ -170,13 +170,15 @@ impl Default for ProjectSettings {
 /// Matches `/`-separated relative paths against glob patterns.
 ///
 /// Supports `*` (within a segment), `**` (any number of segments), `?`, and
-/// character classes `[abc]`. A pattern without `/` matches the file name in
-/// any directory, like `.gitignore`.
+/// character classes `[abc]`. A pattern without `/` matches a file or
+/// directory name at any depth (and so everything below that directory),
+/// like `.gitignore`.
 pub fn glob_matches(pattern: &str, path: &str) -> bool {
     let pattern = pattern.strip_prefix("./").unwrap_or(pattern);
     if !pattern.contains('/') {
-        let name = path.rsplit('/').next().unwrap_or(path);
-        return segment_matches(pattern.as_bytes(), name.as_bytes())
+        return path
+            .split('/')
+            .any(|segment| segment_matches(pattern.as_bytes(), segment.as_bytes()))
             || matches_segments(pattern, path);
     }
     let pattern = pattern.strip_prefix('/').unwrap_or(pattern);
@@ -369,6 +371,15 @@ mod tests {
             "projects/a/views/Legacy/x/view.json"
         ));
         assert!(glob_matches("*.py", "a/b/code.py"));
+        assert!(glob_matches("build", "build/x.py"));
+        assert!(glob_matches(
+            "Legacy",
+            "projects/a/views/Legacy/x/view.json"
+        ));
+        assert!(!glob_matches(
+            "Legacy",
+            "projects/a/views/LegacyNot/x/view.json"
+        ));
         assert!(glob_matches("a/[bc]/*.py", "a/c/code.py"));
         assert!(!glob_matches("a/[!bc]/*.py", "a/c/code.py"));
         assert!(glob_matches("a/?/x", "a/b/x"));

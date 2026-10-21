@@ -30,7 +30,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.145", features = ["preserve_order"] }
 regex = "1.11"
 similar = "2.7"
-toml = "1"
+toml = { version = "1", features = ["preserve_order"] }
 
 # dev
 assert_cmd = "2.1"

@@ -48,7 +48,7 @@ impl FileKind {
     /// Classifies `path` by its name and its neighbours on disk. Returns
     /// `None` for files iglint does not lint (images, CSS, text).
     pub fn classify(path: &Path) -> Option<FileKind> {
-        classify_with(path, &mut |dir| has_manifest(dir))
+        classify_with(path, &mut has_manifest)
     }
 
     /// Whether files of this kind are picked up while walking directories.
@@ -90,7 +90,7 @@ fn classify_with(path: &Path, manifest_in: &mut dyn FnMut(&Path) -> bool) -> Opt
                 .any(|w| w[0].as_os_str() == "ignition" && w[1].as_os_str() == "script-python");
             if name == "code.py" && in_script_library {
                 Some(FileKind::ScriptModule)
-            } else if path.parent().is_some_and(|dir| manifest_in(dir)) {
+            } else if path.parent().is_some_and(&mut *manifest_in) {
                 Some(FileKind::ResourceScript)
             } else {
                 Some(FileKind::Python)
@@ -101,7 +101,7 @@ fn classify_with(path: &Path, manifest_in: &mut dyn FnMut(&Path) -> bool) -> Opt
                 Some(FileKind::View)
             } else if MANIFESTS.contains(&name) {
                 Some(FileKind::Manifest)
-            } else if path.parent().is_some_and(|dir| manifest_in(dir)) {
+            } else if path.parent().is_some_and(&mut *manifest_in) {
                 Some(FileKind::ResourceJson)
             } else {
                 Some(FileKind::Json)
