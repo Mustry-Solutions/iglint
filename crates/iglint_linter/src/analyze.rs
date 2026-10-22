@@ -646,7 +646,11 @@ pub(crate) fn analyze_with(
             return;
         };
         let mut d = d;
-        if origin != Some(t) {
+        let same_settings = || {
+            d.severity_from_options
+                && origin.and_then(|o| targets[o].settings.rule(d.rule)) == Some(rule_settings)
+        };
+        if origin != Some(t) && !same_settings() {
             d.severity = rule_settings.severity;
         }
         per_target[t].push(d);

@@ -471,7 +471,10 @@ impl LiveWorkspace {
                     .into_iter()
                     .filter_map(|mut d| {
                         let rule = settings.rule(d.rule)?;
-                        if !self.reported_with_own_settings(&d) {
+                        if !self.reported_with_own_settings(&d)
+                            && !(d.severity_from_options
+                                && self.unit_rule_settings(&d).as_ref() == Some(rule))
+                        {
                             d.severity = rule.severity;
                         }
                         Some(d)
@@ -497,6 +500,15 @@ impl LiveWorkspace {
             },
             None => true,
         }
+    }
+
+    /// The settings of `d`'s rule in the file whose settings the unit that
+    /// reported `d` ran with.
+    fn unit_rule_settings(&self, d: &Diagnostic) -> Option<crate::settings::RuleSettings> {
+        let f = self.by_path.get(d.file.path())?;
+        let r = self.ws.file(*f).resource?;
+        let path = self.unit_settings_path(r)?;
+        self.settings.for_file(&path).rule(d.rule).cloned()
     }
 
     /// The file whose settings a resource's unit runs with: its first data

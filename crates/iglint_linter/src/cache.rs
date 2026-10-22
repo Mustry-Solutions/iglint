@@ -104,6 +104,8 @@ struct CachedDiagnostic {
     labels: Vec<(u32, u32, String)>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     fix: Option<CachedFix>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    severity_from_options: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -303,6 +305,7 @@ fn store(d: &Diagnostic, file: &SourceFile) -> Option<CachedDiagnostic> {
             })
             .collect(),
         fix,
+        severity_from_options: d.severity_from_options,
     })
 }
 
@@ -326,6 +329,7 @@ fn restore(
     );
     diagnostic.node_path = d.node_path.clone();
     diagnostic.fingerprint_key = d.fingerprint_key.clone();
+    diagnostic.severity_from_options = d.severity_from_options;
     diagnostic.ign_lint_path = d.ign_lint_path.clone();
     diagnostic.ign_lint_message = d.ign_lint_message.clone();
     for (start, end, message) in &d.labels {

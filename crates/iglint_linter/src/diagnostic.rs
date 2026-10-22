@@ -236,6 +236,12 @@ pub struct Diagnostic {
     /// the baseline fingerprint. Rules set this when the message alone is not
     /// stable (for example when it contains a count).
     pub fingerprint_key: Option<String>,
+    /// The rule chose this finding's severity from its options (for
+    /// example `SCR900`'s `category-mapping`). Where the finding lands in
+    /// another file than the one whose settings the rule ran with, the
+    /// severity is kept when both files have the same settings for the
+    /// rule, and replaced by that file's rule severity otherwise.
+    pub severity_from_options: bool,
 }
 
 impl Diagnostic {
@@ -258,6 +264,7 @@ impl Diagnostic {
             labels: Vec::new(),
             fix: None,
             fingerprint_key: None,
+            severity_from_options: false,
         }
     }
 

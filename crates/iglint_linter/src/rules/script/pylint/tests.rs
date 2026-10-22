@@ -795,3 +795,44 @@ fn duplicates_of_native_findings_are_dropped() {
         ]
     );
 }
+
+/// `category-mapping` decides the severity of every message, whatever the
+/// kind of script and whichever file of its resource the script is in
+/// (WebDev scripts sit next to the resource's `config.json`, whose
+/// settings the resource's unit runs with).
+#[cfg(unix)]
+#[test]
+fn category_mapping_applies_to_every_script_kind() {
+    let messages = serde_json::json!([message(
+        "invalid-name",
+        "C0103",
+        "Variable name \"Q\" doesn't conform",
+        (2, 1),
+        Some((2, 2))
+    )]);
+    let fixtures: Vec<(&str, Fixture)> = vec![
+        ("library", library("m", "def f():\n\tQ = 1\n")),
+        ("webdev", webdev("def doGet(request, session):\n\tQ = 1\n")),
+        (
+            "gateway message",
+            gateway_message("def handleMessage(payload):\n\tQ = 1\n"),
+        ),
+        (
+            "session event",
+            session_event("def onStartup(session):\n\tQ = 1\n"),
+        ),
+        (
+            "gateway timer",
+            gateway_timer("def handleTimerEvent():\n\tQ = 1\n"),
+        ),
+        ("view", view(ViewScript::Action, "\tQ = 1")),
+        ("tag event", tag_event("\tQ = 1")),
+    ];
+    for (kind, f) in fixtures {
+        let (f, command) = fake_pylint(f, &messages);
+        let options = format!("{command}\ncategory-mapping = {{ C = \"info\" }}");
+        let d = f.lint_with(&[("SCR900", &options)]);
+        let severities: Vec<Severity> = d.iter().map(|d| d.severity).collect();
+        assert_eq!(severities, [Severity::Info], "{kind}: {d:?}");
+    }
+}

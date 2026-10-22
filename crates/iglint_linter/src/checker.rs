@@ -434,6 +434,7 @@ impl Report<'_> {
     pub fn severity(mut self, severity: Severity) -> Self {
         if let Some(d) = &mut self.diagnostic {
             d.severity = severity;
+            d.severity_from_options = true;
         }
         self
     }
