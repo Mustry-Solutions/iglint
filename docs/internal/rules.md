@@ -88,7 +88,7 @@ Jython builtins).
 |---|---|---|---|---|---|---|
 | SCR001 | syntax-error | E | yes | - | (pylint E0001) | Does not parse with Jython 2.7 (Python 3-only syntax gets a specific hint). |
 | SCR002 | compile-error | E | yes | - | | Parses but Jython refuses to compile: `return`/`yield` outside function, `break`/`continue` outside loop, duplicate argument, `return` with value in generator, `None` as target, `import *` in function with free vars, `default except` not last. |
-| SCR101 | undefined-name | E | yes | - | (E0602) | Name never bound in any enclosing scope, not a builtin, not injected. Suppressed when the scope has `import *` or unqualified `exec`. |
+| SCR101 | undefined-name | E | yes | - | (E0602) | Name never bound in any enclosing scope, not a builtin, not injected. Suppressed when the scope has `import *` or unqualified `exec`, when the module writes its namespace or the builtins (`exec ... in globals()`, `globals()[...] =`, `setattr(sys.modules[__name__], ...)`, `__builtins__[...] =`), and in functions with `exec ... in locals()`. |
 | SCR102 | unused-import | W | yes | S | (W0611) | Import never used (not in `__init__`-like modules; `__all__` respected). |
 | SCR103 | unused-variable | W | yes | U | (W0612) | Local assigned but never read (tuple unpacking and `_`-prefixed names excluded). |
 | SCR104 | redefined-unused | W | yes | - | (W0404/E0102) | Function/class/import redefined before use. |

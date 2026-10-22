@@ -212,6 +212,7 @@ impl<'a> Builder<'a> {
                 for t in &s.targets {
                     self.target(t);
                 }
+                self.module_attribute_write(&s.targets);
                 if self.current == ScopeId::MODULE {
                     self.dunder_all_assign(&s.targets, &s.value);
                 }
@@ -310,9 +311,18 @@ impl<'a> Builder<'a> {
                         scope.unqualified_exec = Some(s.range);
                     }
                     scope.reads_locals = true;
-                } else if s.locals.is_none() || is_call_to(s.locals.as_deref(), "locals") {
-                    // `exec code in globals()` / `in d, locals()` may read locals.
-                    self.scope().reads_locals = true;
+                } else {
+                    if s.locals.is_none() || is_call_to(s.locals.as_deref(), "locals") {
+                        // `exec code in globals()` / `in d, locals()` may read locals.
+                        self.scope().reads_locals = true;
+                    }
+                    // Names the code binds go to the locals mapping (the
+                    // globals one when there is none). Verified on Jython:
+                    // a function with `exec code in globals()` (or `in
+                    // locals()`, `vars()`, `d, globals()`) sees the new
+                    // names.
+                    let target = s.locals.as_deref().or(s.globals.as_deref());
+                    self.mark_namespace_write(target.and_then(namespace_of));
                 }
             }
             Stmt::Global(s) => {
@@ -583,18 +593,32 @@ impl<'a> Builder<'a> {
 
     // ---- writes through globals() ----
 
-    /// `globals()['x'] = ...`, `vars()['x'] = ...`, `locals()['x'] = ...`.
+    /// `globals()['x'] = ...`, `vars()['x'] = ...`, `locals()['x'] = ...`,
+    /// `__builtins__['x'] = ...`, `sys.modules[__name__].__dict__['x'] = ...`.
     fn globals_write(&mut self, targets: &[Expr]) {
         for t in targets {
             if let Expr::Subscript(s) = t
-                && namespace_call(&s.value).is_some()
+                && let Some(ns) = namespace_of(&s.value)
             {
-                self.mark_namespace_write(namespace_call(&s.value));
+                self.mark_namespace_write(Some(ns));
             }
         }
     }
 
-    /// `globals().update(...)`, `globals().setdefault(...)`, ...
+    /// `sys.modules[__name__].x = ...`, `__builtin__.x = ...`: attributes
+    /// of the module (or of the builtins, visible everywhere).
+    fn module_attribute_write(&mut self, targets: &[Expr]) {
+        for t in targets {
+            if let Expr::Attribute(a) = t
+                && is_module_object(&a.value)
+            {
+                self.mark_namespace_write(Some("globals"));
+            }
+        }
+    }
+
+    /// `globals().update(...)`, `globals().setdefault(...)`, ...,
+    /// `setattr(sys.modules[__name__], ...)`, `setattr(__builtin__, ...)`.
     fn globals_call(&mut self, value: &Expr) {
         let Expr::Call(call) = value else { return };
         if let Expr::Attribute(a) = &*call.func
@@ -602,12 +626,20 @@ impl<'a> Builder<'a> {
                 &*a.attr.id,
                 "update" | "setdefault" | "__setitem__" | "pop" | "__delitem__"
             )
-            && namespace_call(&a.value).is_some()
+            && let Some(ns) = namespace_of(&a.value)
         {
-            self.mark_namespace_write(namespace_call(&a.value));
+            self.mark_namespace_write(Some(ns));
+        }
+        if let Expr::Name(f) = &*call.func
+            && &*f.id == "setattr"
+            && call.args.first().is_some_and(is_module_object)
+        {
+            self.mark_namespace_write(Some("globals"));
         }
     }
 
+    /// Records a write to a namespace: `"globals"` for the module (or the
+    /// builtins), `"locals"`/`"vars"` for the current scope's.
     fn mark_namespace_write(&mut self, function: Option<&str>) {
         match function {
             Some("globals") => self.scopes[0].writes_globals = true,
@@ -631,6 +663,47 @@ fn namespace_call(e: &Expr) -> Option<&str> {
         return None;
     };
     (call.args.is_empty() && matches!(&*n.id, "globals" | "locals" | "vars")).then_some(&*n.id)
+}
+
+/// The namespace a mapping expression is: `"globals"` for the module's
+/// (`globals()`, `sys.modules[__name__].__dict__`,
+/// `vars(sys.modules[__name__])`) or the builtins (`__builtins__`,
+/// `__builtin__.__dict__`), `"locals"`/`"vars"` for the current scope's.
+fn namespace_of(e: &Expr) -> Option<&'static str> {
+    match namespace_call(e) {
+        Some("globals") => return Some("globals"),
+        Some("locals") => return Some("locals"),
+        Some(_) => return Some("vars"),
+        None => {}
+    }
+    match e {
+        Expr::Name(n) if &*n.id == "__builtins__" => Some("globals"),
+        Expr::Attribute(a) if &*a.attr.id == "__dict__" && is_module_object(&a.value) => {
+            Some("globals")
+        }
+        Expr::Call(c)
+            if matches!(&*c.func, Expr::Name(n) if &*n.id == "vars")
+                && c.args.len() == 1
+                && is_module_object(&c.args[0]) =>
+        {
+            Some("globals")
+        }
+        _ => None,
+    }
+}
+
+/// `sys.modules[__name__]` (the current module), `__builtin__` or
+/// `__builtins__`: setting an attribute creates a global name.
+fn is_module_object(e: &Expr) -> bool {
+    match e {
+        Expr::Name(n) => matches!(&*n.id, "__builtin__" | "__builtins__"),
+        Expr::Subscript(s) => {
+            matches!(&*s.value, Expr::Attribute(a)
+                if &*a.attr.id == "modules"
+                    && matches!(&*a.value, Expr::Name(n) if &*n.id == "sys"))
+        }
+        _ => false,
+    }
 }
 
 fn is_call_to(e: Option<&Expr>, name: &str) -> bool {

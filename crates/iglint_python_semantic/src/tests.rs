@@ -180,6 +180,46 @@ fn dynamic_scopes() {
     assert!(undefined("globals()['z'] = 1\nprint z\n").is_empty());
 }
 
+/// Each case checked on Ignition's Jython: the name exists at run time.
+#[test]
+fn qualified_exec_and_module_namespace_writes() {
+    for src in [
+        "def f():\n    exec 'x = 1' in globals()\n    return x\n",
+        "def f():\n    exec 'x = 1' in globals(), locals()\n    return x\n",
+        "def f():\n    exec 'x = 1' in globals(), globals()\n    return x\n",
+        "def f():\n    exec 'x = 1' in {}, globals()\n    return x\n",
+        "def f():\n    exec 'x = 1' in locals()\n    return x\n",
+        "def f():\n    exec 'x = 1' in vars()\n    return x\n",
+        "def g():\n    exec 'x = 1' in globals()\ndef h():\n    return x\n",
+        "def f():\n    def g():\n        exec 'x = 1' in globals()\n    g()\n    return x\n",
+        "exec 'x = 1' in globals()\nprint x\n",
+        "exec 'x = 1' in vars()\nprint x\n",
+        "exec 'x = 1' in locals()\nprint x\n",
+        "exec 'x = 1' in {}, globals()\nprint x\n",
+        "def f():\n    globals().update(x=1)\n    return x\n",
+        "def f():\n    globals()['x'] = 1\n    return x\n",
+        "import sys\nsetattr(sys.modules[__name__], 'x', 1)\nprint x\n",
+        "import sys\nsys.modules[__name__].x = 1\nprint x\n",
+        "import sys\nsys.modules[__name__].__dict__['x'] = 1\nprint x\n",
+        "import sys\nvars(sys.modules[__name__]).update(x=1)\nprint x\n",
+        "__builtins__['x'] = 1\nprint x\n",
+        "import __builtin__\nsetattr(__builtin__, 'x', 1)\nprint x\n",
+        "import __builtin__\n__builtin__.x = 1\nprint x\n",
+    ] {
+        assert!(undefined(src).is_empty(), "{src}");
+    }
+    // Names written elsewhere stay undefined (also NameError on Jython).
+    for src in [
+        "def f():\n    exec 'x = 1' in {}\n    return x\n",
+        "def f():\n    exec 'x = 1' in globals(), {}\n    return x\n",
+        "def f(path):\n    execfile(path)\n    return x\n",
+        "def f(path):\n    execfile(path, globals())\n    return x\n",
+        "def f():\n    exec 'x = 1' in locals()\ndef g():\n    return x\n",
+    ] {
+        assert_eq!(undefined(src), ["x"], "{src}");
+    }
+}
+
 #[test]
 fn tuple_parameters_and_star_parameters() {
     let src = "def f((a, b), c=1, *args, **kw):\n    return a + b + c + len(args) + len(kw)\n";

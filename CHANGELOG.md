@@ -19,6 +19,10 @@ from 0.1.0 on.
 - `SCR102` no longer reports top-level imports of library modules that other
   resources use as `pkg.mod.name`, and its fix is unsafe when such uses
   cannot be ruled out.
+- `SCR101` no longer reports names created by `exec code in globals()` (and
+  the other qualified `exec` forms that write the module or the function's
+  locals), by `setattr(sys.modules[__name__], ...)`,
+  `sys.modules[__name__].x = ...` or by writes to the builtins.
 
 ## [0.1.0]
 
