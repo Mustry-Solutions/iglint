@@ -20,7 +20,10 @@ pub static META: RuleMeta = RuleMeta {
 
 Reports uses of `system.*` functions that Ignition 8.3 marks as deprecated
 (also through aliases), with the replacement Ignition names when it names
-one. Deprecation is taken from the scope the script runs in; a library
+one, or else the one Inductive Automation's documentation names (for
+example `system.tag.readBlocking` for `system.tag.read`, with how the call
+changes). `system.dataset.toPyDataSet` and a few others have no
+replacement in 8.3. Deprecation is taken from the scope the script runs in; a library
 module is only reported when the function is deprecated in every scope
 where it exists.
 
@@ -58,6 +61,95 @@ pub static RULE: RuleImpl = RuleImpl {
 
 struct DeprecatedSystemFunction;
 
+/// Replacements for deprecated functions that Ignition does not name
+/// itself, from Inductive Automation's 8.3 documentation; each exists in
+/// the 8.3 stubs and is not deprecated (checked by a test). The note
+/// says how the call must change.
+const KNOWN_REPLACEMENTS: &[(&str, &str, &str)] = &[
+    (
+        "system.tag.read",
+        "system.tag.readBlocking",
+        "it takes a list of paths and returns a list of qualified values",
+    ),
+    ("system.tag.readAll", "system.tag.readBlocking", ""),
+    (
+        "system.tag.getTagValue",
+        "system.tag.readBlocking",
+        "it takes a list of paths and returns a list of qualified values",
+    ),
+    ("system.tag.getTagValues", "system.tag.readBlocking", ""),
+    (
+        "system.tag.write",
+        "system.tag.writeAsync",
+        "it takes lists of paths and values; `system.tag.writeBlocking` waits for the result",
+    ),
+    (
+        "system.tag.writeAll",
+        "system.tag.writeAsync",
+        "`system.tag.writeBlocking` waits for the result",
+    ),
+    (
+        "system.tag.writeToTag",
+        "system.tag.writeAsync",
+        "it takes lists of paths and values",
+    ),
+    ("system.tag.writeToTags", "system.tag.writeAsync", ""),
+    (
+        "system.tag.writeAllSynchronous",
+        "system.tag.writeBlocking",
+        "",
+    ),
+    (
+        "system.tag.writeToTagSynchronous",
+        "system.tag.writeBlocking",
+        "it takes lists of paths and values",
+    ),
+    (
+        "system.tag.browseTags",
+        "system.tag.browse",
+        "it returns browse results, not tag objects",
+    ),
+    (
+        "system.tag.browseTagsSimple",
+        "system.tag.browse",
+        "it returns browse results, not tag objects",
+    ),
+    (
+        "system.tag.addTag",
+        "system.tag.configure",
+        "it takes a base path and a list of tag dictionaries",
+    ),
+    (
+        "system.tag.editTag",
+        "system.tag.configure",
+        "it takes a base path and a list of tag dictionaries",
+    ),
+    (
+        "system.tag.editTags",
+        "system.tag.configure",
+        "it takes a base path and a list of tag dictionaries",
+    ),
+    (
+        "system.tag.removeTag",
+        "system.tag.deleteTags",
+        "it takes a list of paths",
+    ),
+    ("system.tag.removeTags", "system.tag.deleteTags", ""),
+    ("system.tag.loadFromFile", "system.tag.importTags", ""),
+    ("system.dataset.toDataSet", "system.dataset.toDataset", ""),
+    ("system.db.toDataSet", "system.dataset.toDataset", ""),
+    ("system.dataset.dataSetToCSV", "system.dataset.toCSV", ""),
+    ("system.db.dataSetToCSV", "system.dataset.toCSV", ""),
+    ("system.gui.openWindow", "system.vision.openWindow", ""),
+    ("system.gui.closeWindow", "system.vision.closeWindow", ""),
+    (
+        "system.gui.closeParentWindow",
+        "system.vision.closeParentWindow",
+        "",
+    ),
+    ("system.gui.swapWindow", "system.vision.swapWindow", ""),
+];
+
 impl ScriptRule for DeprecatedSystemFunction {
     fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
         let Some(model) = semantic(cx, unit) else {
@@ -88,7 +180,13 @@ impl ScriptRule for DeprecatedSystemFunction {
                 return;
             }
             let mut message = format!("`{path}` is deprecated");
-            if let Some(replacement) = replacement {
+            let known = KNOWN_REPLACEMENTS.iter().find(|(from, _, _)| *from == path);
+            if let (None, Some((_, to, note))) = (replacement, known) {
+                message.push_str(&format!("; use `{to}` instead"));
+                if !note.is_empty() {
+                    message.push_str(&format!(" ({note})"));
+                }
+            } else if let Some(replacement) = replacement {
                 let names: Vec<String> = replacement
                     .split(',')
                     .map(|r| format!("`{}`", r.trim()))
@@ -120,7 +218,7 @@ mod tests {
         assert_eq!(
             messages(&d),
             [
-                "`system.tag.read` is deprecated",
+                "`system.tag.read` is deprecated; use `system.tag.readBlocking` instead (it takes a list of paths and returns a list of qualified values)",
                 "`system.tag.queryTagHistory` is deprecated; use `system.historian.queryRawPoints` instead"
             ]
         );
@@ -172,5 +270,16 @@ mod tests {
         let d = gateway_timer("def handleTimerEvent():\n\tsystem.tag.writeAll(['a'], [1])\n")
             .lint(&["SCR204"]);
         assert_eq!(flagged(&d), ["system.tag.writeAll"]);
+    }
+
+    #[test]
+    fn known_replacements_exist_and_are_current() {
+        for (from, to, _) in super::KNOWN_REPLACEMENTS {
+            let old = iglint_stubs::system_function(from).unwrap_or_else(|| panic!("{from}"));
+            assert!(old.is_deprecated(), "{from} is not deprecated");
+            assert_eq!(old.replacement(), None, "{from}: Ignition names one");
+            let new = iglint_stubs::system_function(to).unwrap_or_else(|| panic!("{to}"));
+            assert!(!new.is_deprecated(), "{to} is deprecated");
+        }
     }
 }
