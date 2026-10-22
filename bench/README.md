@@ -167,41 +167,42 @@ views on it is well above. Without pylint every corpus is above 10x.
 ## Results (synthetic corpora)
 
 Development machine: 16 CPUs (8 cores, 2 threads each), 23 GB RAM, Linux,
-shared with other jobs. Minimum wall times; `x` is ign-lint's time divided
-by iglint's. ign-lint's best working configuration is `jobs1` on every
-corpus (see the batch-mode note above).
+otherwise idle (final run, branch `bench` after merging main). Minimum wall
+times; `x` is ign-lint's time divided by iglint's. ign-lint's best working
+configuration is `jobs1` on every corpus (see the batch-mode note above).
 
-| | small (50 views) | medium (500) | large (5,000) |
-|---|---|---|---|
-| ign-lint, as shipped (`jobs=4`) | 5.25 s | 72.5 s | 1,292 s ¹ |
-| ign-lint `jobs=1` (best working) | 1.62 s | 16.2 s | 176 s |
-| ign-lint `batch_mode` + `jobs=1` (broken output) | 1.13 s | 17.0 s | 1,236 s |
-| ign-lint without pylint | 232 ms | 1.62 s | 15.7 s |
-| `iglint ign-lint`, with pylint (equal work) | 223 ms (**7.3x**) | 550 ms (**29x**) | 3.97 s (**44x**) |
-| same, one CPU | 588 ms (2.8x) | 4.51 s (3.6x) | 46.8 s (3.8x) |
-| `iglint ign-lint`, without pylint (equal work) | 15 ms (**15x**) | 71 ms (**23x**) | 405 ms (**39x**) |
-| same, one CPU | 29 ms (8.0x) | 276 ms (5.9x) | 1.94 s (8.1x) |
-| `iglint check`, ign-lint's rules, whole repository | 19 ms (12x) | 100 ms (16x) | 596 ms (26x) |
-| `iglint check`, default rules, cold | 22 ms (75x vs best) | 120 ms (134x) | 696 ms (253x) |
-| same, one CPU | 70 ms | 656 ms | 3.96 s |
-| warm cache / one file changed | 18 / 23 ms | 95 / 134 ms | 553 / 774 ms |
-| `--select ALL` | 23 ms | 128 ms | 779 ms |
-| peak RSS: ign-lint `jobs=1` / `iglint check` | 66 / 151 MB | 193 / 407 MB | 1,428 / 1,889 MB |
+| | small (50 views) | medium (500) | large (5,000) | xl (20,000) |
+|---|---|---|---|---|
+| ign-lint, as shipped (`jobs=4`) | 5.32 s | 74.1 s | 1,172 s | not run ¹ |
+| ign-lint `jobs=1` (best working) | 1.65 s | 16.6 s | 176 s | 713 s |
+| ign-lint `batch_mode` + `jobs=1` (broken output) | 1.15 s | 16.9 s | 1,231 s | not run ¹ |
+| ign-lint without pylint | 236 ms | 1.61 s | 15.9 s | 65.6 s |
+| `iglint ign-lint`, with pylint (equal work) | 230 ms (**7.2x**) | 577 ms (**29x**) | 3.91 s (**45x**) | 16.5 s (**43x**) |
+| same, one CPU | 602 ms (2.7x) | 4.59 s (3.6x) | 46.4 s (3.8x) | 186 s (3.8x) |
+| `iglint ign-lint`, without pylint (equal work) | 16 ms (**15x**) | 62 ms (**26x**) | 372 ms (**43x**) | 1.24 s (**53x**) |
+| same, one CPU | 29 ms (8.1x) | 264 ms (6.1x) | 1.77 s (9.0x) | 5.47 s (12x) |
+| `iglint check`, ign-lint's rules, whole repository | 20 ms (12x) | 106 ms (15x) | 578 ms (28x) | 1.61 s (41x) |
+| `iglint check`, default rules, cold | 22 ms (74x vs best) | 125 ms (133x) | 677 ms (260x) | 1.89 s (377x) |
+| same, one CPU | 80 ms | 729 ms | 4.18 s | 11.0 s |
+| cold, writing the cache | 27 ms | 142 ms | 809 ms | 2.13 s |
+| warm cache / one view changed | 19 / 19 ms | 97 / 97 ms | 537 / 563 ms | 1.51 / 1.51 s |
+| `--select ALL` | 24 ms | 130 ms | 770 ms | 2.42 s |
+| peak RSS: ign-lint `jobs=1` / `iglint check` | 66 / 155 MB | 194 / 281 MB | 1,427 / 1,066 MB | 5,560 / 3,195 MB |
 
-¹ From an earlier run of the same corpus; `ign-lint-batch` (bundled rcfile)
-took 1,326 s there.
+¹ `jobs=4` and batch mode grow superlinearly (about 20 minutes each on
+large); they are never the best working configuration.
 
-Not reached yet: with pylint on the small corpus (pylint's fixed start-up
-cost) and single-CPU runs. **xl (20,000 views) was not run on this
-machine:** iglint's peak memory grew by about 0.38 MB per view (1.9 GB on
-large, a projected 7 to 8 GB on xl), more than was free next to the other
-jobs. It is now about 0.22 MB per view (see the profile below).
+Not reached: 10x with pylint on the small corpus (pylint's fixed start-up
+and set-up cost of about 0.2 s against ign-lint's 1.65 s) and 10x on one
+CPU in most columns. Everything else is above 10x on every corpus, and the
+speedup grows with the corpus.
 
 On a private production project (287 views, its CI command with its own
-`rule_config.json` and whitelist; aggregates only): ign-lint `jobs=1`
-6.55 s, batch mode 2.09 s (broken output), without pylint 1.97 s;
-`iglint ign-lint` with pylint 462 ms (14x; 1.65 s on one CPU), without
-pylint 56 ms (35x); `iglint check --no-cache projects services` 108 ms.
+`rule_config.json` and whitelist; aggregates only), same run: ign-lint
+`jobs=1` 6.28 s, batch mode 2.08 s (broken output), without pylint
+1.94 s; `iglint ign-lint` with pylint 416 ms (**15x**; 1.56 s on one CPU,
+4.0x), without pylint 50 ms (**39x**; 167 ms on one CPU, 12x);
+`iglint check --no-cache projects services` 108 ms (384 ms on one CPU).
 
 ## Profile
 
@@ -224,10 +225,9 @@ Together: private project 0.33 s to 0.11 s (`iglint check`), 0.29 s to
 0.06 s (`iglint ign-lint` without pylint), 0.87 s to 0.46 s with pylint;
 large corpus 1.50 s to 0.70 s.
 
-Memory and the cache (after the numbers above were taken; final numbers
-to be rerun on a quiet machine):
+Memory and the cache:
 
-* Peak RSS on large went from 1.92 GB to 1.09 GB at the same speed. Per-unit
+* Peak RSS on large went from 1.92 GB to 1.07 GB at the same speed. Per-unit
   caches (Python parse trees above all, about 25 bytes per byte of
   Python) now live for one phase only; phase B re-parses the scripts of the
   units it lints, and suppression state and pylint results are carried
@@ -237,9 +237,9 @@ to be rerun on a quiet machine):
 * The cache context is now the layout, the manifests and a hash of every
   resource summary, instead of the text of every file. A change that
   leaves the summaries as they were keeps every other unit's results:
-  on large, one changed view costs 0.55 s (as much as a warm run) instead
+  on large, one changed view costs 0.56 s (as much as a warm run) instead
   of 0.77 s. A cold run that writes the cache parses everything once more
-  (0.91 s instead of 0.73 s). `crates/iglint_linter/tests/incremental.rs`
+  (0.81 s instead of 0.68 s without the cache). `crates/iglint_linter/tests/incremental.rs`
   checks every one-file change of the fixture workspace (and a dependent
   view) against an uncached run.
 
