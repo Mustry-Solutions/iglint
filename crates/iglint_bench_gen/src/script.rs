@@ -30,12 +30,44 @@ pub struct Output {
 }
 
 const LOCAL_NAMES: &[&str] = &[
-    "value", "result", "rows", "data", "state", "count", "total", "label", "path", "payload",
-    "items", "limits", "target", "status", "message", "selection", "order", "speed", "line",
-    "unit", "text", "color", "duration", "params", "record", "entry", "names", "values",
+    "value",
+    "result",
+    "rows",
+    "data",
+    "state",
+    "count",
+    "total",
+    "label",
+    "path",
+    "payload",
+    "items",
+    "limits",
+    "target",
+    "status",
+    "message",
+    "selection",
+    "order",
+    "speed",
+    "line",
+    "unit",
+    "text",
+    "color",
+    "duration",
+    "params",
+    "record",
+    "entry",
+    "names",
+    "values",
 ];
 
-const UNDEFINED: &[&str] = &["resutl", "tagValu", "selectedRw", "lineNumbr", "dataSt", "curentValue"];
+const UNDEFINED: &[&str] = &[
+    "resutl",
+    "tagValu",
+    "selectedRw",
+    "lineNumbr",
+    "dataSt",
+    "curentValue",
+];
 
 struct Gen<'a, 'w> {
     w: &'w World,
@@ -43,6 +75,9 @@ struct Gen<'a, 'w> {
     ctx: &'a ScriptCtx<'a>,
     lines: Vec<String>,
     locals: Vec<String>,
+    /// Locals assigned but not read yet; reads prefer these so that the
+    /// code has few unused variables, like real scripts.
+    unread: Vec<String>,
     used: Vec<String>,
 }
 
@@ -60,17 +95,22 @@ pub fn body(
         ctx,
         lines: Vec::new(),
         locals: ctx.params.iter().map(|s| (*s).to_owned()).collect(),
+        unread: Vec::new(),
         used: Vec::new(),
     };
     let budget = target_lines.max(1) - usize::from(ctx.returns);
-    let defect_at = if defect { g.rng.below(budget.max(1)) } else { usize::MAX };
+    let defect_at = if defect {
+        g.rng.below(budget.max(1))
+    } else {
+        usize::MAX
+    };
     let mut defect_done = false;
     while g.lines.len() < budget {
         if !defect_done && g.lines.len() >= defect_at {
             let name = g.undefined();
             let var = g.fresh();
             g.emit(base_indent, format!("{var} = {name}"));
-            g.locals.push(var);
+            g.define(var);
             defect_done = true;
             continue;
         }
@@ -83,6 +123,34 @@ pub fn body(
     if ctx.returns {
         let v = g.value_expr();
         g.emit(base_indent, format!("return {v}"));
+    }
+    let unread: Vec<String> = g
+        .unread
+        .iter()
+        .filter(|u| g.locals.contains(u))
+        .cloned()
+        .collect();
+    if !unread.is_empty() && !ctx.returns {
+        let logger = ctx.logger;
+        g.emit(
+            base_indent,
+            format!(
+                "system.util.getLogger(\"{logger}\").debug(\"done: %s\" % ([{}],))",
+                unread.join(", ")
+            ),
+        );
+    } else if !unread.is_empty() {
+        // Read them before the return statement.
+        let ret = g.lines.pop().unwrap_or_default();
+        let logger = ctx.logger;
+        g.emit(
+            base_indent,
+            format!(
+                "system.util.getLogger(\"{logger}\").debug(\"done: %s\" % ([{}],))",
+                unread.join(", ")
+            ),
+        );
+        g.lines.push(ret);
     }
     Output {
         text: g.lines.join("\n"),
@@ -146,11 +214,46 @@ impl Gen<'_, '_> {
     }
 
     fn local(&mut self) -> Option<String> {
+        self.unread.retain(|u| self.locals.contains(u));
+        if !self.unread.is_empty() && self.rng.chance(0.85) {
+            let i = self.rng.below(self.unread.len());
+            return Some(self.unread.swap_remove(i));
+        }
         if self.locals.is_empty() {
             None
         } else {
-            Some(self.rng.pick(&self.locals).clone())
+            let l = self.rng.pick(&self.locals).clone();
+            self.unread.retain(|u| *u != l);
+            Some(l)
         }
+    }
+
+    /// Leaves a block: locals assigned in it and never read are read once
+    /// (logged), then the outer scope's locals are restored.
+    fn restore(&mut self, ind: usize, saved: Vec<String>) {
+        let pending: Vec<String> = self
+            .unread
+            .iter()
+            .filter(|u| !saved.contains(u) && self.locals.contains(u))
+            .cloned()
+            .collect();
+        if !pending.is_empty() {
+            let logger = self.ctx.logger;
+            self.emit(
+                ind,
+                format!(
+                    "system.util.getLogger(\"{logger}\").debug(\"%s\" % ([{}],))",
+                    pending.join(", ")
+                ),
+            );
+        }
+        self.unread.retain(|u| saved.contains(u));
+        self.locals = saved;
+    }
+
+    fn define(&mut self, name: String) {
+        self.unread.push(name.clone());
+        self.locals.push(name);
     }
 
     fn string_lit(&mut self) -> String {
@@ -204,32 +307,32 @@ impl Gen<'_, '_> {
     fn stmt(&mut self, ind: usize, depth: usize, budget: usize) {
         let remaining = budget.saturating_sub(self.lines.len());
         let kind = self.rng.weighted(&[
-            (0, 18),  // read view prop
-            (1, 18),  // library call
-            (2, 8),   // tag read
-            (3, 4),   // tag write
-            (4, 8),   // logger
-            (5, 6),   // send message
-            (6, 3),   // popup
-            (7, 4),   // named query loop
+            (0, 18),                                              // read view prop
+            (1, 18),                                              // library call
+            (2, 8),                                               // tag read
+            (3, 4),                                               // tag write
+            (4, 8),                                               // logger
+            (5, 6),                                               // send message
+            (6, 3),                                               // popup
+            (7, 4),                                               // named query loop
             (8, if remaining > 3 && depth < 3 { 14 } else { 0 }), // if/else
             (9, if remaining > 4 && depth < 2 { 5 } else { 0 }),  // try/except
-            (10, 7),  // write a prop
-            (11, 4),  // dates
-            (12, 4),  // comprehension
-            (13, 3),  // sibling access
+            (10, 7),                                              // write a prop
+            (11, 4),                                              // dates
+            (12, 4),                                              // comprehension
+            (13, 3),                                              // sibling access
         ]);
         match kind {
             0 => {
                 if let Some(r) = self.view_prop_read() {
                     let v = self.fresh();
                     self.emit(ind, format!("{v} = {r}"));
-                    self.locals.push(v);
+                    self.define(v);
                 } else {
                     let v = self.fresh();
                     let c = self.lib_call();
                     self.emit(ind, format!("{v} = {c}"));
-                    self.locals.push(v);
+                    self.define(v);
                 }
             }
             1 => {
@@ -237,7 +340,7 @@ impl Gen<'_, '_> {
                 if self.rng.chance(0.7) {
                     let v = self.fresh();
                     self.emit(ind, format!("{v} = {c}"));
-                    self.locals.push(v);
+                    self.define(v);
                 } else {
                     self.emit(ind, c);
                 }
@@ -245,8 +348,11 @@ impl Gen<'_, '_> {
             2 => {
                 let p = self.w.tag_path(self.rng);
                 let v = self.fresh();
-                self.emit(ind, format!("{v} = system.tag.readBlocking([\"{p}\"])[0].value"));
-                self.locals.push(v);
+                self.emit(
+                    ind,
+                    format!("{v} = system.tag.readBlocking([\"{p}\"])[0].value"),
+                );
+                self.define(v);
             }
             3 => {
                 let p = self.w.tag_path(self.rng);
@@ -304,21 +410,33 @@ impl Gen<'_, '_> {
                 let v = self.fresh();
                 self.emit(
                     ind,
-                    format!("{v} = system.db.runNamedQuery(\"{}\", {{{}}})", q.path, args.join(", ")),
+                    format!(
+                        "{v} = system.db.runNamedQuery(\"{}\", {{{}}})",
+                        q.path,
+                        args.join(", ")
+                    ),
                 );
-                self.locals.push(v.clone());
+                self.define(v.clone());
                 if remaining > 2 && depth < 3 {
-                    let row = if self.locals.contains(&"row".to_owned()) { "row2" } else { "row" };
-                    self.emit(ind, format!("for {row} in system.dataset.toPyDataSet({v}):"));
+                    self.unread.retain(|u| *u != v);
+                    let row = if self.locals.contains(&"row".to_owned()) {
+                        "row2"
+                    } else {
+                        "row"
+                    };
+                    self.emit(
+                        ind,
+                        format!("for {row} in system.dataset.toPyDataSet({v}):"),
+                    );
                     let saved = self.locals.clone();
                     self.locals.push(row.to_owned());
                     let t = self.fresh();
                     self.emit(ind + 1, format!("{t} = {row}[0]"));
-                    self.locals.push(t);
+                    self.define(t);
                     if self.rng.chance(0.5) {
                         self.stmt(ind + 1, depth + 1, budget);
                     }
-                    self.locals = saved;
+                    self.restore(ind + 1, saved);
                 }
             }
             8 => {
@@ -337,11 +455,11 @@ impl Gen<'_, '_> {
                 for _ in 0..n {
                     self.stmt(ind + 1, depth + 1, budget);
                 }
-                self.locals = saved.clone();
+                self.restore(ind + 1, saved.clone());
                 if self.rng.chance(0.4) {
                     self.emit(ind, "else:".to_owned());
                     self.stmt(ind + 1, depth + 1, budget);
-                    self.locals = saved;
+                    self.restore(ind + 1, saved);
                 }
             }
             9 => {
@@ -349,7 +467,7 @@ impl Gen<'_, '_> {
                 let saved = self.locals.clone();
                 self.stmt(ind + 1, depth + 1, budget);
                 self.stmt(ind + 1, depth + 1, budget);
-                self.locals = saved;
+                self.restore(ind + 1, saved);
                 self.emit(ind, "except Exception as e:".to_owned());
                 let logger = self.ctx.logger;
                 self.emit(
@@ -369,26 +487,29 @@ impl Gen<'_, '_> {
                 } else {
                     let t = self.fresh();
                     self.emit(ind, format!("{t} = {v}"));
-                    self.locals.push(t);
+                    self.define(t);
                 }
             }
             11 => {
                 let v = self.fresh();
-                self.emit(ind, format!("{v} = system.date.format(system.date.now(), \"yyyy-MM-dd HH:mm\")"));
-                self.locals.push(v);
+                self.emit(
+                    ind,
+                    format!("{v} = system.date.format(system.date.now(), \"yyyy-MM-dd HH:mm\")"),
+                );
+                self.define(v);
             }
             12 => {
                 let src = self.local().unwrap_or_else(|| "[]".to_owned());
                 let v = self.fresh();
                 self.emit(ind, format!("{v} = [str(x) for x in ({src} or [])]"));
-                self.locals.push(v);
+                self.define(v);
             }
             _ => {
                 if self.ctx.has_self && !self.ctx.siblings.is_empty() {
                     let s = self.rng.pick(self.ctx.siblings).clone();
                     let v = self.fresh();
                     self.emit(ind, format!("{v} = self.getSibling(\"{s}\").props.text"));
-                    self.locals.push(v);
+                    self.define(v);
                 } else {
                     let c = self.lib_call();
                     self.emit(ind, c);

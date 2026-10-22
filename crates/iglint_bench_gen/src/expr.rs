@@ -40,7 +40,9 @@ pub fn expression(rng: &mut Rng, ctx: &ExprCtx<'_>, defect: ExprDefect) -> ExprO
         }
         ExprDefect::UnknownFunction => {
             let a = g.atom();
-            let f = *g.rng.pick(&["formatValue", "getValueOf", "toLabel", "safeInt"]);
+            let f = *g
+                .rng
+                .pick(&["formatValue", "getValueOf", "toLabel", "safeInt"]);
             format!("{f}({a})")
         }
         ExprDefect::Polling => {

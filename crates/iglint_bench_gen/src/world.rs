@@ -112,7 +112,12 @@ impl World {
             } else if index < 5 {
                 Role::Dock
             } else {
-                rng.weighted(&[(Role::Card, 52), (Role::Popup, 26), (Role::Page, 18), (Role::Dock, 4)])
+                rng.weighted(&[
+                    (Role::Card, 52),
+                    (Role::Popup, 26),
+                    (Role::Page, 18),
+                    (Role::Dock, 4),
+                ])
             };
             let folder = match role {
                 Role::Page => format!("Pages/Area{}", 1 + index % (1 + n / 60)),
@@ -134,7 +139,11 @@ impl World {
             });
         }
         let by_role = |r: Role| -> Vec<usize> {
-            views.iter().filter(|v| v.role == r).map(|v| v.index).collect()
+            views
+                .iter()
+                .filter(|v| v.role == r)
+                .map(|v| v.index)
+                .collect()
         };
         let cards = by_role(Role::Card);
         let popups = by_role(Role::Popup);
@@ -198,7 +207,11 @@ impl World {
         let mut qseen = HashSet::new();
         for i in 0..query_count {
             let folder = rng.pick(names::EQUIPMENT);
-            let mut name = format!("{}{}", capital(rng.pick(names::VERBS)), rng.pick(names::NOUNS));
+            let mut name = format!(
+                "{}{}",
+                capital(rng.pick(names::VERBS)),
+                rng.pick(names::NOUNS)
+            );
             if !qseen.insert(format!("{folder}/{name}")) {
                 name = format!("{name}{i}");
             }
@@ -222,7 +235,11 @@ impl World {
         let mut style_classes = Vec::with_capacity(style_count);
         let mut sseen = HashSet::new();
         for i in 0..style_count {
-            let mut s = format!("{}/{}", rng.pick(names::STYLE_GROUPS), rng.pick(names::STYLE_WORDS));
+            let mut s = format!(
+                "{}/{}",
+                rng.pick(names::STYLE_GROUPS),
+                rng.pick(names::STYLE_WORDS)
+            );
             if !sseen.insert(s.clone()) {
                 s = format!("{s}{i}");
             }
@@ -282,15 +299,24 @@ impl World {
         let line = 1 + rng.below(self.lines);
         match rng.weighted(&[(0, 60), (1, 25), (2, 15)]) {
             0 => (
-                format!("[default]Plant/Line{line}/Motor{}", 1 + rng.below(MOTORS_PER_LINE)),
+                format!(
+                    "[default]Plant/Line{line}/Motor{}",
+                    1 + rng.below(MOTORS_PER_LINE)
+                ),
                 MOTOR_MEMBERS,
             ),
             1 => (
-                format!("[default]Plant/Line{line}/Valve{}", 1 + rng.below(VALVES_PER_LINE)),
+                format!(
+                    "[default]Plant/Line{line}/Valve{}",
+                    1 + rng.below(VALVES_PER_LINE)
+                ),
                 VALVE_MEMBERS,
             ),
             _ => (
-                format!("[default]Plant/Line{line}/Pump{}", 1 + rng.below(PUMPS_PER_LINE)),
+                format!(
+                    "[default]Plant/Line{line}/Pump{}",
+                    1 + rng.below(PUMPS_PER_LINE)
+                ),
                 PUMP_MEMBERS,
             ),
         }

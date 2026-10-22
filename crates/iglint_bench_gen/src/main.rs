@@ -92,9 +92,18 @@ fn main() -> Result<()> {
         .par_iter()
         .map(|spec| -> Result<view::Stats> {
             let (text, stats) = view::generate(&w, spec);
-            let dir = format!("projects/{}/{}/views/{}", project::HMI, project::PERSPECTIVE, spec.path);
+            let dir = format!(
+                "projects/{}/{}/views/{}",
+                project::HMI,
+                project::PERSPECTIVE,
+                spec.path
+            );
             write(root, &format!("{dir}/view.json"), &text)?;
-            write(root, &format!("{dir}/resource.json"), &project::view_manifest())?;
+            write(
+                root,
+                &format!("{dir}/resource.json"),
+                &project::view_manifest(),
+            )?;
             Ok(stats)
         })
         .collect::<Result<Vec<_>>>()?;
@@ -127,7 +136,11 @@ fn main() -> Result<()> {
 
     let roles = project::roles(&w);
     println!("views: {} ({:?})", total.views, roles);
-    println!("view bytes: {} (mean {})", total.bytes, total.bytes / total.views.max(1));
+    println!(
+        "view bytes: {} (mean {})",
+        total.bytes,
+        total.bytes / total.views.max(1)
+    );
     println!(
         "components: {} (mean {:.1}/view), bindings: {}, transforms: {}",
         total.components,
@@ -135,7 +148,10 @@ fn main() -> Result<()> {
         total.bindings,
         total.transforms
     );
-    println!("view scripts: {} ({} lines)", total.scripts, total.script_lines);
+    println!(
+        "view scripts: {} ({} lines)",
+        total.scripts, total.script_lines
+    );
     println!("library modules: {} ({} lines)", w.modules.len(), lib_lines);
     println!(
         "named queries: {}, style classes: {}, tag lines: {}",
@@ -143,7 +159,61 @@ fn main() -> Result<()> {
         w.style_classes.len(),
         w.lines
     );
-    let defects: Vec<String> = total.defects.iter().map(|(k, v)| format!("{k}={v}")).collect();
+    let defects: Vec<String> = total
+        .defects
+        .iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect();
     println!("seeded defects: {}", defects.join(", "));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{project, view, world};
+
+    fn world(views: usize, seed: u64) -> world::World {
+        world::World::new(world::Config {
+            views,
+            seed,
+            defects: 0.05,
+        })
+    }
+
+    #[test]
+    fn views_are_deterministic_valid_designer_json() {
+        let a = world(40, 7);
+        let b = world(40, 7);
+        for (va, vb) in a.views.iter().zip(&b.views) {
+            let (ta, _) = view::generate(&a, va);
+            let (tb, _) = view::generate(&b, vb);
+            assert_eq!(ta, tb);
+            let v: serde_json::Value = serde_json::from_str(&ta).expect("valid JSON");
+            assert!(v.get("root").is_some());
+            assert!(!ta.ends_with('\n'));
+            assert!(!ta.contains('='), "Gson escapes `=`");
+        }
+    }
+
+    #[test]
+    fn seeds_differ() {
+        let (a, _) = view::generate(&world(10, 1), &world(10, 1).views[5]);
+        let (b, _) = view::generate(&world(10, 2), &world(10, 2).views[5]);
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn library_modules_do_not_hide_packages() {
+        let w = world(400, 3);
+        let modules: std::collections::HashSet<String> =
+            w.modules.iter().map(|m| m.path.join("/")).collect();
+        for m in &w.modules {
+            for i in 1..m.path.len() {
+                assert!(!modules.contains(&m.path[..i].join("/")));
+            }
+        }
+        let (files, lines) = project::library_module(&w, 0);
+        assert_eq!(files.len(), 2);
+        assert!(lines > 0);
+    }
 }

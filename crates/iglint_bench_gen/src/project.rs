@@ -73,7 +73,11 @@ pub fn library_module(w: &World, index: usize) -> (Vec<File>, usize) {
     let mut lines = 3;
     for f in &m.functions {
         out.push_str(&format!("\n\ndef {}({}):\n", f.name, f.params.join(", ")));
-        out.push_str(&format!("\t\"\"\"{} {}.\"\"\"\n", f.name, f.params.join(", ")));
+        out.push_str(&format!(
+            "\t\"\"\"{} {}.\"\"\"\n",
+            f.name,
+            f.params.join(", ")
+        ));
         let params: Vec<&str> = f.params.iter().map(String::as_str).collect();
         let ctx = ScriptCtx {
             has_self: false,
@@ -91,11 +95,17 @@ pub fn library_module(w: &World, index: usize) -> (Vec<File>, usize) {
         out.push_str(&body.text);
         out.push('\n');
     }
-    let dir = format!("projects/{BASE}/ignition/script-python/{}", m.path.join("/"));
+    let dir = format!(
+        "projects/{BASE}/ignition/script-python/{}",
+        m.path.join("/")
+    );
     (
         vec![
             file(format!("{dir}/code.py"), out),
-            file(format!("{dir}/resource.json"), manifest("A", 1, &["code.py"], json!({"hintScope": 2}))),
+            file(
+                format!("{dir}/resource.json"),
+                manifest("A", 1, &["code.py"], json!({"hintScope": 2})),
+            ),
         ],
         lines,
     )
@@ -128,7 +138,10 @@ pub fn named_queries(w: &World) -> Vec<File> {
         });
         let dir = format!("projects/{BASE}/ignition/named-query/{}", q.path);
         files.push(file(format!("{dir}/query.sql"), sql));
-        files.push(file(format!("{dir}/resource.json"), manifest("A", 2, &["query.sql"], attrs)));
+        files.push(file(
+            format!("{dir}/resource.json"),
+            manifest("A", 2, &["query.sql"], attrs),
+        ));
     }
     files
 }
@@ -138,12 +151,18 @@ pub fn style_classes(w: &World) -> Vec<File> {
     for (i, s) in w.style_classes.iter().enumerate() {
         let mut rng = w.rng("style", i as u64);
         let mut style = Map::new();
-        style.insert("color".to_owned(), json!(format!("#{:06X}", rng.below(0xFFFFFF))));
+        style.insert(
+            "color".to_owned(),
+            json!(format!("#{:06X}", rng.below(0xFFFFFF))),
+        );
         if rng.chance(0.5) {
             style.insert("fontWeight".to_owned(), json!("bold"));
         }
         if rng.chance(0.4) {
-            style.insert("borderRadius".to_owned(), json!(format!("{}px", rng.range(2, 12))));
+            style.insert(
+                "borderRadius".to_owned(),
+                json!(format!("{}px", rng.range(2, 12))),
+            );
         }
         let mut v = json!({"base": {"style": style}});
         if rng.chance(0.3) {
@@ -151,7 +170,10 @@ pub fn style_classes(w: &World) -> Vec<File> {
         }
         let dir = format!("projects/{BASE}/{PERSPECTIVE}/style-classes/{s}");
         files.push(file(format!("{dir}/style.json"), gson::to_string(&v, true)));
-        files.push(file(format!("{dir}/resource.json"), manifest("G", 1, &["style.json"], modified())));
+        files.push(file(
+            format!("{dir}/resource.json"),
+            manifest("G", 1, &["style.json"], modified()),
+        ));
     }
     files
 }
@@ -171,10 +193,17 @@ pub fn hmi_resources(w: &World) -> Vec<File> {
         .take(2)
         .map(|&i| json!({"anchor": "fixed", "autoBreakpoint": 480, "content": "auto", "handle": "hide", "iconUrl": "", "id": names::lower_first(w.views[i].path.rsplit('/').next().unwrap_or("dock")), "modal": false, "resizable": false, "show": "visible", "size": 64, "viewParams": {}, "viewPath": w.views[i].path}))
         .collect();
-    let config = json!({"pages": pages, "sharedDocks": {"cornerPriority": "top-bottom", "top": docks}});
+    let config =
+        json!({"pages": pages, "sharedDocks": {"cornerPriority": "top-bottom", "top": docks}});
     let dir = format!("projects/{HMI}/{PERSPECTIVE}/page-config");
-    files.push(file(format!("{dir}/config.json"), gson::to_string(&config, true)));
-    files.push(file(format!("{dir}/resource.json"), manifest("G", 1, &["config.json"], modified())));
+    files.push(file(
+        format!("{dir}/config.json"),
+        gson::to_string(&config, true),
+    ));
+    files.push(file(
+        format!("{dir}/resource.json"),
+        manifest("G", 1, &["config.json"], modified()),
+    ));
 
     let mut custom = Map::new();
     let mut pc = Map::new();
@@ -182,17 +211,54 @@ pub fn hmi_resources(w: &World) -> Vec<File> {
         custom.insert(c.clone(), json!(""));
         pc.insert(format!("custom.{c}"), json!({"persistent": true}));
     }
-    let props = json!({"custom": custom, "propConfig": pc, "props": {"locale": "en-US", "theme": "light"}});
+    let props =
+        json!({"custom": custom, "propConfig": pc, "props": {"locale": "en-US", "theme": "light"}});
     let dir = format!("projects/{HMI}/{PERSPECTIVE}/session-props");
-    files.push(file(format!("{dir}/props.json"), gson::to_string(&props, true)));
-    files.push(file(format!("{dir}/resource.json"), manifest("G", 1, &["props.json"], modified())));
+    files.push(file(
+        format!("{dir}/props.json"),
+        gson::to_string(&props, true),
+    ));
+    files.push(file(
+        format!("{dir}/resource.json"),
+        manifest("G", 1, &["props.json"], modified()),
+    ));
 
     // Gateway events.
     let events: [(&str, &str, &str, &[&str], Value); 4] = [
-        ("startup", "onStartup.py", "onStartup", &[], json!({"enabled": true})),
-        ("timer/refreshCounters", "handleTimerEvent.py", "handleTimerEvent", &[], json!({"delay": 10000, "fixedDelay": true, "sharedThread": true, "enabled": true})),
-        ("message/rebuildReport", "handleMessage.py", "handleMessage", &["payload"], json!({"threadType": "Shared", "enabled": true})),
-        ("tag-change/lineState", "onTagChange.py", "onTagChange", &["initialChange", "newValue", "previousValue", "event", "executionCount"], json!({"paths": ["[default]Plant/Line1/State"], "changeTypes": ["ValueChange"], "enabled": true})),
+        (
+            "startup",
+            "onStartup.py",
+            "onStartup",
+            &[],
+            json!({"enabled": true}),
+        ),
+        (
+            "timer/refreshCounters",
+            "handleTimerEvent.py",
+            "handleTimerEvent",
+            &[],
+            json!({"delay": 10000, "fixedDelay": true, "sharedThread": true, "enabled": true}),
+        ),
+        (
+            "message/rebuildReport",
+            "handleMessage.py",
+            "handleMessage",
+            &["payload"],
+            json!({"threadType": "Shared", "enabled": true}),
+        ),
+        (
+            "tag-change/lineState",
+            "onTagChange.py",
+            "onTagChange",
+            &[
+                "initialChange",
+                "newValue",
+                "previousValue",
+                "event",
+                "executionCount",
+            ],
+            json!({"paths": ["[default]Plant/Line1/State"], "changeTypes": ["ValueChange"], "enabled": true}),
+        ),
     ];
     for (i, (path, fname, func, params, attrs)) in events.into_iter().enumerate() {
         let mut rng = w.rng("gateway-event", i as u64);
@@ -210,7 +276,10 @@ pub fn hmi_resources(w: &World) -> Vec<File> {
         let text = format!("def {func}({}):\n{}", params.join(", "), body.text);
         let dir = format!("projects/{HMI}/ignition/{path}");
         files.push(file(format!("{dir}/{fname}"), text));
-        files.push(file(format!("{dir}/resource.json"), manifest("G", 1, &[fname], attrs)));
+        files.push(file(
+            format!("{dir}/resource.json"),
+            manifest("G", 1, &[fname], attrs),
+        ));
     }
     files
 }
@@ -262,20 +331,36 @@ pub fn gateway(w: &World) -> Vec<File> {
     ));
     files.push(file(
         format!("{root}/tag-provider/default/resource.json"),
-        manifest("A", 1, &["config.json"], json!({"uuid": "00000000-0000-4000-8000-000000000001", "enabled": true})),
+        manifest(
+            "A",
+            1,
+            &["config.json"],
+            json!({"uuid": "00000000-0000-4000-8000-000000000001", "enabled": true}),
+        ),
     ));
     files.push(file(
         format!("{root}/tag-group/default/Default/config.json"),
-        gson::to_string(&json!({"config": {"mode": "Direct", "opcDataMode": "Subscribed", "rate": 1000}}), true),
+        gson::to_string(
+            &json!({"config": {"mode": "Direct", "opcDataMode": "Subscribed", "rate": 1000}}),
+            true,
+        ),
     ));
     files.push(file(
         format!("{root}/tag-group/default/Default/resource.json"),
-        manifest("A", 1, &["config.json"], json!({"uuid": "00000000-0000-4000-8000-000000000002", "enabled": true})),
+        manifest(
+            "A",
+            1,
+            &["config.json"],
+            json!({"uuid": "00000000-0000-4000-8000-000000000002", "enabled": true}),
+        ),
     ));
 
     // UDT definitions.
     let types = format!("{root}/tag-type-definition/default");
-    files.push(file(format!("{types}/unary-resource.json"), folder_manifest(&[])));
+    files.push(file(
+        format!("{types}/unary-resource.json"),
+        folder_manifest(&[]),
+    ));
     let udts: [(&str, &str, &[&str]); 3] = [
         ("Motors", "Motor", world::MOTOR_MEMBERS),
         ("Valves", "Valve", world::VALVE_MEMBERS),
@@ -284,7 +369,10 @@ pub fn gateway(w: &World) -> Vec<File> {
     for (folder, name, members) in udts {
         let mut tags: Vec<Value> = members.iter().map(|m| opc(m, data_type(m))).collect();
         if let Some(Value::Object(first)) = tags.first_mut() {
-            first.insert("engHigh".to_owned(), json!({"bindType": "parameter", "binding": "{MaxValue}"}));
+            first.insert(
+                "engHigh".to_owned(),
+                json!({"bindType": "parameter", "binding": "{MaxValue}"}),
+            );
             first.insert(
                 "alarms".to_owned(),
                 json!([{"name": "High", "mode": "AboveValue", "priority": "High", "setpointA": {"bindType": "Tag", "value": "[.]../Limits/High"}, "displayPath": "{InstanceName}", "activePipeline": ""}]),
@@ -307,14 +395,26 @@ pub fn gateway(w: &World) -> Vec<File> {
             },
             "tags": tags
         }]);
-        files.push(file(format!("{types}/{folder}/udts.json"), gson::to_string(&udt, false)));
-        files.push(file(format!("{types}/{folder}/unary-resource.json"), folder_manifest(&["udts.json"])));
+        files.push(file(
+            format!("{types}/{folder}/udts.json"),
+            gson::to_string(&udt, false),
+        ));
+        files.push(file(
+            format!("{types}/{folder}/unary-resource.json"),
+            folder_manifest(&["udts.json"]),
+        ));
     }
 
     // Tag instances: one folder per line.
     let defs = format!("{root}/tag-definition/default");
-    files.push(file(format!("{defs}/unary-resource.json"), folder_manifest(&[])));
-    files.push(file(format!("{defs}/Plant/unary-resource.json"), folder_manifest(&[])));
+    files.push(file(
+        format!("{defs}/unary-resource.json"),
+        folder_manifest(&[]),
+    ));
+    files.push(file(
+        format!("{defs}/Plant/unary-resource.json"),
+        folder_manifest(&[]),
+    ));
     for line in 1..=w.lines {
         let mut rng = w.rng("tags", line as u64);
         let atomics: Vec<Value> = world::LINE_TAGS
@@ -325,14 +425,15 @@ pub fn gateway(w: &World) -> Vec<File> {
             })
             .collect();
         let mut instances = Vec::new();
-        let mut plc = |kind: &str, folder: &str, count: usize, base: usize, rng: &mut crate::rng::Rng| {
-            for i in 1..=count {
-                let type_id = if rng.chance(w.cfg.defects / 10.0) {
-                    format!("{folder}/{kind}Legacy")
-                } else {
-                    format!("{folder}/{kind}")
-                };
-                instances.push(json!({
+        let mut plc =
+            |kind: &str, folder: &str, count: usize, base: usize, rng: &mut crate::rng::Rng| {
+                for i in 1..=count {
+                    let type_id = if rng.chance(w.cfg.defects / 10.0) {
+                        format!("{folder}/{kind}Legacy")
+                    } else {
+                        format!("{folder}/{kind}")
+                    };
+                    instances.push(json!({
                     "name": format!("{kind}{i}"),
                     "typeId": type_id,
                     "tagType": "UdtInstance",
@@ -341,15 +442,24 @@ pub fn gateway(w: &World) -> Vec<File> {
                         "BaseAddress": {"dataType": "String", "value": format!("DB{}", base + i)}
                     }
                 }));
-            }
-        };
+                }
+            };
         plc("Motor", "Motors", world::MOTORS_PER_LINE, 100, &mut rng);
         plc("Valve", "Valves", world::VALVES_PER_LINE, 200, &mut rng);
         plc("Pump", "Pumps", world::PUMPS_PER_LINE, 300, &mut rng);
         let dir = format!("{defs}/Plant/Line{line}");
-        files.push(file(format!("{dir}/tags.json"), gson::to_string(&Value::Array(atomics), false)));
-        files.push(file(format!("{dir}/udts.json"), gson::to_string(&Value::Array(instances), false)));
-        files.push(file(format!("{dir}/unary-resource.json"), folder_manifest(&["tags.json", "udts.json"])));
+        files.push(file(
+            format!("{dir}/tags.json"),
+            gson::to_string(&Value::Array(atomics), false),
+        ));
+        files.push(file(
+            format!("{dir}/udts.json"),
+            gson::to_string(&Value::Array(instances), false),
+        ));
+        files.push(file(
+            format!("{dir}/unary-resource.json"),
+            folder_manifest(&["tags.json", "udts.json"]),
+        ));
     }
     files
 }

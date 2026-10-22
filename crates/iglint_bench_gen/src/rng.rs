@@ -81,7 +81,9 @@ mod tests {
 
     #[test]
     fn deterministic_streams() {
-        let a: Vec<u64> = (0..4).map(|_| Rng::derive(7, "view", 3).next_u64()).collect();
+        let a: Vec<u64> = (0..4)
+            .map(|_| Rng::derive(7, "view", 3).next_u64())
+            .collect();
         assert!(a.windows(2).all(|w| w[0] == w[1]));
         assert_ne!(
             Rng::derive(7, "view", 3).next_u64(),

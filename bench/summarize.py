@@ -27,7 +27,10 @@ def load(d):
         f = d / f"{name}.json"
         if not f.exists():
             continue
-        r = json.loads(f.read_text())["results"][0]
+        try:
+            r = json.loads(f.read_text())["results"][0]
+        except (ValueError, KeyError, IndexError):
+            continue  # still running or failed
         if "summary" in r:  # hyperfine 2
             w = r["summary"]["time_wall_clock"]
             mem = r["summary"].get("memory_peak_resident")

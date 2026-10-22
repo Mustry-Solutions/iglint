@@ -15,6 +15,9 @@
 #   IGN_LINT_RUNS    hyperfine runs per ign-lint variant (default: 3 for
 #                    corpora under 1,000 views, else 1)
 #   IGLINT_RUNS      minimum hyperfine runs per iglint variant (default 10)
+#   IGN_LINT_VARIANTS  ign-lint variants to run (default: default jobs1 batch
+#                    batch-jobs1 rules-only). `default` (pylint jobs=4) is
+#                    superlinear and takes hours on xl; it is never the best.
 #   SKIP_IGN_LINT    set to 1 to benchmark iglint only
 set -euo pipefail
 
@@ -111,7 +114,7 @@ run_corpus() { # label corpus-dir ign-lint-flags-without-config base-config
   local cache="$results/cache-$label"
 
   if [[ "${SKIP_IGN_LINT:-0}" != 1 ]]; then
-    for v in default jobs1 batch batch-jobs1 rules-only; do
+    for v in ${IGN_LINT_VARIANTS:-default jobs1 batch batch-jobs1 rules-only}; do
       local cmd="$ign_lint --config $configs/$label-$v.json $flags"
       bench "ign-lint-$v" "$ign_runs" 0 "$cmd"
     done

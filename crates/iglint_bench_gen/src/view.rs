@@ -109,7 +109,10 @@ impl Kind {
     }
 
     fn has_text(self) -> bool {
-        matches!(self, Kind::Label | Kind::Button | Kind::TextField | Kind::TextArea)
+        matches!(
+            self,
+            Kind::Label | Kind::Button | Kind::TextField | Kind::TextArea
+        )
     }
 }
 
@@ -218,7 +221,12 @@ impl Gen<'_> {
                 cfg.insert("binding".to_owned(), b);
             }
             if self.rng.chance(0.12) {
-                let s = self.script_body(&["previousValue", "currentValue", "origin", "missedEvents"], false, &[], "change-script");
+                let s = self.script_body(
+                    &["previousValue", "currentValue", "origin", "missedEvents"],
+                    false,
+                    &[],
+                    "change-script",
+                );
                 cfg.insert("onChange".to_owned(), json!({"enabled": true, "script": s}));
             }
             prop_config.insert(format!("custom.{n}"), Value::Object(cfg));
@@ -227,7 +235,12 @@ impl Gen<'_> {
             if self.rng.chance(0.08)
                 && let Some(Value::Object(cfg)) = prop_config.get_mut(&format!("params.{}", p.name))
             {
-                let s = self.script_body(&["previousValue", "currentValue", "origin", "missedEvents"], false, &[], "change-script");
+                let s = self.script_body(
+                    &["previousValue", "currentValue", "origin", "missedEvents"],
+                    false,
+                    &[],
+                    "change-script",
+                );
                 cfg.insert("onChange".to_owned(), json!({"enabled": true, "script": s}));
             }
         }
@@ -292,7 +305,10 @@ impl Gen<'_> {
             Role::Popup => (640, 480),
             Role::Dock => (1920, 64),
         };
-        view.insert("props".to_owned(), json!({"defaultSize": {"height": h, "width": w}}));
+        view.insert(
+            "props".to_owned(),
+            json!({"defaultSize": {"height": h, "width": w}}),
+        );
         if self.rng.chance(0.06) {
             let s = self.script_body(&["event"], true, &[], "view-event");
             view.insert(
@@ -348,7 +364,10 @@ impl Gen<'_> {
             out.push(format!("this.custom.{c}"));
         }
         if self.rng.chance(0.2) {
-            out.push(format!("session.custom.{}", self.rng.pick(&self.w.session_custom)));
+            out.push(format!(
+                "session.custom.{}",
+                self.rng.pick(&self.w.session_custom)
+            ));
         }
         if !siblings.is_empty() && self.rng.chance(0.25) {
             out.push(format!("../{}.props.text", self.rng.pick(siblings)));
@@ -381,7 +400,13 @@ impl Gen<'_> {
         out.text
     }
 
-    fn script_body(&mut self, params: &[&str], has_self: bool, siblings: &[String], kind: &'static str) -> String {
+    fn script_body(
+        &mut self,
+        params: &[&str],
+        has_self: bool,
+        siblings: &[String],
+        kind: &'static str,
+    ) -> String {
         let lines = script::sample_lines(&mut self.rng);
         let defect = self.defect("undefined-name", self.d / 2.0);
         let returns = kind == "transform";
@@ -408,7 +433,13 @@ impl Gen<'_> {
 
     /// A binding config with optional transforms. `target` names the bound
     /// property (used for tag member choice only).
-    fn binding(&mut self, siblings: &[String], own: &[String], bidirectional: bool, _target: &str) -> Value {
+    fn binding(
+        &mut self,
+        siblings: &[String],
+        own: &[String],
+        bidirectional: bool,
+        _target: &str,
+    ) -> Value {
         self.stats.bindings += 1;
         let ty = if bidirectional {
             "property"
@@ -439,7 +470,10 @@ impl Gen<'_> {
                 let n = self.rng.range(2, 4);
                 let mut st = Map::new();
                 for i in 0..n {
-                    st.insert(format!("{}{i}", names::lower_first(self.rng.pick(names::ASPECTS))), json!(self.expression(siblings, own, false)));
+                    st.insert(
+                        format!("{}{i}", names::lower_first(self.rng.pick(names::ASPECTS))),
+                        json!(self.expression(siblings, own, false)),
+                    );
                 }
                 json!({"struct": st, "waitOnAll": true})
             }
@@ -530,7 +564,12 @@ impl Gen<'_> {
                 })
             }
             1 => {
-                let code = self.script_body(&["value", "quality", "timestamp"], true, siblings, "transform");
+                let code = self.script_body(
+                    &["value", "quality", "timestamp"],
+                    true,
+                    siblings,
+                    "transform",
+                );
                 json!({"code": code, "type": "script"})
             }
             2 => json!({"expression": self.expression(siblings, own, true), "type": "expression"}),
@@ -569,7 +608,11 @@ impl Gen<'_> {
     fn component_name(&mut self, kind: Kind, taken: &mut HashSet<String>) -> String {
         let base = format!("{}{}", self.rng.pick(names::EQUIPMENT), kind.suffix());
         if self.defect("name-pattern", self.d / 4.0) {
-            let bad = format!("{}_{}", names::lower_first(self.rng.pick(names::EQUIPMENT)), kind.suffix().to_lowercase());
+            let bad = format!(
+                "{}_{}",
+                names::lower_first(self.rng.pick(names::EQUIPMENT)),
+                kind.suffix().to_lowercase()
+            );
             taken.insert(bad.clone());
             return bad;
         }
@@ -606,7 +649,15 @@ impl Gen<'_> {
         }
     }
 
-    fn container(&mut self, kind: Kind, parent: Option<Kind>, depth: usize, budget: &mut usize, name: String, root: bool) -> Value {
+    fn container(
+        &mut self,
+        kind: Kind,
+        parent: Option<Kind>,
+        depth: usize,
+        budget: &mut usize,
+        name: String,
+        root: bool,
+    ) -> Value {
         self.stats.components += 1;
         let mut c = Map::new();
         c.insert("type".to_owned(), json!(kind.type_id()));
@@ -616,7 +667,14 @@ impl Gen<'_> {
         }
         let mut props = Map::new();
         if kind == Kind::Flex {
-            props.insert("direction".to_owned(), json!(if self.rng.chance(0.6) { "column" } else { "row" }));
+            props.insert(
+                "direction".to_owned(),
+                json!(if self.rng.chance(0.6) {
+                    "column"
+                } else {
+                    "row"
+                }),
+            );
             if self.rng.chance(0.3) {
                 props.insert("justify".to_owned(), json!("space-between"));
             }
@@ -628,7 +686,10 @@ impl Gen<'_> {
         c.insert("props".to_owned(), Value::Object(props));
         if !root && self.rng.chance(0.25) {
             let b = self.binding(&[], &[], false, "visible");
-            c.insert("propConfig".to_owned(), json!({"meta.visible": {"binding": b}}));
+            c.insert(
+                "propConfig".to_owned(),
+                json!({"meta.visible": {"binding": b}}),
+            );
         }
         if !root && self.rng.chance(0.08) {
             let a = self.action(&[]);
@@ -655,7 +716,11 @@ impl Gen<'_> {
             };
             let nested = depth < 7 && *budget > 2 && self.rng.chance(p_nested);
             let child = if nested {
-                let ck = if self.rng.chance(0.84) { Kind::Flex } else { Kind::Coord };
+                let ck = if self.rng.chance(0.84) {
+                    Kind::Flex
+                } else {
+                    Kind::Coord
+                };
                 let n = self.component_name(ck, &mut taken);
                 self.container(ck, Some(kind), depth + 1, budget, n, false)
             } else {
@@ -695,7 +760,11 @@ impl Gen<'_> {
             }));
         }
         if handlers.is_empty() || self.rng.chance(0.3) {
-            let name = format!("{}{}", self.rng.pick(names::VERBS), self.rng.pick(names::NOUNS));
+            let name = format!(
+                "{}{}",
+                self.rng.pick(names::VERBS),
+                self.rng.pick(names::NOUNS)
+            );
             let n = self.rng.below(3);
             let params: Vec<String> = (0..n).map(|i| format!("arg{i}")).collect();
             let refs: Vec<&str> = params.iter().map(String::as_str).collect();
@@ -722,12 +791,16 @@ impl Gen<'_> {
                         let mut vp = Map::new();
                         for p in &target.params {
                             if p.name == "tagPath" {
-                                vp.insert(p.name.clone(), json!(self.w.equipment_path(&mut self.rng).0));
+                                vp.insert(
+                                    p.name.clone(),
+                                    json!(self.w.equipment_path(&mut self.rng).0),
+                                );
                             } else if self.rng.chance(0.5) {
                                 vp.insert(p.name.clone(), p.default.clone());
                             }
                         }
-                        let id = names::lower_first(target.path.rsplit('/').next().unwrap_or("popup"));
+                        let id =
+                            names::lower_first(target.path.rsplit('/').next().unwrap_or("popup"));
                         json!({"config": {
                             "draggable": true, "id": id, "modal": self.rng.chance(0.5), "overlayDismiss": true,
                             "position": {"height": 480, "width": 640}, "positionType": "exact", "resizable": true,
@@ -735,7 +808,9 @@ impl Gen<'_> {
                             "viewportBound": false
                         }, "scope": "C", "type": "popup"})
                     }
-                    None => json!({"config": {"type": "close", "id": ""}, "scope": "C", "type": "popup"}),
+                    None => {
+                        json!({"config": {"type": "close", "id": ""}, "scope": "C", "type": "popup"})
+                    }
                 }
             }
             _ => {
@@ -798,7 +873,10 @@ impl Gen<'_> {
                 props.insert("viewBox".to_owned(), json!("0 0 200 200"));
                 if bind_p(self, 0.35) {
                     let b = self.binding(siblings, &own_custom, false, "fill");
-                    pc.insert("props.elements[0].fill.paint".to_owned(), json!({"binding": b}));
+                    pc.insert(
+                        "props.elements[0].fill.paint".to_owned(),
+                        json!({"binding": b}),
+                    );
                 }
             }
             Kind::Icon => {
@@ -836,7 +914,10 @@ impl Gen<'_> {
                         && bind_p(self, 0.4)
                     {
                         let b = self.binding(siblings, &own_custom, false, "param");
-                        pc.insert(format!("props.params.{}", first.name), json!({"binding": b}));
+                        pc.insert(
+                            format!("props.params.{}", first.name),
+                            json!({"binding": b}),
+                        );
                     }
                     props.insert("params".to_owned(), Value::Object(params));
                 }
@@ -850,7 +931,13 @@ impl Gen<'_> {
                     pc.insert("props.enabled".to_owned(), json!({"binding": b}));
                 }
             }
-            Kind::TextField | Kind::TextArea | Kind::Numeric | Kind::Checkbox | Kind::Dropdown | Kind::DateTime | Kind::MultiState => {
+            Kind::TextField
+            | Kind::TextArea
+            | Kind::Numeric
+            | Kind::Checkbox
+            | Kind::Dropdown
+            | Kind::DateTime
+            | Kind::MultiState => {
                 let (prop, default) = match kind {
                     Kind::TextField | Kind::TextArea => ("text", json!("")),
                     Kind::Checkbox => ("selected", json!(false)),
@@ -870,7 +957,9 @@ impl Gen<'_> {
                 }
             }
             Kind::Table => {
-                let cols: Vec<&str> = (0..self.rng.range(3, 8)).map(|_| *self.rng.pick(names::PROP_WORDS)).collect();
+                let cols: Vec<&str> = (0..self.rng.range(3, 8))
+                    .map(|_| *self.rng.pick(names::PROP_WORDS))
+                    .collect();
                 let rows: Vec<Value> = (0..self.rng.range(0, 30))
                     .map(|i| {
                         let mut r = Map::new();
@@ -904,7 +993,11 @@ impl Gen<'_> {
                         .map(|_| {
                             let mut m = Map::new();
                             for p in &target.params {
-                                let v = if p.name == "tagPath" { json!(self.w.equipment_path(&mut self.rng).0) } else { p.default.clone() };
+                                let v = if p.name == "tagPath" {
+                                    json!(self.w.equipment_path(&mut self.rng).0)
+                                } else {
+                                    p.default.clone()
+                                };
                                 m.insert(p.name.clone(), v);
                             }
                             Value::Object(m)
@@ -918,7 +1011,10 @@ impl Gen<'_> {
                 }
             }
             Kind::Markdown => {
-                props.insert("source".to_owned(), json!("## Notes\n\nOperator notes for this area."));
+                props.insert(
+                    "source".to_owned(),
+                    json!("## Notes\n\nOperator notes for this area."),
+                );
             }
             Kind::Image => {
                 props.insert("source".to_owned(), json!("/system/images/logo.png"));
@@ -939,7 +1035,9 @@ impl Gen<'_> {
             pc.insert("meta.visible".to_owned(), json!({"binding": b}));
         }
         for n in &own_custom {
-            let used = pc.values().any(|v| v.to_string().contains(&format!("this.custom.{n}")));
+            let used = pc
+                .values()
+                .any(|v| v.to_string().contains(&format!("this.custom.{n}")));
             if !used {
                 let mut cfg = Map::new();
                 let b = json!({"config": {"path": format!("this.custom.{n}")}, "type": "property"});
