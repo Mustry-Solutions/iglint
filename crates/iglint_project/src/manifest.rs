@@ -80,6 +80,11 @@ pub struct Manifest {
     /// Invalid UTF-8 sequences in the file (see
     /// [`crate::workspace::read_text`]).
     pub invalid_utf8: Vec<TextRange>,
+    /// The resource directory has no manifest (see
+    /// [`crate::workspace::Resource`]): `file` names the file that should
+    /// exist, `doc` is an empty object. The gateway does not load such a
+    /// resource.
+    pub missing: bool,
 }
 
 impl Manifest {
@@ -91,6 +96,7 @@ impl Manifest {
             doc,
             info,
             invalid_utf8: Vec::new(),
+            missing: false,
         }
     }
 

@@ -355,6 +355,8 @@ pub fn check(settings: &ProjectSettings, paths: &[PathBuf], options: &CheckOptio
             let analysis = in_pool(options.threads, run);
             result.errors.extend(analysis.errors);
             result.notices.extend(analysis.notices);
+            result.skipped.extend(analysis.skipped);
+            result.files_skipped = result.skipped.len();
             analysis.outcomes
         }
     };

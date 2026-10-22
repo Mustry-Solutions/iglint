@@ -224,6 +224,9 @@ viewRef AlterDockAction root/Btn@events.component.onActionPerformed[9] path="Mid
   | def runAction(self, event):
   | →
 
+# view com.inductiveautomation.perspective/views/NoManifest in edge-leaf without manifest (overridable=true, files=["view.json:view"], missing=[])
+component root type=ia.container.flex depth=0 ptr=/root ign=root.root
+
 # webdev com.inductiveautomation.webdev/resources/text in edge-leaf (overridable=true, files=["config.json:webdev-config", "resource.json:resource-manifest"], missing=[])
 webdev type=Some("text-resource")
 

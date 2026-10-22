@@ -36,6 +36,17 @@ from 0.1.0 on.
 
 ### Fixed
 
+- Resources without `resource.json` are no longer silently skipped: a
+  directory that holds the main file of a resource type (`view.json`
+  below `views/`, a library `code.py`, an event script, a style class,
+  tags, ...) is linted as that resource, and `view.json` and Python files
+  outside every resource directory are linted standalone (with the
+  project's library names). `REF009` reports that the gateway does not
+  load them; references do not resolve to them and they are not
+  inherited. `iglint ign-lint` lints such views too. Python files of
+  resource types iglint does not model (and WebDev file content) are
+  named in the run summary (`note: ...: not linted: <reason>`) instead of
+  being counted as checked.
 - Safe fixes no longer change behaviour (audit in
   `docs/internal/fix-safety.md`): `SCR102` leaves imports in class bodies
   alone and its fix is safe only for imports without side effects (JDK

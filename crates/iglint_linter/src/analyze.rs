@@ -34,8 +34,8 @@ use iglint_project::library::LibraryModule;
 use iglint_project::model::{FileError as ModelFileError, LoadedFile, LoadedResource, ModelData};
 use iglint_project::script::library_script;
 use iglint_project::{
-    Container, FileId, JsonDocument, ProjectIndex, ResourceId, ResourceModel, ResourceSummary,
-    Workspace, build_model, build_view, summarize,
+    Container, FileId, JsonDocument, ProjectId, ProjectIndex, ResourceId, ResourceModel,
+    ResourceSummary, Workspace, build_model, build_view, summarize,
 };
 use iglint_text::TextEdit;
 use iglint_text::TextRange;
@@ -75,6 +75,8 @@ pub(crate) struct Analysis {
     pub errors: Vec<FileError>,
     /// Warnings about the run that do not fail it (pylint unavailable).
     pub notices: Vec<String>,
+    /// Targets that were found but not linted, with the reason.
+    pub skipped: Vec<(PathBuf, crate::discovery::SkipReason)>,
 }
 
 /// Runs every rule of [`crate::rules::IMPLS`] on `targets`.
@@ -117,11 +119,31 @@ pub(crate) fn analyze_with(
     };
     let ws = Workspace::discover(&ws_roots);
 
-    // Which workspace file is which target.
+    // Which workspace file is which target. Files that are not linted as
+    // part of their resource (see [`treatment`]) are linted standalone,
+    // like files outside any project, or skipped with a reason.
+    let mut not_modelled: FxHashMap<usize, &'static str> = FxHashMap::default();
+    // Standalone targets inside a project lint with that project's index.
+    let mut project_of_standalone: FxHashMap<usize, ProjectId> = FxHashMap::default();
     let target_of: Vec<Option<usize>> = ws
         .files
         .iter()
-        .map(|f| by_abs.get(&absolute(&f.path)).copied())
+        .map(|f| {
+            let t = by_abs.get(&absolute(&f.path)).copied()?;
+            match treatment(&ws, f) {
+                Treatment::Resource => Some(t),
+                Treatment::Standalone => {
+                    if let Some(Container::Project(p)) = f.container {
+                        project_of_standalone.insert(t, p);
+                    }
+                    None
+                }
+                Treatment::Skip(reason) => {
+                    not_modelled.insert(t, reason);
+                    None
+                }
+            }
+        })
         .collect();
     let mut in_workspace = vec![false; targets.len()];
     for t in target_of.iter().flatten() {
@@ -150,7 +172,7 @@ pub(crate) fn analyze_with(
 
     // Standalone targets: read them now so the file table is complete.
     let standalone: Vec<(usize, Result<Decoded, String>)> = (0..targets.len())
-        .filter(|i| !in_workspace[*i])
+        .filter(|i| !in_workspace[*i] && !not_modelled.contains_key(i))
         .collect::<Vec<_>>()
         .into_par_iter()
         .map(|i| {
@@ -181,7 +203,7 @@ pub(crate) fn analyze_with(
             }
         }
     }
-    for r in &ws.resources {
+    for r in ws.resources.iter().filter(|r| !r.manifest.missing) {
         let doc = &r.manifest.doc;
         table.insert(
             r.manifest.file,
@@ -614,7 +636,7 @@ pub(crate) fn analyze_with(
                 let unit = Unit {
                     ws: &ws,
                     resource: None,
-                    project: None,
+                    project: project_of_standalone.get(&s.target).copied(),
                     data,
                     errors,
                     primary: s.file,
@@ -695,9 +717,20 @@ pub(crate) fn analyze_with(
         .enumerate()
         .filter_map(|(f, t)| t.map(|t| (t, FileId(f as u32))))
         .collect();
+    let mut skipped: Vec<(PathBuf, crate::discovery::SkipReason)> = not_modelled
+        .iter()
+        .map(|(t, reason)| {
+            (
+                targets[*t].path.clone(),
+                crate::discovery::SkipReason::NotModelled(reason),
+            )
+        })
+        .collect();
+    skipped.sort_by(|a, b| a.0.cmp(&b.0));
     let outcomes: Vec<Result<Outcome, FileError>> = per_target
         .into_par_iter()
         .enumerate()
+        .filter(|(t, _)| !not_modelled.contains_key(t))
         .map(|(t, diagnostics)| {
             let target = &targets[t];
             if let Some(message) = errors_by_target.get(&t) {
@@ -761,7 +794,7 @@ pub(crate) fn analyze_with(
                         &index,
                         target,
                         settings,
-                        s.file,
+                        (s.file, project_of_standalone.get(&t).copied()),
                         Arc::clone(&text),
                     ),
                     _ => Vec::new(),
@@ -822,6 +855,47 @@ pub(crate) fn analyze_with(
         outcomes,
         errors,
         notices,
+        skipped,
+    }
+}
+
+/// How a discovered file of the workspace is linted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Treatment {
+    /// With its resource (the usual case).
+    Resource,
+    /// On its own, like a file outside any project: files outside every
+    /// resource directory, JSON files the resource model does not read,
+    /// and Python files of a modelled resource type that are not its
+    /// script (the gateway does not load them; REF009 says so).
+    Standalone,
+    /// Not linted, for the reason given (reported in the run summary).
+    Skip(&'static str),
+}
+
+pub(crate) fn treatment(ws: &Workspace, f: &iglint_project::workspace::FileEntry) -> Treatment {
+    use iglint_project::kinds::FileKind as K;
+    let extension = Path::new(f.name())
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase);
+    match (f.kind, extension.as_deref()) {
+        (K::Stray, _) => Treatment::Standalone,
+        (K::WebDevContent, Some("json" | "py")) => {
+            Treatment::Skip("WebDev file resource content, served as is")
+        }
+        (K::OtherResourceData, Some("json")) => Treatment::Standalone,
+        (K::OtherResourceData, Some("py")) => {
+            let modelled = f
+                .resource
+                .is_some_and(|r| ws.resource(r).kind.is_modelled());
+            if modelled {
+                Treatment::Standalone
+            } else {
+                Treatment::Skip("Python file of a resource type iglint does not model")
+            }
+        }
+        _ => Treatment::Resource,
     }
 }
 
@@ -1271,7 +1345,7 @@ fn reanalyze_standalone(
     index: &ProjectIndex<'_>,
     target: &Target,
     settings: &LinterSettings,
-    file: FileId,
+    (file, project): (FileId, Option<ProjectId>),
     text: Arc<str>,
 ) -> Vec<Diagnostic> {
     let mut table = FileTable::with_len(file.index() + 1);
@@ -1286,7 +1360,7 @@ fn reanalyze_standalone(
     let unit = Unit {
         ws,
         resource: None,
-        project: None,
+        project,
         data: &data,
         errors: &errors,
         primary: file,

@@ -186,13 +186,16 @@ fn broken_resources() {
         .filter(|f| f.kind == FileKind::Stray)
         .map(|f| f.rel_path.as_str())
         .collect();
-    assert_eq!(
-        stray,
-        [
-            "README.md",
-            "com.inductiveautomation.perspective/views/NoManifest/view.json"
-        ]
-    );
+    assert_eq!(stray, ["README.md"]);
+    // A view directory without `resource.json` is a resource whose manifest
+    // is missing: linted, but not a view the gateway (or a reference) finds.
+    let no_manifest = ws
+        .resources
+        .iter()
+        .find(|r| r.path.as_ref() == "NoManifest")
+        .unwrap();
+    assert!(no_manifest.manifest.missing);
+    assert!(!ws.project(leaf).resources.contains(&no_manifest.id));
     assert_eq!(idx.view(leaf, "NoManifest").existence(), Existence::Missing);
 }
 

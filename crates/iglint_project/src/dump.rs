@@ -423,10 +423,15 @@ pub fn dump_model(ws: &Workspace, model: &ResourceModel<'_>) -> String {
     let mut out = String::new();
     let _ = writeln!(
         out,
-        "# {} {} in {} (overridable={}, files={:?}, missing={:?})",
+        "# {} {} in {}{} (overridable={}, files={:?}, missing={:?})",
         r.kind,
         r.qualified_path(),
         ws.container_name(r.container),
+        if r.manifest.missing {
+            " without manifest"
+        } else {
+            ""
+        },
         r.manifest.overridable(),
         r.files
             .iter()

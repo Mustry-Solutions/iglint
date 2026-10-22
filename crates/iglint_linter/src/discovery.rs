@@ -90,30 +90,58 @@ const TREE_ROOTS: [&str; 2] = ["project.json", "config-mode.json"];
 /// walk stats each directory's markers at most once.
 #[derive(Default)]
 struct IgnitionTrees {
-    known: HashMap<PathBuf, bool>,
+    /// Directory -> the root of the tree it is in, if any.
+    known: HashMap<PathBuf, Option<PathBuf>>,
 }
 
 impl IgnitionTrees {
     fn contains(&mut self, dir: &Path) -> bool {
+        self.root_of(dir).is_some()
+    }
+
+    /// The project or collection directory that `dir` is in (or is).
+    fn root_of(&mut self, dir: &Path) -> Option<PathBuf> {
         let dir = absolute(dir);
         let mut visited = Vec::new();
-        let mut inside = false;
+        let mut root = None;
         for ancestor in dir.ancestors() {
-            if let Some(&known) = self.known.get(ancestor) {
-                inside = known;
+            if let Some(known) = self.known.get(ancestor) {
+                root = known.clone();
                 break;
             }
             visited.push(ancestor.to_path_buf());
             if TREE_ROOTS.iter().any(|m| ancestor.join(m).is_file()) {
-                inside = true;
+                root = Some(ancestor.to_path_buf());
                 break;
             }
         }
         for dir in visited {
-            self.known.insert(dir, inside);
+            self.known.insert(dir, root.clone());
         }
-        inside
+        root
     }
+}
+
+/// Whether `file`, a JSON file in a directory without a manifest inside the
+/// tree at `root`, is the main data file of a resource whose manifest is
+/// missing (a `style.json` below `style-classes/`, a `tags.json` in a tag
+/// folder, ...). The workspace lints such directories as resources.
+fn implies_resource(file: &Path, root: &Path) -> bool {
+    let Ok(relative) = absolute(file).strip_prefix(root).map(Path::to_path_buf) else {
+        return false;
+    };
+    let parts: Vec<&str> = relative
+        .components()
+        .filter_map(|c| c.as_os_str().to_str())
+        .collect();
+    let [module, type_id, .., name] = parts.as_slice() else {
+        return false;
+    };
+    if parts.len() < 3 {
+        return false;
+    }
+    let kind = iglint_project::ResourceKind::from_type(module, type_id);
+    iglint_project::FileKind::of_resource_file(kind, name).implies_resource()
 }
 
 fn has_manifest(dir: &Path) -> bool {
@@ -165,6 +193,21 @@ pub enum SkipReason {
     Whitelisted,
     /// Named explicitly but not a file iglint lints.
     UnsupportedFile,
+    /// Found, but its content is not linted; the reason says why (for
+    /// example a Python file of a resource type iglint does not model).
+    NotModelled(&'static str),
+}
+
+impl SkipReason {
+    /// Why the file was skipped, for the run summary.
+    pub fn describe(&self) -> &'static str {
+        match self {
+            SkipReason::Excluded => "excluded",
+            SkipReason::Whitelisted => "listed in the ign-lint whitelist",
+            SkipReason::UnsupportedFile => "not a file iglint lints",
+            SkipReason::NotModelled(reason) => reason,
+        }
+    }
 }
 
 /// The result of discovery, in a stable order (sorted by path).
@@ -243,9 +286,15 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
                 continue;
             }
             let file = entry.into_path();
-            let Some(kind) = classify_with(&file, &mut manifest_in) else {
+            let Some(mut kind) = classify_with(&file, &mut manifest_in) else {
                 continue;
             };
+            if kind == FileKind::Json
+                && let Some(root) = file.parent().and_then(|dir| trees.root_of(dir))
+                && implies_resource(&file, &root)
+            {
+                kind = FileKind::ResourceJson;
+            }
             if !kind.discovered_by_walk() {
                 continue;
             }

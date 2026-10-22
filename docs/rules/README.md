@@ -109,7 +109,7 @@ iglint has 107 rules. Rules with *yes* in the Default column run without configu
 | [REF006](REF006.md) | `unknown-message-type` | Message sent to a type no handler listens for | warning | yes |  |
 | [REF007](REF007.md) | `popup-param-mismatch` | Parameter passed to a view that the view does not declare | warning | yes |  |
 | [REF008](REF008.md) | `unknown-page-url` | Navigation to a page URL that the page configuration does not define | warning | yes |  |
-| [REF009](REF009.md) | `resource-manifest-mismatch` | `resource.json` and the files of the resource disagree | warning | yes |  |
+| [REF009](REF009.md) | `resource-manifest-mismatch` | `resource.json` and the files of the resource disagree, or it is missing | warning | yes |  |
 | [REF010](REF010.md) | `unknown-parent-project` | `parent` names a project that does not exist or is not inheritable | error | yes |  |
 | [REF011](REF011.md) | `unused-view` | View is not referenced anywhere | info |  |  |
 | [REF012](REF012.md) | `unused-library-function` | Library function is never referenced | info |  |  |

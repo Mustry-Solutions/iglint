@@ -129,7 +129,7 @@ fn is_plain_name(name: &str) -> bool {
 fn provider_parameters(index: &ProjectIndex<'_>, provider: &str) -> FxHashSet<String> {
     let ws = index.workspace();
     let mut out = FxHashSet::default();
-    for r in &ws.resources {
+    for r in ws.resources.iter().filter(|r| !r.manifest.missing) {
         if !matches!(
             r.kind,
             ResourceKind::TagDefinition | ResourceKind::TagTypeDefinition

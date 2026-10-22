@@ -94,6 +94,43 @@ pub enum ResourceKind {
 }
 
 impl ResourceKind {
+    /// Whether iglint models resources of this kind (reads their data files
+    /// and knows which files the gateway loads), as opposed to kinds that
+    /// are only identified.
+    pub fn is_modelled(self) -> bool {
+        use ResourceKind as K;
+        matches!(
+            self,
+            K::ScriptLibrary
+                | K::NamedQuery
+                | K::EventScript(_)
+                | K::View
+                | K::StyleClass
+                | K::Stylesheet
+                | K::PageConfig
+                | K::SessionProps
+                | K::WebDev
+                | K::TagProvider
+                | K::TagGroup
+                | K::TagDefinition
+                | K::TagTypeDefinition
+                | K::DatabaseConnection
+                | K::HistorianProvider
+                | K::OpcDevice
+                | K::AlarmNotificationProfile
+                | K::GatewaySetting
+        )
+    }
+
+    /// Whether resources of this kind use `unary-resource.json` (tag
+    /// folders) instead of `resource.json`.
+    pub fn has_unary_manifest(self) -> bool {
+        matches!(
+            self,
+            ResourceKind::TagDefinition | ResourceKind::TagTypeDefinition
+        )
+    }
+
     /// Classifies a `<moduleId>/<typeId>` pair.
     pub fn from_type(module_id: &str, type_id: &str) -> ResourceKind {
         use ResourceKind as K;
@@ -610,6 +647,29 @@ impl FileKind {
             ) => F::SettingsData,
             _ => F::OtherResourceData,
         }
+    }
+
+    /// True for the main data file of a resource kind iglint models (a
+    /// `view.json` below `views/`, a library `code.py`, an event script,
+    /// ...): such a file in a directory without a manifest is a resource
+    /// whose manifest is missing, not a stray file.
+    pub fn implies_resource(self) -> bool {
+        use FileKind as F;
+        matches!(
+            self,
+            F::View
+                | F::StyleClass
+                | F::Stylesheet
+                | F::PageConfig
+                | F::SessionProps
+                | F::LibraryModule
+                | F::NamedQuerySql
+                | F::EventScript(_)
+                | F::WebDevConfig
+                | F::TagsJson
+                | F::UdtsJson { .. }
+                | F::GatewayConfig
+        )
     }
 
     /// True for files whose content iglint reads (JSON, Python, SQL, CSS).

@@ -29,8 +29,8 @@ use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::analyze::{
-    is_json, primary_file, read_text, run_phase, shared_text, standalone_model,
-    summarize_with_scripts,
+    Treatment, is_json, primary_file, read_text, run_phase, shared_text, standalone_model,
+    summarize_with_scripts, treatment,
 };
 use crate::checker::{Checker, FileTable, Unit, UnitCache};
 use crate::diagnostic::{Diagnostic, FileEdit, SourceFile};
@@ -99,6 +99,9 @@ pub struct LiveWorkspace {
     /// them into an index.
     summaries: Vec<ResourceSummary>,
     by_path: FxHashMap<PathBuf, FileId>,
+    /// Files of the workspace that are not linted (see
+    /// [`crate::analyze::Treatment::Skip`]).
+    not_modelled: FxHashSet<PathBuf>,
     /// Editor text of files outside the workspace.
     standalone: FxHashMap<PathBuf, Arc<str>>,
 }
@@ -120,7 +123,7 @@ impl LiveWorkspace {
         let ws = Workspace::discover(&roots);
         let mut table = FileTable::with_len(ws.files.len());
         let mut read_errors = FxHashMap::default();
-        for r in &ws.resources {
+        for r in ws.resources.iter().filter(|r| !r.manifest.missing) {
             let doc = &r.manifest.doc;
             table.insert(
                 r.manifest.file,
@@ -187,7 +190,22 @@ impl LiveWorkspace {
             }
             read_errors.extend(errors);
         }
-        let by_path = ws.files.iter().map(|f| (f.path.clone(), f.id)).collect();
+        // Files that `check` lints standalone are linted standalone here
+        // too; files it skips are skipped.
+        let mut not_modelled = FxHashSet::default();
+        let by_path = ws
+            .files
+            .iter()
+            .filter(|f| match treatment(&ws, f) {
+                Treatment::Resource => true,
+                Treatment::Standalone => false,
+                Treatment::Skip(_) => {
+                    not_modelled.insert(f.path.clone());
+                    false
+                }
+            })
+            .map(|f| (f.path.clone(), f.id))
+            .collect();
         LiveWorkspace {
             settings,
             roots,
@@ -198,6 +216,7 @@ impl LiveWorkspace {
             read_errors,
             summaries,
             by_path,
+            not_modelled,
             standalone: FxHashMap::default(),
         }
     }
@@ -227,7 +246,8 @@ impl LiveWorkspace {
 
     /// Whether `path` is excluded from linting by the settings.
     pub fn is_skipped(&self, path: &Path) -> bool {
-        discovery::skip_reason(&self.settings, path).is_some()
+        self.not_modelled.contains(&absolute(path))
+            || discovery::skip_reason(&self.settings, path).is_some()
     }
 
     /// Every file below the roots that a check of the roots would lint.
@@ -690,7 +710,10 @@ impl LiveWorkspace {
         let unit = Unit {
             ws: &self.ws,
             resource: None,
-            project: None,
+            project: self.ws.file_by_path(path).and_then(|f| match f.container {
+                Some(Container::Project(p)) => Some(p),
+                _ => None,
+            }),
             data: &data,
             errors: &errors,
             primary: file,

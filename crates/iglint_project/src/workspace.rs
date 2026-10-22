@@ -242,6 +242,12 @@ struct ScannedResource {
     path: Box<str>,
     dir: PathBuf,
     manifest_name: &'static str,
+    /// The directory has no manifest, but a file whose name and place make
+    /// it a data file of this resource type (a `view.json` below
+    /// `views/`, a `code.py` below `script-python/`, ...). The gateway
+    /// does not load it; iglint lints it as that resource and reports the
+    /// missing manifest.
+    manifest_missing: bool,
     files: Vec<(String, PathBuf)>,
 }
 
@@ -338,7 +344,13 @@ impl Workspace {
                 p.scanned
                     .resources
                     .par_iter()
-                    .map(|r| read_json(&r.dir.join(r.manifest_name)))
+                    .map(|r| {
+                        if r.manifest_missing {
+                            Ok((JsonDocument::parse(Arc::from("{}")), Vec::new()))
+                        } else {
+                            read_json(&r.dir.join(r.manifest_name))
+                        }
+                    })
                     .collect()
             })
             .collect();
@@ -388,7 +400,12 @@ impl Workspace {
             let mut own = Vec::with_capacity(scanned.resources.len());
             for (res, doc) in scanned.resources.into_iter().zip(docs) {
                 let id = ResourceId::from_index(self.resources.len());
-                own.push(id);
+                // A resource without its manifest does not exist for the
+                // gateway: it is linted, but neither inherited nor found by
+                // references.
+                if !res.manifest_missing {
+                    own.push(id);
+                }
                 let kind = ResourceKind::from_type(&res.module_id, &res.type_id);
                 let rel_dir = rel_dir(&res.module_id, &res.type_id, &res.path);
                 // The manifest file first, so its id is known.
@@ -430,6 +447,20 @@ impl Workspace {
                     file_ids.push(fid);
                 }
                 let mut manifest = manifest_probe;
+                if res.manifest_missing {
+                    // A file entry for the manifest that does not exist, so
+                    // that every resource has one. It is not part of
+                    // `files` (which lists what is on disk) and has no text.
+                    manifest_id = Some(self.push_file(
+                        res.dir.join(res.manifest_name),
+                        format!("{rel_dir}{}", res.manifest_name),
+                        FileKind::of_resource_file(kind, res.manifest_name),
+                        Some(container),
+                        Some(id),
+                        None,
+                    ));
+                    manifest.missing = true;
+                }
                 manifest.file = manifest_id.expect("manifest file is part of the resource");
                 let missing_files = manifest
                     .info
@@ -977,6 +1008,18 @@ fn scan_resource_tree(
     } else {
         None
     };
+    let kind = ResourceKind::from_type(module_id, type_id);
+    let implied = manifest.is_none()
+        && files
+            .iter()
+            .any(|(name, _)| FileKind::of_resource_file(kind, name).implies_resource());
+    let manifest = manifest.or_else(|| {
+        implied.then_some(if kind.has_unary_manifest() {
+            UNARY_MANIFEST
+        } else {
+            RESOURCE_MANIFEST
+        })
+    });
     match manifest {
         Some(manifest_name) => sc.resources.push(ScannedResource {
             module_id: module_id.into(),
@@ -984,6 +1027,7 @@ fn scan_resource_tree(
             path: path.as_str().into(),
             dir: dir.to_path_buf(),
             manifest_name,
+            manifest_missing: implied,
             files,
         }),
         None => {

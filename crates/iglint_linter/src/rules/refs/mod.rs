@@ -81,7 +81,7 @@ pub(crate) fn has_unmodelled_scripts(ws: &Workspace, project: ProjectId) -> bool
         .chain(
             ws.resources
                 .iter()
-                .filter(|r| matches!(r.container, Container::Collection(_)))
+                .filter(|r| matches!(r.container, Container::Collection(_)) && !r.manifest.missing)
                 .map(|r| r.id),
         )
         .any(|r| {

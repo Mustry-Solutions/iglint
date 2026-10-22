@@ -16,7 +16,11 @@ pub(crate) fn css_mentions(index: &ProjectIndex<'_>, project: ProjectId, class: 
     let themes = ws
         .resources
         .iter()
-        .filter(|r| r.kind == ResourceKind::PerspectiveAsset && &*r.type_id == "themes")
+        .filter(|r| {
+            r.kind == ResourceKind::PerspectiveAsset
+                && &*r.type_id == "themes"
+                && !r.manifest.missing
+        })
         .map(|r| r.id);
     own.into_iter()
         .filter(|r| ws.resource(*r).kind == ResourceKind::Stylesheet)

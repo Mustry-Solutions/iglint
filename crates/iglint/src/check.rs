@@ -8,7 +8,7 @@ use std::time::Instant;
 use clap::ValueEnum;
 use iglint_config::{CliOverrides, Configuration, LoadOptions, absolutize};
 use iglint_linter::baseline::{Baseline, DEFAULT_BASELINE_FILE};
-use iglint_linter::discovery;
+use iglint_linter::discovery::{self, SkipReason};
 use iglint_linter::engine::{self, CheckOptions, FixMode};
 use iglint_linter::{Diagnostic, Severity};
 
@@ -400,6 +400,18 @@ pub fn run(
     if !args.quiet && !args.silent {
         for notice in &result.notices {
             err!(io, "warning: {notice}");
+        }
+        // Files that were found but not linted, other than those the
+        // configuration excludes.
+        for (path, reason) in &result.skipped {
+            if matches!(reason, SkipReason::NotModelled(_)) {
+                err!(
+                    io,
+                    "note: {}: not linted: {}",
+                    output::display_path(path, cwd),
+                    reason.describe()
+                );
+            }
         }
         for summary in &result.fixed {
             for fix in summary.skipped.iter().filter(|f| f.harmful) {

@@ -319,3 +319,58 @@ fn script_references_match_a_full_check() {
         "{codes:?}"
     );
 }
+
+/// Resources without their manifest, files outside every resource and
+/// files that are not linted get the same treatment in the editor as in a
+/// full check.
+#[test]
+fn files_outside_resources_match_a_full_check() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = absolute(dir.path());
+    let view = r#"{"custom": {"unused": 1}, "root": {"type": "ia.container.flex", "meta": {"name": "root"}, "children": [{"type": "ia.display.label", "meta": {"name": "bad name"}, "propConfig": {"props.text": {"binding": {"type": "expr", "config": {"expression": "now(1) +"}}}}}]}}"#;
+    write(&root, "projects/p/project.json", r#"{"title": "p"}"#);
+    write(&root, &format!("{VIEWS}/NoManifest/view.json"), view);
+    write(&root, "projects/p/views/Stray/view.json", view);
+    let script = "def f():\n    return undefined_x\n";
+    write(&root, "projects/p/ignition/script-python/m/code.py", script);
+    write(&root, "projects/p/ignition/timer/t/handleTimerEvent.py", script);
+    write(&root, "projects/p/loose.py", script);
+    write(&root, "projects/p/other.module/things/x/resource.json", "{}");
+    write(&root, "projects/p/other.module/things/x/code.py", script);
+
+    let settings = all_rules(&root);
+    let full = check(
+        &settings,
+        std::slice::from_ref(&root),
+        &CheckOptions::default(),
+    );
+    let mut expected: Vec<Finding> = full.diagnostics.iter().map(|d| key(d, &root)).collect();
+    expected.sort();
+    assert_eq!(full.skipped.len(), 1, "{:?}", full.skipped);
+    let mut live = LiveWorkspace::new(settings, vec![root.clone()]);
+    let files = live.lintable_files();
+    assert_eq!(files.len(), full.files_checked + full.skipped.len());
+    let mut actual: Vec<Finding> = live
+        .check(&files)
+        .iter()
+        .flat_map(|f| f.diagnostics.iter().map(|d| key(d, &root)))
+        .collect();
+    actual.sort();
+    assert_eq!(actual, expected);
+    for file in [
+        "NoManifest/view.json",
+        "Stray/view.json",
+        "m/code.py",
+        "t/handleTimerEvent.py",
+        "loose.py",
+    ] {
+        let codes: Vec<&str> = expected
+            .iter()
+            .filter(|f| f.0.ends_with(file))
+            .map(|f| f.1.as_str())
+            .collect();
+        assert!(codes.contains(&"REF009"), "{file}: {codes:?}");
+        assert!(codes.len() > 1, "{file}: {codes:?}");
+    }
+    assert!(!expected.iter().any(|f| f.0.contains("other.module")));
+}

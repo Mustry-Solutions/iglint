@@ -65,6 +65,15 @@ that owns the resource type and the second is the **type id**:
   `unary-resource.json` (tag definitions). A directory that has a manifest
   and also contains child resource directories is both a resource and a folder
   (for example a script package that has its own `code.py`; see 4.2).
+* A directory without a manifest is only a folder: the gateway does not
+  load data files in it, even a `view.json` below `views/` or a `code.py`
+  below `ignition/script-python/` (the resource does not exist, references
+  to it fail). Files outside `<moduleId>/<typeId>/` directories, and files
+  of a resource that its type does not read (a `helper.py` next to a
+  library `code.py`), are ignored the same way. iglint lints such files
+  anyway (a manifest-less directory as the resource its main file implies,
+  other files standalone), keeps them out of inheritance and reference
+  resolution, and reports them with `REF009`.
 * Hidden `.resources/` directories at collection roots are the gateway's
   content-addressed cache. Ignore them.
 

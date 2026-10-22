@@ -267,7 +267,7 @@ impl<'w> ProjectIndex<'w> {
     fn build_gateway(&mut self) {
         let ws = self.ws;
         for r in &ws.resources {
-            if !matches!(r.container, Container::Collection(_)) {
+            if !matches!(r.container, Container::Collection(_)) || r.manifest.missing {
                 continue;
             }
             match r.kind {
@@ -369,7 +369,7 @@ impl<'w> ProjectIndex<'w> {
         let gateway: Vec<ResourceId> = ws
             .resources
             .iter()
-            .filter(|r| matches!(r.container, Container::Collection(_)))
+            .filter(|r| matches!(r.container, Container::Collection(_)) && !r.manifest.missing)
             .map(|r| r.id)
             .collect();
         for p in &ws.projects {
