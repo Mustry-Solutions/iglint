@@ -2,30 +2,6 @@
  "differences": [
   {
    "view": "cases/BadComponentReferences",
-   "variant": "*",
-   "rule": "NamePatternRule",
-   "message": "root.root.children[5].TopContainer.children[1].ParentScript: Name 'ParentScript' doesn't follow camelCase for component (suggestion: 'parentScript')",
-   "kind": "fix",
-   "reason": "intended: references are found by resolution, not by name; this component is not referenced (the scripts name a different component with the same name), so the rename is safe"
-  },
-  {
-   "view": "cases/BadComponentReferences",
-   "variant": "np-snake-component-error",
-   "rule": "NamePatternRule",
-   "message": "root.root.children[5].TopContainer.children[1].ParentScript: Name 'ParentScript' doesn't follow snake_case for component (suggestion: 'parent_script')",
-   "kind": "fix",
-   "reason": "intended: references are found by resolution, not by name; this component is not referenced (the scripts name a different component with the same name), so the rename is safe"
-  },
-  {
-   "view": "cases/BadComponentReferences",
-   "variant": "np-kebab-component",
-   "rule": "NamePatternRule",
-   "message": "root.root.children[5].TopContainer.children[1].ParentScript: Name 'ParentScript' doesn't follow kebab-case for component (suggestion: 'parent-script')",
-   "kind": "fix",
-   "reason": "intended: references are found by resolution, not by name; this component is not referenced (the scripts name a different component with the same name), so the rename is safe"
-  },
-  {
-   "view": "cases/BadComponentReferences",
    "variant": "np-screaming-component",
    "rule": "NamePatternRule",
    "message": "root.root.children[2].ContainerWithBadScript: Name 'ContainerWithBadScript' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'CONTAINER_WITH_BAD_SCRIPT')",
@@ -127,14 +103,6 @@
    "message": "root.root.children[9].SelfRefContainer: Name 'SelfRefContainer' doesn't follow SCREAMING_SNAKE_CASE for component (suggestion: 'SELF_REF_CONTAINER')",
    "kind": "extra",
    "reason": "bug 6: ign-lint's abbreviation substring replacement accepts names that break the convention (any name containing ID, AI, IP, ... passes SCREAMING_SNAKE_CASE and lower case; idleTimer passes PascalCase as IDleTimer)"
-  },
-  {
-   "view": "cases/BadComponentReferences",
-   "variant": "np-title-component",
-   "rule": "NamePatternRule",
-   "message": "root.root.children[5].TopContainer.children[1].ParentScript: Name 'ParentScript' doesn't follow Title Case for component (suggestion: 'Parent Script')",
-   "kind": "fix",
-   "reason": "intended: references are found by resolution, not by name; this component is not referenced (the scripts name a different component with the same name), so the rename is safe"
   },
   {
    "view": "cases/BadComponentReferences",
@@ -2255,6 +2223,22 @@
    "message": "root.root.children[0].Py2: Name 'Py2' doesn't follow PascalCase for component (suggestion: 'Py')",
    "kind": "extra",
    "reason": "bug 8: iglint splits words consistently and keeps digits and abbreviation runs in suggestions (ign-lint drops digits, splits capital runs per letter, lower-cases words after a delimiter split)"
+  },
+  {
+   "view": "cases/BadComponentReferences",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "*",
+   "kind": "fix",
+   "reason": "intended: a script of the view hands a component to code outside the view (a library call), which may look up children by name, so iglint's rename is unsafe (ign-lint: safe)"
+  },
+  {
+   "view": "probes/ReferenceQuirks",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "*",
+   "kind": "fix",
+   "reason": "intended: a script of the view hands a component to code outside the view (a library call), which may look up children by name, so iglint's rename is unsafe (ign-lint: safe)"
   }
  ]
 }

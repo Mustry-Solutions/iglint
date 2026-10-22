@@ -52,7 +52,10 @@ Use instead:
 
 ## Fix
 
-Safe: sets `access` in the existing `propConfig` entry, adds the entry (and
+Unsafe, because the access mode changes who can read and write the
+property at run time (a `PRIVATE` property is not sent to the browser, a
+`PROTECTED` one cannot be written from it): sets `access` in the existing
+`propConfig` entry, adds the entry (and
 the `propConfig` object when the owner has none), or for `PUBLIC` removes
 the `access` key (or the whole entry when `access` was its only key).
 

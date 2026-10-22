@@ -59,8 +59,12 @@ Use instead:
 
 ## Fix
 
-Safe, for `expected-persistent = false`: sets `persistent: false` and
-removes the stored value (when its path has no array index).
+For `expected-persistent = false`: sets `persistent: false` and removes
+the stored value (when its path has no array index). Safe when there is
+no stored value (the property starts out absent either way). Unsafe when
+there is one: until the binding delivers its first value (query bindings
+are asynchronous), startup scripts, change scripts and expressions see
+the stored value before the fix and no value after it.
 
 ## ign-lint
 

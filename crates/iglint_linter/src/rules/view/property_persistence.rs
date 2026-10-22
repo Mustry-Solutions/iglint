@@ -65,8 +65,12 @@ Use instead:
 
 ## Fix
 
-Safe, for `expected-persistent = false`: sets `persistent: false` and
-removes the stored value (when its path has no array index).
+For `expected-persistent = false`: sets `persistent: false` and removes
+the stored value (when its path has no array index). Safe when there is
+no stored value (the property starts out absent either way). Unsafe when
+there is one: until the binding delivers its first value (query bindings
+are asynchronous), startup scripts, change scripts and expressions see
+the stored value before the fix and no value after it.
 
 ## ign-lint
 
@@ -250,10 +254,16 @@ fn fix(
         let parent = lookup(owner, parent_path)?;
         edits.push(editor.remove_member_by_key(parent, last).ok()?);
     }
-    Some(Fix::safe(
-        format!("Make bound property '{full}' non-persistent"),
-        cx.file_edits(file, edits),
-    ))
+    let message = format!("Make bound property '{full}' non-persistent");
+    let edits = cx.file_edits(file, edits);
+    // Without a stored value the property starts out the same either way;
+    // with one, scripts and expressions that run before the binding
+    // delivers (query bindings are asynchronous) see a different value.
+    Some(if stored.is_some() {
+        Fix::unsafe_edit(message, edits)
+    } else {
+        Fix::safe(message, edits)
+    })
 }
 
 #[cfg(test)]
@@ -359,7 +369,7 @@ mod tests {
         let f = Fixture::view(VIEW);
         let fixed = f.fixed(
             &[("VIEW013", "expected-persistent = false")],
-            false,
+            true,
             &f.view_path("Main"),
         );
         let expected = VIEW
@@ -372,5 +382,32 @@ mod tests {
                 "        \"type\": \"query\"\n      },\n      \"persistent\": false\n    },",
             );
         assert_eq!(fixed, expected);
+    }
+
+    /// Removing a stored value changes the property's value until the
+    /// binding delivers: unsafe. Without one, only the flag changes.
+    #[test]
+    fn fix_is_safe_only_without_a_stored_value() {
+        let f = Fixture::view(VIEW);
+        let d = f.lint_with(&[("VIEW013", "expected-persistent = false")]);
+        let by_name: Vec<(String, crate::Applicability)> = d
+            .iter()
+            .map(|d| {
+                (
+                    d.node_path.clone().unwrap_or_default(),
+                    d.fix.as_ref().unwrap().applicability,
+                )
+            })
+            .collect();
+        assert_eq!(
+            by_name,
+            [("view.custom.rows".to_owned(), crate::Applicability::Unsafe)]
+        );
+        let unstored = r#"{"custom": {}, "propConfig": {"custom.rows": {"binding": {"type": "query", "config": {"queryPath": "Rows"}}}}, "root": {"meta": {"name": "root"}, "type": "ia.container.flex"}}"#;
+        let d = Fixture::view(unstored).lint_with(&[("VIEW013", "expected-persistent = false")]);
+        assert_eq!(
+            d[0].fix.as_ref().map(|f| f.applicability),
+            Some(crate::Applicability::Safe)
+        );
     }
 }

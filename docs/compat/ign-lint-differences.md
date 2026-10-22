@@ -60,7 +60,10 @@ finding).
   references, literal `getChild`/`getSibling` arguments in scripts), not by
   matching the name anywhere in the view; when nothing actually refers to the
   component the rename is safe even if another component of the same name is
-  referenced (4 entries).
+  referenced. The rename is unsafe (ign-lint: safe) when a script of the
+  view hands a component to code outside the view, for example to a library
+  function, which may look the component up by name (2 entries, one per
+  view, for every variant).
 * Unknown kwargs are reported as configuration notices instead of being
   ignored silently (bug 9).
 * Keys of Ignition's dataset encoding (`$`, `$columns`) are Ignition's
@@ -214,4 +217,8 @@ default rule of the `SCR` category that no other ign-lint rule names
 ## PropertyAccessRule and PropertyPersistenceRule (`VIEW012`, `VIEW013`)
 
 No differences in findings. Fixes are minimal text edits instead of a
-re-serialised file.
+re-serialised file. They are unsafe where ign-lint applies them by
+default: changing an access mode changes who can read and write the
+property at run time, and removing the stored value of a bound property
+changes what scripts and expressions see before the binding delivers (the
+`VIEW013` fix stays safe when there is no stored value).

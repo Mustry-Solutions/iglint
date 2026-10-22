@@ -367,6 +367,22 @@
       "message": "root.root.children.Card.custom.beta: custom property 'beta' is defined but never referenced",
       "kind": "extra",
       "reason": "bug 21: `{this.custom.beta}` on another component credits every component's `beta` in ign-lint; iglint resolves `this` to the binding's own component"
+    },
+    {
+      "view": "*",
+      "variant": "*",
+      "rule": "PropertyAccessRule",
+      "message": "*",
+      "kind": "fix",
+      "reason": "intended: changing a property's access mode changes who can read and write it at run time, so iglint's fix is unsafe (ign-lint: safe)"
+    },
+    {
+      "view": "*",
+      "variant": "*",
+      "rule": "PropertyPersistenceRule",
+      "message": "*",
+      "kind": "fix",
+      "reason": "intended: removing the stored value of a bound property changes what runs before the binding delivers, so iglint's fix is unsafe when there is a stored value (ign-lint: safe)"
     }
   ]
 }

@@ -57,7 +57,10 @@ Use instead:
 
 ## Fix
 
-Safe: sets `access` in the existing `propConfig` entry, adds the entry (and
+Unsafe, because the access mode changes who can read and write the
+property at run time (a `PRIVATE` property is not sent to the browser, a
+`PROTECTED` one cannot be written from it): sets `access` in the existing
+`propConfig` entry, adds the entry (and
 the `propConfig` object when the owner has none), or for `PUBLIC` removes
 the `access` key (or the whole entry when `access` was its only key).
 
@@ -232,7 +235,9 @@ fn fix(
             }
         }
     };
-    Some(Fix::safe(
+    // The access mode decides who can read and write the property at run
+    // time (the browser, bindings of embedding views): never neutral.
+    Some(Fix::unsafe_edit(
         format!("Set access mode of '{full}' to {expected}"),
         cx.file_edits(file, vec![edit]),
     ))
@@ -336,7 +341,7 @@ mod tests {
         let f = Fixture::view(VIEW);
         let fixed = f.fixed(
             &[("VIEW012", "expected-access = \"PRIVATE\"")],
-            false,
+            true,
             &f.view_path("Main"),
         );
         assert_eq!(
@@ -376,7 +381,7 @@ mod tests {
         );
         let public = f.fixed(
             &[("VIEW012", "expected-access = \"PUBLIC\"")],
-            false,
+            true,
             &f.view_path("Main"),
         );
         assert!(!public.contains("PRIVATE"));
