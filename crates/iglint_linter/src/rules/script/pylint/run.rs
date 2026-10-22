@@ -37,6 +37,8 @@ pub(crate) struct Config {
     /// `None`: the bundled configuration.
     pub rcfile: Option<PathBuf>,
     pub jobs: u32,
+    /// Messages disabled on the command line (`--disable`).
+    pub disable: Vec<String>,
 }
 
 impl Config {
@@ -76,6 +78,7 @@ impl Config {
                 command,
                 rcfile,
                 jobs: options.jobs,
+                disable: options.disable.clone(),
             },
             notice,
         )
@@ -260,7 +263,13 @@ pub(crate) fn run(config: &Config, scripts: &[Script<'_>]) -> Outcome {
         return outcome;
     }
     let shard_dirs: Vec<String> = (0..shards.len()).map(|k| format!("s{k}")).collect();
-    let raw = match run_forking(python.as_deref(), &dir.0, &rcfile, &shard_dirs) {
+    let raw = match run_forking(
+        python.as_deref(),
+        &config.disable,
+        &dir.0,
+        &rcfile,
+        &shard_dirs,
+    ) {
         Some(Ok(raw)) => raw,
         Some(Err(why)) => {
             fail(&mut outcome, why);
@@ -295,7 +304,8 @@ except BaseException as e:
     sys.exit(3)
 if not hasattr(os, "fork"):
     sys.exit(3)
-rc, dirs = sys.argv[1], sys.argv[2:]
+rc, disable, dirs = sys.argv[1], sys.argv[2], sys.argv[3:]
+extra = ["--disable=" + disable] if disable else []
 root = os.getcwd()
 children = []
 for d in dirs:
@@ -305,7 +315,7 @@ for d in dirs:
         try:
             os.chdir(os.path.join(root, d))
             out = io.StringIO()
-            Run(["--rcfile=" + rc, "--score=no", "--persistent=no", "--recursive=y", "--jobs=1", "."],
+            Run(["--rcfile=" + rc] + extra + ["--score=no", "--persistent=no", "--recursive=y", "--jobs=1", "."],
                 reporter=JSONReporter(out), exit=False)
             with open(os.path.join(root, d + ".json"), "w") as f:
                 f.write(out.getvalue() or "[]")
@@ -364,6 +374,7 @@ fn interpreter(config: &Config) -> Option<Vec<String>> {
 /// then runs the pylint command.
 fn run_forking(
     python: Option<&[String]>,
+    disable: &[String],
     dir: &Path,
     rcfile: &Path,
     shards: &[String],
@@ -374,6 +385,7 @@ fn run_forking(
         .arg("-c")
         .arg(FORKING_DRIVER)
         .arg(rcfile)
+        .arg(disable.join(","))
         .args(shards)
         .current_dir(dir)
         .stdin(std::process::Stdio::null())
@@ -428,6 +440,9 @@ fn run_cli(
         .arg("--persistent=no")
         .arg("--recursive=y")
         .arg(format!("--rcfile={}", rcfile.display()))
+        .args(
+            (!config.disable.is_empty()).then(|| format!("--disable={}", config.disable.join(","))),
+        )
         .arg(format!("--jobs={processes}"))
         .arg(".")
         .current_dir(dir)

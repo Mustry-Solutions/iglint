@@ -143,6 +143,11 @@ pub struct RuleMeta {
     /// `severity` maps to the rule severity unless it is listed here. Empty
     /// for rules without ign-lint options.
     pub ign_lint_option_map: &'static [(&'static str, &'static str)],
+    /// String-list options that an ign-lint configuration implies for this
+    /// rule, whatever its kwargs say: `(option, values)`. Set when the rule
+    /// is configured from a `rule_config.json` and the option is not set by
+    /// a kwarg.
+    pub ign_lint_implied_options: &'static [(&'static str, &'static [&'static str])],
 }
 
 impl RuleMeta {
@@ -160,6 +165,7 @@ impl RuleMeta {
         options: &[],
         ign_lint_names: &[],
         ign_lint_option_map: &[],
+        ign_lint_implied_options: &[],
     };
 
     pub fn option(&self, name: &str) -> Option<&'static OptionMeta> {

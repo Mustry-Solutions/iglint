@@ -214,6 +214,7 @@ refer to the component dynamically.
         ("allowed_abbreviations", "allowed-abbreviations"),
         ("auto_detect_abbreviations", "auto-detect-abbreviations"),
     ],
+    ign_lint_implied_options: &[],
 };
 
 pub static RULE: RuleImpl = RuleImpl {

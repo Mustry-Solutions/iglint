@@ -92,6 +92,7 @@ Equivalent of `PropertyPersistenceRule` (`expected_persistent`,
         ("expected_persistent", "expected-persistent"),
         ("exempt_binding_types", "exempt-binding-types"),
     ],
+    ign_lint_implied_options: &[],
 };
 
 pub static RULE: RuleImpl = RuleImpl {

@@ -112,6 +112,15 @@ Comparison 'self.props.text == None' should be 'self.props.text is None' (single
   Where possible (POSIX, and a `pylint` script or `python -m pylint` as
   the command), one Python process imports pylint once and forks the
   others.
+* `disable`: pylint messages to disable in addition to the configuration
+  file (passed as `--disable`). Empty by default. ign-lint's combined file
+  starts with `#pylint: disable=unused-argument,missing-docstring,redefined-outer-name,function-redefined`,
+  which applies whatever rcfile is used; a configuration read from an
+  ign-lint `rule_config.json` (and `iglint ign-lint`) therefore sets
+  `disable` to those four messages, so equal configurations give equal
+  findings. The bundled configuration disables them already; with your
+  own `pylintrc` in `iglint.toml` they are reported unless the rcfile or
+  `disable` turns them off.
 * `category-mapping`: severity per pylint message category letter (`F`,
   `E`, `W`, `C`, `R`, `I`). It replaces the default
   (`F` and `E` errors, `W`, `C` and `R` warnings); categories it leaves
@@ -143,6 +152,12 @@ pylint's version: run with `--no-cache` after upgrading pylint.
             description: "Number of parallel pylint processes: 0 is one per CPU.",
         },
         OptionMeta {
+            name: "disable",
+            ty: OptionType::StringList,
+            default: "[]",
+            description: "pylint messages disabled in addition to the configuration file.",
+        },
+        OptionMeta {
             name: "category-mapping",
             ty: OptionType::Table,
             default: "{ F = \"error\", E = \"error\", W = \"warning\", C = \"warning\", R = \"warning\" }",
@@ -154,6 +169,16 @@ pylint's version: run with `--no-cache` after upgrading pylint.
         ("pylintrc", "pylintrc"),
         ("category_mapping", "category-mapping"),
     ],
+    // The header of ign-lint's combined file.
+    ign_lint_implied_options: &[(
+        "disable",
+        &[
+            "unused-argument",
+            "missing-docstring",
+            "redefined-outer-name",
+            "function-redefined",
+        ],
+    )],
     ..RuleMeta::DEFAULT
 };
 
@@ -171,6 +196,8 @@ pub struct PylintOptions {
     pub command: Vec<String>,
     pub pylintrc: Option<String>,
     pub jobs: u32,
+    /// Messages disabled in addition to the configuration file.
+    pub disable: Vec<String>,
     /// Category letter (upper case) to severity.
     pub category_mapping: BTreeMap<char, Severity>,
 }
@@ -218,6 +245,7 @@ fn parse_options(r: &OptionReader<'_>) -> Result<ParsedOptions, String> {
         command,
         pylintrc: r.opt_string("pylintrc")?,
         jobs,
+        disable: r.string_list("disable")?,
         category_mapping,
     }))
 }

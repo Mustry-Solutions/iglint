@@ -625,6 +625,16 @@ fn rule_settings(
             unmapped.insert(kwarg.clone());
         }
     }
+    for (option, values) in meta.ign_lint_implied_options {
+        options.entry((*option).to_owned()).or_insert_with(|| {
+            OptionValue::List(
+                values
+                    .iter()
+                    .map(|v| OptionValue::String((*v).to_owned()))
+                    .collect(),
+            )
+        });
+    }
     RuleSettings { severity, options }
 }
 

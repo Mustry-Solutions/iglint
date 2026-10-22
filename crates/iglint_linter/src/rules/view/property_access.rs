@@ -85,6 +85,7 @@ the same messages in `iglint ign-lint`.
         ("expected_access", "expected-access"),
         ("exempt_props", "exempt-props"),
     ],
+    ign_lint_implied_options: &[],
 };
 
 pub static RULE: RuleImpl = RuleImpl {

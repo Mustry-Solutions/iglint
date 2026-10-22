@@ -123,6 +123,7 @@ pub static COMPONENT_NAME: RuleMeta = RuleMeta {
         ("skip_names", "skip-names"),
         ("node_type_specific_rules", "per-type"),
     ],
+    ign_lint_implied_options: &[],
 };
 
 pub static PROPERTY_NAME: RuleMeta = RuleMeta {
