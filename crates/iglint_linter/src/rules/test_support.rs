@@ -91,6 +91,20 @@ impl Fixture {
         self.lint_with(&rules)
     }
 
+    /// Lints with `rules` enabled (default options) in strict mode.
+    pub fn lint_strict(&self, rules: &[&str]) -> Vec<Diagnostic> {
+        let rules: Vec<(&str, &str)> = rules.iter().map(|r| (*r, "")).collect();
+        let mut settings = settings(self.root(), &rules);
+        Arc::make_mut(&mut settings.base).strict = true;
+        let result = check(
+            &settings,
+            &[self.root().to_path_buf()],
+            &CheckOptions::default(),
+        );
+        assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+        result.diagnostics
+    }
+
     /// Lints with `(rule, options as TOML key/values)` pairs.
     pub fn lint_with(&self, rules: &[(&str, &str)]) -> Vec<Diagnostic> {
         self.run(rules, FixMode::None).diagnostics
