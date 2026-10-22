@@ -468,6 +468,7 @@ impl LiveWorkspace {
                         Some(d)
                     })
                     .collect();
+                crate::rules::script::pylint::drop_duplicates(&mut out.diagnostics);
                 out.diagnostics
                     .sort_by(|a, b| a.sort_key().cmp(&b.sort_key()));
                 out

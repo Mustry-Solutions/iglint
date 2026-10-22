@@ -2,7 +2,7 @@
 
 # Rules
 
-iglint has 105 rules. Rules with *yes* in the Default column run without configuration; enable the others with `select` or `extend-select` (see the [configuration](../../README.md#configuration)). Fix: *always* or *sometimes* means `iglint check --fix` can repair findings of the rule (unsafe fixes also need `--unsafe-fixes`).
+iglint has 106 rules. Rules with *yes* in the Default column run without configuration; enable the others with `select` or `extend-select` (see the [configuration](../../README.md#configuration)). Fix: *always* or *sometimes* means `iglint check --fix` can repair findings of the rule (unsafe fixes also need `--unsafe-fixes`).
 
 `iglint rule <CODE>` prints the same documentation in the terminal.
 
@@ -81,6 +81,7 @@ iglint has 105 rules. Rules with *yes* in the Default column run without configu
 | [SCR121](SCR121.md) | `global-at-module-level` | `global` statement at module level | info | yes |  |
 | [SCR122](SCR122.md) | `print-statement` | `print` in a script that runs on the gateway | info |  |  |
 | [SCR123](SCR123.md) | `unused-suppression` | `# iglint: ignore[...]` that suppresses nothing | info | yes | always |
+| [SCR124](SCR124.md) | `trailing-whitespace` | Spaces or tabs at the end of a script line | info |  | always |
 | [SCR201](SCR201.md) | `unknown-system-function` | `system.*` member that does not exist in Ignition 8.3 | error | yes |  |
 | [SCR202](SCR202.md) | `system-function-arity` | `system.*` call with arguments that match no signature | error | yes |  |
 | [SCR203](SCR203.md) | `unknown-system-keyword` | Keyword argument a `system.*` function does not accept | error | yes |  |
@@ -93,7 +94,7 @@ iglint has 105 rules. Rules with *yes* in the Default column run without configu
 | [SCR304](SCR304.md) | `shadowed-library-package` | Library module with its own `code.py` hides its child modules | error | yes |  |
 | [SCR305](SCR305.md) | `unresolved-component-reference` | `getSibling`/`getChild` with a literal name that matches no component | error | yes |  |
 | [SCR306](SCR306.md) | `message-handler-payload-misuse` | Message handler reads a payload key that no sender sends | warning |  |  |
-| [SCR900](SCR900.md) | `pylint` | Message reported by pylint | warning |  |  |
+| [SCR900](SCR900.md) | `pylint` | Message reported by pylint | warning |  | sometimes |
 
 ## References (`REF`)
 

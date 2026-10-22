@@ -53,6 +53,7 @@ pub mod sleep_in_event_script;
 pub mod syntax_error;
 pub mod system_api;
 pub mod system_function_arity;
+pub mod trailing_whitespace;
 pub mod undefined_name;
 pub mod unknown_system_function;
 pub mod unknown_system_keyword;
@@ -299,6 +300,52 @@ pub fn statement_fix(
         }
         None => fixed,
     })
+}
+
+/// Python's `str.isspace` (what `str.rstrip()` removes).
+pub fn is_python_space(c: char) -> bool {
+    c.is_whitespace() || ('\x1c'..='\x1f').contains(&c)
+}
+
+/// Trailing whitespace of the lines of `source` from offset `from`: per
+/// line (split at `\n`), the run of characters at its end for which
+/// `is_space` holds. With `keep_cr`, a `\r` right before the `\n` is the
+/// line break and not part of the run.
+pub fn trailing_whitespace(
+    source: &str,
+    from: TextSize,
+    keep_cr: bool,
+    is_space: fn(char) -> bool,
+) -> Vec<TextRange> {
+    let mut out = Vec::new();
+    let mut start = from.to_usize();
+    while start <= source.len() {
+        let end = source[start..]
+            .find('\n')
+            .map_or(source.len(), |i| start + i);
+        let mut line = &source[start..end];
+        if keep_cr && end < source.len() {
+            line = line.strip_suffix('\r').unwrap_or(line);
+        }
+        let kept = line.trim_end_matches(is_space).len();
+        if kept < line.len() {
+            out.push(TextRange::from(start + kept..start + line.len()));
+        }
+        start = end + 1;
+    }
+    out
+}
+
+/// The ranges of the string literals of a parsed script (whitespace in a
+/// multi-line string is data, not trailing whitespace).
+pub fn string_ranges(parsed: &iglint_python::Parsed) -> Vec<TextRange> {
+    let mut out = Vec::new();
+    walk_exprs(&parsed.module.body, &mut |e| {
+        if let Expr::Str(s) = e {
+            out.push(s.range);
+        }
+    });
+    out
 }
 
 /// The statement list that directly contains `target`, searching the

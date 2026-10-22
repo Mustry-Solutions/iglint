@@ -22,10 +22,13 @@ use rustc_hash::FxHashMap;
 
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
+use crate::diagnostic::{Applicability, Diagnostic, Fix};
 use crate::options::OptionReader;
-use crate::registry::{Category, OptionMeta, OptionType, RuleMeta};
+use crate::registry::{Category, FixAvailability, OptionMeta, OptionType, RuleMeta};
 use crate::rule::{Hook, ParsedOptions, Phase, RuleImpl, ScriptRule, ScriptUnit};
-use crate::rules::script::{file_line, injected_names};
+use crate::rules::script::{
+    file_line, fix, in_header, injected_names, is_python_space, string_ranges, trailing_whitespace,
+};
 
 pub(crate) mod run;
 #[cfg(test)]
@@ -37,6 +40,7 @@ pub static META: RuleMeta = RuleMeta {
     category: Category::Script,
     default_severity: Severity::Warning,
     default_enabled: false,
+    fix: FixAvailability::Sometimes,
     summary: "Message reported by pylint",
     explanation: r#"## What it does
 
@@ -111,6 +115,20 @@ Comparison 'self.props.text == None' should be 'self.props.text is None' (single
   (`F` and `E` errors, `W`, `C` and `R` warnings); categories it leaves
   out get the rule severity.
 
+## Fix
+
+When pylint reports `trailing-whitespace` (C0303, disabled by the bundled
+configuration), the script's first such finding carries ign-lint's fix:
+every line of the script is `rstrip()`ed. Safe, except when whitespace
+inside a multi-line string literal would be removed or the script does
+not parse: then unsafe. `SCR124` is the native equivalent.
+
+## Duplicates
+
+A message that a native rule also reports at the same place (and about
+the same name), for example `undefined-variable` and `SCR101`, is shown
+only as the native finding.
+
 ## Cache
 
 Results are cached with the rest of the run. The cache key includes the
@@ -148,7 +166,6 @@ pylint's version: run with `--no-cache` after upgrading pylint.
         ("pylintrc", "pylintrc"),
         ("category_mapping", "category-mapping"),
     ],
-    ..RuleMeta::DEFAULT
 };
 
 pub static RULE: RuleImpl = RuleImpl {
@@ -287,9 +304,11 @@ impl ScriptRule for Pylint {
                 reports.push((m, header));
             }
         }
+        let mut whitespace_fix = None;
         for (m, header) in reports {
             let severity = options.severity_of(&m.id).unwrap_or(cx.severity());
             let text = format!("{} ({}, {})", m.text, m.symbol, m.id);
+            let mut fix = None;
             let (range, ign_lint) = if header {
                 (
                     script.anchor(),
@@ -297,8 +316,19 @@ impl ScriptRule for Pylint {
                 )
             } else {
                 let line = file_line(cx, unit, m.range.start()).unwrap_or(1);
+                let mut range = m.range;
+                if m.id == TRAILING_WHITESPACE {
+                    // The whitespace itself, so that removing it resolves
+                    // the finding; the first finding of the script carries
+                    // ign-lint's fix for the whole script.
+                    range = whitespace_on_line(&script.source, range).unwrap_or(range);
+                    if whitespace_fix.is_none() {
+                        whitespace_fix = Some(strip_trailing_whitespace(cx, unit));
+                        fix = whitespace_fix.clone().flatten();
+                    }
+                }
                 (
-                    script.file_range(m.range),
+                    script.file_range(range),
                     format!("Line {line}: {} ({}) ({})", m.text, m.symbol, m.id),
                 )
             };
@@ -307,9 +337,170 @@ impl ScriptRule for Pylint {
                 .node_path(script.node_path.clone())
                 .ign_lint_path(script.ign_lint_path.clone())
                 .ign_lint_message(ign_lint)
-                .severity(severity);
+                .severity(severity)
+                .fix_opt(fix);
         }
     }
+}
+
+/// pylint messages that native rules report as well: message id and the
+/// native rule codes.
+const NATIVE_EQUIVALENTS: &[(&str, &[&str])] = &[
+    ("E0001", &["SCR001"]),
+    ("E0602", &["SCR101"]),
+    ("W0611", &["SCR102"]),
+    ("W0612", &["SCR103"]),
+    ("W0404", &["SCR104"]),
+    ("E0102", &["SCR104"]),
+    ("W0101", &["SCR105"]),
+    ("W0702", &["SCR106"]),
+    ("W0102", &["SCR107"]),
+    ("W0109", &["SCR108"]),
+    ("W0127", &["SCR109"]),
+    ("R0123", &["SCR110"]),
+    ("W0199", &["SCR111"]),
+    ("E1305", &["SCR112"]),
+    ("E1306", &["SCR112"]),
+    ("E0701", &["SCR113"]),
+    ("W0104", &["SCR114"]),
+    ("W0105", &["SCR114"]),
+    ("W0622", &["SCR117"]),
+    ("E0601", &["SCR118"]),
+    ("W0150", &["SCR119"]),
+    ("W0640", &["SCR120"]),
+    ("W0604", &["SCR121"]),
+    ("C0303", &["SCR124"]),
+];
+
+/// The pylint message id (`E0602`) and text of an SCR900 finding.
+pub fn message_id(diagnostic: &Diagnostic) -> Option<(&str, &str)> {
+    if diagnostic.rule.code() != META.code {
+        return None;
+    }
+    let message = diagnostic.message.strip_suffix(')')?;
+    let open = message.rfind(" (")?;
+    let (_, id) = message[open + 2..].rsplit_once(", ")?;
+    Some((id, &message[..open]))
+}
+
+/// The name a pylint message is about: the first `'...'`, or the module
+/// of `Unused import x`.
+fn subject(id: &str, text: &str) -> Option<String> {
+    if let Some(name) = quoted(text) {
+        return Some(name.to_owned());
+    }
+    if id == "W0611" {
+        let rest = text.strip_prefix("Unused ")?;
+        let rest = rest.strip_prefix("import ").unwrap_or(rest);
+        return rest.split_whitespace().next().map(str::to_owned);
+    }
+    None
+}
+
+/// Drops pylint findings that a native rule also reports: same file,
+/// overlapping ranges, an equivalent rule (and the same name, when the
+/// message names one).
+pub fn drop_duplicates(diagnostics: &mut Vec<Diagnostic>) {
+    if !diagnostics.iter().any(|d| d.rule.code() == META.code) {
+        return;
+    }
+    let mut native: FxHashMap<&std::path::Path, Vec<usize>> = FxHashMap::default();
+    for (i, d) in diagnostics.iter().enumerate() {
+        if NATIVE_EQUIVALENTS
+            .iter()
+            .any(|(_, codes)| codes.contains(&d.rule.code()))
+        {
+            native.entry(d.file.path()).or_default().push(i);
+        }
+    }
+    if native.is_empty() {
+        return;
+    }
+    let duplicate: Vec<bool> = diagnostics
+        .iter()
+        .map(|d| {
+            let Some((id, text)) = message_id(d) else {
+                return false;
+            };
+            let Some((_, codes)) = NATIVE_EQUIVALENTS.iter().find(|(i, _)| *i == id) else {
+                return false;
+            };
+            let Some(candidates) = native.get(d.file.path()) else {
+                return false;
+            };
+            let name = subject(id, text).map(|n| format!("`{n}`"));
+            candidates.iter().any(|i| {
+                let other = &diagnostics[*i];
+                codes.contains(&other.rule.code())
+                    && other.range.start() <= d.range.end()
+                    && d.range.start() <= other.range.end()
+                    && name
+                        .as_ref()
+                        .is_none_or(|n| other.message.contains(n.as_str()))
+            })
+        })
+        .collect();
+    let mut index = 0;
+    diagnostics.retain(|_| {
+        index += 1;
+        !duplicate[index - 1]
+    });
+}
+
+/// pylint's `trailing-whitespace`.
+const TRAILING_WHITESPACE: &str = "C0303";
+
+/// The trailing whitespace (as Python's `rstrip` sees it) of the line that
+/// `at` is on.
+fn whitespace_on_line(source: &str, at: TextRange) -> Option<TextRange> {
+    let start = at.start().to_usize().min(source.len());
+    let line_start = source[..start].rfind('\n').map_or(0, |i| i + 1);
+    let line_end = source[line_start..]
+        .find('\n')
+        .map_or(source.len(), |i| line_start + i);
+    let line = &source[line_start..line_end];
+    let kept = line.trim_end_matches(is_python_space).len();
+    (kept < line.len()).then(|| TextRange::from(line_start + kept..line_end))
+}
+
+/// ign-lint's fix for `trailing-whitespace`: every line of the script body
+/// `rstrip()`ed (also the last one, and a `\r` before a line break). Safe
+/// like ign-lint's, except when whitespace inside a string literal would go
+/// (or the script does not parse, so string literals are unknown): unsafe.
+fn strip_trailing_whitespace(cx: &Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) -> Option<Fix> {
+    let script = unit.script;
+    let source: &str = &script.source;
+    let ranges: Vec<TextRange> = trailing_whitespace(
+        source,
+        script.source_map.body_start(),
+        false,
+        is_python_space,
+    )
+    .into_iter()
+    .filter(|r| !in_header(unit, *r))
+    .collect();
+    if ranges.is_empty() {
+        return None;
+    }
+    let strings = string_ranges(unit.parsed);
+    let in_string = |r: &TextRange| {
+        strings
+            .iter()
+            .any(|s| s.start() < r.start() && r.start() < s.end())
+    };
+    let applicability = if !unit.parsed.errors.is_empty() || ranges.iter().any(in_string) {
+        Applicability::Unsafe
+    } else {
+        Applicability::Safe
+    };
+    let path = script.ign_lint_path.as_deref().unwrap_or(&script.node_path);
+    fix(
+        cx,
+        unit,
+        format!("Remove trailing whitespace from script at {path}"),
+        applicability,
+        ranges.into_iter().map(|r| (r, String::new())).collect(),
+    )
 }
 
 /// Whether a message is right for Ignition (see the rule documentation).

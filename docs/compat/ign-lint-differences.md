@@ -170,10 +170,21 @@ default rule of the `SCR` category that no other ign-lint rule names
 * **Data-quality findings** (script not indented, mixed tabs and spaces)
   are not reproduced as such: an unindented body is a syntax error
   (`SCR001`), and indentation style is pylint's `bad-indentation`.
-* **Fixes.** `SCR900` has none: ign-lint's trailing-whitespace fix never
-  triggers with the bundled configuration (6.4). The native rules' fixes
-  apply with `--fix` like those of any other equivalent, and
-  `allow_fix: false` makes all of them unfixable.
+* **Fixes.** `SCR900` has ign-lint's only pylint fix (6.4): when pylint
+  reports `trailing-whitespace` (C0303, disabled by the bundled
+  configuration), every line of the script is `rstrip()`ed, as one fix per
+  script with ign-lint's description. It edits only the removed bytes and
+  keeps the JSON escapes; it is unsafe (ign-lint: safe) when whitespace
+  inside a multi-line string would go or the script does not parse. The
+  native rules' fixes apply with `--fix` like those of any other
+  equivalent, and `allow_fix: false` makes all of them unfixable.
+* **Duplicates.** A pylint message that a native rule also reports (same
+  range and name; `undefined-variable` and `SCR101`, `unused-variable` and
+  `SCR103`, ...) is shown once, as the native finding.
+* **Output.** pylint messages are grouped by category (`Pylint - Error
+  (E):` ...) like ign-lint's; within a category they are in file order
+  instead of pylint's checker order, and the native rules' findings are
+  the rule's plain `•` lines before the groups.
 * **pylint missing or failing** prints one warning for the run (`iglint
   check`: `warning: SCR900: ...`; `iglint ign-lint`: a `⚠️` line) with how
   to install or configure it; every other rule still runs and the exit

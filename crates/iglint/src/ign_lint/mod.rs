@@ -770,8 +770,8 @@ fn build_report(file: &Prepared, diagnostics: &[&Diagnostic], rules: &Rules) -> 
             .position(|r| r.name == name)
             .unwrap_or(usize::MAX)
     };
-    let mut errors: BTreeMap<(usize, String), Vec<String>> = BTreeMap::new();
-    let mut warnings: BTreeMap<(usize, String), Vec<String>> = BTreeMap::new();
+    let mut errors: BTreeMap<(usize, String), RuleBlock> = BTreeMap::new();
+    let mut warnings: BTreeMap<(usize, String), RuleBlock> = BTreeMap::new();
     for diagnostic in diagnostics {
         let name = rules
             .names
@@ -783,13 +783,21 @@ fn build_report(file: &Prepared, diagnostics: &[&Diagnostic], rules: &Rules) -> 
         } else {
             &mut warnings
         };
-        target
-            .entry((order(&name), name))
-            .or_default()
-            .push(message_line(diagnostic));
+        let block = target
+            .entry((order(&name), name.clone()))
+            .or_insert_with(|| RuleBlock {
+                rule: name,
+                ..RuleBlock::default()
+            });
+        let category = iglint_linter::rules::script::pylint::message_id(diagnostic)
+            .and_then(|(id, _)| id.chars().next());
+        match category {
+            Some(letter) => block.pylint.push((letter, message_line(diagnostic))),
+            None => block.messages.push(message_line(diagnostic)),
+        }
     }
-    let blocks = |map: BTreeMap<(usize, String), Vec<String>>| -> Vec<RuleBlock> {
-        map.into_iter().map(|((_, name), m)| (name, m)).collect()
+    let blocks = |map: BTreeMap<(usize, String), RuleBlock>| -> Vec<RuleBlock> {
+        map.into_values().collect()
     };
     FileReport {
         path: file.display.clone(),

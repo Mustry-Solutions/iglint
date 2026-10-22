@@ -8,8 +8,54 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-/// Findings of one rule: the ign-lint rule name and its messages.
-pub type RuleBlock = (String, Vec<String>);
+/// Findings of one rule.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RuleBlock {
+    /// The ign-lint rule name.
+    pub rule: String,
+    pub messages: Vec<String>,
+    /// pylint messages (`PylintScriptRule`), shown grouped by category:
+    /// the category letter and the message.
+    pub pylint: Vec<(char, String)>,
+}
+
+impl RuleBlock {
+    pub fn len(&self) -> usize {
+        self.messages.len() + self.pylint.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// ign-lint's grouped pylint output: per category F, E, W, C, R, an
+    /// empty line, `    Pylint - {name} ({letter}):` and one
+    /// `      • {message}` per message. Other categories are counted but
+    /// not shown, like in ign-lint.
+    pub fn pylint_text(&self) -> Option<String> {
+        let mut lines: Vec<String> = Vec::new();
+        for (letter, name) in [
+            ('F', "Fatal"),
+            ('E', "Error"),
+            ('W', "Warning"),
+            ('C', "Convention"),
+            ('R', "Refactor"),
+        ] {
+            let messages: Vec<&String> = self
+                .pylint
+                .iter()
+                .filter(|(c, _)| *c == letter)
+                .map(|(_, m)| m)
+                .collect();
+            if messages.is_empty() {
+                continue;
+            }
+            lines.push(format!("\n    Pylint - {name} ({letter}):"));
+            lines.extend(messages.into_iter().map(|m| format!("      • {m}")));
+        }
+        (!lines.is_empty()).then(|| lines.join("\n"))
+    }
+}
 
 /// Phase durations of one file.
 #[derive(Clone, Debug, Default)]
@@ -38,11 +84,11 @@ pub struct FileReport {
 
 impl FileReport {
     pub fn error_count(&self) -> usize {
-        self.errors.iter().map(|(_, m)| m.len()).sum()
+        self.errors.iter().map(RuleBlock::len).sum()
     }
 
     pub fn warning_count(&self) -> usize {
-        self.warnings.iter().map(|(_, m)| m.len()).sum()
+        self.warnings.iter().map(RuleBlock::len).sum()
     }
 
     pub fn has_issues(&self) -> bool {
@@ -56,10 +102,13 @@ pub fn print_file_results(out: &mut dyn Write, report: &FileReport) -> io::Resul
         return writeln!(out, "✅ No issues found");
     }
     let blocks = |out: &mut dyn Write, blocks: &[RuleBlock]| -> io::Result<()> {
-        for (rule, messages) in blocks {
-            writeln!(out, "\n  {rule}:")?;
-            for message in messages.iter().filter(|m| !m.is_empty()) {
+        for block in blocks {
+            writeln!(out, "\n  {}:", block.rule)?;
+            for message in block.messages.iter().filter(|m| !m.is_empty()) {
                 writeln!(out, "    • {message}")?;
+            }
+            if let Some(text) = block.pylint_text() {
+                writeln!(out, "{text}")?;
             }
             writeln!(out)?;
         }
@@ -134,10 +183,13 @@ pub fn results_text(totals: &Totals, whitelisted: &[String], files: &[FileReport
                 return;
             }
             let _ = writeln!(s, "{title} ({count} total):\n");
-            for (rule, messages) in blocks {
-                let _ = writeln!(s, "  {rule}:");
-                for message in messages.iter().filter(|m| !m.is_empty()) {
+            for block in blocks {
+                let _ = writeln!(s, "  {}:", block.rule);
+                for message in block.messages.iter().filter(|m| !m.is_empty()) {
                     let _ = writeln!(s, "    • {message}");
+                }
+                if let Some(text) = block.pylint_text() {
+                    let _ = writeln!(s, "{text}");
                 }
                 let _ = writeln!(s);
             }
@@ -451,5 +503,37 @@ mod tests {
         assert_eq!(report_path(&path, later), (path.clone(), false));
         clean_up(&path, later);
         assert!(!path.exists());
+    }
+
+    /// ign-lint's layout for `PylintScriptRule`: plain messages first, then
+    /// the pylint messages grouped by category in F, E, W, C, R order.
+    #[test]
+    fn pylint_messages_are_grouped_by_category() {
+        let block = RuleBlock {
+            rule: "PylintScriptRule".to_owned(),
+            messages: vec!["a: native".to_owned()],
+            pylint: vec![
+                ('C', "a: Line 2: c1 (C0303)".to_owned()),
+                ('E', "a: Line 1: e1 (E0602)".to_owned()),
+                ('C', "a: Line 3: c2 (C0303)".to_owned()),
+                ('I', "a: Line 3: hidden (I0011)".to_owned()),
+            ],
+        };
+        let report = FileReport {
+            path: "view.json".to_owned(),
+            errors: vec![block],
+            ..FileReport::default()
+        };
+        let mut out = Vec::new();
+        print_file_results(&mut out, &report).unwrap();
+        assert_eq!(
+            String::from_utf8(out).unwrap(),
+            "\n❌ Found 5 errors:\n\n  PylintScriptRule:\n    • a: native\n\n    Pylint - Error (E):\n      • a: Line 1: e1 (E0602)\n\n    Pylint - Convention (C):\n      • a: Line 2: c1 (C0303)\n      • a: Line 3: c2 (C0303)\n\n"
+        );
+        let text = results_text(&Totals::default(), &[], &[report]);
+        assert!(
+            text.contains("ERRORS (5 total):\n\n  PylintScriptRule:\n    • a: native\n\n    Pylint - Error (E):\n      • a: Line 1: e1 (E0602)\n\n    Pylint - Convention (C):\n      • a: Line 2: c1 (C0303)\n      • a: Line 3: c2 (C0303)\n\n\n"),
+            "{text}"
+        );
     }
 }

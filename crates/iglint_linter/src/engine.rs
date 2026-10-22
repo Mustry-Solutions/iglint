@@ -384,6 +384,7 @@ pub fn check(settings: &ProjectSettings, paths: &[PathBuf], options: &CheckOptio
         cache.store(new_cache_entries);
         result.timings.cache += cache_start.elapsed();
     }
+    crate::rules::script::pylint::drop_duplicates(&mut result.diagnostics);
     result
         .diagnostics
         .sort_by(|a, b| a.sort_key().cmp(&b.sort_key()));

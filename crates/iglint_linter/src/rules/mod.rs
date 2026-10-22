@@ -91,6 +91,7 @@ rules![
     script::global_at_module_level,
     script::print_statement,
     script::unused_suppression,
+    script::trailing_whitespace,
     script::unknown_system_function,
     script::system_function_arity,
     script::unknown_system_keyword,

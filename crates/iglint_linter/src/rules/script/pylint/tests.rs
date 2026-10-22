@@ -645,3 +645,111 @@ fn quoted_names() {
     assert_eq!(quoted("Unable to import 'a.b'"), Some("a.b"));
     assert_eq!(quoted("no quotes"), None);
 }
+
+/// ign-lint's trailing-whitespace fix: the whole body `rstrip()`ed per
+/// line, attached to the script's first `C0303`; every `C0303` of the
+/// script is resolved by it.
+#[cfg(unix)]
+#[test]
+fn trailing_whitespace_fix_strips_every_line() {
+    let body = "\treturn 1   \n\tx \u{3d} 2\t";
+    let source = format!("def runAction(self, event):\n{body}");
+    let messages = serde_json::json!([
+        message(
+            "trailing-whitespace",
+            "C0303",
+            "Trailing whitespace",
+            (2, 9),
+            None
+        ),
+        message(
+            "trailing-whitespace",
+            "C0303",
+            "Trailing whitespace",
+            (3, 7),
+            None
+        ),
+    ]);
+    assert_eq!(&source[source.find("1   ").unwrap() + 1..][..3], "   ");
+    let (f, command) = fake_pylint(view(ViewScript::Action, body), &messages);
+    let d = f.lint_with(&[("SCR900", &command)]);
+    assert_eq!(d.len(), 2);
+    assert_eq!(decoded_flagged(&d), ["   ", "\t"]);
+    let fixes: Vec<_> = d.iter().map(|d| d.fix.is_some()).collect();
+    assert_eq!(fixes, [true, false]);
+    let result = f.run(&[("SCR900", &command)], FixMode::Safe);
+    assert_eq!(result.fixed[0].applied.len(), 1);
+    assert_eq!(
+        result.fixed[0].applied[0].message,
+        "Remove trailing whitespace from script at root.root.events.component.onActionPerformed"
+    );
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let fixed = std::fs::read_to_string(view_path(&f)).unwrap();
+    assert!(
+        fixed.contains(r#""script": "\treturn 1\n\tx \u003d 2""#),
+        "{fixed}"
+    );
+}
+
+/// Whitespace inside a multi-line string is data: the fix is unsafe.
+#[cfg(unix)]
+#[test]
+fn trailing_whitespace_fix_in_strings_is_unsafe() {
+    let code = "x = '''a  \nb'''\n";
+    let messages = serde_json::json!([message(
+        "trailing-whitespace",
+        "C0303",
+        "Trailing whitespace",
+        (1, 8),
+        None
+    )]);
+    let (f, command) = fake_pylint(library("m", code), &messages);
+    let d = f.lint_with(&[("SCR900", &command)]);
+    assert_eq!(
+        d[0].fix.as_ref().map(|f| f.applicability),
+        Some(crate::diagnostic::Applicability::Unsafe)
+    );
+}
+
+/// A pylint message that a native rule reports on the same range (and
+/// name) is dropped; others stay.
+#[cfg(unix)]
+#[test]
+fn duplicates_of_native_findings_are_dropped() {
+    let code = "def f():\n    return undefined_e\n";
+    let (l, b, _) = position(code, "undefined_e");
+    let messages = serde_json::json!([
+        message(
+            "undefined-variable",
+            "E0602",
+            "Undefined variable 'undefined_e'",
+            (l, b),
+            Some((l, b + 11))
+        ),
+        message(
+            "undefined-variable",
+            "E0602",
+            "Undefined variable 'other'",
+            (l, b),
+            Some((l, b + 11))
+        ),
+        message("line-too-long", "C0301", "Line too long", (l, 0), None),
+    ]);
+    let (f, command) = fake_pylint(library("m", code), &messages);
+    let d = f.lint_with(&[("SCR900", &command), ("SCR101", "")]);
+    let found: Vec<(&str, &str)> = d
+        .iter()
+        .map(|d| (d.rule.code(), d.message.as_str()))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            ("SCR900", "Line too long (line-too-long, C0301)"),
+            ("SCR101", "Undefined name `undefined_e`"),
+            (
+                "SCR900",
+                "Undefined variable 'other' (undefined-variable, E0602)"
+            ),
+        ]
+    );
+}

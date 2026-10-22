@@ -7,7 +7,18 @@ from 0.1.0 on.
 
 ## [Unreleased]
 
+### Added
+
+- `SCR124` trailing-whitespace (off by default, safe fix).
+- `SCR900` fixes pylint's `trailing-whitespace` like ign-lint's
+  `PylintScriptRule` (every script line `rstrip()`ed).
+
 ### Fixed
+
+- `iglint ign-lint` groups pylint messages by category
+  (`Pylint - Convention (C):`) like ign-lint.
+- pylint messages that a native rule also reports (same place and name)
+  are shown once.
 
 - Fixes that delete statements (`SCR102`, `SCR103`) no longer empty a block
   when several of them remove every statement of it: the last one becomes
