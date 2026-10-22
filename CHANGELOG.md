@@ -7,6 +7,9 @@ from 0.1.0 on.
 
 ## [Unreleased]
 
+- `SCR108` compares keys with Python 2.7 equality: `True` and `1`, `0j` and
+  `0`, equal tuples, `1e16` and `10000000000000000` are duplicates.
+
 ## [0.1.0]
 
 First public release.
