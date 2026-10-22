@@ -12,6 +12,7 @@ pub mod indirect_tag_reference_mismatch;
 pub mod map_transform_duplicate_input;
 pub mod placeholder_in_direct_tag_path;
 pub mod polling_interval;
+pub mod transform_without_return;
 pub mod unknown_expression_function;
 pub mod unresolved_property_reference;
 

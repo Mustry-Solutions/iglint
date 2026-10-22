@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Parses Python sources with IA's Jython 2.7 and records, per source, the
 # ast.dump output or the SyntaxError (default), or the token stream that the
-# parser sees (--tokens).
+# parser sees (--tokens), or whether full compilation succeeds (--compile:
+# compile-time errors such as 'return' outside function).
 #
-# usage: oracle/run-oracle.sh [--tokens] ROOT LIST OUT
+# usage: oracle/run-oracle.sh [--tokens | --compile] ROOT LIST OUT
 #
 #   ROOT  directory that contains the inputs
 #   LIST  file with one path per line, relative to ROOT; ".cases" files hold
@@ -16,6 +17,9 @@ set -euo pipefail
 script=jython_ast_oracle.py
 if [[ "${1:-}" == "--tokens" ]]; then
   script=jython_token_oracle.py
+  shift
+elif [[ "${1:-}" == "--compile" ]]; then
+  script=jython_compile_oracle.py
   shift
 fi
 image="${IGLINT_ORACLE_IMAGE:-inductiveautomation/ignition:8.3.3}"

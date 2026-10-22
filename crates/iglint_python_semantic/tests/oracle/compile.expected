@@ -1,0 +1,1850 @@
+### return-module
+error 1 0
+'return' outside function
+### return-module-bare
+error 1 0
+'return' outside function
+### return-class
+error 2 4
+'return' outside function
+### return-in-func
+ok
+### yield-module
+error 1 0
+'yield' outside function
+### yield-class
+error 2 4
+'yield' outside function
+### yield-expr-module
+error 1 5
+'yield' outside function
+### yield-in-lambda
+ok
+### yield-in-genexp-elt
+ok
+### break-module
+error 1 0
+'break' outside loop
+### break-func
+error 2 4
+'break' outside loop
+### break-in-loop
+ok
+### break-in-loop-else
+error 4 4
+'break' outside loop
+### break-in-nested-def
+error 3 8
+'break' outside loop
+### break-in-class-in-loop
+error 3 8
+'break' outside loop
+### continue-module
+error 1 0
+'continue' not properly in loop
+### continue-in-loop
+ok
+### continue-in-finally
+error 5 8
+'continue' not supported inside 'finally' clause
+### continue-in-finally-nested-loop
+ok
+### break-in-finally
+ok
+### continue-in-try
+ok
+### continue-in-except
+ok
+### continue-in-while-else
+error 4 4
+'continue' not properly in loop
+### dup-arg
+error 1 9
+duplicate argument name found: a
+### dup-arg-default
+error 1 12
+duplicate argument name found: a
+### dup-arg-vararg
+ok
+### dup-arg-kwarg
+ok
+### dup-arg-var-kw
+ok
+### dup-arg-tuple
+error 1 10
+duplicate argument name found: a
+### dup-arg-lambda
+error 1 14
+duplicate argument name found: a
+### return-value-generator
+error 3 4
+'return' with argument inside generator
+### return-none-generator
+error 3 4
+'return' with argument inside generator
+### return-bare-generator
+ok
+### return-value-before-yield
+error 3 4
+'return' with argument inside generator
+### generator-nested-return
+ok
+### none-assign
+error 1 0
+assignment to None
+### none-aug
+error 1 0
+assignment to None
+### none-for
+error 1 4
+can't be None
+### none-param
+error 1 6
+assignment to None
+### none-del
+ok
+### none-attr-assign
+ok
+### none-import-as
+ok
+### none-from-import
+ok
+### none-except
+ok
+### none-with
+error 1 10
+assignment to None
+### none-global
+ok
+### none-def
+error 1 4
+can't be None
+### none-class
+error 1 6
+can't be None
+### none-kwarg
+error 1 2
+assignment to None
+### none-tuple-assign
+error 1 3
+assignment to None
+### none-listcomp
+ok
+### none-genexp
+ok
+### none-lambda
+error 1 11
+assignment to None
+### none-vararg
+error 1 7
+can't be None
+### true-assign
+ok
+### debug-assign
+error 1 0
+can not assign to __debug__
+### debug-param
+ok
+### import-star-func
+ok
+### import-star-func-free-vars
+error 2 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### import-star-func-nested-noref
+ok
+### import-star-class
+ok
+### import-star-nested-func-uses-global
+error 3 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### import-star-func-lambda
+error 2 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### import-star-child-has-free
+error 3 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### exec-func-free-vars
+error 1 0
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### exec-in-func-free-vars
+ok
+### exec-func
+ok
+### exec-nested-uses-f-local
+error 1 0
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### exec-nested-in-nested
+error 3 4
+unqualified exec is not allowed in function 'g' because it contains free variables
+### default-except-not-last
+error 3 0
+default 'except:' must be last
+### default-except-last
+ok
+### two-default-except
+error 3 0
+default 'except:' must be last
+### param-global
+error 2 4
+name 'a' is local and global
+### global-after-use
+ok
+### global-after-assign
+ok
+### global-module
+ok
+### global-class
+ok
+### kw-repeated
+error 1 7
+keyword arguments repeated
+### kw-repeated-class-base
+error 1 15
+keyword arguments repeated
+### future-late
+error 2 0
+from __future__ imports must occur at the beginning of the file
+### future-after-docstring
+ok
+### future-after-two-docstrings
+error 3 0
+from __future__ imports must occur at the beginning of the file
+### future-unknown
+error 1 0
+not a chance
+### future-unknown2
+error 1 0
+future feature nonexistent is not defined
+### future-in-func
+error 2 4
+from __future__ imports must occur at the beginning of the file
+### future-multiple
+ok
+### future-after-import
+error 2 0
+from __future__ imports must occur at the beginning of the file
+### future-star
+error 1 0
+future feature * is not defined
+### future-print-function
+ok
+### future-with-statement
+ok
+### future-absolute
+ok
+### future-barry
+error 1 0
+future feature barry_as_FLUFL is not defined
+### del-free-var
+error 5 8
+can not delete variable 'x' referenced in nested scope
+### del-local
+ok
+### del-cell-nested-class
+error 5 8
+can not delete variable 'x' referenced in nested scope
+### yield-inside-try-finally
+ok
+### return-in-init
+ok
+### lambda-return-yield-mix
+ok
+### func-call-star-before-kw
+ok
+### func-call-kw-after-star-kw
+ok
+### nested-func-same-name-param
+ok
+### augassign-to-call
+error 1 0
+can't assign to function call
+### assign-to-call
+error 1 0
+can't assign to function call
+### assign-to-literal
+error 1 0
+can't assign to number
+### del-call
+error 1 4
+can't delete function call
+### assign-to-lambda
+error 1 0
+can't assign to lambda
+### assign-to-compare
+error 0 0
+internal error: java.lang.VerifyError
+### aug-to-tuple
+error 1 0
+assignment to tuple illegal for augmented assignment
+### assign-to-yield
+error 2 5
+can't assign to yield expression
+### assign-to-genexp
+error 1 1
+can't assign to generator expression
+### assign-to-listcomp
+error 1 1
+can't assign to list comprehension
+### assign-to-dict
+ok
+### assign-to-str
+error 1 0
+can't assign to string
+### assign-to-backquote
+error 1 0
+can't assign to repr
+### assign-to-ifexp
+error 1 1
+can't assign to conditional expression
+### assign-to-binop
+error 1 0
+can't assign to operator
+### assign-to-unary
+error 0 0
+internal error: java.lang.VerifyError
+### for-call-target
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### del-binop
+error 0 0
+internal error: java.lang.VerifyError
+### except-call-target
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### with-call-target
+error 1 10
+can't assign to function call
+### listcomp-call-target
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### aug-to-subscript
+ok
+### aug-to-attr
+ok
+### aug-to-list
+error 1 0
+assignment to list illegal for augmented assignment
+### import-as-dotted
+ok
+### yield-in-class-in-func
+error 3 8
+'yield' outside function
+### return-in-lambda
+ok
+### return-in-class-in-func
+error 3 8
+'return' outside function
+### break-in-try-in-loop
+ok
+### continue-in-finally-in-while-in-try
+ok
+### continue-in-with-in-finally
+ok
+### continue-in-if-in-finally
+ok
+### continue-in-except-in-finally
+error 8 12
+'continue' not supported inside 'finally' clause
+### nonlocal
+error 2 13
+no viable alternative at input 'x'
+### print-to-none
+ok
+### exec-tuple
+ok
+### huge-nesting-ok
+ok
+### star-import-module
+ok
+### import-star-func-noargs-print
+ok
+### class-free-var
+ok
+### dup-arg-nested-tuple
+error 1 18
+duplicate argument name found: a
+### dup-kwonly-lambda
+ok
+### return-generator-lambda
+ok
+### yield-in-listcomp-module
+error 1 2
+'yield' outside function
+### yield-in-dictcomp-func
+ok
+### name-param-global-lambda
+ok
+### star-nested-builtin
+error 2 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### star-nested-lambda-nofree
+ok
+### star-genexp-nofree
+ok
+### star-genexp-free
+error 2 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### star-nested-class-free
+error 2 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### star-nested-class-method-free
+error 2 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### star-nested-deep-own
+ok
+### star-nested-param-only
+ok
+### star-nested-attr
+ok
+### star-nested-store-global
+ok
+### star-nested-load-global-decl
+ok
+### star-nested-None
+error 2 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### star-nested-dictcomp-nofree
+ok
+### star-nested-setcomp-free
+error 2 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### star-listcomp
+ok
+### star-in-class-in-func-nested
+ok
+### star-after-nested
+error 4 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### star-two
+error 2 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### exec-nested-builtin
+error 1 0
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### exec-nested-nofree
+ok
+### exec-self-free-outer
+error 3 4
+unqualified exec is not allowed in function 'f' because it contains free variables
+### exec-self-global
+ok
+### exec-nested-global-load
+error 1 0
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### exec-lambda-free
+error 1 0
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### exec-genexp-free
+error 1 0
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### exec-in-locals
+ok
+### exec-func-call-form
+error 1 0
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### exec-module-nested
+ok
+### exec-in-class-in-func
+ok
+### return-gen-in-nested-try
+error 5 8
+'return' with argument inside generator
+### yield-and-return-in-lambda-nested
+ok
+### except-default-middle-reraise
+error 5 0
+default 'except:' must be last
+### except-default-nested
+ok
+### local-global-lambda
+ok
+### param-global-later
+error 4 8
+name 'a' is local and global
+### param-global-tuple
+error 2 4
+name 'b' is local and global
+### param-global-vararg
+error 2 4
+name 'a' is local and global
+### param-global-kwarg
+error 2 4
+name 'k' is local and global
+### del-free-var-nested-deeper
+error 6 8
+can not delete variable 'x' referenced in nested scope
+### del-free-var-genexp
+error 4 8
+can not delete variable 'x' referenced in nested scope
+### del-free-var-lambda
+error 4 8
+can not delete variable 'x' referenced in nested scope
+### del-global-in-nested
+ok
+### del-param-free
+error 4 8
+can not delete variable 'x' referenced in nested scope
+### del-in-nested-from-outer
+ok
+### del-free-tuple
+error 5 9
+can not delete variable 'x' referenced in nested scope
+### future-docstring-then-future-then-future
+ok
+### future-comment-blank
+ok
+### future-after-pass
+error 2 0
+from __future__ imports must occur at the beginning of the file
+### future-semicolon
+ok
+### future-semicolon-after-stmt
+error 1 7
+from __future__ imports must occur at the beginning of the file
+### future-in-class
+error 2 4
+from __future__ imports must occur at the beginning of the file
+### future-paren
+ok
+### future-as
+ok
+### future-unknown-later
+error 1 0
+future feature foo is not defined
+### future-in-if
+error 2 4
+from __future__ imports must occur at the beginning of the file
+### future-after-future-unknown
+error 1 0
+future feature foo is not defined
+### future-docstring-expr-not-string
+error 2 0
+from __future__ imports must occur at the beginning of the file
+### future-after-bytes-docstring
+ok
+### kw-repeated-lambda-call
+error 1 26
+keyword arguments repeated
+### debug-aug
+error 1 0
+can not assign to __debug__
+### debug-for
+error 1 4
+can not assign to __debug__
+### debug-attr
+ok
+### debug-del
+error 1 4
+can not assign to __debug__
+### debug-import
+ok
+### debug-import-as
+ok
+### debug-def
+ok
+### debug-class
+ok
+### debug-with
+error 1 10
+can not assign to __debug__
+### debug-except
+error 3 10
+can not assign to __debug__
+### debug-kwarg
+ok
+### debug-global
+ok
+### debug-tuple
+error 1 3
+can not assign to __debug__
+### debug-listcomp
+error 1 7
+can not assign to __debug__
+### debug-lambda
+ok
+### none-from-import-as
+ok
+### assign-to-set
+ok
+### assign-to-num-neg
+error 1 1
+can't assign to number
+### assign-to-subscript-call
+ok
+### aug-to-attr-of-call
+ok
+### for-attr-target
+ok
+### for-binop-target
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-unary-target
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-compare-target
+error 1 6
+mismatched input '<' expecting IN
+### for-lit-target
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### with-binop-target
+error 1 10
+can't assign to operator
+### with-compare-target
+error 1 12
+mismatched input '<' expecting COLON
+### except-binop-target
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except-subscript-target
+ok
+### except-attr-target
+ok
+### listcomp-binop-target
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### genexp-call-target
+ok
+### genexp-binop-target
+error 0 0
+internal error: java.lang.VerifyError
+### del-compare
+error 1 6
+mismatched input '<' expecting NEWLINE
+### del-unary
+error 0 0
+internal error: java.lang.VerifyError
+### del-literal
+error 1 4
+can't delete number
+### del-subscript-call
+ok
+### assign-tuple-with-call
+error 1 3
+can't assign to function call
+### assign-tuple-with-binop
+error 1 3
+can't assign to operator
+### assign-list-with-compare
+error 0 0
+internal error: java.lang.VerifyError
+### aug-to-binop
+error 1 0
+can't assign to operator
+### aug-to-compare
+error 0 0
+internal error: java.lang.VerifyError
+### aug-to-unary
+error 0 0
+internal error: java.lang.VerifyError
+### chained-assign-binop
+error 1 4
+can't assign to operator
+### assign-to-boolop
+error 1 0
+can't assign to operator
+### assign-to-ifexp-for
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### lambda-param-dup-tuple
+error 1 19
+duplicate argument name found: a
+### dup-arg-three
+error 1 15
+duplicate argument name found: b
+### dup-arg-nested-lambda
+error 2 21
+duplicate argument name found: a
+### assign/call
+error 1 0
+can't assign to function call
+### assign/binop
+error 1 0
+can't assign to operator
+### assign/unary
+error 0 0
+internal error: java.lang.VerifyError
+### assign/compare
+error 0 0
+internal error: java.lang.VerifyError
+### assign/num
+error 1 0
+can't assign to number
+### assign/str
+error 1 0
+can't assign to string
+### assign/boolop
+error 1 1
+can't assign to operator
+### assign/ifexp
+error 1 1
+can't assign to conditional expression
+### assign/lambda
+error 1 1
+can't assign to lambda
+### assign/dict
+ok
+### assign/set
+ok
+### assign/repr
+error 1 0
+can't assign to repr
+### assign/listcomp
+error 1 1
+can't assign to list comprehension
+### assign/genexp
+error 1 1
+can't assign to generator expression
+### assign/attr
+ok
+### assign/sub
+ok
+### assign/neg
+error 1 1
+can't assign to number
+### assign/notop
+error 0 0
+internal error: java.lang.VerifyError
+### assign/invert
+error 0 0
+internal error: java.lang.VerifyError
+### assign/pow
+error 1 0
+can't assign to operator
+### assign-tuple/call
+error 1 3
+can't assign to function call
+### assign-tuple/binop
+error 1 3
+can't assign to operator
+### assign-tuple/unary
+error 0 0
+internal error: java.lang.VerifyError
+### assign-tuple/compare
+error 0 0
+internal error: java.lang.VerifyError
+### assign-tuple/num
+error 1 3
+can't assign to number
+### assign-tuple/str
+error 1 3
+can't assign to string
+### assign-tuple/boolop
+error 1 4
+can't assign to operator
+### assign-tuple/ifexp
+error 1 4
+can't assign to conditional expression
+### assign-tuple/lambda
+error 1 4
+can't assign to lambda
+### assign-tuple/dict
+ok
+### assign-tuple/set
+ok
+### assign-tuple/repr
+error 1 3
+can't assign to repr
+### assign-tuple/listcomp
+error 1 4
+can't assign to list comprehension
+### assign-tuple/genexp
+error 1 4
+can't assign to generator expression
+### assign-tuple/attr
+ok
+### assign-tuple/sub
+ok
+### assign-tuple/neg
+error 1 4
+can't assign to number
+### assign-tuple/notop
+error 0 0
+internal error: java.lang.VerifyError
+### assign-tuple/invert
+error 0 0
+internal error: java.lang.VerifyError
+### assign-tuple/pow
+error 1 3
+can't assign to operator
+### assign-list/call
+error 1 4
+can't assign to function call
+### assign-list/binop
+error 1 4
+can't assign to operator
+### assign-list/unary
+error 0 0
+internal error: java.lang.VerifyError
+### assign-list/compare
+error 0 0
+internal error: java.lang.VerifyError
+### assign-list/num
+error 1 4
+can't assign to number
+### assign-list/str
+error 1 4
+can't assign to string
+### assign-list/boolop
+error 1 5
+can't assign to operator
+### assign-list/ifexp
+error 1 5
+can't assign to conditional expression
+### assign-list/lambda
+error 1 5
+can't assign to lambda
+### assign-list/dict
+ok
+### assign-list/set
+ok
+### assign-list/repr
+error 1 4
+can't assign to repr
+### assign-list/listcomp
+error 1 5
+can't assign to list comprehension
+### assign-list/genexp
+error 1 5
+can't assign to generator expression
+### assign-list/attr
+ok
+### assign-list/sub
+ok
+### assign-list/neg
+error 1 5
+can't assign to number
+### assign-list/notop
+error 0 0
+internal error: java.lang.VerifyError
+### assign-list/invert
+error 0 0
+internal error: java.lang.VerifyError
+### assign-list/pow
+error 1 4
+can't assign to operator
+### assign-chain/call
+error 1 4
+can't assign to function call
+### assign-chain/binop
+error 1 4
+can't assign to operator
+### assign-chain/unary
+error 0 0
+internal error: java.lang.VerifyError
+### assign-chain/compare
+error 0 0
+internal error: java.lang.VerifyError
+### assign-chain/num
+error 1 4
+can't assign to number
+### assign-chain/str
+error 1 4
+can't assign to string
+### assign-chain/boolop
+error 1 5
+can't assign to operator
+### assign-chain/ifexp
+error 1 5
+can't assign to conditional expression
+### assign-chain/lambda
+error 1 5
+can't assign to lambda
+### assign-chain/dict
+ok
+### assign-chain/set
+ok
+### assign-chain/repr
+error 1 4
+can't assign to repr
+### assign-chain/listcomp
+error 1 5
+can't assign to list comprehension
+### assign-chain/genexp
+error 1 5
+can't assign to generator expression
+### assign-chain/attr
+ok
+### assign-chain/sub
+ok
+### assign-chain/neg
+error 1 5
+can't assign to number
+### assign-chain/notop
+error 0 0
+internal error: java.lang.VerifyError
+### assign-chain/invert
+error 0 0
+internal error: java.lang.VerifyError
+### assign-chain/pow
+error 1 4
+can't assign to operator
+### aug/call
+error 1 0
+can't assign to function call
+### aug/binop
+error 1 0
+can't assign to operator
+### aug/unary
+error 0 0
+internal error: java.lang.VerifyError
+### aug/compare
+error 0 0
+internal error: java.lang.VerifyError
+### aug/num
+error 1 0
+can't assign to number
+### aug/str
+error 1 0
+can't assign to string
+### aug/boolop
+error 1 1
+can't assign to operator
+### aug/ifexp
+error 1 1
+can't assign to conditional expression
+### aug/lambda
+error 1 1
+can't assign to lambda
+### aug/dict
+ok
+### aug/set
+ok
+### aug/repr
+error 1 0
+can't assign to repr
+### aug/listcomp
+error 1 1
+can't assign to list comprehension
+### aug/genexp
+error 1 1
+can't assign to generator expression
+### aug/attr
+ok
+### aug/sub
+ok
+### aug/neg
+error 1 1
+can't assign to number
+### aug/notop
+error 0 0
+internal error: java.lang.VerifyError
+### aug/invert
+error 0 0
+internal error: java.lang.VerifyError
+### aug/pow
+error 1 0
+can't assign to operator
+### del/call
+error 1 4
+can't delete function call
+### del/binop
+error 0 0
+internal error: java.lang.VerifyError
+### del/unary
+error 0 0
+internal error: java.lang.VerifyError
+### del/compare
+error 1 6
+mismatched input '<' expecting NEWLINE
+### del/num
+error 1 4
+can't delete number
+### del/str
+error 1 4
+can't delete string
+### del/boolop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### del/ifexp
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### del/lambda
+ok
+### del/dict
+ok
+### del/set
+ok
+### del/repr
+ok
+### del/listcomp
+error 0 0
+internal error: java.lang.VerifyError
+### del/genexp
+ok
+### del/attr
+ok
+### del/sub
+ok
+### del/neg
+error 1 5
+can't delete number
+### del/notop
+error 0 0
+internal error: java.lang.VerifyError
+### del/invert
+error 0 0
+internal error: java.lang.VerifyError
+### del/pow
+error 0 0
+internal error: java.lang.VerifyError
+### del-tuple/call
+error 1 7
+can't delete function call
+### del-tuple/binop
+error 0 0
+internal error: java.lang.VerifyError
+### del-tuple/unary
+error 0 0
+internal error: java.lang.VerifyError
+### del-tuple/compare
+error 1 9
+mismatched input '<' expecting NEWLINE
+### del-tuple/num
+error 1 7
+can't delete number
+### del-tuple/str
+error 1 7
+can't delete string
+### del-tuple/boolop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### del-tuple/ifexp
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### del-tuple/lambda
+ok
+### del-tuple/dict
+ok
+### del-tuple/set
+ok
+### del-tuple/repr
+ok
+### del-tuple/listcomp
+error 0 0
+internal error: java.lang.VerifyError
+### del-tuple/genexp
+ok
+### del-tuple/attr
+ok
+### del-tuple/sub
+ok
+### del-tuple/neg
+error 1 8
+can't delete number
+### del-tuple/notop
+error 0 0
+internal error: java.lang.VerifyError
+### del-tuple/invert
+error 0 0
+internal error: java.lang.VerifyError
+### del-tuple/pow
+error 0 0
+internal error: java.lang.VerifyError
+### for/call
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/binop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/compare
+error 1 6
+mismatched input '<' expecting IN
+### for/num
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/str
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/boolop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/ifexp
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### for/lambda
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/dict
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/set
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/repr
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/genexp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/attr
+ok
+### for/sub
+ok
+### for/neg
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/notop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/invert
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for/pow
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/call
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/binop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/compare
+error 1 9
+mismatched input '<' expecting IN
+### for-tuple/num
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/str
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/boolop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/ifexp
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### for-tuple/lambda
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/dict
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/set
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/repr
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/genexp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/attr
+ok
+### for-tuple/sub
+ok
+### for-tuple/neg
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/notop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/invert
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-tuple/pow
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/call
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/binop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/compare
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/num
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/str
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/boolop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/ifexp
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### except/lambda
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/dict
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/set
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/repr
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/genexp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/attr
+ok
+### except/sub
+ok
+### except/neg
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/notop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/invert
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except/pow
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### with/call
+error 1 10
+can't assign to function call
+### with/binop
+error 1 10
+can't assign to operator
+### with/unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### with/compare
+error 1 12
+mismatched input '<' expecting COLON
+### with/num
+error 1 10
+can't assign to number
+### with/str
+error 1 10
+can't assign to string
+### with/boolop
+error 1 11
+can't assign to operator
+### with/ifexp
+error 1 11
+can't assign to conditional expression
+### with/lambda
+error 1 11
+can't assign to lambda
+### with/dict
+error 0 0
+internal error: java.lang.VerifyError
+### with/set
+error 0 0
+internal error: java.lang.VerifyError
+### with/repr
+error 1 10
+can't assign to repr
+### with/listcomp
+error 1 11
+can't assign to list comprehension
+### with/genexp
+error 1 11
+can't assign to generator expression
+### with/attr
+ok
+### with/sub
+ok
+### with/neg
+error 1 11
+can't assign to number
+### with/notop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### with/invert
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### with/pow
+error 1 10
+can't assign to operator
+### with-tuple/call
+error 1 14
+can't assign to function call
+### with-tuple/binop
+error 1 14
+can't assign to operator
+### with-tuple/unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### with-tuple/compare
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### with-tuple/num
+error 1 14
+can't assign to number
+### with-tuple/str
+error 1 14
+can't assign to string
+### with-tuple/boolop
+error 1 15
+can't assign to operator
+### with-tuple/ifexp
+error 1 15
+can't assign to conditional expression
+### with-tuple/lambda
+error 1 15
+can't assign to lambda
+### with-tuple/dict
+error 0 0
+internal error: java.lang.VerifyError
+### with-tuple/set
+error 0 0
+internal error: java.lang.VerifyError
+### with-tuple/repr
+error 1 14
+can't assign to repr
+### with-tuple/listcomp
+error 1 15
+can't assign to list comprehension
+### with-tuple/genexp
+error 1 15
+can't assign to generator expression
+### with-tuple/attr
+ok
+### with-tuple/sub
+ok
+### with-tuple/neg
+error 1 15
+can't assign to number
+### with-tuple/notop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### with-tuple/invert
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### with-tuple/pow
+error 1 14
+can't assign to operator
+### listcomp/call
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp/binop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp/unary
+ok
+### listcomp/compare
+error 1 9
+mismatched input '<' expecting IN
+### listcomp/num
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp/str
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp/boolop
+error 0 0
+internal error: java.lang.VerifyError
+### listcomp/ifexp
+error 0 0
+internal error: java.lang.VerifyError
+### listcomp/lambda
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp/dict
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp/set
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp/repr
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp/listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp/genexp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp/attr
+ok
+### listcomp/sub
+ok
+### listcomp/neg
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp/notop
+ok
+### listcomp/invert
+ok
+### listcomp/pow
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp-tuple/call
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp-tuple/binop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp-tuple/unary
+ok
+### listcomp-tuple/compare
+error 1 12
+mismatched input '<' expecting IN
+### listcomp-tuple/num
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp-tuple/str
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp-tuple/boolop
+error 0 0
+internal error: java.lang.VerifyError
+### listcomp-tuple/ifexp
+error 0 0
+internal error: java.lang.VerifyError
+### listcomp-tuple/lambda
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp-tuple/dict
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp-tuple/set
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp-tuple/repr
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp-tuple/listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp-tuple/genexp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp-tuple/attr
+ok
+### listcomp-tuple/sub
+ok
+### listcomp-tuple/neg
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### listcomp-tuple/notop
+ok
+### listcomp-tuple/invert
+ok
+### listcomp-tuple/pow
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### genexp/call
+ok
+### genexp/binop
+error 0 0
+internal error: java.lang.VerifyError
+### genexp/unary
+error 0 0
+internal error: java.lang.VerifyError
+### genexp/compare
+error 1 13
+mismatched input '<' expecting IN
+### genexp/num
+ok
+### genexp/str
+ok
+### genexp/boolop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### genexp/ifexp
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### genexp/lambda
+ok
+### genexp/dict
+ok
+### genexp/set
+ok
+### genexp/repr
+ok
+### genexp/listcomp
+error 0 0
+internal error: java.lang.VerifyError
+### genexp/genexp
+ok
+### genexp/attr
+ok
+### genexp/sub
+ok
+### genexp/neg
+ok
+### genexp/notop
+error 0 0
+internal error: java.lang.VerifyError
+### genexp/invert
+error 0 0
+internal error: java.lang.VerifyError
+### genexp/pow
+error 0 0
+internal error: java.lang.VerifyError
+### setcomp/call
+ok
+### setcomp/binop
+error 0 0
+internal error: java.lang.VerifyError
+### setcomp/unary
+error 0 0
+internal error: java.lang.VerifyError
+### setcomp/compare
+error 1 9
+mismatched input '<' expecting IN
+### setcomp/num
+ok
+### setcomp/str
+ok
+### setcomp/boolop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### setcomp/ifexp
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### setcomp/lambda
+ok
+### setcomp/dict
+ok
+### setcomp/set
+ok
+### setcomp/repr
+ok
+### setcomp/listcomp
+error 0 0
+internal error: java.lang.VerifyError
+### setcomp/genexp
+ok
+### setcomp/attr
+ok
+### setcomp/sub
+ok
+### setcomp/neg
+ok
+### setcomp/notop
+error 0 0
+internal error: java.lang.VerifyError
+### setcomp/invert
+error 0 0
+internal error: java.lang.VerifyError
+### setcomp/pow
+error 0 0
+internal error: java.lang.VerifyError
+### dictcomp/call
+ok
+### dictcomp/binop
+error 0 0
+internal error: java.lang.VerifyError
+### dictcomp/unary
+error 0 0
+internal error: java.lang.VerifyError
+### dictcomp/compare
+error 1 12
+mismatched input '<' expecting IN
+### dictcomp/num
+ok
+### dictcomp/str
+ok
+### dictcomp/boolop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### dictcomp/ifexp
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### dictcomp/lambda
+ok
+### dictcomp/dict
+ok
+### dictcomp/set
+ok
+### dictcomp/repr
+ok
+### dictcomp/listcomp
+error 0 0
+internal error: java.lang.VerifyError
+### dictcomp/genexp
+ok
+### dictcomp/attr
+ok
+### dictcomp/sub
+ok
+### dictcomp/neg
+ok
+### dictcomp/notop
+error 0 0
+internal error: java.lang.VerifyError
+### dictcomp/invert
+error 0 0
+internal error: java.lang.VerifyError
+### dictcomp/pow
+error 0 0
+internal error: java.lang.VerifyError
+### func-for/call
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/binop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/compare
+error 2 10
+mismatched input '<' expecting IN
+### func-for/num
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/str
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/boolop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/ifexp
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### func-for/lambda
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/dict
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/set
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/repr
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/genexp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/attr
+ok
+### func-for/sub
+ok
+### func-for/neg
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/notop
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/invert
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-for/pow
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### func-assign/call
+error 2 4
+can't assign to function call
+### func-assign/binop
+error 2 4
+can't assign to operator
+### func-assign/unary
+error 0 0
+internal error: java.lang.VerifyError
+### func-assign/compare
+error 0 0
+internal error: java.lang.VerifyError
+### func-assign/num
+error 2 4
+can't assign to number
+### func-assign/str
+error 2 4
+can't assign to string
+### func-assign/boolop
+error 2 5
+can't assign to operator
+### func-assign/ifexp
+error 2 5
+can't assign to conditional expression
+### func-assign/lambda
+error 2 5
+can't assign to lambda
+### func-assign/dict
+ok
+### func-assign/set
+ok
+### func-assign/repr
+error 2 4
+can't assign to repr
+### func-assign/listcomp
+error 2 5
+can't assign to list comprehension
+### func-assign/genexp
+error 2 5
+can't assign to generator expression
+### func-assign/attr
+ok
+### func-assign/sub
+ok
+### func-assign/neg
+error 2 5
+can't assign to number
+### func-assign/notop
+error 0 0
+internal error: java.lang.VerifyError
+### func-assign/invert
+error 0 0
+internal error: java.lang.VerifyError
+### func-assign/pow
+error 2 4
+can't assign to operator
+### direct
+error 5 8
+'continue' not supported inside 'finally' clause
+### after-stmt
+error 6 8
+'continue' not supported inside 'finally' clause
+### in-if
+ok
+### in-else
+ok
+### in-with
+ok
+### in-try-body
+error 6 12
+'continue' not supported inside 'finally' clause
+### in-except
+error 8 12
+'continue' not supported inside 'finally' clause
+### in-try-else
+error 10 12
+'continue' not supported inside 'finally' clause
+### in-inner-finally-body
+error 6 12
+'continue' not supported inside 'finally' clause
+### in-inner-finally
+error 8 12
+'continue' not supported inside 'finally' clause
+### in-except-not-in-finally
+ok
+### in-except-in-try-body
+ok
+### in-while-in-if-in-finally
+ok
+### in-for-else-in-finally
+ok
+### in-except-in-loop-in-finally
+ok
+### in-if-in-except-in-finally
+ok
+### in-with-in-finally-direct-after-if
+error 7 8
+'continue' not supported inside 'finally' clause
+### finally-in-if-in-loop
+error 6 12
+'continue' not supported inside 'finally' clause
+### finally-in-except
+error 8 12
+'continue' not supported inside 'finally' clause
+### break-in-except-in-finally
+ok
+### exec-tuple-in-func-nested
+error 1 0
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### exec-tuple3-in-func-nested
+error 1 0
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### star-func-self-free
+error 4 8
+import * is not allowed in function 'f' because it is a nested function
+### star-and-exec
+error 1 0
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### return-gen-lambda-yield
+ok
+### return-gen-genexp-yield
+ok
+### return-gen-listcomp-yield
+error 3 4
+'return' with argument inside generator
+### return-gen-two-returns
+error 4 4
+'return' with argument inside generator
+### return-gen-yield-in-nested-def
+ok
+### dup-arg-vararg-tuple
+ok
+### global-param-nested-other
+ok
+### global-param-lambda
+ok
+### global-and-param-class
+error 3 8
+name 'x' is local and global
+### del-free-in-class-method
+error 6 8
+can not delete variable 'x' referenced in nested scope
+### del-free-global-in-module
+ok
+### del-free-class-scope
+ok
+### future-docstring-semicolon
+ok
+### debug-del-tuple
+error 1 7
+can not assign to __debug__
+### debug-in-func
+error 2 4
+can not assign to __debug__
+### star-nested-builtin-only
+error 3 8
+import * is not allowed in function 'f' because it is a nested function
+### star-nested-norefs
+error 3 8
+import * is not allowed in function 'f' because it is a nested function
+### star-nested-global-ref
+error 4 8
+import * is not allowed in function 'f' because it is a nested function
+### star-nested-both
+error 4 8
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### star-in-method
+ok
+### star-in-method-of-nested-class
+error 5 12
+import * is not allowed in function 'm' because it is a nested function
+### exec-nested-builtin-only
+error 2 4
+unqualified exec is not allowed in function 'f' because it contains free variables
+### exec-nested-norefs
+ok
+### exec-nested-both
+error 3 4
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### exec-in-method
+ok
+### exec-lambda-nested-param-only
+ok
+### exec-nested-class-free
+error 1 0
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### exec-nested-class-nofree
+ok
+### star-nested-class-nofree
+ok
+### star-nested-class-method-nofree
+ok
+### star-deep-free-grandchild
+error 2 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### star-genexp-uses-outer-var-only-in-first-iter
+ok
+### star-genexp-two-gens
+ok
+### star-genexp-two-gens-free
+error 2 4
+import * is not allowed in function 'f' because it contains a nested function with free variables

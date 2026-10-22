@@ -8,3 +8,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+iglint_text.workspace = true
+iglint_python.workspace = true
+iglint_stubs.workspace = true
+rustc-hash = "2"

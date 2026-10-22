@@ -270,6 +270,8 @@ __builtins__, system, fpmi, sys, <the event function itself>,
 * Library modules see the same globals: a module can call another top-level
   package without importing it [gw].
 * Parameters of the generated function are locals (see section 5).
+* Library modules have `__name__` but no `__file__`; see section 5.4 for
+  the exact globals of modules and event scripts.
 
 Inside Perspective component scripts, `self` is the component (the view for
 view-level events); `event`, `value`, `payload`, etc. are the header
@@ -450,6 +452,79 @@ strings verbatim.
 
 `origin` values seen in change scripts: `Binding`, `BindingWriteback`,
 `Script`, `Delegate`, `Browser`, `Project` [docs].
+
+### 5.4 How the source is compiled [jar][gw]
+
+Perspective builds `"def " + signature + ":\n" + body`
+(`ScriptFunctionHelper`) and calls `ScriptManager.compileFunction(String)`,
+which calls `Py.compile_flags(source, filename, mode,
+CompilerFlags.getCompilerFlags().combine(0x100))`; `0x100` is
+`PyCF_SOURCE_IS_UTF8` [jar]. Perspective's compiled-script cache uses the
+same call. Library modules and gateway event scripts are compiled from Java
+strings too. Consequences, each observed on an 8.3.3 gateway in a library
+module, a gateway message handler and a `compileFunction` call [gw]:
+
+* **Encoding declarations.** A PEP 263 declaration (`# -*- coding: utf-8
+  -*-`, `# coding=latin-1`, any charset name) on line 1 or 2 of the
+  **compiled** source fails with `SyntaxError: encoding declaration in
+  Unicode string` (reported at line 0); line 3 or later is an ordinary
+  comment. In Perspective scripts and event files line 1 is the generated
+  header, so the first body line is line 2 (an error) and the second body
+  line is line 3 (fine). A file whose line 1 is a coding comment followed by
+  the `def` loses its header (section 5.1) and the comment lands on line 2:
+  same error. iglint parses every script with
+  `SourceKind::Unicode` (`iglint_python`), which matches.
+* **Byte order mark.** A UTF-8 BOM is **not** skipped: a library module
+  starting with one fails with `SyntaxError: no viable alternative at
+  character '\ufeff'` (line 1); BOM plus coding declaration gives the
+  encoding error. In an event file the BOM hides the `def` header, so the
+  whole file becomes the body and the BOM sits on line 2 (`no viable
+  alternative at character`). `iglint_python` skips a leading BOM (as
+  CPython and Jython do for files read from disk); `SCR001` reports it
+  separately for scripts whose source starts with one. Plain `compile()` of
+  a byte string accepts BOMs and declarations; only the unicode path
+  Ignition uses rejects them.
+* **No compiler flags.** `print` is a statement, `1/2 == 0`, `'x'` is a
+  `str` (code object `co_flags` without future flags) in library modules,
+  event scripts and WebDev handlers alike.
+* **`from __future__`.** Works as the first statement of a library module
+  (after a docstring too). Anywhere else, including any Perspective or event
+  script (the body of a generated function), it fails with `from __future__
+  imports must occur at the beginning of the file`.
+* **Globals of a library module** at import time: `__builtins__`,
+  `__name__` (the dotted module path), `fpmi`, `sys`, `system` and every
+  top-level library package (including the module's own). There is no
+  `__file__`; `__doc__` exists only when the module has a docstring
+  (otherwise the builtin `__doc__` is found); `__package__` appears once an
+  `import` statement has run.
+* **Globals of an event script** (message handler, WebDev handler):
+  `__builtins__`, `fpmi`, `sys`, `system`, the function's own name and the
+  top-level library packages; no `__name__`, `__file__` or `__doc__`
+  (`__name__` and `__doc__` still resolve to the builtins' values).
+
+Jython runtime facts that rules rely on (checked with IA's Jython 2.7.3):
+
+* Java exceptions (`java.lang.NullPointerException`, SQL exceptions from
+  `system.db.*`) are caught by a bare `except:` and by `except Throwable`,
+  **not** by `except Exception` or `except BaseException`.
+* `raise "text"` raises `TypeError: exceptions must be old-style classes or
+  derived from BaseException, not str`.
+* `%` formatting: a dict on the right satisfies any number of positional
+  placeholders (`"%s %s" % {"a": 1}` formats the dict twice), `"abc" % []`
+  raises `not all arguments converted` (CPython returns `"abc"`),
+  `%(key)s` with a tuple raises `format requires a mapping`.
+* `str.format`: auto numbering (`{}`) is supported; mixing it with manual
+  numbering raises `ValueError`; `{-1}` crashes with a Java
+  `ArrayIndexOutOfBoundsException`.
+* The compiler rejects some code its parser accepts (`return` outside a
+  function, `continue` in a loop's `else`, duplicate parameters, `return`
+  with a value in a generator, `import *` and unqualified `exec` in
+  functions with nested free variables, `del` of a closure variable,
+  assignments to `__debug__`, misplaced `from __future__`), and crashes on
+  some assignment targets its parser accepts (`-a = 1`, `for f() in x`):
+  see `crates/iglint_python_semantic/tests/oracle/compile.cases`, recorded
+  with `oracle/run-oracle.sh --compile`. Very long modules fail with `Method
+  code too large!` (not modelled).
 
 ---
 

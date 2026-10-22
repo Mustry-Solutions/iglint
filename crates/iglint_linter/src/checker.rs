@@ -57,6 +57,10 @@ impl FileTable {
 pub struct UnitCache {
     scripts: OnceLock<Vec<iglint_python::Parsed>>,
     accesses: OnceLock<Vec<PropertyAccess>>,
+    /// Suppression comments of each script (by position), with what they
+    /// suppressed in both phases (for `SCR123 unused-suppression`).
+    pub(crate) suppressions:
+        std::sync::Mutex<rustc_hash::FxHashMap<usize, crate::suppression::Suppressions>>,
 }
 
 impl UnitCache {
@@ -86,12 +90,7 @@ impl UnitCache {
             for (index, ((file, script), parsed)) in
                 data.scripts().into_iter().zip(parsed).enumerate()
             {
-                let unit = ScriptUnit {
-                    file,
-                    script,
-                    parsed,
-                    index,
-                };
+                let unit = ScriptUnit::new(file, script, parsed, index);
                 provider.property_accesses(&unit, view, &mut out);
             }
             out

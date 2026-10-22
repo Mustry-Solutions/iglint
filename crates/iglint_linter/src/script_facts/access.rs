@@ -558,12 +558,7 @@ mod tests {
         let view = build_view(&root);
         let script = &view.scripts[0];
         let parsed = crate::script_facts::parse_script(script);
-        let unit = ScriptUnit {
-            file: iglint_project::FileId(0),
-            script,
-            parsed: &parsed,
-            index: 0,
-        };
+        let unit = ScriptUnit::new(iglint_project::FileId(0), script, &parsed, 0);
         let mut out = Vec::new();
         AstScriptFacts.property_accesses(&unit, &view, &mut out);
         out.iter()

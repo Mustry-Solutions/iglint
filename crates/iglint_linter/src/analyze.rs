@@ -637,27 +637,43 @@ pub(crate) fn run_phase(
         }
     }
     if !hooks.script.is_empty() {
+        // Unused suppressions are reported after the last phase, when every
+        // script rule has run.
+        let unused_slot = std::ptr::eq(hooks, &set.project)
+            .then(|| crate::rules::script::unused_suppression::slot(set))
+            .flatten();
         let parsed = unit.cache.parsed_scripts(unit.data);
         for (position, ((file, script), parsed)) in
             unit.data.scripts().into_iter().zip(parsed).enumerate()
         {
             let start = out.len();
-            let script_unit = ScriptUnit {
-                file,
-                script,
-                parsed,
-                index: position,
-            };
+            let script_unit = ScriptUnit::new(file, script, parsed, position);
             for (slot, rule) in &hooks.script {
                 let mut cx = Checker::new(unit, index, &set.active[*slot], out);
                 rule.check_script(&mut cx, &script_unit);
             }
-            if out.len() > start {
-                let mut suppressions = Suppressions::of(script);
+            if out.len() > start || unused_slot.is_some() {
+                let mut cache = unit
+                    .cache
+                    .suppressions
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
+                let suppressions = cache
+                    .entry(position)
+                    .or_insert_with(|| Suppressions::of(script));
                 if !suppressions.is_empty() {
                     let mut found = out.split_off(start);
                     suppressions.apply(&mut found);
                     out.extend(found);
+                    if let Some(slot) = unused_slot {
+                        let mut cx = Checker::new(unit, index, &set.active[slot], out);
+                        crate::rules::script::unused_suppression::report_unused(
+                            &mut cx,
+                            &script_unit,
+                            suppressions,
+                            set,
+                        );
+                    }
                 }
             }
         }
@@ -674,12 +690,7 @@ pub(crate) fn add_script_references(data: &ModelData<'_>, cache: &UnitCache, sum
     let facts = crate::script_facts::provider();
     let parsed = cache.parsed_scripts(data);
     for (index, ((file, script), parsed)) in scripts.into_iter().zip(parsed).enumerate() {
-        let unit = ScriptUnit {
-            file,
-            script,
-            parsed,
-            index,
-        };
+        let unit = ScriptUnit::new(file, script, parsed, index);
         facts.references(&unit, &mut summary.references);
     }
 }
