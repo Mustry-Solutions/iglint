@@ -25,6 +25,7 @@ iglint_text.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 glob.workspace = true
+jiff.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 regex.workspace = true

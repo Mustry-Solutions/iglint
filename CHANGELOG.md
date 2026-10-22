@@ -11,6 +11,9 @@ from 0.1.0 on.
   `0`, equal tuples, `1e16` and `10000000000000000` are duplicates.
 - `except ValueError, TypeError:` is reported once, by `SCR115`; `SCR103`
   and `SCR117` no longer report the same name.
+- `iglint ign-lint`: the timestamps of the `--timing-output` report and of
+  the aggregated `--results-output` summary are in local time, like
+  ign-lint's.
 
 ## [0.1.0]
 
