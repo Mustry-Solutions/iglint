@@ -8,6 +8,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use iglint_text::TextRange;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
@@ -303,7 +304,7 @@ impl Workspace {
         // Read every manifest in parallel first.
         struct Pending {
             container: Container,
-            manifest: Option<(PathBuf, Result<JsonDocument, String>)>,
+            manifest: Option<(PathBuf, Result<ReadJson, String>)>,
             scanned: ScannedContainer,
         }
         let mut pending: Vec<Pending> = Vec::with_capacity(scanned.len());
@@ -331,7 +332,7 @@ impl Workspace {
         }
 
         // Resource manifests, all containers at once.
-        let resource_docs: Vec<Vec<Result<JsonDocument, String>>> = pending
+        let resource_docs: Vec<Vec<Result<ReadJson, String>>> = pending
             .par_iter()
             .map(|p| {
                 p.scanned
@@ -366,17 +367,18 @@ impl Workspace {
                 None,
                 None,
             );
-            let manifest_doc = match manifest_doc {
+            let (manifest_doc, invalid_utf8) = match manifest_doc {
                 Ok(doc) => doc,
                 Err(message) => {
                     self.problems.push(WorkspaceProblem {
                         path: self.files[manifest_file.index()].path.clone(),
                         message,
                     });
-                    JsonDocument::parse(Arc::from(""))
+                    (JsonDocument::parse(Arc::from("")), Vec::new())
                 }
             };
-            let manifest = ContainerManifest::new(manifest_file, manifest_doc);
+            let mut manifest = ContainerManifest::new(manifest_file, manifest_doc);
+            manifest.invalid_utf8 = invalid_utf8;
             let name = scanned
                 .dir
                 .file_name()
@@ -393,18 +395,19 @@ impl Workspace {
                 let mut file_ids = Vec::with_capacity(res.files.len());
                 let mut manifest_id = None;
                 let unary = res.manifest_name == UNARY_MANIFEST;
-                let doc = match doc {
+                let (doc, invalid_utf8) = match doc {
                     Ok(doc) => doc,
                     Err(message) => {
                         self.problems.push(WorkspaceProblem {
                             path: res.dir.join(res.manifest_name),
                             message,
                         });
-                        JsonDocument::parse(Arc::from(""))
+                        (JsonDocument::parse(Arc::from("")), Vec::new())
                     }
                 };
                 // Peek at the `files` list to set `listed`.
-                let manifest_probe = Manifest::new(FileId(u32::MAX), unary, doc);
+                let mut manifest_probe = Manifest::new(FileId(u32::MAX), unary, doc);
+                manifest_probe.invalid_utf8 = invalid_utf8;
                 for (file_name, path) in &res.files {
                     let file_kind = FileKind::of_resource_file(kind, file_name);
                     let is_manifest = file_name == RESOURCE_MANIFEST || file_name == UNARY_MANIFEST;
@@ -814,19 +817,23 @@ fn rel_dir(module_id: &str, type_id: &str, path: &str) -> String {
     }
 }
 
-fn read_json(path: &Path) -> Result<JsonDocument, String> {
-    let text = read_text(path)?;
-    Ok(JsonDocument::parse(text))
+/// A parsed JSON file and its invalid UTF-8 sequences.
+type ReadJson = (JsonDocument, Vec<TextRange>);
+
+fn read_json(path: &Path) -> Result<ReadJson, String> {
+    let (text, invalid_utf8) = read_text(path)?;
+    Ok((JsonDocument::parse(text), invalid_utf8))
 }
 
 /// Reads a file as UTF-8 text (a leading byte order mark is kept; the JSON
-/// parser skips it).
-pub(crate) fn read_text(path: &Path) -> Result<Arc<str>, String> {
+/// parser skips it). Invalid UTF-8 does not fail: like Ignition, which
+/// decodes resources as UTF-8 and replaces invalid bytes with U+FFFD, the
+/// file is read anyway (see [`iglint_text::decode_utf8`]); the ranges of
+/// the invalid sequences are returned with the text.
+pub fn read_text(path: &Path) -> Result<(Arc<str>, Vec<TextRange>), String> {
     let bytes = std::fs::read(path).map_err(|e| format!("cannot read file: {e}"))?;
-    match String::from_utf8(bytes) {
-        Ok(s) => Ok(Arc::from(s)),
-        Err(e) => Err(format!("file is not valid UTF-8: {}", e.utf8_error())),
-    }
+    let (text, invalid_utf8) = iglint_text::decode_utf8(bytes);
+    Ok((Arc::from(text), invalid_utf8))
 }
 
 fn is_hidden(name: &std::ffi::OsStr) -> bool {
@@ -899,7 +906,7 @@ fn load_parent_dirs(containers: &mut Vec<(PathBuf, bool, bool)>) {
         if !is_project {
             continue;
         }
-        let Ok(text) = read_text(&dir.join(PROJECT_MANIFEST)) else {
+        let Ok((text, _)) = read_text(&dir.join(PROJECT_MANIFEST)) else {
             continue;
         };
         let doc = JsonDocument::parse(text);

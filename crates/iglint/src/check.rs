@@ -345,6 +345,7 @@ pub fn run(
         fix_mode: mode,
         unsafe_fixes: args.unsafe_fixes,
         files_checked: result.files_checked,
+        errors: result.errors.len(),
     };
     let fixes_applied = result.fixes_applied();
 
@@ -399,6 +400,18 @@ pub fn run(
     if !args.quiet && !args.silent {
         for notice in &result.notices {
             err!(io, "warning: {notice}");
+        }
+        for summary in &result.fixed {
+            for fix in summary.skipped.iter().filter(|f| f.harmful) {
+                err!(
+                    io,
+                    "warning: {}: fix not applied: {} ({}): {}",
+                    output::display_path(&summary.path, cwd),
+                    fix.message,
+                    fix.rule.code(),
+                    fix.reason
+                );
+            }
         }
     }
     if !args.silent {

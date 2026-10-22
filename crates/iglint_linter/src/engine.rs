@@ -17,6 +17,7 @@ use crate::discovery::{self, FileKind, SkipReason};
 use crate::fix;
 use crate::registry::RuleCode;
 use crate::settings::{LinterSettings, ProjectSettings};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// Whether and how fixes are applied.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -120,6 +121,82 @@ pub struct SkippedFix {
     pub rule: RuleCode,
     pub message: String,
     pub reason: String,
+    /// The fix was dropped because applying it made the file worse (a
+    /// script stopped compiling or the JSON stopped parsing).
+    pub harmful: bool,
+}
+
+/// Re-analyses fixed text: the new text, the edits that produced it (in
+/// the previous text's coordinates) and what to compute.
+pub(crate) type Reanalyze<'r> = dyn Fn(&str, &[TextEdit], Reanalysis) -> Vec<Diagnostic> + 'r;
+
+/// What a re-analysis during fixing computes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reanalysis {
+    /// The findings of the enabled rules.
+    Lint,
+    /// The findings of [`health_settings`] (whether the file and its
+    /// scripts and expressions still parse and compile), whatever the
+    /// configuration.
+    Health,
+}
+
+/// The rules that decide whether fixed text is still valid: a fix must
+/// never add a finding of these.
+pub(crate) fn health_settings() -> &'static Arc<LinterSettings> {
+    static SETTINGS: std::sync::LazyLock<Arc<LinterSettings>> = std::sync::LazyLock::new(|| {
+        use crate::rules::{bind, script, view};
+        let metas = [
+            &view::invalid_json::META,
+            &view::empty_script::META,
+            &script::syntax_error::META,
+            &script::compile_error::META,
+            &bind::expression_syntax_error::META,
+        ];
+        Arc::new(LinterSettings {
+            rules: metas
+                .into_iter()
+                .map(|m| {
+                    (
+                        RuleCode::new(m),
+                        crate::settings::RuleSettings {
+                            severity: m.default_severity,
+                            options: Default::default(),
+                        },
+                    )
+                })
+                .collect(),
+            strict: false,
+        })
+    });
+    &SETTINGS
+}
+
+/// The health findings of a text, as a multiset of what they say.
+fn health(
+    reanalyze: &Reanalyze<'_>,
+    text: &str,
+    edits: &[TextEdit],
+) -> FxHashMap<(RuleCode, String, Option<String>), u32> {
+    let mut out = FxHashMap::default();
+    for d in reanalyze(text, edits, Reanalysis::Health) {
+        *out.entry((d.rule, d.message, d.node_path)).or_default() += 1;
+    }
+    out
+}
+
+/// The first finding `after` has more often than `before`.
+fn new_problem(
+    before: &FxHashMap<(RuleCode, String, Option<String>), u32>,
+    after: &FxHashMap<(RuleCode, String, Option<String>), u32>,
+) -> Option<String> {
+    let mut found: Vec<_> = after
+        .iter()
+        .filter(|(k, n)| before.get(*k).copied().unwrap_or(0) < **n)
+        .map(|((rule, message, _), _)| format!("{}: {message}", rule.code()))
+        .collect();
+    found.sort();
+    found.into_iter().next()
 }
 
 /// Fixes for one file.
@@ -313,6 +390,7 @@ pub fn check(settings: &ProjectSettings, paths: &[PathBuf], options: &CheckOptio
         cache.store(new_cache_entries);
         result.timings.cache += cache_start.elapsed();
     }
+    crate::rules::script::pylint::drop_duplicates(&mut result.diagnostics);
     result
         .diagnostics
         .sort_by(|a, b| a.sort_key().cmp(&b.sort_key()));
@@ -384,9 +462,12 @@ fn lint_one(
         (Some(c), false) => c.entry(path, kind, &file_settings, &source, 0, &diagnostics),
         _ => None,
     };
-    let reanalyze = |text: &str, _edits: &[TextEdit]| {
+    let reanalyze = |text: &str, _edits: &[TextEdit], what: Reanalysis| {
         let fixed_source = SourceFile::new(path, text);
-        analyzer(&fixed_source, kind, &file_settings)
+        match what {
+            Reanalysis::Lint => analyzer(&fixed_source, kind, &file_settings),
+            Reanalysis::Health => analyzer(&fixed_source, kind, health_settings()),
+        }
     };
     let (fix_summary, diagnostics) =
         fix_file(settings, options, path, &text, diagnostics, &reanalyze)?;
@@ -407,20 +488,30 @@ fn lint_one(
 
 /// Applies fixes to one file in passes, re-analysing after each pass with
 /// `reanalyze` (given the new text and the edits of the pass, in the
-/// previous text's coordinates), and writes the result when the fix mode says so. Returns
-/// the summary (in fix mode) and the remaining findings.
+/// previous text's coordinates), and writes the result when the fix mode
+/// says so. Returns the summary (in fix mode) and the remaining findings.
+///
+/// A pass whose fixes together make the file worse (a script or
+/// expression that no longer parses or compiles, an empty Perspective
+/// script, JSON that no longer parses: findings of [`health_settings`]
+/// that were not there before) is redone one fix at a time, dropping
+/// every fix that makes it worse; dropped fixes are reported as skipped
+/// and not retried. The file is never written worse than it was.
 pub(crate) fn fix_file(
     settings: &ProjectSettings,
     options: &CheckOptions,
     path: &Path,
     text: &Arc<str>,
     mut diagnostics: Vec<Diagnostic>,
-    reanalyze: &dyn Fn(&str, &[TextEdit]) -> Vec<Diagnostic>,
+    reanalyze: &Reanalyze<'_>,
 ) -> Result<(Option<FixSummary>, Vec<Diagnostic>), FileError> {
     if !options.fix_mode.is_fixing() {
         return Ok((None, diagnostics));
     }
     let unsafe_fixes = options.fix_mode.unsafe_fixes();
+    // Fixes the safety net dropped: (rule, fix message, finding message).
+    let rejected: std::cell::RefCell<FxHashSet<(RuleCode, String, String)>> =
+        std::cell::RefCell::default();
     let wanted = |d: &Diagnostic| -> Result<(), String> {
         let fix = d.fix.as_ref().expect("only called for fixes");
         if settings.unfixable.contains(&d.rule) {
@@ -439,30 +530,99 @@ pub(crate) fn fix_file(
                 _ => "the fix is only a suggestion".to_owned(),
             });
         }
+        if rejected
+            .borrow()
+            .contains(&(d.rule, fix.message.clone(), d.message.clone()))
+        {
+            return Err("the fix makes the file worse".to_owned());
+        }
         Ok(())
     };
     let mut applied = Vec::new();
     let mut current = String::from(&**text);
     let mut skipped = Vec::new();
+    let mut harmful: Vec<SkippedFix> = Vec::new();
+    let mut current_health: Option<FxHashMap<_, _>> = None;
     for pass in 0..options.max_fix_passes.max(1) {
         let mut pass_skipped = Vec::new();
-        let Some((next, edits)) = fix::apply_pass(
+        let mut pass_applied = Vec::new();
+        let Some(pass_result) = fix::apply_pass(
             path,
             &current,
             &diagnostics,
             &wanted,
-            &mut applied,
+            &mut pass_applied,
             &mut pass_skipped,
         ) else {
             skipped = pass_skipped;
             break;
         };
+        let before = current_health
+            .get_or_insert_with(|| health(reanalyze, &current, &[]))
+            .clone();
+        let after = health(reanalyze, &pass_result.text, &pass_result.edits);
+        let (next, edits, after) = if new_problem(&before, &after).is_none() {
+            applied.extend(pass_applied);
+            (pass_result.text, pass_result.edits, after)
+        } else {
+            // One fix at a time, keeping those that do not make it worse.
+            let mut kept: Vec<TextEdit> = Vec::new();
+            let mut kept_text = None;
+            let mut kept_health = before.clone();
+            for (fixed, (applied_fix, edits)) in pass_result.fixes.into_iter().enumerate() {
+                // The same edits as a fix already kept (one fix reported
+                // for several findings).
+                if !edits.is_empty() && edits.iter().all(|e| kept.contains(e)) {
+                    applied.push(applied_fix);
+                    continue;
+                }
+                let mut trial = kept.clone();
+                trial.extend(edits.iter().cloned());
+                let Ok(trial_text) = iglint_text::apply_edits(&current, &trial) else {
+                    continue;
+                };
+                let trial_health = health(reanalyze, &trial_text, &trial);
+                match new_problem(&before, &trial_health) {
+                    None => {
+                        kept = trial;
+                        kept_text = Some(trial_text);
+                        kept_health = trial_health;
+                        applied.push(applied_fix);
+                    }
+                    Some(problem) => {
+                        let d = &pass_result.diagnostics[fixed];
+                        rejected.borrow_mut().insert((
+                            d.0,
+                            applied_fix.message.clone(),
+                            d.1.clone(),
+                        ));
+                        harmful.push(SkippedFix {
+                            rule: applied_fix.rule,
+                            message: applied_fix.message,
+                            reason: format!("the fix makes the file worse ({problem})"),
+                            harmful: true,
+                        });
+                    }
+                }
+            }
+            let Some(kept_text) = kept_text else {
+                skipped = pass_skipped;
+                // Nothing kept: re-analyse nothing; retry the others.
+                if pass + 1 == options.max_fix_passes.max(1) {
+                    break;
+                }
+                continue;
+            };
+            (kept_text, kept, kept_health)
+        };
         current = next;
-        diagnostics = reanalyze(&current, &edits);
+        current_health = Some(after);
+        diagnostics = reanalyze(&current, &edits, Reanalysis::Lint);
         if pass + 1 == options.max_fix_passes.max(1) {
             skipped = pass_skipped;
         }
     }
+    skipped.extend(harmful);
     let mut written = false;
     if options.fix_mode.writes() && options.stdin.is_none() && *current != **text {
         write_atomically(path, &current).map_err(|error| FileError {

@@ -3,14 +3,17 @@
 use iglint_project::ScriptKind;
 use iglint_python::ast::{Stmt, StmtImport, StmtImportFrom};
 use iglint_python_semantic::{BindingId, BindingKind, ScopeId, SemanticModel};
-use iglint_text::{Ranged, TextRange};
+use iglint_text::Ranged;
 use rustc_hash::FxHashMap;
 
 use crate::checker::Checker;
 use crate::diagnostic::{Applicability, Severity};
 use crate::registry::{Category, FixAvailability, RuleMeta};
 use crate::rule::{Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
-use crate::rules::script::{containing_body, delete_statement, fix, report, semantic, source};
+use crate::rules::refs::{ExternalUse, external_use};
+use crate::rules::script::{
+    StatementEdit, containing_body, delete_statement, report, semantic, source, statement_fix,
+};
 
 pub static META: RuleMeta = RuleMeta {
     code: "SCR102",
@@ -66,7 +69,15 @@ def onMessageReceived(self, payload):
 
 Removes the unused names from the import statement, or the statement when
 none of its names is used (replaced by `pass` when it is the only
-statement of its block). Safe.
+statement of its block; when every statement of a block is removed, the
+last one becomes `pass`). Safe, except for top-level imports of library
+modules when iglint cannot see every use of the module's names (the module
+is used as a value, references are computed at run time, the project is
+inheritable or has scripts iglint does not model, or the file is linted
+outside its project): then unsafe.
+
+Top-level names of a library module are attributes of the module: an
+import that another resource uses as `pkg.mod.name` is not reported.
 
 ## pylint
 
@@ -145,7 +156,35 @@ impl ScriptRule for UnusedImport {
         };
         let library = unit.script.kind == ScriptKind::LibraryModule;
         let text = source(unit);
-        for (stmt, unused) in unused_imports(model, library) {
+        for (stmt, mut unused) in unused_imports(model, library) {
+            // Top-level names of a library module are its attributes: other
+            // resources may use them as `pkg.mod.name`.
+            let mut applicability = Applicability::Safe;
+            if library {
+                unused.retain(|id| {
+                    let b = model.binding(*id);
+                    if b.scope != ScopeId::MODULE {
+                        return true;
+                    }
+                    // `pkg.mod.name` in the module itself (textual, so
+                    // only ever a reason not to report).
+                    let dotted = unit.script.node_path.replace('/', ".");
+                    if text.contains(&format!("{dotted}.{}", b.name)) {
+                        return false;
+                    }
+                    match external_use(cx, b.name) {
+                        ExternalUse::Used => false,
+                        ExternalUse::Unused => true,
+                        ExternalUse::Unknown => {
+                            applicability = Applicability::Unsafe;
+                            true
+                        }
+                    }
+                });
+                if unused.is_empty() {
+                    continue;
+                }
+            }
             let names: Vec<&str> = unused
                 .iter()
                 .filter_map(|id| model.binding(*id).alias.map(|a| a.range().slice(text)))
@@ -163,7 +202,7 @@ impl ScriptRule for UnusedImport {
                 )
             };
             let edit = removal(model, text, stmt, &unused);
-            let fix = edit.and_then(|e| fix(cx, unit, message, Applicability::Safe, vec![e]));
+            let fix = edit.and_then(|e| statement_fix(cx, unit, message, applicability, e));
             for id in &unused {
                 let b = model.binding(*id);
                 let shown = b.alias.map_or(b.name, |a| a.name.as_str());
@@ -180,7 +219,7 @@ fn removal(
     text: &str,
     stmt: &Stmt,
     unused: &[BindingId],
-) -> Option<(TextRange, String)> {
+) -> Option<StatementEdit> {
     let aliases = match stmt {
         Stmt::Import(StmtImport { names, .. }) => names,
         Stmt::ImportFrom(StmtImportFrom { names, .. }) => names,
@@ -214,7 +253,7 @@ fn removal(
         }
         _ => return None,
     };
-    Some((range, new))
+    Some(StatementEdit::replace(range, new))
 }
 
 #[cfg(test)]
@@ -278,6 +317,111 @@ mod tests {
         assert!(
             fixed.contains("\"script\": \"\\timport re\\n\\tx \\u003d re.compile(\\u0027a\\u0027)"),
             "{fixed}"
+        );
+    }
+
+    /// Every deletion alone leaves its suite non-empty; together they must
+    /// not empty it (the last statement becomes `pass`).
+    #[test]
+    fn removing_every_statement_of_a_suite_leaves_pass() {
+        let cases = [
+            (
+                "def f():\n    import os\n    import sys\n",
+                "def f():\n    pass\n",
+            ),
+            (
+                "def f(x):\n    if x:\n        import os\n        import sys\n    else:\n        import re\n        import json\n    return x\n",
+                "def f(x):\n    if x:\n        pass\n    else:\n        pass\n    return x\n",
+            ),
+            (
+                "def f():\n    try:\n        import os\n        import sys\n    except ValueError:\n        import re\n        import json\n    finally:\n        import glob\n        import math\n",
+                "def f():\n    try:\n        pass\n    except ValueError:\n        pass\n    finally:\n        pass\n",
+            ),
+            (
+                "def f(xs, l):\n    for x in xs:\n        import os\n        import sys\n    else:\n        import re\n        import json\n    while xs:\n        import glob\n        import math\n    with l:\n        import time\n        import string\n",
+                "def f(xs, l):\n    for x in xs:\n        pass\n    else:\n        pass\n    while xs:\n        pass\n    with l:\n        pass\n",
+            ),
+            (
+                "def f():\n    class C:\n        import os\n        import sys\n    def g():\n        import re\n        import json\n        import glob\n    return C, g\n",
+                "def f():\n    class C:\n        pass\n    def g():\n        pass\n    return C, g\n",
+            ),
+        ];
+        for (code, expected) in cases {
+            let f = library("m", code);
+            let fixed = f.fixed(&[("SCR102", "")], false, &library_path(&f, "m"));
+            assert_eq!(fixed, expected, "{code}");
+            let result = f.run(
+                &[("SCR001", ""), ("SCR002", "")],
+                crate::engine::FixMode::None,
+            );
+            assert!(result.diagnostics.is_empty(), "{code}");
+        }
+    }
+
+    #[test]
+    fn removing_every_statement_of_a_view_script_leaves_pass() {
+        let f = view(ViewScript::Action, "\timport os\n\timport sys\n\timport re");
+        let fixed = f.fixed(&[("SCR102", "")], false, &view_path(&f));
+        assert!(fixed.contains(r#""script": "\tpass""#), "{fixed}");
+        let f = view(
+            ViewScript::Method,
+            "\tif a:\n\t\timport os\n\t\timport sys\n\treturn b",
+        );
+        let fixed = f.fixed(&[("SCR102", "")], false, &view_path(&f));
+        assert!(
+            fixed.contains(r#""script": "\tif a:\n\t\tpass\n\treturn b""#),
+            "{fixed}"
+        );
+    }
+
+    /// `pkg.mod.name` in another resource uses a top-level name of a
+    /// library module, imports included.
+    #[test]
+    fn library_imports_used_by_other_modules_are_used() {
+        let f = with_library(
+            library("sem/unusedimp", "import os\nimport sys\n"),
+            "sem/user",
+            "def f():\n    return sem.unusedimp.os.getcwd()\n",
+        );
+        let d = f.lint(&["SCR102"]);
+        assert_eq!(flagged(&d), ["sys"]);
+        assert_eq!(
+            d[0].fix.as_ref().map(|f| f.applicability),
+            Some(crate::diagnostic::Applicability::Safe)
+        );
+        let fixed = f.fixed(
+            &[("SCR102", ""), ("REF002", "")],
+            false,
+            &library_path(&f, "sem/unusedimp"),
+        );
+        assert_eq!(fixed, "import os\n");
+    }
+
+    /// When the module is used as a value, any of its names may be used:
+    /// still reported, but the fix is unsafe.
+    #[test]
+    fn library_imports_of_escaping_modules_have_unsafe_fixes() {
+        let f = with_library(
+            library("sem/unusedimp", "import os\n"),
+            "sem/user",
+            "def f(name):\n    return getattr(sem.unusedimp, name)\n",
+        );
+        let d = f.lint(&["SCR102"]);
+        assert_eq!(flagged(&d), ["os"]);
+        assert_eq!(
+            d[0].fix.as_ref().map(|f| f.applicability),
+            Some(crate::diagnostic::Applicability::Unsafe)
+        );
+        // Function-level imports are not attributes of the module.
+        let f = with_library(
+            library("sem/unusedimp", "def g():\n    import os\n"),
+            "sem/user",
+            "def f(name):\n    return getattr(sem.unusedimp, name)\n",
+        );
+        let d = f.lint(&["SCR102"]);
+        assert_eq!(
+            d[0].fix.as_ref().map(|f| f.applicability),
+            Some(crate::diagnostic::Applicability::Safe)
         );
     }
 }

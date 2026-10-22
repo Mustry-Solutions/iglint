@@ -63,17 +63,7 @@ impl ResourceRule for UnusedLibraryFunction {
         let (Some((index, project)), Some(resource)) = (cx.project_index(), cx.resource()) else {
             return;
         };
-        let ws = cx.workspace();
-        if ws.project(project).inheritable()
-            || !ws.project(project).inheritance.complete
-            || super::has_unmodelled_scripts(ws, project)
-            || index.module_escapes(project, resource.id)
-            || index
-                .dynamic_references(project)
-                .library
-                .iter()
-                .any(String::is_empty)
-        {
+        if !super::all_library_references_known(cx.workspace(), index, project, resource.id) {
             return;
         }
         let Some(symbols) = index.module_symbols(resource.id) else {

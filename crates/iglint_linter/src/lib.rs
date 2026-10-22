@@ -20,7 +20,9 @@ pub mod suppression;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
-pub use diagnostic::{Applicability, Diagnostic, FileEdit, Fix, Label, Severity, SourceFile};
+pub use diagnostic::{
+    Applicability, Diagnostic, FileEdit, Fix, Label, Severity, SourceFile, SuiteGuard,
+};
 pub use discovery::FileKind;
 pub use engine::{CheckOptions, CheckResult, FixMode, check};
 pub use registry::{

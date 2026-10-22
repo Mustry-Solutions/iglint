@@ -8,8 +8,54 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-/// Findings of one rule: the ign-lint rule name and its messages.
-pub type RuleBlock = (String, Vec<String>);
+/// Findings of one rule.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RuleBlock {
+    /// The ign-lint rule name.
+    pub rule: String,
+    pub messages: Vec<String>,
+    /// pylint messages (`PylintScriptRule`), shown grouped by category:
+    /// the category letter and the message.
+    pub pylint: Vec<(char, String)>,
+}
+
+impl RuleBlock {
+    pub fn len(&self) -> usize {
+        self.messages.len() + self.pylint.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// ign-lint's grouped pylint output: per category F, E, W, C, R, an
+    /// empty line, `    Pylint - {name} ({letter}):` and one
+    /// `      • {message}` per message. Other categories are counted but
+    /// not shown, like in ign-lint.
+    pub fn pylint_text(&self) -> Option<String> {
+        let mut lines: Vec<String> = Vec::new();
+        for (letter, name) in [
+            ('F', "Fatal"),
+            ('E', "Error"),
+            ('W', "Warning"),
+            ('C', "Convention"),
+            ('R', "Refactor"),
+        ] {
+            let messages: Vec<&String> = self
+                .pylint
+                .iter()
+                .filter(|(c, _)| *c == letter)
+                .map(|(_, m)| m)
+                .collect();
+            if messages.is_empty() {
+                continue;
+            }
+            lines.push(format!("\n    Pylint - {name} ({letter}):"));
+            lines.extend(messages.into_iter().map(|m| format!("      • {m}")));
+        }
+        (!lines.is_empty()).then(|| lines.join("\n"))
+    }
+}
 
 /// Phase durations of one file.
 #[derive(Clone, Debug, Default)]
@@ -38,11 +84,11 @@ pub struct FileReport {
 
 impl FileReport {
     pub fn error_count(&self) -> usize {
-        self.errors.iter().map(|(_, m)| m.len()).sum()
+        self.errors.iter().map(RuleBlock::len).sum()
     }
 
     pub fn warning_count(&self) -> usize {
-        self.warnings.iter().map(|(_, m)| m.len()).sum()
+        self.warnings.iter().map(RuleBlock::len).sum()
     }
 
     pub fn has_issues(&self) -> bool {
@@ -56,10 +102,13 @@ pub fn print_file_results(out: &mut dyn Write, report: &FileReport) -> io::Resul
         return writeln!(out, "✅ No issues found");
     }
     let blocks = |out: &mut dyn Write, blocks: &[RuleBlock]| -> io::Result<()> {
-        for (rule, messages) in blocks {
-            writeln!(out, "\n  {rule}:")?;
-            for message in messages.iter().filter(|m| !m.is_empty()) {
+        for block in blocks {
+            writeln!(out, "\n  {}:", block.rule)?;
+            for message in block.messages.iter().filter(|m| !m.is_empty()) {
                 writeln!(out, "    • {message}")?;
+            }
+            if let Some(text) = block.pylint_text() {
+                writeln!(out, "{text}")?;
             }
             writeln!(out)?;
         }
@@ -134,10 +183,13 @@ pub fn results_text(totals: &Totals, whitelisted: &[String], files: &[FileReport
                 return;
             }
             let _ = writeln!(s, "{title} ({count} total):\n");
-            for (rule, messages) in blocks {
-                let _ = writeln!(s, "  {rule}:");
-                for message in messages.iter().filter(|m| !m.is_empty()) {
+            for block in blocks {
+                let _ = writeln!(s, "  {}:", block.rule);
+                for message in block.messages.iter().filter(|m| !m.is_empty()) {
                     let _ = writeln!(s, "    • {message}");
+                }
+                if let Some(text) = block.pylint_text() {
+                    let _ = writeln!(s, "{text}");
                 }
                 let _ = writeln!(s);
             }
@@ -271,29 +323,18 @@ pub fn timing_text(files: &[FileReport], wall: Duration, now: SystemTime) -> Str
     s
 }
 
-/// `YYYY-MM-DD HH:MM:SS` in UTC.
+/// `YYYY-MM-DD HH:MM:SS` in the local time zone, like ign-lint's
+/// `datetime.now().strftime("%Y-%m-%d %H:%M:%S")`.
 pub fn timestamp(now: SystemTime) -> String {
-    let secs = now
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or_default() as i64;
-    let (days, rem) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
-    // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    format!(
-        "{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02}",
-        rem / 3600,
-        rem % 3600 / 60,
-        rem % 60
-    )
+    timestamp_in(now, &jiff::tz::TimeZone::system())
+}
+
+fn timestamp_in(now: SystemTime, zone: &jiff::tz::TimeZone) -> String {
+    let instant = jiff::Timestamp::try_from(now).unwrap_or(jiff::Timestamp::UNIX_EPOCH);
+    instant
+        .to_zoned(zone.clone())
+        .strftime("%Y-%m-%d %H:%M:%S")
+        .to_string()
 }
 
 /// Reports younger than this belong to a parallel batch of the same run.
@@ -416,9 +457,22 @@ mod tests {
 
     #[test]
     fn timestamps() {
+        use jiff::tz::{Offset, TimeZone};
         let t = SystemTime::UNIX_EPOCH + Duration::from_secs(1_761_000_000);
-        assert_eq!(timestamp(t), "2025-10-20 22:40:00");
-        assert_eq!(timestamp(SystemTime::UNIX_EPOCH), "1970-01-01 00:00:00");
+        assert_eq!(timestamp_in(t, &TimeZone::UTC), "2025-10-20 22:40:00");
+        assert_eq!(
+            timestamp_in(SystemTime::UNIX_EPOCH, &TimeZone::UTC),
+            "1970-01-01 00:00:00"
+        );
+        // Local time, not UTC: Brussels is UTC+2 in October 2025 (summer
+        // time) and UTC+1 in January.
+        let brussels = TimeZone::fixed(Offset::constant(2));
+        assert_eq!(timestamp_in(t, &brussels), "2025-10-21 00:40:00");
+        if let Ok(zone) = TimeZone::get("Europe/Brussels") {
+            assert_eq!(timestamp_in(t, &zone), "2025-10-21 00:40:00");
+            let winter = SystemTime::UNIX_EPOCH + Duration::from_secs(1_768_000_000);
+            assert_eq!(timestamp_in(winter, &zone), "2026-01-10 00:06:40");
+        }
     }
 
     #[test]
@@ -451,5 +505,37 @@ mod tests {
         assert_eq!(report_path(&path, later), (path.clone(), false));
         clean_up(&path, later);
         assert!(!path.exists());
+    }
+
+    /// ign-lint's layout for `PylintScriptRule`: plain messages first, then
+    /// the pylint messages grouped by category in F, E, W, C, R order.
+    #[test]
+    fn pylint_messages_are_grouped_by_category() {
+        let block = RuleBlock {
+            rule: "PylintScriptRule".to_owned(),
+            messages: vec!["a: native".to_owned()],
+            pylint: vec![
+                ('C', "a: Line 2: c1 (C0303)".to_owned()),
+                ('E', "a: Line 1: e1 (E0602)".to_owned()),
+                ('C', "a: Line 3: c2 (C0303)".to_owned()),
+                ('I', "a: Line 3: hidden (I0011)".to_owned()),
+            ],
+        };
+        let report = FileReport {
+            path: "view.json".to_owned(),
+            errors: vec![block],
+            ..FileReport::default()
+        };
+        let mut out = Vec::new();
+        print_file_results(&mut out, &report).unwrap();
+        assert_eq!(
+            String::from_utf8(out).unwrap(),
+            "\n❌ Found 5 errors:\n\n  PylintScriptRule:\n    • a: native\n\n    Pylint - Error (E):\n      • a: Line 1: e1 (E0602)\n\n    Pylint - Convention (C):\n      • a: Line 2: c1 (C0303)\n      • a: Line 3: c2 (C0303)\n\n"
+        );
+        let text = results_text(&Totals::default(), &[], &[report]);
+        assert!(
+            text.contains("ERRORS (5 total):\n\n  PylintScriptRule:\n    • a: native\n\n    Pylint - Error (E):\n      • a: Line 1: e1 (E0602)\n\n    Pylint - Convention (C):\n      • a: Line 2: c1 (C0303)\n      • a: Line 3: c2 (C0303)\n\n\n"),
+            "{text}"
+        );
     }
 }

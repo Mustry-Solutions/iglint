@@ -1,8 +1,9 @@
 //! SCR115 except-tuple-without-parentheses.
 
-use iglint_python::ast::{Expr, Stmt};
-use iglint_python_semantic::BindingKind;
+use iglint_python::ast::{Expr, ExprName, Stmt};
+use iglint_python_semantic::{BindingKind, SemanticModel};
 use iglint_text::{Ranged, TextRange};
+use rustc_hash::FxHashSet;
 
 use crate::checker::Checker;
 use crate::diagnostic::{Applicability, Severity};
@@ -49,9 +50,13 @@ except (ValueError, TypeError):
     value = 0
 ```
 
+`SCR103 unused-variable` and `SCR117 redefined-builtin` do not report the
+name of such a handler: this rule explains the mistake.
+
 ## Fix
 
-Adds the parentheses. Safe: the result is what the code says it means.
+Adds the parentheses. Safe: the result is what the code says it means. No
+fix when a comment sits between the two names.
 "#,
     ..RuleMeta::DEFAULT
 };
@@ -65,51 +70,76 @@ pub static RULE: RuleImpl = RuleImpl {
 
 struct ExceptTuple;
 
+/// The handlers `except A, B:` of a script where `B` is an exception class
+/// (a builtin exception, or a name the module imports or defines as a
+/// class): the type expression and the name. `SCR103` and `SCR117` stay
+/// silent about these names; this rule explains them.
+pub(crate) fn misread_handlers<'s>(
+    unit: &ScriptUnit<'s, '_>,
+    model: &SemanticModel<'_>,
+) -> Vec<(&'s Expr, &'s ExprName)> {
+    let mut found = Vec::new();
+    walk_stmts(&unit.parsed.module.body, &mut |s| {
+        let Stmt::TryExcept(t) = s else { return };
+        for h in &t.handlers {
+            let (Some(ty), Some(name)) = (&h.type_, &h.name) else {
+                continue;
+            };
+            let Expr::Name(n) = &**name else { continue };
+            let builtin_exception = iglint_stubs::jython_builtins()
+                .iter()
+                .any(|b| b.name == &*n.id && b.kind == iglint_stubs::BuiltinKind::Exception);
+            let class_like = model.bindings().any(|(_, b)| {
+                b.name == &*n.id
+                    && matches!(
+                        b.kind,
+                        BindingKind::Import | BindingKind::FromImport | BindingKind::ClassDef
+                    )
+            });
+            if builtin_exception || class_like {
+                found.push((&**ty, n));
+            }
+        }
+    });
+    found
+}
+
+/// The name ranges of [`misread_handlers`].
+pub(crate) fn misread_handler_names(
+    unit: &ScriptUnit<'_, '_>,
+    model: &SemanticModel<'_>,
+) -> FxHashSet<TextRange> {
+    misread_handlers(unit, model)
+        .into_iter()
+        .map(|(_, n)| n.range)
+        .collect()
+}
+
 impl ScriptRule for ExceptTuple {
     fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
         let Some(model) = semantic(cx, unit) else {
             return;
         };
         let text = source(unit);
-        let mut found: Vec<(TextRange, TextRange, String)> = Vec::new();
-        walk_stmts(&unit.parsed.module.body, &mut |s| {
-            let Stmt::TryExcept(t) = s else { return };
-            for h in &t.handlers {
-                let (Some(ty), Some(name)) = (&h.type_, &h.name) else {
-                    continue;
-                };
-                let Expr::Name(n) = &**name else { continue };
-                let builtin_exception = iglint_stubs::jython_builtins()
-                    .iter()
-                    .any(|b| b.name == &*n.id && b.kind == iglint_stubs::BuiltinKind::Exception);
-                let class_like = model.bindings().any(|(_, b)| {
-                    b.name == &*n.id
-                        && matches!(
-                            b.kind,
-                            BindingKind::Import | BindingKind::FromImport | BindingKind::ClassDef
-                        )
-                });
-                if !(builtin_exception || class_like) {
-                    continue;
-                }
-                let whole = ty.range().cover(n.range);
-                // Parenthesized type already (`except (A), B:`) or text we
-                // cannot rewrite safely.
-                if text[whole.to_std()].contains('#') {
-                    continue;
-                }
-                found.push((whole, n.range, n.id.to_string()));
-            }
-        });
+        let found: Vec<(TextRange, TextRange, String)> = misread_handlers(unit, model)
+            .into_iter()
+            .map(|(ty, n)| (ty.range().cover(n.range), n.range, n.id.to_string()))
+            .collect();
         for (whole, name_range, name) in found {
-            let replacement = format!("({})", &text[whole.to_std()]);
-            let fix = fix(
-                cx,
-                unit,
-                "Add parentheses",
-                Applicability::Safe,
-                vec![(whole, replacement)],
-            );
+            // A comment between the two names cannot move into parentheses
+            // safely.
+            let fix = (!text[whole.to_std()].contains('#'))
+                .then(|| {
+                    let replacement = format!("({})", &text[whole.to_std()]);
+                    fix(
+                        cx,
+                        unit,
+                        "Add parentheses",
+                        Applicability::Safe,
+                        vec![(whole, replacement)],
+                    )
+                })
+                .flatten();
             let message = format!(
                 "`{name}` is bound to the caught exception, not caught; use parentheses to catch both"
             );
@@ -168,5 +198,27 @@ mod tests {
             fixed.contains(r"\texcept (KeyError, IndexError):"),
             "{fixed}"
         );
+    }
+
+    #[test]
+    fn comment_between_names_reports_without_fix() {
+        let d = lint_module(
+            "SCR115",
+            "try:\n    f()\nexcept (ValueError # first\n        ), TypeError:\n    pass\n",
+        );
+        assert_eq!(flagged(&d), ["TypeError"]);
+        assert!(d[0].fix.is_none());
+    }
+
+    #[test]
+    fn unused_variable_and_redefined_builtin_stay_silent() {
+        let source = "def f():\n    try:\n        g()\n    except ValueError, TypeError:\n        pass\n    try:\n        g()\n    except ValueError, e:\n        pass\n";
+        let d = lint_module("SCR115", source);
+        assert_eq!(flagged(&d), ["TypeError"]);
+        // `e` is still an unused variable; `TypeError` is left to SCR115.
+        assert_eq!(flagged(&lint_module("SCR103", source)), ["e"]);
+        assert!(lint_module("SCR117", source).is_empty());
+        let module = "try:\n    g()\nexcept ValueError, IOError:\n    pass\nlist = 1\n";
+        assert_eq!(flagged(&lint_module("SCR117", module)), ["list"]);
     }
 }

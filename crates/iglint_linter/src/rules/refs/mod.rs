@@ -27,6 +27,54 @@ use iglint_project::{Container, ProjectId, Workspace};
 /// (Vision windows and templates, reports, alarm pipelines, SFC charts,
 /// event streams). Such scripts may reference anything, so "unused" rules
 /// stay silent in that project.
+/// Whether code outside a library module may use a top-level name of it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ExternalUse {
+    /// Another resource references `pkg.mod.name`.
+    Used,
+    /// Not referenced, and every reference in the project is known.
+    Unused,
+    /// Cannot be ruled out: the module is used as a value, references are
+    /// computed at run time, the project is inheritable or has scripts
+    /// iglint does not model, or the project is unknown.
+    Unknown,
+}
+
+/// How the library module being checked has its top-level `name` used by
+/// other resources, through the project index.
+pub(crate) fn external_use(cx: &crate::checker::Checker<'_, '_>, name: &str) -> ExternalUse {
+    let (Some((index, project)), Some(resource)) = (cx.project_index(), cx.resource()) else {
+        return ExternalUse::Unknown;
+    };
+    if index.external_symbol_usage_count(resource.id, name) > 0 {
+        return ExternalUse::Used;
+    }
+    if all_library_references_known(cx.workspace(), index, project, resource.id) {
+        ExternalUse::Unused
+    } else {
+        ExternalUse::Unknown
+    }
+}
+
+/// Whether every reference to the top-level names of library `module` is
+/// visible in the index (no dynamic access, no unknown users).
+pub(crate) fn all_library_references_known(
+    ws: &Workspace,
+    index: &iglint_project::ProjectIndex<'_>,
+    project: ProjectId,
+    module: iglint_project::ResourceId,
+) -> bool {
+    !(ws.project(project).inheritable()
+        || !ws.project(project).inheritance.complete
+        || has_unmodelled_scripts(ws, project)
+        || index.module_escapes(project, module)
+        || index
+            .dynamic_references(project)
+            .library
+            .iter()
+            .any(String::is_empty))
+}
+
 pub(crate) fn has_unmodelled_scripts(ws: &Workspace, project: ProjectId) -> bool {
     ws.effective_resources(Container::Project(project))
         .into_iter()

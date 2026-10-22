@@ -1,6 +1,7 @@
 //! VIEW002 duplicate-component-name.
 
 use iglint_project::view::{Component, View};
+use rustc_hash::FxHashMap;
 
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
@@ -58,38 +59,33 @@ pub static RULE: RuleImpl = RuleImpl {
 
 struct DuplicateComponentName;
 
+/// Checks the children of each component in one pass (linear in the number
+/// of siblings, not quadratic).
 impl ComponentRule for DuplicateComponentName {
-    fn check_component(
-        &self,
-        cx: &mut Checker<'_, '_>,
-        view: &View<'_>,
-        component: &Component<'_>,
-    ) {
-        let Some(parent) = component.parent else {
-            return;
-        };
-        if component.name.is_empty() || component.name_value.is_none() {
-            return;
-        }
-        let first = view
-            .children(parent)
-            .find(|c| c.name == component.name && c.name_value.is_some());
-        let Some(first) = first else {
-            return;
-        };
-        if first.id == component.id {
+    fn check_component(&self, cx: &mut Checker<'_, '_>, view: &View<'_>, parent: &Component<'_>) {
+        if parent.children.len() < 2 {
             return;
         }
         let file = cx.primary_file();
-        cx.report(
-            component.name_range(),
-            format!(
-                "Component name `{}` is already used by a sibling; references by name reach only the first one",
-                component.name
-            ),
-        )
-        .node_path(format!("{}[{}]", view.component(parent).path, component.index_in_parent))
-        .label(file, first.name_range(), "first component with this name");
+        let mut first_by_name: FxHashMap<&str, &Component<'_>> = FxHashMap::default();
+        for component in view.children(parent.id) {
+            if component.name.is_empty() || component.name_value.is_none() {
+                continue;
+            }
+            let first = *first_by_name.entry(component.name).or_insert(component);
+            if first.id == component.id {
+                continue;
+            }
+            cx.report(
+                component.name_range(),
+                format!(
+                    "Component name `{}` is already used by a sibling; references by name reach only the first one",
+                    component.name
+                ),
+            )
+            .node_path(format!("{}[{}]", parent.path, component.index_in_parent))
+            .label(file, first.name_range(), "first component with this name");
+        }
     }
 }
 
@@ -115,6 +111,42 @@ mod tests {
         assert_eq!(flagged(&d), vec!["\"A\"", "\"A\""]);
         assert_eq!(d[0].labels.len(), 1);
         assert_eq!(d[0].node_path.as_deref(), Some("root[2]"));
+    }
+
+    #[test]
+    fn labels_point_at_the_first_sibling_of_each_name() {
+        let f = Fixture::view(&view(
+            r#"{"type": "ia.display.label", "meta": {"name": "A"}},
+               {"type": "ia.display.label", "meta": {"name": "B"}},
+               {"type": "ia.display.label"},
+               {"type": "ia.display.label", "meta": {"name": "B"}},
+               {"type": "ia.display.label", "meta": {"name": "A"}}"#,
+        ));
+        let d = f.lint(&["VIEW002"]);
+        let paths: Vec<_> = d.iter().map(|d| d.node_path.clone().unwrap()).collect();
+        assert_eq!(paths, ["root[3]", "root[4]"]);
+        let text = d[0].file.text();
+        let label = |d: &crate::diagnostic::Diagnostic| {
+            let r = d.labels[0].range;
+            text[..r.start().to_usize()].matches("\"name\"").count()
+        };
+        // The label of `B` is on the third `"name"` key (root, A, B).
+        assert_eq!(label(&d[0]), 3);
+        assert_eq!(label(&d[1]), 2);
+    }
+
+    #[test]
+    fn many_siblings() {
+        let children: Vec<String> = (0..20_000)
+            .map(|i| {
+                format!(
+                    r#"{{"type": "ia.display.label", "meta": {{"name": "L{}"}}}}"#,
+                    i % 10_000
+                )
+            })
+            .collect();
+        let f = Fixture::view(&view(&children.join(",")));
+        assert_eq!(f.lint(&["VIEW002"]).len(), 10_000);
     }
 
     #[test]

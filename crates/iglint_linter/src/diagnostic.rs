@@ -64,18 +64,47 @@ struct SourceFileInner {
     /// Path as given or discovered, used for display.
     path: PathBuf,
     text: Arc<str>,
+    /// Invalid UTF-8 sequences of the file on disk; `text` has
+    /// [`iglint_text::INVALID_UTF8_SUBSTITUTE`] there.
+    invalid_utf8: Box<[TextRange]>,
     line_index: std::sync::OnceLock<LineIndex>,
 }
 
 impl SourceFile {
     pub fn new(path: impl Into<PathBuf>, text: impl Into<Arc<str>>) -> Self {
+        Self::decoded(path, text, Vec::new())
+    }
+
+    /// A file read with [`iglint_text::decode_utf8`]: `invalid_utf8` are the
+    /// ranges of its invalid UTF-8 sequences.
+    pub fn decoded(
+        path: impl Into<PathBuf>,
+        text: impl Into<Arc<str>>,
+        invalid_utf8: Vec<TextRange>,
+    ) -> Self {
         SourceFile {
             inner: Arc::new(SourceFileInner {
                 path: path.into(),
                 text: text.into(),
+                invalid_utf8: invalid_utf8.into_boxed_slice(),
                 line_index: std::sync::OnceLock::new(),
             }),
         }
+    }
+
+    /// Ranges of the invalid UTF-8 sequences of the file on disk. Findings
+    /// that touch them are dropped (`VIEW007` reports them) and the file
+    /// gets no fixes: writing the text back would change those bytes.
+    pub fn invalid_utf8(&self) -> &[TextRange] {
+        &self.inner.invalid_utf8
+    }
+
+    /// Whether `range` touches an invalid UTF-8 sequence.
+    pub fn touches_invalid_utf8(&self, range: TextRange) -> bool {
+        self.inner
+            .invalid_utf8
+            .iter()
+            .any(|bad| range.start() < bad.end() && bad.start() <= range.end())
     }
 
     pub fn path(&self) -> &Path {
@@ -124,14 +153,35 @@ pub struct Fix {
     pub message: String,
     pub applicability: Applicability,
     pub edits: Vec<FileEdit>,
+    /// Set when the fix deletes a statement of a suite (a block of
+    /// statements): fixes with the same guard never delete all statements
+    /// of the suite in one pass.
+    pub suite: Option<SuiteGuard>,
+}
+
+/// The suite a statement-deleting fix removes a statement from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SuiteGuard {
+    /// Identifies the suite within the file (the file offset of its first
+    /// statement).
+    pub key: u32,
+    /// The number of statements in the suite.
+    pub statements: u32,
 }
 
 impl Fix {
+    /// Marks the fix as deleting a statement of the suite `guard`.
+    pub fn deleting_from(mut self, guard: SuiteGuard) -> Self {
+        self.suite = Some(guard);
+        self
+    }
+
     pub fn safe(message: impl Into<String>, edits: Vec<FileEdit>) -> Self {
         Fix {
             message: message.into(),
             applicability: Applicability::Safe,
             edits,
+            suite: None,
         }
     }
 
@@ -140,6 +190,7 @@ impl Fix {
             message: message.into(),
             applicability: Applicability::Unsafe,
             edits,
+            suite: None,
         }
     }
 
@@ -148,6 +199,7 @@ impl Fix {
             message: message.into(),
             applicability: Applicability::DisplayOnly,
             edits,
+            suite: None,
         }
     }
 }

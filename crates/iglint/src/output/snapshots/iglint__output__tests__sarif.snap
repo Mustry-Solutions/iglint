@@ -83,8 +83,7 @@ expression: "output(OutputFormat::Sarif, & diagnostics(), false)"
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "/other/lib.py",
-                  "uriBaseId": "%SRCROOT%"
+                  "uri": "file:///other/lib.py"
                 },
                 "region": {
                   "startLine": 1,

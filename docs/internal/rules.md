@@ -41,6 +41,7 @@ All nine ign-lint rules have an equivalent. ign-lint option names are mapped
 | VIEW004 | unknown-component-prop | W | no | - | | Top-level `props` key not in the component schema (only for schemas that do not allow additional properties). |
 | VIEW005 | invalid-position-key | W | yes | - | | `position` key not valid for the parent container type. |
 | VIEW006 | excessive-context-data | W | yes | - | ExcessiveContextDataRule | Oversized arrays, breadth, depth, size or strings in view-level `custom`. Same thresholds and options. |
+| VIEW007 | invalid-utf8 | E | yes | - | | Resource file is not valid UTF-8; Ignition replaces the invalid bytes with U+FFFD. The rest of the file still lints; no fixes in it. |
 | VIEW008 | empty-script | E | yes | - | | Script action, transform, change script, handler or method with an empty or whitespace-only body: Ignition fails to compile it. |
 | VIEW009 | disabled-change-script | I | yes | - | | `onChange.enabled: false` with code (dead code). |
 | VIEW010 | unknown-action-type | E | yes | - | | Event action `type` not one Ignition knows. |
@@ -88,7 +89,7 @@ Jython builtins).
 |---|---|---|---|---|---|---|
 | SCR001 | syntax-error | E | yes | - | (pylint E0001) | Does not parse with Jython 2.7 (Python 3-only syntax gets a specific hint). |
 | SCR002 | compile-error | E | yes | - | | Parses but Jython refuses to compile: `return`/`yield` outside function, `break`/`continue` outside loop, duplicate argument, `return` with value in generator, `None` as target, `import *` in function with free vars, `default except` not last. |
-| SCR101 | undefined-name | E | yes | - | (E0602) | Name never bound in any enclosing scope, not a builtin, not injected. Suppressed when the scope has `import *` or unqualified `exec`. |
+| SCR101 | undefined-name | E | yes | - | (E0602) | Name never bound in any enclosing scope, not a builtin, not injected. Suppressed when the scope has `import *` or unqualified `exec`, when the module writes its namespace or the builtins (`exec ... in globals()`, `globals()[...] =`, `setattr(sys.modules[__name__], ...)`, `__builtins__[...] =`), and in functions with `exec ... in locals()`. |
 | SCR102 | unused-import | W | yes | S | (W0611) | Import never used (not in `__init__`-like modules; `__all__` respected). |
 | SCR103 | unused-variable | W | yes | U | (W0612) | Local assigned but never read (tuple unpacking and `_`-prefixed names excluded). |
 | SCR104 | redefined-unused | W | yes | - | (W0404/E0102) | Function/class/import redefined before use. |
@@ -111,6 +112,7 @@ Jython builtins).
 | SCR121 | global-at-module-level | I | yes | - | (W0604) | `global` at module level does nothing. |
 | SCR122 | print-statement | I | no | - | | `print` in scripts that run on the gateway goes to the wrapper log; use `system.util.getLogger`. |
 | SCR123 | unused-suppression | I | yes | S | | `# iglint: ignore[...]` that suppresses nothing. |
+| SCR124 | trailing-whitespace | I | no | S | (C0303) | Spaces, tabs or form feeds at the end of a script line (not inside multi-line strings; scripts that do not parse are skipped). |
 
 ### System API (`system.*`)
 
@@ -138,7 +140,7 @@ Jython builtins).
 
 | Code | Name | Sev | Def | Fix | ign-lint | Summary |
 |---|---|---|---|---|---|---|
-| SCR900 | pylint | W | no | - | PylintScriptRule | Runs real pylint once per run (one process, `jobs` workers, default one per CPU) over every linted script, each written as its own module (`source`: generated header + body, as Ignition compiles it). Messages map back to exact file ranges through the source map (AST columns are UTF-8 bytes, token columns characters); header messages go to the script anchor, except naming/signature messages about Ignition's generated header (dropped; custom method headers are the user's). Dropped as wrong for Ignition: `undefined-variable`/`import-error` for injected names, library packages and Jython builtins (all `undefined-variable` when the library is unknown, like SCR101), and `syntax-error` when Jython parses the script (or SCR001 is on). Options `pylint` (command), `pylintrc` (default: bundled ign-lint rcfile), `jobs`, `category-mapping` (replaces F/E error, W/C/R warning). `# iglint: ignore[SCR900]` applies. pylint missing or failing: one run warning, other rules unaffected, no cache entries for the affected files. Fixes of other rules move its findings without re-running pylint. |
+| SCR900 | pylint | W | no | S | PylintScriptRule | Runs real pylint once per run (one process, `jobs` workers, default one per CPU) over every linted script, each written as its own module (`source`: generated header + body, as Ignition compiles it). Messages map back to exact file ranges through the source map (AST columns are UTF-8 bytes, token columns characters); header messages go to the script anchor, except naming/signature messages about Ignition's generated header (dropped; custom method headers are the user's). Dropped as wrong for Ignition: `undefined-variable`/`import-error` for injected names, library packages and Jython builtins (all `undefined-variable` when the library is unknown, like SCR101), and `syntax-error` when Jython parses the script (or SCR001 is on). Options `pylint` (command), `pylintrc` (default: bundled ign-lint rcfile), `jobs`, `category-mapping` (replaces F/E error, W/C/R warning). `# iglint: ignore[SCR900]` applies. pylint missing or failing: one run warning, other rules unaffected, no cache entries for the affected files. Fixes of other rules move its findings without re-running pylint. Fix: ign-lint's trailing-whitespace fix (C0303, every line `rstrip()`ed; unsafe inside multi-line strings). Messages a native rule also reports (same range and name) are dropped. |
 
 ## REF: references between resources
 

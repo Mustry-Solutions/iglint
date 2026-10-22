@@ -2,7 +2,7 @@
 
 # Rules
 
-iglint has 105 rules. Rules with *yes* in the Default column run without configuration; enable the others with `select` or `extend-select` (see the [configuration](../../README.md#configuration)). Fix: *always* or *sometimes* means `iglint check --fix` can repair findings of the rule (unsafe fixes also need `--unsafe-fixes`).
+iglint has 107 rules. Rules with *yes* in the Default column run without configuration; enable the others with `select` or `extend-select` (see the [configuration](../../README.md#configuration)). Fix: *always* or *sometimes* means `iglint check --fix` can repair findings of the rule (unsafe fixes also need `--unsafe-fixes`).
 
 `iglint rule <CODE>` prints the same documentation in the terminal.
 
@@ -16,6 +16,7 @@ iglint has 105 rules. Rules with *yes* in the Default column run without configu
 | [VIEW004](VIEW004.md) | `unknown-component-prop` | Top-level `props` key is not in the component's schema | warning |  |  |
 | [VIEW005](VIEW005.md) | `invalid-position-key` | `position` key not valid for the parent container | warning | yes |  |
 | [VIEW006](VIEW006.md) | `excessive-context-data` | Oversized data stored in view-level custom properties | warning | yes |  |
+| [VIEW007](VIEW007.md) | `invalid-utf8` | File is not valid UTF-8 | error | yes |  |
 | [VIEW008](VIEW008.md) | `empty-script` | Perspective script with an empty body | error | yes |  |
 | [VIEW009](VIEW009.md) | `disabled-change-script` | Property change script is disabled but has code | info | yes |  |
 | [VIEW010](VIEW010.md) | `unknown-action-type` | Event action `type` is not one Ignition knows | error | yes |  |
@@ -81,6 +82,7 @@ iglint has 105 rules. Rules with *yes* in the Default column run without configu
 | [SCR121](SCR121.md) | `global-at-module-level` | `global` statement at module level | info | yes |  |
 | [SCR122](SCR122.md) | `print-statement` | `print` in a script that runs on the gateway | info |  |  |
 | [SCR123](SCR123.md) | `unused-suppression` | `# iglint: ignore[...]` that suppresses nothing | info | yes | always |
+| [SCR124](SCR124.md) | `trailing-whitespace` | Spaces or tabs at the end of a script line | info |  | always |
 | [SCR201](SCR201.md) | `unknown-system-function` | `system.*` member that does not exist in Ignition 8.3 | error | yes |  |
 | [SCR202](SCR202.md) | `system-function-arity` | `system.*` call with arguments that match no signature | error | yes |  |
 | [SCR203](SCR203.md) | `unknown-system-keyword` | Keyword argument a `system.*` function does not accept | error | yes |  |
@@ -93,7 +95,7 @@ iglint has 105 rules. Rules with *yes* in the Default column run without configu
 | [SCR304](SCR304.md) | `shadowed-library-package` | Library module with its own `code.py` hides its child modules | error | yes |  |
 | [SCR305](SCR305.md) | `unresolved-component-reference` | `getSibling`/`getChild` with a literal name that matches no component | error | yes |  |
 | [SCR306](SCR306.md) | `message-handler-payload-misuse` | Message handler reads a payload key that no sender sends | warning |  |  |
-| [SCR900](SCR900.md) | `pylint` | Message reported by pylint | warning |  |  |
+| [SCR900](SCR900.md) | `pylint` | Message reported by pylint | warning |  | sometimes |
 
 ## References (`REF`)
 

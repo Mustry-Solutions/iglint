@@ -21,12 +21,15 @@ use std::sync::OnceLock;
 #[derive(Clone, Default)]
 pub struct FileTable {
     files: Vec<Option<SourceFile>>,
+    /// Paths of the files with invalid UTF-8 (normally none).
+    invalid_utf8: Vec<std::path::PathBuf>,
 }
 
 impl FileTable {
     pub fn with_len(len: usize) -> Self {
         FileTable {
             files: vec![None; len],
+            invalid_utf8: Vec::new(),
         }
     }
 
@@ -35,7 +38,15 @@ impl FileTable {
         if i >= self.files.len() {
             self.files.resize(i + 1, None);
         }
+        if !file.invalid_utf8().is_empty() {
+            self.invalid_utf8.push(file.path().to_path_buf());
+        }
         self.files[i] = Some(file);
+    }
+
+    /// Whether `path` is a file of the table with invalid UTF-8.
+    fn has_invalid_utf8(&self, path: &std::path::Path) -> bool {
+        self.invalid_utf8.iter().any(|p| p == path)
     }
 
     pub fn get(&self, id: FileId) -> Option<&SourceFile> {
@@ -147,6 +158,10 @@ impl<'c, 'a> Checker<'c, 'a> {
     }
 
     // ---- the running rule ----
+
+    fn invalid_utf8_rule(&self) -> RuleCode {
+        RuleCode::new(&crate::rules::view::invalid_utf8::META)
+    }
 
     pub fn rule(&self) -> RuleCode {
         self.active.rule
@@ -262,7 +277,11 @@ impl<'c, 'a> Checker<'c, 'a> {
         message: impl Into<String>,
     ) -> Report<'_> {
         let diagnostic = self.unit.files.get(file).and_then(|source| {
-            (range.end().to_usize() <= source.text().len()).then(|| {
+            // A finding at an invalid UTF-8 sequence is about the
+            // substitute character; `VIEW007` reports the sequence itself.
+            let about_substitute =
+                self.active.rule != self.invalid_utf8_rule() && source.touches_invalid_utf8(range);
+            (range.end().to_usize() <= source.text().len() && !about_substitute).then(|| {
                 Diagnostic::new(
                     self.active.rule,
                     self.active.severity,
@@ -369,8 +388,15 @@ impl Report<'_> {
         self
     }
 
+    /// Fixes that edit a file with invalid UTF-8 are dropped: writing its
+    /// text back would replace the invalid bytes.
     pub fn fix(mut self, fix: Fix) -> Self {
-        if let Some(d) = &mut self.diagnostic {
+        if let Some(d) = &mut self.diagnostic
+            && !fix
+                .edits
+                .iter()
+                .any(|e| self.files.has_invalid_utf8(&e.path))
+        {
             d.fix = Some(fix);
         }
         self

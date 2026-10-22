@@ -30,16 +30,54 @@ from 0.1.0 on.
   `redefined-outer-name`, `function-redefined`), also with a `pylintrc`
   of its own.
 - Benchmark and parity harness in `bench/` (see bench/README.md).
+- `SCR124` trailing-whitespace (off by default, safe fix).
+- `SCR900` fixes pylint's `trailing-whitespace` like ign-lint's
+  `PylintScriptRule` (every script line `rstrip()`ed).
 
 ### Fixed
 
 - `iglint ign-lint` prints ign-lint node paths for every finding,
   including BIND005 findings in query binding parameters and other binding
   expressions.
-
 - `\N{...}` escapes in unicode literals resolve every name IA's Jython
   2.7.3 accepts (its Unicode 9.0 table, with its lookup quirks); unknown
   names are reported as SCR001, as Jython rejects them.
+- `iglint ign-lint` groups pylint messages by category
+  (`Pylint - Convention (C):`) like ign-lint.
+- pylint messages that a native rule also reports (same place and name)
+  are shown once.
+- SARIF artifact URIs are percent-encoded (RFC 3986, per path segment) in
+  results, related locations and fixes; files outside the working
+  directory get absolute `file:` URIs instead of a path relative to
+  `%SRCROOT%`.
+- Azure Pipelines messages no longer show `%3B`/`%5D`: only `%`, `\r` and
+  `\n` are escaped in the message, `;` and `]` only in properties.
+- Fixes that delete statements (`SCR102`, `SCR103`) no longer empty a block
+  when several of them remove every statement of it: the last one becomes
+  `pass`.
+- Fixing never makes a file worse: when the fixes of a pass make a script
+  or expression stop parsing or compiling, empty a Perspective script or
+  break the JSON, they are applied one at a time and the offending ones are
+  dropped and reported (`warning: ...: fix not applied`).
+- `SCR102` no longer reports top-level imports of library modules that other
+  resources use as `pkg.mod.name`, and its fix is unsafe when such uses
+  cannot be ruled out.
+- `SCR101` no longer reports names created by `exec code in globals()` (and
+  the other qualified `exec` forms that write the module or the function's
+  locals), by `setattr(sys.modules[__name__], ...)`,
+  `sys.modules[__name__].x = ...` or by writes to the builtins.
+- `SCR108` compares keys with Python 2.7 equality: `True` and `1`, `0j` and
+  `0`, equal tuples, `1e16` and `10000000000000000` are duplicates.
+- `except ValueError, TypeError:` is reported once, by `SCR115`; `SCR103`
+  and `SCR117` no longer report the same name.
+- `iglint ign-lint`: the timestamps of the `--timing-output` report and of
+  the aggregated `--results-output` summary are in local time, like
+  ign-lint's.
+- `All checks passed!` (and `iglint ign-lint`'s "No style inconsistencies
+  found!") is no longer printed when the run had errors.
+- Files that are not valid UTF-8 are linted instead of failing the run: the
+  new rule `VIEW007 invalid-utf8` reports the invalid bytes (Ignition
+  replaces them with U+FFFD), and such files get no fixes.
 
 ## [0.1.0]
 

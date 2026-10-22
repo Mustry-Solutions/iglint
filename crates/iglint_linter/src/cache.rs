@@ -20,7 +20,7 @@ use iglint_text::{TextEdit, TextRange, TextSize};
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::{
-    Applicability, Diagnostic, FileEdit, Fix, Fnv64, Label, Severity, SourceFile,
+    Applicability, Diagnostic, FileEdit, Fix, Fnv64, Label, Severity, SourceFile, SuiteGuard,
 };
 use crate::discovery::FileKind;
 use crate::settings::{LinterSettings, ProjectSettings};
@@ -111,6 +111,8 @@ struct CachedFix {
     message: String,
     applicability: String,
     edits: Vec<(u32, u32, String)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    suite: Option<(u32, u32)>,
 }
 
 pub(crate) struct Cache {
@@ -166,6 +168,11 @@ impl Cache {
         hasher.write(format!("{settings:?}").as_bytes());
         hasher.write(&(file.text().len() as u64).to_le_bytes());
         hasher.write(file.text().as_bytes());
+        // The text has a substitute where the file is not UTF-8.
+        for bad in file.invalid_utf8() {
+            hasher.write(&bad.start().to_u32().to_le_bytes());
+            hasher.write(&bad.end().to_u32().to_le_bytes());
+        }
         format!("{:016x}", hasher.finish())
     }
 
@@ -274,6 +281,7 @@ fn store(d: &Diagnostic, file: &SourceFile) -> Option<CachedDiagnostic> {
                         (start, end, e.edit.content.clone())
                     })
                     .collect(),
+                suite: fix.suite.map(|g| (g.key, g.statements)),
             })
         }
     };
@@ -346,6 +354,9 @@ fn restore(
                 _ => Applicability::DisplayOnly,
             },
             edits,
+            suite: fix
+                .suite
+                .map(|(key, statements)| SuiteGuard { key, statements }),
         });
     }
     Some(diagnostic)

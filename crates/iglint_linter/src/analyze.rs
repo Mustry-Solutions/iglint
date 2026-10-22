@@ -46,7 +46,9 @@ use crate::cache::Cache;
 use crate::checker::{Checker, FileTable, Unit, UnitCache};
 use crate::diagnostic::{Diagnostic, SourceFile};
 use crate::discovery::{FileKind, absolute};
-use crate::engine::{CheckOptions, CheckedFile, FileError, Outcome, fix_file};
+use crate::engine::{
+    CheckOptions, CheckedFile, FileError, Outcome, Reanalysis, fix_file, health_settings,
+};
 use crate::registry::RuleCode;
 use crate::rule::{PhaseHooks, RuleImpl, RuleSet, RuleSetCache, ScriptUnit};
 
@@ -147,14 +149,14 @@ pub(crate) fn analyze_with(
         .collect();
 
     // Standalone targets: read them now so the file table is complete.
-    let standalone: Vec<(usize, Result<Arc<str>, String>)> = (0..targets.len())
+    let standalone: Vec<(usize, Result<Decoded, String>)> = (0..targets.len())
         .filter(|i| !in_workspace[*i])
         .collect::<Vec<_>>()
         .into_par_iter()
         .map(|i| {
             let t = &targets[i];
             let text = match &t.stdin {
-                Some(text) => Ok(Arc::clone(text)),
+                Some(text) => Ok((Arc::clone(text), Vec::new())),
                 None => read_text(&t.path),
             };
             (i, text)
@@ -172,7 +174,10 @@ pub(crate) fn analyze_with(
     for l in &loaded {
         for f in &l.files {
             if let Some(text) = shared_text(f) {
-                table.insert(f.file, SourceFile::new(display(f.file), text));
+                table.insert(
+                    f.file,
+                    SourceFile::decoded(display(f.file), text, f.invalid_utf8.clone()),
+                );
             }
         }
     }
@@ -180,21 +185,33 @@ pub(crate) fn analyze_with(
         let doc = &r.manifest.doc;
         table.insert(
             r.manifest.file,
-            SourceFile::new(display(r.manifest.file), Arc::clone(doc.shared_text())),
+            SourceFile::decoded(
+                display(r.manifest.file),
+                Arc::clone(doc.shared_text()),
+                r.manifest.invalid_utf8.clone(),
+            ),
         );
     }
     for p in &ws.projects {
         let doc = &p.manifest.doc;
         table.insert(
             p.manifest.file,
-            SourceFile::new(display(p.manifest.file), Arc::clone(doc.shared_text())),
+            SourceFile::decoded(
+                display(p.manifest.file),
+                Arc::clone(doc.shared_text()),
+                p.manifest.invalid_utf8.clone(),
+            ),
         );
     }
     for c in &ws.collections {
         let doc = &c.manifest.doc;
         table.insert(
             c.manifest.file,
-            SourceFile::new(display(c.manifest.file), Arc::clone(doc.shared_text())),
+            SourceFile::decoded(
+                display(c.manifest.file),
+                Arc::clone(doc.shared_text()),
+                c.manifest.invalid_utf8.clone(),
+            ),
         );
     }
     let mut errors_by_target: FxHashMap<usize, String> = FxHashMap::default();
@@ -206,11 +223,11 @@ pub(crate) fn analyze_with(
         .filter_map(|(f, t)| t.map(|t| (FileId(f as u32), t)))
         .filter(|(f, _)| table.get(*f).is_none())
         .collect();
-    let unread_texts: Vec<(FileId, usize, Result<Arc<str>, String>)> = unread
+    let unread_texts: Vec<(FileId, usize, Result<Decoded, String>)> = unread
         .into_par_iter()
         .map(|(f, t)| {
             let text = match &targets[t].stdin {
-                Some(text) => Ok(Arc::clone(text)),
+                Some(text) => Ok((Arc::clone(text), Vec::new())),
                 None => read_text(&targets[t].path),
             };
             (f, t, text)
@@ -218,7 +235,10 @@ pub(crate) fn analyze_with(
         .collect();
     for (f, t, text) in unread_texts {
         match text {
-            Ok(text) => table.insert(f, SourceFile::new(targets[t].path.clone(), text)),
+            Ok((text, invalid)) => table.insert(
+                f,
+                SourceFile::decoded(targets[t].path.clone(), text, invalid),
+            ),
             Err(message) => {
                 errors_by_target.insert(t, message);
             }
@@ -227,11 +247,11 @@ pub(crate) fn analyze_with(
     let mut standalone_files: Vec<(usize, FileId, Arc<str>)> = Vec::new();
     for (k, (t, text)) in standalone.into_iter().enumerate() {
         match text {
-            Ok(text) => {
+            Ok((text, invalid)) => {
                 let id = FileId((ws.files.len() + k) as u32);
                 table.insert(
                     id,
-                    SourceFile::new(targets[t].path.clone(), Arc::clone(&text)),
+                    SourceFile::decoded(targets[t].path.clone(), Arc::clone(&text), invalid),
                 );
                 standalone_files.push((t, id, text));
             }
@@ -713,8 +733,12 @@ pub(crate) fn analyze_with(
                     .cloned()
                     .collect::<Vec<_>>(),
             );
-            let reanalyze = |text: &str, edits: &[TextEdit]| -> Vec<Diagnostic> {
+            let reanalyze = |text: &str, edits: &[TextEdit], what: Reanalysis| -> Vec<Diagnostic> {
                 let text: Arc<str> = Arc::from(text);
+                let settings = match what {
+                    Reanalysis::Lint => &target.settings,
+                    Reanalysis::Health => health_settings(),
+                };
                 let mut out = match (file_of_target.get(&t), standalone_by_target.get(&t)) {
                     (Some(f), _) => reanalyze_resource(
                         rules,
@@ -723,14 +747,24 @@ pub(crate) fn analyze_with(
                         &target_of,
                         &targets,
                         &overrides,
+                        settings,
                         *f,
                         Arc::clone(&text),
                     ),
-                    (None, Some(s)) => {
-                        reanalyze_standalone(rules, &ws, &index, target, s.file, Arc::clone(&text))
-                    }
+                    (None, Some(s)) => reanalyze_standalone(
+                        rules,
+                        &ws,
+                        &index,
+                        target,
+                        settings,
+                        s.file,
+                        Arc::clone(&text),
+                    ),
                     _ => Vec::new(),
                 };
+                if what == Reanalysis::Health {
+                    return out;
+                }
                 let mut carried = carried.borrow_mut();
                 if !carried.is_empty() {
                     let file = SourceFile::new(target.path.clone(), text);
@@ -1073,12 +1107,19 @@ pub(crate) fn shared_text(f: &LoadedFile) -> Option<Arc<str>> {
     }
 }
 
-pub(crate) fn read_text(path: &Path) -> Result<Arc<str>, String> {
+/// A file's text and its invalid UTF-8 sequences (see
+/// [`iglint_text::decode_utf8`]).
+pub(crate) type Decoded = (Arc<str>, Vec<TextRange>);
+
+/// Reads a file. Invalid UTF-8 is not an error: Ignition reads the file
+/// too, with U+FFFD in place of the invalid sequences, and `VIEW007`
+/// reports them.
+pub(crate) fn read_text(path: &Path) -> Result<Decoded, String> {
     match std::fs::read(path) {
-        Ok(bytes) => match String::from_utf8(bytes) {
-            Ok(text) => Ok(Arc::from(text)),
-            Err(_) => Err("file is not valid UTF-8".to_owned()),
-        },
+        Ok(bytes) => {
+            let (text, invalid) = iglint_text::decode_utf8(bytes);
+            Ok((Arc::from(text), invalid))
+        }
         Err(error) => Err(error.to_string()),
     }
 }
@@ -1107,6 +1148,7 @@ pub(crate) fn load(
 
 pub(crate) fn replace_text(f: &mut LoadedFile, text: Arc<str>) {
     f.error = None;
+    f.invalid_utf8.clear();
     if f.kind.is_json() {
         f.json = Some(JsonDocument::parse(text));
         f.text = None;
@@ -1167,6 +1209,7 @@ fn reanalyze_resource(
     target_of: &[Option<usize>],
     targets: &[Target],
     overrides: &FxHashMap<FileId, Arc<str>>,
+    settings: &LinterSettings,
     file: FileId,
     text: Arc<str>,
 ) -> Vec<Diagnostic> {
@@ -1180,7 +1223,7 @@ fn reanalyze_resource(
         file,
         SourceFile::new(target.path.clone(), Arc::clone(&text)),
     );
-    let set = RuleSet::build(rules, &target.settings);
+    let set = RuleSet::build(rules, settings);
     let mut out = Vec::new();
     let Some(rid) = entry.resource else {
         return out;
@@ -1214,7 +1257,7 @@ fn reanalyze_resource(
     };
     run_phase(&unit, None, &set, &set.local, &mut out);
     run_phase(&unit, Some(index), &set, &set.project, &mut out);
-    out.retain(|d| d.file.path() == target.path && target.settings.is_enabled(d.rule));
+    out.retain(|d| d.file.path() == target.path && settings.is_enabled(d.rule));
     out
 }
 
@@ -1223,6 +1266,7 @@ fn reanalyze_standalone(
     ws: &Workspace,
     index: &ProjectIndex<'_>,
     target: &Target,
+    settings: &LinterSettings,
     file: FileId,
     text: Arc<str>,
 ) -> Vec<Diagnostic> {
@@ -1233,7 +1277,7 @@ fn reanalyze_standalone(
     );
     let doc = is_json(&target.path).then(|| JsonDocument::parse(Arc::clone(&text)));
     let (data, errors) = standalone_model(&target.path, file, doc.as_ref(), &text);
-    let set = RuleSet::build(rules, &target.settings);
+    let set = RuleSet::build(rules, settings);
     let cache = UnitCache::default();
     let unit = Unit {
         ws,
@@ -1252,8 +1296,6 @@ fn reanalyze_standalone(
     out
 }
 
-/// Hash of every file the run may read: cached results are only valid when
-/// nothing in the workspace changed.
 /// Hash of the workspace layout: every file's path, and the text of every
 /// file that is not a data file of a resource (manifests, standalone
 /// files). Data files enter the cache context through their summaries.
@@ -1276,6 +1318,12 @@ fn layout_hash(ws: &Workspace, table: &FileTable) -> u64 {
             if !is_data {
                 hasher.write_usize(f.text().len());
                 hasher.write(f.text().as_bytes());
+            }
+            // Invalid UTF-8 is replaced in the text; its positions are not
+            // in any summary.
+            for bad in f.invalid_utf8() {
+                hasher.write_u32(bad.start().to_u32());
+                hasher.write_u32(bad.end().to_u32());
             }
         }
     }

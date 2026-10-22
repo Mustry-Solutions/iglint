@@ -157,6 +157,7 @@ fn output(format: OutputFormat, diagnostics: &[Diagnostic], color: bool) -> Stri
         fix_mode: FixMode::None,
         unsafe_fixes: false,
         files_checked: 3,
+        errors: 0,
     };
     let mut out = Vec::new();
     render(format, &report, &mut out).unwrap();
@@ -366,6 +367,7 @@ fn summary(
         fix_mode,
         unsafe_fixes,
         files_checked: 3,
+        errors: 0,
     };
     let mut out = Vec::new();
     render_summary(&report, fixed, &mut out).unwrap();
@@ -382,6 +384,23 @@ fn summaries() {
     assert_eq!(
         summary(&[], 2, FixMode::Safe, false),
         "Fixed 2 issues.\nAll checks passed!\n"
+    );
+    let settings = settings();
+    let report = Report {
+        diagnostics: &[],
+        cwd: Path::new("/repo"),
+        settings: &settings,
+        color: false,
+        fix_mode: FixMode::None,
+        unsafe_fixes: false,
+        files_checked: 3,
+        errors: 1,
+    };
+    let mut out = Vec::new();
+    render_summary(&report, 0, &mut out).unwrap();
+    assert_eq!(
+        String::from_utf8(out).unwrap(),
+        "No findings, but the check is incomplete: 1 error.\n"
     );
     assert_eq!(
         summary(&all, 0, FixMode::None, false),
@@ -424,6 +443,7 @@ fn statistics() {
         fix_mode: FixMode::None,
         unsafe_fixes: false,
         files_checked: 3,
+        errors: 0,
     };
     let mut text = Vec::new();
     render_statistics(OutputFormat::Text, &report, &mut text).unwrap();

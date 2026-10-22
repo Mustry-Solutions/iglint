@@ -21,7 +21,7 @@ use iglint_python_semantic::{SemanticModel, SemanticOptions};
 use iglint_text::{TextEdit, TextRange, TextSize};
 
 use crate::checker::{Checker, Report};
-use crate::diagnostic::{Applicability, Fix};
+use crate::diagnostic::{Applicability, Fix, SuiteGuard};
 use crate::rule::ScriptUnit;
 
 pub mod assert_on_tuple;
@@ -53,6 +53,7 @@ pub mod sleep_in_event_script;
 pub mod syntax_error;
 pub mod system_api;
 pub mod system_function_arity;
+pub mod trailing_whitespace;
 pub mod undefined_name;
 pub mod unknown_system_function;
 pub mod unknown_system_keyword;
@@ -172,6 +173,7 @@ pub fn fix(
         message: message.into(),
         applicability,
         edits,
+        suite: None,
     })
 }
 
@@ -233,17 +235,117 @@ pub fn indentation_at(source: &str, offset: TextSize) -> &str {
     &line[..len]
 }
 
+/// An edit of the script source that may delete a statement of a suite.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StatementEdit {
+    pub range: TextRange,
+    pub content: String,
+    /// When the edit deletes a statement: the start of the suite's first
+    /// statement and the number of statements in the suite.
+    pub suite: Option<(TextSize, u32)>,
+}
+
+impl StatementEdit {
+    pub fn replace(range: TextRange, content: impl Into<String>) -> Self {
+        StatementEdit {
+            range,
+            content: content.into(),
+            suite: None,
+        }
+    }
+}
+
 /// Edits that delete `stmt`, which is an element of `body`: the whole line
 /// when the statement is alone on it, replaced by `pass` when it is the
-/// only statement of its block.
-pub fn delete_statement(source: &str, body: &[Stmt], stmt: &Stmt) -> Option<(TextRange, String)> {
+/// only statement of its block. Deletions carry their suite, so that fixes
+/// deleting several statements of one suite never empty it in one pass
+/// (the last one is replaced by `pass` in the next pass).
+pub fn delete_statement(source: &str, body: &[Stmt], stmt: &Stmt) -> Option<StatementEdit> {
     let range = iglint_text::Ranged::range(stmt);
     let lines = statement_line_range(source, range)?;
     if body.len() == 1 {
-        Some((range, "pass".to_owned()))
+        Some(StatementEdit::replace(range, "pass"))
     } else {
-        Some((lines, String::new()))
+        let first = iglint_text::Ranged::range(&body[0]).start();
+        Some(StatementEdit {
+            range: lines,
+            content: String::new(),
+            suite: Some((first, u32::try_from(body.len()).ok()?)),
+        })
     }
+}
+
+/// A fix made of one [`StatementEdit`]; see [`fix`].
+pub fn statement_fix(
+    cx: &Checker<'_, '_>,
+    unit: &ScriptUnit<'_, '_>,
+    message: impl Into<String>,
+    applicability: Applicability,
+    edit: StatementEdit,
+) -> Option<Fix> {
+    let fixed = fix(
+        cx,
+        unit,
+        message,
+        applicability,
+        vec![(edit.range, edit.content)],
+    )?;
+    Some(match edit.suite {
+        Some((first, statements)) => {
+            let key = unit.script.file_range(TextRange::empty(first)).start();
+            fixed.deleting_from(SuiteGuard {
+                key: key.to_u32(),
+                statements,
+            })
+        }
+        None => fixed,
+    })
+}
+
+/// Python's `str.isspace` (what `str.rstrip()` removes).
+pub fn is_python_space(c: char) -> bool {
+    c.is_whitespace() || ('\x1c'..='\x1f').contains(&c)
+}
+
+/// Trailing whitespace of the lines of `source` from offset `from`: per
+/// line (split at `\n`), the run of characters at its end for which
+/// `is_space` holds. With `keep_cr`, a `\r` right before the `\n` is the
+/// line break and not part of the run.
+pub fn trailing_whitespace(
+    source: &str,
+    from: TextSize,
+    keep_cr: bool,
+    is_space: fn(char) -> bool,
+) -> Vec<TextRange> {
+    let mut out = Vec::new();
+    let mut start = from.to_usize();
+    while start <= source.len() {
+        let end = source[start..]
+            .find('\n')
+            .map_or(source.len(), |i| start + i);
+        let mut line = &source[start..end];
+        if keep_cr && end < source.len() {
+            line = line.strip_suffix('\r').unwrap_or(line);
+        }
+        let kept = line.trim_end_matches(is_space).len();
+        if kept < line.len() {
+            out.push(TextRange::from(start + kept..start + line.len()));
+        }
+        start = end + 1;
+    }
+    out
+}
+
+/// The ranges of the string literals of a parsed script (whitespace in a
+/// multi-line string is data, not trailing whitespace).
+pub fn string_ranges(parsed: &iglint_python::Parsed) -> Vec<TextRange> {
+    let mut out = Vec::new();
+    walk_exprs(&parsed.module.body, &mut |e| {
+        if let Expr::Str(s) = e {
+            out.push(s.range);
+        }
+    });
+    out
 }
 
 /// The statement list that directly contains `target`, searching the
