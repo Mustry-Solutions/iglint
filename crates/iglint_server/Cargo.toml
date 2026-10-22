@@ -3,9 +3,23 @@ name = "iglint_server"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Language server for iglint"
 
 [lints]
 workspace = true
 
 [dependencies]
+iglint_config.workspace = true
+iglint_linter.workspace = true
+iglint_text.workspace = true
 anyhow.workspace = true
+crossbeam-channel = "0.5"
+lsp-server = "0.7"
+lsp-types = "0.95"
+rustc-hash = "2"
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+iglint_project.workspace = true

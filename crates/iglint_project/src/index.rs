@@ -399,6 +399,13 @@ impl<'w> ProjectIndex<'w> {
         self.ws
     }
 
+    /// Takes the summaries back, in resource id order, so that a caller that
+    /// keeps them between runs (the language server) can update one and
+    /// rebuild the index without copying the others.
+    pub fn into_summaries(self) -> Vec<ResourceSummary> {
+        self.summaries.into_iter().flatten().collect()
+    }
+
     /// The summary of a resource.
     pub fn summary(&self, id: ResourceId) -> Option<&ResourceSummary> {
         self.summaries.get(id.index())?.as_ref()

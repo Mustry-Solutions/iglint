@@ -666,7 +666,7 @@ pub(crate) fn run_phase(
 
 /// Feeds the literal references of a resource's scripts into its summary
 /// (see [`crate::script_facts`]).
-fn add_script_references(data: &ModelData<'_>, cache: &UnitCache, summary: &mut ResourceSummary) {
+pub(crate) fn add_script_references(data: &ModelData<'_>, cache: &UnitCache, summary: &mut ResourceSummary) {
     let scripts = data.scripts();
     if scripts.is_empty() {
         return;
@@ -685,7 +685,7 @@ fn add_script_references(data: &ModelData<'_>, cache: &UnitCache, summary: &mut 
 }
 
 /// The file most findings of a resource go to.
-fn primary_file(model: &ResourceModel<'_>) -> FileId {
+pub(crate) fn primary_file(model: &ResourceModel<'_>) -> FileId {
     let data_file = match &model.data {
         ModelData::View { file, .. }
         | ModelData::SessionProps { file, .. }
@@ -702,14 +702,14 @@ fn primary_file(model: &ResourceModel<'_>) -> FileId {
     data_file.unwrap_or(model.resource.manifest.file)
 }
 
-fn shared_text(f: &LoadedFile) -> Option<Arc<str>> {
+pub(crate) fn shared_text(f: &LoadedFile) -> Option<Arc<str>> {
     match &f.json {
         Some(doc) => Some(Arc::clone(doc.shared_text())),
         None => f.text.clone(),
     }
 }
 
-fn read_text(path: &Path) -> Result<Arc<str>, String> {
+pub(crate) fn read_text(path: &Path) -> Result<Arc<str>, String> {
     match std::fs::read(path) {
         Ok(bytes) => match String::from_utf8(bytes) {
             Ok(text) => Ok(Arc::from(text)),
@@ -719,13 +719,13 @@ fn read_text(path: &Path) -> Result<Arc<str>, String> {
     }
 }
 
-fn is_json(path: &Path) -> bool {
+pub(crate) fn is_json(path: &Path) -> bool {
     path.extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("json"))
 }
 
 /// Loads a resource, replacing files whose text is given in `overrides`.
-fn load(ws: &Workspace, id: ResourceId, overrides: &FxHashMap<FileId, Arc<str>>) -> LoadedResource {
+pub(crate) fn load(ws: &Workspace, id: ResourceId, overrides: &FxHashMap<FileId, Arc<str>>) -> LoadedResource {
     let mut loaded = ws.load_resource(id);
     if !overrides.is_empty() {
         for f in &mut loaded.files {
@@ -737,7 +737,7 @@ fn load(ws: &Workspace, id: ResourceId, overrides: &FxHashMap<FileId, Arc<str>>)
     loaded
 }
 
-fn replace_text(f: &mut LoadedFile, text: Arc<str>) {
+pub(crate) fn replace_text(f: &mut LoadedFile, text: Arc<str>) {
     f.error = None;
     if f.kind.is_json() {
         f.json = Some(JsonDocument::parse(text));
@@ -750,7 +750,7 @@ fn replace_text(f: &mut LoadedFile, text: Arc<str>) {
 
 /// The model of a file outside any resource: views are modelled as views,
 /// Python files as modules, other JSON files only by their parse result.
-fn standalone_model<'a>(
+pub(crate) fn standalone_model<'a>(
     path: &Path,
     file: FileId,
     doc: Option<&'a JsonDocument>,
