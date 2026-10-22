@@ -9,6 +9,8 @@ from 0.1.0 on.
 
 - `SCR108` compares keys with Python 2.7 equality: `True` and `1`, `0j` and
   `0`, equal tuples, `1e16` and `10000000000000000` are duplicates.
+- `except ValueError, TypeError:` is reported once, by `SCR115`; `SCR103`
+  and `SCR117` no longer report the same name.
 
 ## [0.1.0]
 
