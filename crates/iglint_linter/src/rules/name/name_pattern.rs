@@ -50,11 +50,15 @@ the same name elsewhere in the view is left alone.
 The fix is offered only when every reference can be updated: a literal
 lookup on an unresolvable receiver naming the component, a suggestion that
 is taken by a sibling or that would itself break the convention, means no
-fix. It is *safe* when the view has nothing that could refer to the
-component in a way iglint cannot follow (no references at all, no script
-reads `meta.name`, no script looks up children with computed names or has a
-string literal equal to the name, every script parses), and *unsafe*
-otherwise.
+fix. It is *safe* when nothing could refer to the component in a way
+iglint cannot follow: no references at all, no script reads `meta.name`,
+no script looks up children with computed names or has a string literal
+equal to the name, every script parses, and no script hands a component
+to code outside the view (passing `self`, `self.parent`, `event.source`
+or another component to a library function, in a message payload, to
+`getGlobals()` or to any call iglint does not model): a library function
+that receives a component may call `getChild('SaveButton')` itself. It is
+*unsafe* otherwise.
 
 Keys of `props` that the component's schema declares (`text`, `style`,
 `pipes`, ...) are Ignition's names, not yours, and are never checked; only
@@ -722,6 +726,7 @@ fn rename_fix(
         count += 1;
     }
     let risky = count > 0
+        || components_may_escape(cx)
         || refs.meta_name_read.contains(&c.id)
         || refs.dynamic_meta_name
         || refs.dynamic_lookup
@@ -733,6 +738,21 @@ fn rename_fix(
     } else {
         Fix::safe(message, edits)
     })
+}
+
+/// Whether a script of the view may hand a component to code outside the
+/// view (`util.initialise(self)`, a message payload, `getGlobals()`),
+/// which can then look up children by name; or the scripts were not all
+/// followed.
+fn components_may_escape(cx: &Checker<'_, '_>) -> bool {
+    let (accesses, complete) = cx.script_property_accesses();
+    !complete
+        || accesses.iter().any(|a| {
+            a.target == crate::script_facts::AccessTarget::AnyComponent
+                && a.name.is_none()
+                && a.read
+                && a.write
+        })
 }
 
 // ---- properties ----
@@ -1316,5 +1336,33 @@ skip-names = ["root", "Legacy_Name"]"#,
         assert!(parse("[per-type.widget]\nconvention = \"camelCase\"").is_err());
         assert!(parse("custom-pattern = \"(\"").is_err());
         assert!(parse("[per-type.component]\nseverity = \"info\"").is_err());
+    }
+
+    /// A component handed to a library function can be looked up there by
+    /// name: the rename is unsafe (the library is not updated).
+    #[test]
+    fn components_passed_out_of_the_view_make_the_rename_unsafe() {
+        let rules = [("NAME001", "convention = \"camelCase\"")];
+        for script in [
+            r#"\tutil.initialise(self)"#,
+            r#"\tsystem.util.getGlobals()['c'] = self.rootContainer"#,
+            r#"\tsystem.perspective.sendMessage('m', payload={'c': self})"#,
+        ] {
+            let root_json = format!(
+                r#"{{"custom": {{}}, "params": {{}}, "events": {{"system": {{"onStartup": {{"type": "script", "scope": "G", "config": {{"script": "{script}"}}}}}}}}, "root": {{"meta": {{"name": "root"}}, "type": "ia.container.flex", "children": [{}]}}}}"#,
+                component("SaveButton", "ia.input.button", "")
+            );
+            let f = crate::rules::script::testing::with_library(
+                Fixture::view(&root_json),
+                "util",
+                "def initialise(component):\n    component.getChild(\"SaveButton\").props.text = \"Ready\"\n",
+            );
+            let d = f.lint_with(&rules);
+            assert_eq!(
+                d[0].fix.as_ref().map(|f| f.applicability),
+                Some(crate::Applicability::Unsafe),
+                "{script}"
+            );
+        }
     }
 }

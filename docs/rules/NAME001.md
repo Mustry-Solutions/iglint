@@ -35,11 +35,15 @@ the same name elsewhere in the view is left alone.
 The fix is offered only when every reference can be updated: a literal
 lookup on an unresolvable receiver naming the component, a suggestion that
 is taken by a sibling or that would itself break the convention, means no
-fix. It is *safe* when the view has nothing that could refer to the
-component in a way iglint cannot follow (no references at all, no script
-reads `meta.name`, no script looks up children with computed names or has a
-string literal equal to the name, every script parses), and *unsafe*
-otherwise.
+fix. It is *safe* when nothing could refer to the component in a way
+iglint cannot follow: no references at all, no script reads `meta.name`,
+no script looks up children with computed names or has a string literal
+equal to the name, every script parses, and no script hands a component
+to code outside the view (passing `self`, `self.parent`, `event.source`
+or another component to a library function, in a message payload, to
+`getGlobals()` or to any call iglint does not model): a library function
+that receives a component may call `getChild('SaveButton')` itself. It is
+*unsafe* otherwise.
 
 Keys of `props` that the component's schema declares (`text`, `style`,
 `pipes`, ...) are Ignition's names, not yours, and are never checked; only
