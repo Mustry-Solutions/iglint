@@ -1,0 +1,20 @@
+[package]
+name = "iglint_bench_gen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Deterministic generator of synthetic Ignition 8.3 projects for benchmarks"
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "iglint-bench-gen"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+rayon.workspace = true
+serde_json.workspace = true

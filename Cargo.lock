@@ -402,6 +402,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "iglint_bench_gen"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "rayon",
+ "serde_json",
+]
+
+[[package]]
 name = "iglint_config"
 version = "0.1.0"
 dependencies = [
