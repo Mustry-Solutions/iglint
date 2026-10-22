@@ -343,6 +343,7 @@ pub fn run(
         fix_mode: mode,
         unsafe_fixes: args.unsafe_fixes,
         files_checked: result.files_checked,
+        errors: result.errors.len(),
     };
     let fixes_applied = result.fixes_applied();
 

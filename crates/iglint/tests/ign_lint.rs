@@ -317,6 +317,12 @@ fn invalid_json_is_reported_and_the_run_continues() {
     );
     // b and the empty c count as processed.
     assert!(run.stdout.contains("  Files processed: 2\n"));
+    // No success line after an error.
+    assert!(
+        !run.stdout.contains("No style inconsistencies found"),
+        "{}",
+        run.stdout
+    );
 }
 
 #[test]

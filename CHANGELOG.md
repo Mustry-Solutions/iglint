@@ -14,6 +14,8 @@ from 0.1.0 on.
 - `iglint ign-lint`: the timestamps of the `--timing-output` report and of
   the aggregated `--results-output` summary are in local time, like
   ign-lint's.
+- `All checks passed!` (and `iglint ign-lint`'s "No style inconsistencies
+  found!") is no longer printed when the run had errors.
 
 ## [0.1.0]
 
