@@ -679,10 +679,20 @@ impl Server {
     }
 
     fn publish(&mut self, path: &Path, diagnostics: Vec<Diagnostic>) {
-        let Some(uri) = uri_of(path) else {
-            return;
+        // An open document keeps the client's own URI: on Windows it may
+        // spell the drive differently (`file:///c%3A/...`) from ours.
+        let open = self
+            .documents
+            .iter()
+            .find(|(_, d)| d.path == path)
+            .map(|(uri, d)| (uri.clone(), d.version));
+        let (uri, version) = match open {
+            Some((uri, version)) => (uri, Some(version)),
+            None => match uri_of(path) {
+                Some(uri) => (uri, None),
+                None => return,
+            },
         };
-        let version = self.documents.get(&uri).map(|d| d.version);
         let lsp: Vec<lsp_types::Diagnostic> = diagnostics
             .iter()
             .map(|d| convert::diagnostic(d, &self.options))

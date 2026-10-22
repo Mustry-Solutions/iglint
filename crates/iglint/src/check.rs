@@ -264,8 +264,22 @@ pub fn run(
         .or_else(|| configuration.baseline.clone())
         .unwrap_or_else(|| settings.root.join(DEFAULT_BASELINE_FILE));
     let shown_baseline = output::display_path(&baseline_path, cwd);
+    // Baseline entries this run can judge: files it linted, and files that
+    // no longer exist. A run over some files (pre-commit, an editor) leaves
+    // the entries of the other files alone.
+    let linted: BTreeSet<String> = result
+        .files
+        .iter()
+        .map(|f| settings.relative_path(&f.path))
+        .collect();
+    let in_scope = |path: &str| linted.contains(path) || !settings.root.join(path).exists();
     if update_baseline {
-        let baseline = Baseline::from_diagnostics(settings, &result.diagnostics);
+        let mut baseline = Baseline::from_diagnostics(settings, &result.diagnostics);
+        if baseline_path.is_file()
+            && let Ok(previous) = Baseline::load(&baseline_path)
+        {
+            baseline = baseline.with_entries_outside(&previous, in_scope);
+        }
         if let Err(error) = baseline.save(&baseline_path) {
             err!(io, "error: cannot write baseline {shown_baseline}: {error}");
             return ExitStatus::Error;
@@ -285,12 +299,12 @@ pub fn run(
     if baseline_path.is_file() || baseline_required {
         match Baseline::load(&baseline_path) {
             Ok(baseline) => {
-                let matched = baseline.filter(settings, diagnostics);
+                let mut matched = baseline.filter(settings, diagnostics);
+                matched.stale.retain(|e| in_scope(&e.path));
                 diagnostics = matched.new;
                 suppressed = matched.suppressed;
                 let stale: usize = matched.stale.iter().map(|e| e.count as usize).sum();
                 if stale > 0 && stdin.is_none() {
-                    // Only a full run can tell which entries are stale.
                     if args.prune_baseline {
                         let pruned = baseline.pruned(&matched.stale);
                         if let Err(error) = pruned.save(&baseline_path) {

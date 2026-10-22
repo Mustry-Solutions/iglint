@@ -287,6 +287,28 @@ pub fn skip_reason(settings: &ProjectSettings, file: &Path) -> Option<SkipReason
     None
 }
 
+/// `path` with `/` between components on every platform: `a/b/c.py`,
+/// `/abs/c.py`, `C:/abs/c.py` (Windows). Used for everything users see or
+/// store (displayed paths, baseline paths, glob matching).
+pub fn slash_path(path: &Path) -> String {
+    let mut out = String::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::Prefix(prefix) => {
+                out.push_str(&prefix.as_os_str().to_string_lossy());
+            }
+            std::path::Component::RootDir => out.push('/'),
+            other => {
+                if !out.is_empty() && !out.ends_with('/') {
+                    out.push('/');
+                }
+                out.push_str(&other.as_os_str().to_string_lossy());
+            }
+        }
+    }
+    out
+}
+
 /// Absolute, lexically normalised form of `path` (no symlink resolution, so
 /// it works for paths that do not exist yet).
 pub fn absolute(path: &Path) -> PathBuf {

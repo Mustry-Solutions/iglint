@@ -47,9 +47,7 @@ impl Default for ServerOptions {
             scope: Scope::Open,
             debounce_ms: 10,
             unsafe_fixes: false,
-            rule_docs_url:
-                "https://github.com/Mustry-Solutions/iglint/blob/main/docs/rules/{code}.md"
-                    .to_owned(),
+            rule_docs_url: iglint_linter::registry::RULE_DOCS_URL.to_owned(),
         }
     }
 }

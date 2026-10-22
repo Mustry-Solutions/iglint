@@ -17,6 +17,7 @@ use iglint_linter::engine::Analyzer;
 pub mod args;
 mod check;
 pub mod commands;
+pub mod docs;
 pub mod ign_lint;
 pub mod output;
 
@@ -112,6 +113,7 @@ pub fn run(args: Vec<OsString>, environment: &Environment, io: &mut Io<'_>) -> E
                 ExitStatus::Error
             }
         },
+        args::Command::GenerateDocs(docs_args) => docs::run(&docs_args, environment, io),
         args::Command::IgnLint { args: rest } => {
             let mut ign_lint_args = vec![OsString::from("ign-lint")];
             ign_lint_args.extend(rest);

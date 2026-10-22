@@ -3,7 +3,12 @@ name = "iglint"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 description = "A fast linter for Ignition 8.3 projects"
+readme = "../../README.md"
+keywords = ["ignition", "perspective", "jython", "linter", "scada"]
+categories = ["command-line-utilities", "development-tools"]
 
 [lints]
 workspace = true

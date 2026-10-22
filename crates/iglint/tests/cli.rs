@@ -66,6 +66,66 @@ fn project() -> tempfile::TempDir {
 }
 
 #[test]
+fn runs_over_some_files_keep_the_baseline_of_the_others() {
+    let dir = project();
+    let root = dir.path();
+    write(
+        root,
+        "projects/p/ignition/script-python/other/code.py",
+        "undefined_thing\n",
+    );
+    write(
+        root,
+        "projects/p/ignition/script-python/other/resource.json",
+        "{}\n",
+    );
+    let entries = |root: &Path| -> Vec<String> {
+        let baseline: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join(".iglint-baseline.json")).unwrap(),
+        )
+        .unwrap();
+        baseline["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["path"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    assert_eq!(
+        run(root, &["baseline", "--no-cache"]).status,
+        ExitStatus::Success
+    );
+    let all = entries(root);
+    assert!(all.iter().any(|p| p.ends_with("other/code.py")), "{all:?}");
+    let lib = "projects/p/ignition/script-python/lib/code.py";
+
+    // Linting one file neither reports nor prunes the other file's entries.
+    let one = run(root, &["--no-cache", "--prune-baseline", lib]);
+    assert_eq!(one.status, ExitStatus::Success, "{}", one.stdout);
+    assert!(!one.stderr.contains("Removed"), "{}", one.stderr);
+    assert_eq!(entries(root), all);
+
+    // Rewriting the baseline from one file keeps the other file's entries.
+    write(root, lib, "def f():\n    pass\n");
+    assert_eq!(
+        run(root, &["--no-cache", "--update-baseline", lib]).status,
+        ExitStatus::Success
+    );
+    let kept = entries(root);
+    assert!(
+        kept.iter().all(|p| p.ends_with("other/code.py")),
+        "{kept:?}"
+    );
+    assert!(!kept.is_empty());
+
+    // Entries of deleted files are stale even when other files are linted.
+    std::fs::remove_dir_all(root.join("projects/p/ignition/script-python/other")).unwrap();
+    let pruned = run(root, &["--no-cache", "--prune-baseline", lib]);
+    assert!(pruned.stderr.contains("Removed"), "{}", pruned.stderr);
+    assert!(entries(root).is_empty());
+}
+
+#[test]
 fn default_command_reports_findings() {
     let dir = project();
     let explicit = run(dir.path(), &["check", "--no-cache"]);
@@ -569,7 +629,12 @@ fn help_version_and_ign_lint_dispatch() {
     assert_eq!(version.status, ExitStatus::Success);
     assert_eq!(
         version.stdout,
-        format!("iglint {}\n", env!("CARGO_PKG_VERSION"))
+        format!("iglint {}\n", env!("IGLINT_VERSION"))
+    );
+    assert!(
+        env!("IGLINT_VERSION").starts_with(env!("CARGO_PKG_VERSION")),
+        "{}",
+        env!("IGLINT_VERSION")
     );
     let help = run(dir.path(), &["--help"]);
     assert!(help.stdout.contains("Exit status: 0 when"));

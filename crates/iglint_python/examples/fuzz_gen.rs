@@ -549,9 +549,10 @@ impl Grammar<'_> {
                     self.test();
                 }
             }
-            9 => self
-                .out
-                .push_str(self.rng.pick(&["pass", "break", "continue"])),
+            9 => {
+                let word: &&str = self.rng.pick(&["pass", "break", "continue"]);
+                self.out.push_str(word);
+            }
             10 => {
                 self.out.push_str("import ");
                 self.name();

@@ -101,22 +101,7 @@ pub enum FixState {
 
 /// `path` relative to `cwd` when below it, always `/`-separated.
 pub fn display_path(path: &Path, cwd: &Path) -> String {
-    let shown = path.strip_prefix(cwd).unwrap_or(path);
-    let mut out = String::new();
-    for component in shown.components() {
-        let part = component.as_os_str().to_string_lossy();
-        match component {
-            std::path::Component::RootDir => out.push('/'),
-            std::path::Component::Prefix(_) => out.push_str(&part),
-            _ => {
-                if !out.is_empty() && !out.ends_with('/') {
-                    out.push('/');
-                }
-                out.push_str(&part);
-            }
-        }
-    }
-    out
+    iglint_linter::discovery::slash_path(path.strip_prefix(cwd).unwrap_or(path))
 }
 
 /// One-based line and column of `offset` in `file`.

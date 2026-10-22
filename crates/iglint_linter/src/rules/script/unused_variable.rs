@@ -32,7 +32,7 @@ Not reported:
 * names that are part of a tuple or list target (`a, b = f()`, where only
   one may be needed);
 * names matching the dummy pattern: `_`, starting with `_`, `dummy`,
-  `ignored_...`, `unused_...` (option `dummy_pattern`);
+  `ignored_...`, `unused_...` (option `dummy-pattern`);
 * functions that read their locals dynamically (`locals()`, `vars()`,
   `eval`, `exec`), for example `"%(name)s" % locals()`.
 
@@ -61,7 +61,7 @@ def runAction(self, event):
 
 ## Options
 
-* `dummy_pattern` (regex, default `^(_.*|dummy.*|ignored_.*|unused_.*)$`):
+* `dummy-pattern` (regex, default `^(_.*|dummy.*|ignored_.*|unused_.*)$`):
   names that may be unused.
 
 ## Fix
@@ -77,7 +77,7 @@ Corresponds to `W0612 unused-variable`. pylint also reports unused names
 of tuple targets (`a, b = f()`); iglint does not.
 "#,
     options: &[OptionMeta {
-        name: "dummy_pattern",
+        name: "dummy-pattern",
         ty: OptionType::String,
         default: r#""^(_.*|dummy.*|ignored_.*|unused_.*)$""#,
         description: "Names matching this regex may be unused.",
@@ -97,8 +97,8 @@ struct Options {
 }
 
 fn parse_options(reader: &OptionReader<'_>) -> Result<ParsedOptions, String> {
-    let pattern = reader.string("dummy_pattern")?;
-    let dummy = regex::Regex::new(&pattern).map_err(|e| format!("dummy_pattern: {e}"))?;
+    let pattern = reader.string("dummy-pattern")?;
+    let dummy = regex::Regex::new(&pattern).map_err(|e| format!("dummy-pattern: {e}"))?;
     Ok(Box::new(Options { dummy }))
 }
 
@@ -286,7 +286,7 @@ mod tests {
     fn options() {
         let f = library("m", "def f():\n    tmp = 1\n");
         assert!(
-            f.lint_with(&[("SCR103", "dummy_pattern = '^tmp$'")])
+            f.lint_with(&[("SCR103", "dummy-pattern = '^tmp$'")])
                 .is_empty()
         );
     }

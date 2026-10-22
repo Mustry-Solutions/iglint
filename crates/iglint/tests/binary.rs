@@ -54,7 +54,7 @@ fn help_and_version() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(format!("iglint {}\n", env!("CARGO_PKG_VERSION")));
+        .stdout(format!("iglint {}\n", env!("IGLINT_VERSION")));
     iglint(dir.path())
         .arg("--help")
         .assert()

@@ -2,9 +2,11 @@ use iglint_text::{TextRange, TextSize};
 
 use super::run::{Script, map_messages, parse_report, source_range};
 use super::*;
+#[cfg(unix)]
 use crate::diagnostic::Diagnostic;
 use crate::engine::FixMode;
 use crate::rules::script::testing::*;
+#[cfg(unix)]
 use crate::rules::test_support::Fixture;
 
 /// `(line, byte column, character column)` of `needle` in `source`, as

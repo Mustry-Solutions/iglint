@@ -19,6 +19,7 @@ expression: "output(OutputFormat::Sarif, & diagnostics(), false)"
               "shortDescription": {
                 "text": "Unused custom property"
               },
+              "helpUri": "https://github.com/Mustry-Solutions/iglint/blob/main/docs/rules/TST001.md",
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -39,6 +40,7 @@ expression: "output(OutputFormat::Sarif, & diagnostics(), false)"
               "shortDescription": {
                 "text": "Name does not follow the convention"
               },
+              "helpUri": "https://github.com/Mustry-Solutions/iglint/blob/main/docs/rules/TST002.md",
               "defaultConfiguration": {
                 "level": "warning"
               },
@@ -52,6 +54,7 @@ expression: "output(OutputFormat::Sarif, & diagnostics(), false)"
               "shortDescription": {
                 "text": "Structure is deeply nested"
               },
+              "helpUri": "https://github.com/Mustry-Solutions/iglint/blob/main/docs/rules/TST003.md",
               "defaultConfiguration": {
                 "level": "note"
               },
@@ -93,7 +96,7 @@ expression: "output(OutputFormat::Sarif, & diagnostics(), false)"
             }
           ],
           "partialFingerprints": {
-            "iglint/v1": "30bad17765f4dd46"
+            "iglint/v1": "8fb24852641a8d8e"
           }
         },
         {

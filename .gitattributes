@@ -1,0 +1,3 @@
+# Test fixtures are byte-exact (some use CRLF on purpose): never convert line
+# endings on checkout or commit, on any platform.
+* -text

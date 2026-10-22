@@ -1,0 +1,205 @@
+name: Release
+
+# Builds everything on a version tag (v0.1.0) and attaches it to a draft
+# GitHub release. Publishing to PyPI needs the `pypi` environment with
+# trusted publishing configured; the VS Code Marketplace is not published
+# from here.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  binaries:
+    name: binary (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, vscode: linux-x64 }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, vscode: linux-arm64 }
+          - { os: macos-latest, target: x86_64-apple-darwin, vscode: darwin-x64 }
+          - { os: macos-latest, target: aarch64-apple-darwin, vscode: darwin-arm64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, vscode: win32-x64 }
+    runs-on: ${{ matrix.os }}
+    env:
+      # Windows: no dependency on the Visual C++ runtime.
+      RUSTFLAGS: ${{ contains(matrix.target, 'windows') && '-C target-feature=+crt-static' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install
+      - run: rustup target add ${{ matrix.target }}
+      - name: Install musl tools
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: cargo build --release --locked -p iglint --target ${{ matrix.target }}
+      - name: Check the binary
+        if: "!(matrix.os == 'macos-latest' && matrix.target == 'x86_64-apple-darwin')"
+        shell: bash
+        run: target/${{ matrix.target }}/release/iglint --version
+      - name: Package
+        id: package
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          name="iglint-${GITHUB_REF_NAME}-${TARGET}"
+          mkdir -p "dist/$name"
+          cp LICENSE-MIT LICENSE-APACHE NOTICE README.md "dist/$name/"
+          if [[ "$TARGET" == *windows* ]]; then
+            cp "target/$TARGET/release/iglint.exe" "dist/$name/"
+            (cd dist && 7z a "$name.zip" "$name" > /dev/null)
+            archive="$name.zip"
+          else
+            cp "target/$TARGET/release/iglint" "dist/$name/"
+            tar -C dist -czf "dist/$name.tar.gz" "$name"
+            archive="$name.tar.gz"
+          fi
+          if command -v sha256sum > /dev/null; then sum=(sha256sum); else sum=(shasum -a 256); fi
+          (cd dist && "${sum[@]}" "$archive" > "$archive.sha256")
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: |
+            dist/${{ steps.package.outputs.archive }}
+            dist/${{ steps.package.outputs.archive }}.sha256
+      # The plain binary, for the VS Code packages.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vscode-bin-${{ matrix.vscode }}
+          path: target/${{ matrix.target }}/release/iglint${{ contains(matrix.target, 'windows') && '.exe' || '' }}
+
+  wheels:
+    name: wheel (${{ matrix.target }} ${{ matrix.manylinux }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, manylinux: auto }
+          - { os: ubuntu-latest, target: aarch64-unknown-linux-gnu, manylinux: auto }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, manylinux: musllinux_1_2 }
+          - { os: ubuntu-latest, target: aarch64-unknown-linux-musl, manylinux: musllinux_1_2 }
+          - { os: macos-latest, target: x86_64-apple-darwin, manylinux: "" }
+          - { os: macos-latest, target: aarch64-apple-darwin, manylinux: "" }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, manylinux: "" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Commit for `iglint --version`
+        shell: bash
+        run: |
+          echo "IGLINT_COMMIT_HASH=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "IGLINT_COMMIT_DATE=$(git log -1 --format=%cs HEAD)" >> "$GITHUB_ENV"
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux || 'auto' }}
+          args: --release --locked --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.target }}-${{ matrix.manylinux || 'native' }}
+          path: dist/*.whl
+
+  sdist:
+    name: source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  vscode:
+    name: VS Code extension
+    needs: binaries
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: editors/vscode
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vscode-bin-*
+          path: vscode-bin
+      - name: Package one VSIX per platform, plus one that uses iglint on PATH
+        run: |
+          {
+            echo "iglint is licensed under either of the MIT License or the Apache License 2.0, at your option."
+            echo
+            cat ../../LICENSE-MIT
+            echo
+            cat ../../LICENSE-APACHE
+          } > LICENSE
+          mkdir -p ../../dist
+          npx --yes @vscode/vsce@3 package -o "../../dist/iglint-vscode-${GITHUB_REF_NAME}.vsix"
+          for dir in ../../vscode-bin/vscode-bin-*; do
+            platform="${dir##*/vscode-bin-}"
+            rm -rf bundled && mkdir bundled
+            cp "$dir"/* bundled/
+            chmod +x bundled/*
+            npx --yes @vscode/vsce@3 package --target "$platform" \
+              -o "../../dist/iglint-vscode-${GITHUB_REF_NAME}-${platform}.vsix"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vscode
+          path: dist/*.vsix
+
+  github-release:
+    name: GitHub release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [binaries, wheels, sdist, vscode]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create a draft release with every artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          find artifacts \( -path 'artifacts/vscode-bin-*' -prune \) -o -type f -print0 \
+            | xargs -0 -I{} cp {} dist/
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --draft --verify-tag --title "iglint ${GITHUB_REF_NAME#v}" \
+            --notes "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/CHANGELOG.md)."
+
+  pypi:
+    name: publish to PyPI
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [wheels, sdist, github-release]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "{wheel-*,sdist}"
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
