@@ -85,8 +85,8 @@ styleRef Property root/Label.props.textStyle.classes classes=["Root/Accent"] bou
   | →self.custom.local = currentValue
 [0] expr binding view.custom.a@binding "{view.params.line} + '-' + now(1000)" valid=true tentative=false refs=["prop:view.params.line"] calls=["now"] ign=propConfig.custom.a
 [1] expr transform view.custom.a@binding.transforms[1] "{value} * 2" valid=true tentative=false refs=["value"] calls=[] ign=propConfig.custom.a.binding.transforms[1]
-[2] expr map-input view.custom.a@binding.transforms[2].mappings[0].input "{value} > 1" valid=true tentative=false refs=["value"] calls=[] ign=-
-[3] expr map-output view.custom.a@binding.transforms[2].mappings[0].output "'big'" valid=true tentative=false refs=[] calls=[] ign=-
+[2] expr map-input view.custom.a@binding.transforms[2].mappings[0].input "{value} > 1" valid=true tentative=false refs=["value"] calls=[] ign=propConfig.custom.a.binding.transforms[2].mappings[0].input
+[3] expr map-output view.custom.a@binding.transforms[2].mappings[0].output "'big'" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.a.binding.transforms[2].mappings[0].output
 [4] expr struct-leaf view.custom.b@binding.struct.nested.y "{this.custom.a}" valid=true tentative=false refs=["prop:this.custom.a"] calls=[] ign=propConfig.custom.b
 [5] expr struct-leaf view.custom.b@binding.struct.x "1 + 1" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.b
 [6] expr tag-path view.custom.e@binding "{view.params.tagPath} + '/Sub'" valid=true tentative=false refs=["prop:view.params.tagPath"] calls=[] ign=propConfig.custom.e

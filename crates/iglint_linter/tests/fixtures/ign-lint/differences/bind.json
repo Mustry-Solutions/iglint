@@ -45,7 +45,7 @@
       "variant": "*",
       "rule": "ComponentReferenceValidationRule",
       "kind": "extra",
-      "message": "root/Reader.props.text@binding: `this.custom.beta`: custom property `beta` is not defined",
+      "message": "root.root.children[1].Reader.propConfig.props.text: `this.custom.beta`: custom property `beta` is not defined",
       "reason": "BIND005 also checks that referenced custom properties exist; `Reader` has no custom property `beta` (another component does)."
     },
     {

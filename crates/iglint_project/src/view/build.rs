@@ -786,7 +786,7 @@ impl<'a> Builder<'a> {
                                         owner,
                                         Some(id),
                                         format!("{node_path}.mappings[{j}].input"),
-                                        None,
+                                        Some(format!("{ign_path}.mappings[{j}].input")),
                                         false,
                                     )
                                 })
@@ -802,7 +802,7 @@ impl<'a> Builder<'a> {
                                         owner,
                                         Some(id),
                                         format!("{node_path}.mappings[{j}].output"),
-                                        None,
+                                        Some(format!("{ign_path}.mappings[{j}].output")),
                                         false,
                                     )
                                 })

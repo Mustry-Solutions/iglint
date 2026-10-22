@@ -369,23 +369,21 @@ impl ExpressionRule for UnresolvedPropertyReference {
         let Some(file) = expression_file(cx.data(), e) else {
             return;
         };
-        // ign-lint checks expression bindings, structure leaves (named by
-        // their binding) and expression transforms only.
+        // ign-lint names a structure leaf by its binding; every other
+        // expression by its own path (`{binding}.{parameter}` for query
+        // parameters), also where ign-lint itself does not look.
         let ign_path = match e.kind {
-            ExpressionKind::Binding | ExpressionKind::Transform => {
-                ign_lint_expression_path(cx.data(), e)
-            }
             ExpressionKind::StructLeaf => e.ign_lint_path.clone(),
-            _ => None,
+            _ => ign_lint_expression_path(cx.data(), e),
         };
         for f in findings {
             let report = cx
                 .report_expression(file, e, f.range, f.message)
-                .node_path(e.node_path.clone());
-            match f.ign_lint_message {
-                Some(m) => report.ign_lint_path(ign_path.clone()).ign_lint_message(m),
-                None => report,
-            };
+                .node_path(e.node_path.clone())
+                .ign_lint_path(ign_path.clone());
+            if let Some(m) = f.ign_lint_message {
+                report.ign_lint_message(m);
+            }
         }
     }
 }
@@ -420,13 +418,11 @@ impl BindingRule for UnresolvedPropertyReference {
         let range = path.raw_range(f.range);
         let report = cx
             .report_in(file, range, f.message)
-            .node_path(binding.node_path.clone());
-        match f.ign_lint_message {
-            Some(m) => report
-                .ign_lint_path(Some(binding.ign_lint_path.clone()))
-                .ign_lint_message(m),
-            None => report,
-        };
+            .node_path(binding.node_path.clone())
+            .ign_lint_path(Some(binding.ign_lint_path.clone()));
+        if let Some(m) = f.ign_lint_message {
+            report.ign_lint_message(m);
+        }
     }
 }
 

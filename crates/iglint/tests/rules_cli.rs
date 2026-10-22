@@ -200,3 +200,117 @@ fn ign_lint_mode_prints_ign_lint_paths_and_wording() {
         run.stdout
     );
 }
+
+/// Every finding of `iglint ign-lint` carries an ign-lint node path
+/// (`root.root.children[0].Name...`, `propConfig.custom.x`, `custom.x`),
+/// never iglint's own (`root/Name.props.x@binding...`), whatever binding
+/// or expression location it comes from: every rule with an ign-lint
+/// equivalent, on every ign-lint fixture view and on a view with an
+/// unresolved reference, a traversal and a fast poll in each expression
+/// location iglint models.
+#[test]
+fn ign_lint_mode_uses_ign_lint_paths_everywhere() {
+    let bad = r#"toStr({../Missing.props.text}) + dateFormat(now(100), \"HH\")"#;
+    let view = r#"{
+  "custom": {"used": 1},
+  "params": {},
+  "propConfig": {
+    "custom.used": {"binding": {"type": "expr", "config": {"expression": "BAD"}}}
+  },
+  "props": {},
+  "root": {
+    "type": "ia.container.flex",
+    "meta": {"name": "root"},
+    "children": [
+      {"type": "ia.display.label", "meta": {"name": "Target"}, "props": {"text": "x"}},
+      {
+        "type": "ia.display.label",
+        "meta": {"name": "Host"},
+        "propConfig": {
+          "props.text": {"binding": {"type": "query", "config": {"queryPath": "Q", "parameters": {"p": "BAD"}, "polling": {"enabled": true, "rate": "BAD"}}}},
+          "meta.visible": {"binding": {"type": "expr-struct", "config": {"struct": {"a": "BAD", "b": {"c": "BAD"}}, "waitOnAll": true}}},
+          "props.style.color": {"binding": {"type": "tag", "config": {"mode": "expression", "tagPath": "BAD", "fallbackDelay": 2.5}}},
+          "props.style.opacity": {"binding": {"type": "tag-history", "config": {"tags": "BAD", "dateRange": {"mostRecent": "1", "mostRecentUnits": "HOUR"}, "returnFormat": "Wide", "polling": {"enabled": true, "rate": "BAD"}}}},
+          "props.style.width": {"binding": {"type": "http", "config": {"request": {"url": "BAD", "method": "GET"}, "polling": {"enabled": true, "rate": "BAD"}}}},
+          "props.style.height": {"binding": {"type": "property", "config": {"path": "../Missing.props.text"}, "transforms": [
+            {"type": "expression", "expression": "BAD"},
+            {"type": "map", "inputType": "expression", "outputType": "expression", "mappings": [{"input": "BAD", "output": "BAD"}], "fallback": ""},
+            {"type": "script", "code": "\tself.getSibling(\"Missing\")\n\treturn value"}
+          ]}}
+        },
+        "events": {"dom": {"onClick": {"type": "script", "scope": "G", "config": {"script": "\tself.getSibling(\"Missing\").props.text = 1"}}}},
+        "scripts": {"customMethods": [{"name": "m", "params": [], "script": "\tself.getSibling(\"Missing\")"}], "messageHandlers": [{"messageType": "t", "pageScope": true, "sessionScope": false, "viewScope": false, "script": "\tself.getSibling(\"Missing\")"}], "extensionFunctions": null}
+      }
+    ]
+  }
+}"#
+    .replace("BAD", bad);
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "probe/view.json", &view);
+    let cases =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../iglint_linter/tests/fixtures/ign-lint");
+    for sub in ["cases", "probes"] {
+        for entry in std::fs::read_dir(cases.join(sub)).unwrap() {
+            let entry = entry.unwrap();
+            let file = entry.path().join("view.json");
+            if file.is_file() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                write(
+                    dir.path(),
+                    &format!("{sub}-{name}/view.json"),
+                    &std::fs::read_to_string(file).unwrap(),
+                );
+            }
+        }
+    }
+    write(
+        dir.path(),
+        "rule_config.json",
+        r#"{"PylintScriptRule": {"enabled": false}}"#,
+    );
+    let run = run_with(dir.path(), &[], true);
+    let mut findings = 0;
+    for line in run.stdout.lines() {
+        let Some(message) = line.strip_prefix("    • ") else {
+            continue;
+        };
+        findings += 1;
+        let path = message.split(": ").next().unwrap();
+        assert!(
+            !path.contains('/') && !path.contains('@'),
+            "not an ign-lint path: {line}"
+        );
+    }
+    assert!(findings > 100, "{}", run.stdout);
+    // The probe view's query parameter is reported with the binding's
+    // ign-lint path and the parameter name.
+    assert!(
+        run.stdout.contains(
+            "root.root.children[1].Host.propConfig.props.text.p: Expression references non-existent component 'Missing'"
+        ),
+        "{}",
+        run.stdout
+    );
+}
+
+/// A legacy PylintScriptRule configuration disables what ign-lint's
+/// combined-file header disables, also with a pylintrc of its own, and
+/// `iglint migrate` writes that into iglint.toml.
+#[test]
+fn legacy_pylint_configuration_keeps_ign_lints_header_disables() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "rule_config.json",
+        r#"{"PylintScriptRule": {"kwargs": {"pylintrc": "rc"}}}"#,
+    );
+    write(dir.path(), "rc", "[MAIN]\n");
+    let run = run_with(dir.path(), &["migrate", "--dry-run"], false);
+    assert!(
+        run.stdout.contains(
+            r#"disable = ["unused-argument", "missing-docstring", "redefined-outer-name", "function-redefined"]"#
+        ),
+        "{}",
+        run.stdout
+    );
+}

@@ -49,11 +49,11 @@ fn is(data: &ModelData<'_>, id: ExprId, e: &EmbeddedExpression<'_>) -> bool {
         .is_some_and(|x| std::ptr::eq(x, e))
 }
 
-/// The node path ign-lint uses for the location of `e`, for the locations
-/// ign-lint models: expression bindings, expression-structure leaves
+/// The node path ign-lint uses (or would use) for the location of `e` in a
+/// view: expression bindings, expression-structure leaves
 /// (`{binding}.{key}`), query parameters (`{binding}.{param}`), tag
-/// bindings in expression mode and expression transforms. `None` for
-/// session properties and other locations.
+/// bindings in expression mode, transforms and other binding expressions
+/// by their own ign-lint style path. `None` outside views.
 pub(crate) fn ign_lint_expression_path(
     data: &ModelData<'_>,
     e: &EmbeddedExpression<'_>,
@@ -61,7 +61,9 @@ pub(crate) fn ign_lint_expression_path(
     if !matches!(data, ModelData::View { .. }) {
         return None;
     }
-    let binding = host_bindings(data).get(e.binding?.index())?;
+    let Some(binding) = e.binding.and_then(|b| host_bindings(data).get(b.index())) else {
+        return e.ign_lint_path.clone();
+    };
     match e.kind {
         ExpressionKind::Binding | ExpressionKind::TagPathExpression | ExpressionKind::Transform => {
             e.ign_lint_path.clone()
@@ -81,6 +83,6 @@ pub(crate) fn ign_lint_expression_path(
                 .map(|p| format!("{}.{}", binding.ign_lint_path, p.name.value())),
             _ => None,
         },
-        _ => None,
+        _ => e.ign_lint_path.clone(),
     }
 }
