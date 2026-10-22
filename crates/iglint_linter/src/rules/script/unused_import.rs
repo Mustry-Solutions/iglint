@@ -1,8 +1,9 @@
 //! SCR102 unused-import.
 
 use iglint_project::ScriptKind;
+use iglint_python::ast::Expr;
 use iglint_python::ast::{Stmt, StmtImport, StmtImportFrom};
-use iglint_python_semantic::{BindingId, BindingKind, ScopeId, SemanticModel};
+use iglint_python_semantic::{BindingId, BindingKind, ScopeId, ScopeKind, SemanticModel};
 use iglint_text::Ranged;
 use rustc_hash::FxHashMap;
 
@@ -37,7 +38,12 @@ Not reported:
 * imports inside a `try` whose handlers catch `ImportError` (availability
   checks such as `try: import json except ImportError: json = None`);
 * scopes that read their names dynamically (`locals()`, `vars()`, `eval`,
-  `exec`);
+  `exec`), and module-level imports when any code of the module may read
+  globals by name (`globals()`, `eval`, `execfile`, `exec`, `sys.modules`,
+  frames, `__dict__`, `func_globals`);
+* imports in a class body: they are attributes of the class (`self.os`,
+  `C.os`), used in ways iglint cannot follow (pyflakes and pylint do not
+  report them either);
 * `from x import y` at module level of a **library module**: other scripts
   may use it as `library.module.y` (re-export). Plain `import x` is still
   reported there.
@@ -70,11 +76,29 @@ def onMessageReceived(self, payload):
 Removes the unused names from the import statement, or the statement when
 none of its names is used (replaced by `pass` when it is the only
 statement of its block; when every statement of a block is removed, the
-last one becomes `pass`). Safe, except for top-level imports of library
-modules when iglint cannot see every use of the module's names (the module
-is used as a value, references are computed at run time, the project is
-inheritable or has scripts iglint does not model, or the file is linted
-outside its project): then unsafe.
+last one becomes `pass`).
+
+Safe only when importing cannot do anything outside the importing
+module, so that removing the import cannot change what runs:
+
+* Java classes and packages of the JDK (`java.*`, `javax.*`);
+* plain `import x` of a standard library module that is known to have no
+  import-time effects in Jython 2.7 (`os`, `re`, `json`, `datetime`,
+  `math`, `time`, ...), and `from x import y` of such a module when it is
+  not a package;
+
+and, for both, when no library package of the project (or of a project
+inheriting from it) has the same top-level name. Unsafe otherwise:
+importing a project library module runs its top level, other Java
+classes run static initializers, some standard modules start threads
+(`socket`) or configure logging (`logging`), and a dotted import makes the
+submodule an attribute of its package for every other script. Also
+unsafe for top-level imports of library modules when iglint cannot see
+every use of the module's names (the module is used as a value,
+references are computed at run time, the project is inheritable or has
+scripts iglint does not model, or the file is linted outside its
+project). The one remaining effect of a safe fix: an import that would
+have failed (a class missing from the JDK) no longer fails.
 
 Top-level names of a library module are attributes of the module: an
 import that another resource uses as `pkg.mod.name` is not reported.
@@ -117,8 +141,16 @@ pub(crate) fn unused_imports<'a>(
         if scope.reads_locals || scope.is_dynamic() {
             continue;
         }
+        // Names bound in a class body are attributes of the class
+        // (`self.os`, `C.os`): uses cannot be followed.
+        if scope.kind == ScopeKind::Class {
+            continue;
+        }
         if b.scope == ScopeId::MODULE {
-            if model.dunder_all_is_dynamic() || model.dunder_all().iter().any(|n| n == b.name) {
+            if model.dunder_all_is_dynamic()
+                || model.dunder_all().iter().any(|n| n == b.name)
+                || reads_globals_dynamically(model)
+            {
                 continue;
             }
             if library_module && b.kind == BindingKind::FromImport {
@@ -149,6 +181,166 @@ pub(crate) fn unused_imports<'a>(
     out
 }
 
+/// Whether some code of the module may read its globals by name: `eval`,
+/// `execfile`, `exec`, `globals`, `locals()`, `vars()` or `dir()` (in any
+/// scope), or the module object through `sys.modules`, a frame or
+/// `__dict__`.
+fn reads_globals_dynamically(model: &SemanticModel<'_>) -> bool {
+    const READERS: &[&str] = &["eval", "execfile", "globals"];
+    model.references().any(|(_, r)| READERS.contains(&r.name))
+        || model
+            .scopes()
+            .any(|(_, s)| s.unqualified_exec.is_some() || s.reads_locals)
+        || {
+            let mut found = false;
+            crate::rules::script::walk_stmts(&model.module.body, &mut |s| {
+                found |= matches!(s, Stmt::Exec(_));
+            });
+            found
+        }
+        || {
+            let mut found = false;
+            crate::rules::script::walk_exprs(&model.module.body, &mut |e| {
+                if let Expr::Attribute(a) = e {
+                    let sys = matches!(&*a.value, Expr::Name(n) if &*n.id == "sys");
+                    found |= matches!(
+                        a.attr.as_str(),
+                        "_getframe" | "f_globals" | "__dict__" | "func_globals"
+                    ) || (sys && a.attr.as_str() == "modules");
+                }
+            });
+            found
+        }
+}
+
+/// Python standard library modules of Jython 2.7 whose import has no
+/// effect outside the module (verified on Ignition 8.3's Jython: no
+/// threads, loggers, handlers or output). Excluded on purpose: `socket`
+/// and everything that imports it (it starts Netty event loops), `logging`
+/// (root logger, `atexit` handler), `signal`, `subprocess`, `platform`,
+/// `uuid`, `this`, `antigravity`, `site`, `user`.
+const PURE_STDLIB_MODULES: &[&str] = &[
+    "HTMLParser",
+    "Queue",
+    "StringIO",
+    "UserDict",
+    "UserList",
+    "abc",
+    "array",
+    "base64",
+    "binascii",
+    "bisect",
+    "cPickle",
+    "cStringIO",
+    "calendar",
+    "cgi",
+    "cmath",
+    "codecs",
+    "collections",
+    "contextlib",
+    "copy",
+    "copy_reg",
+    "csv",
+    "datetime",
+    "decimal",
+    "difflib",
+    "errno",
+    "fnmatch",
+    "fractions",
+    "functools",
+    "getopt",
+    "glob",
+    "gzip",
+    "hashlib",
+    "heapq",
+    "hmac",
+    "htmlentitydefs",
+    "inspect",
+    "itertools",
+    "keyword",
+    "math",
+    "md5",
+    "numbers",
+    "operator",
+    "os",
+    "pickle",
+    "posixpath",
+    "pprint",
+    "random",
+    "re",
+    "repr",
+    "sets",
+    "sha",
+    "shlex",
+    "shutil",
+    "stat",
+    "string",
+    "struct",
+    "sys",
+    "tempfile",
+    "textwrap",
+    "threading",
+    "time",
+    "timeit",
+    "traceback",
+    "types",
+    "unicodedata",
+    "urlparse",
+    "warnings",
+    "weakref",
+    "zipfile",
+    "zlib",
+];
+
+/// Standard library packages whose plain `import` has no effect outside
+/// the package. `from pkg import name` may load a submodule (and make it
+/// an attribute of the package for every other script), so it is not
+/// listed.
+const PURE_STDLIB_PACKAGES: &[&str] = &["json", "xml"];
+
+/// Whether removing the import of `binding` cannot change what the
+/// program does: Java classes of the JDK (`java.*`, `javax.*`), and the
+/// standard library modules above when no library package of the project
+/// (or of a project inheriting from it) has the same name. Importing
+/// anything else runs code (project library modules and third-party
+/// packages execute their top level, other Java classes run static
+/// initializers) or, for dotted imports, makes the submodule an attribute
+/// of its package for every other script.
+fn removal_is_pure(cx: &Checker<'_, '_>, model: &SemanticModel<'_>, binding: BindingId) -> bool {
+    let b = model.binding(binding);
+    let Some(stmt) = b.stmt else { return false };
+    let (module, from) = match stmt {
+        Stmt::Import(_) => match b.alias {
+            Some(a) => (a.name.as_str(), false),
+            None => return false,
+        },
+        Stmt::ImportFrom(s) if s.level == 0 => match &s.module {
+            Some(m) => (m.as_str(), true),
+            None => return false,
+        },
+        _ => return false,
+    };
+    let top = module.split('.').next().unwrap_or(module);
+    let shadowed = || match cx.project_index() {
+        Some((index, project)) => {
+            let (globals, complete) = index.script_library_globals(project);
+            !complete || globals.contains(&top)
+        }
+        None => true,
+    };
+    if top == "java" || top == "javax" {
+        return !shadowed();
+    }
+    let pure = if module.contains('.') {
+        false
+    } else if from {
+        PURE_STDLIB_MODULES.contains(&module)
+    } else {
+        PURE_STDLIB_MODULES.contains(&module) || PURE_STDLIB_PACKAGES.contains(&module)
+    };
+    pure && !shadowed()
+}
+
 impl ScriptRule for UnusedImport {
     fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
         let Some(model) = semantic(cx, unit) else {
@@ -159,7 +351,11 @@ impl ScriptRule for UnusedImport {
         for (stmt, mut unused) in unused_imports(model, library) {
             // Top-level names of a library module are its attributes: other
             // resources may use them as `pkg.mod.name`.
-            let mut applicability = Applicability::Safe;
+            let mut applicability = if unused.iter().all(|id| removal_is_pure(cx, model, *id)) {
+                Applicability::Safe
+            } else {
+                Applicability::Unsafe
+            };
             if library {
                 unused.retain(|id| {
                     let b = model.binding(*id);
@@ -205,7 +401,13 @@ impl ScriptRule for UnusedImport {
             let fix = edit.and_then(|e| statement_fix(cx, unit, message, applicability, e));
             for id in &unused {
                 let b = model.binding(*id);
-                let shown = b.alias.map_or(b.name, |a| a.name.as_str());
+                // The bound name, with the module when it differs
+                // (`import json as j`).
+                let shown = match b.alias {
+                    Some(a) if a.asname.is_some() => format!("{} as {}", a.name.as_str(), b.name),
+                    Some(a) => a.name.as_str().to_owned(),
+                    None => b.name.to_owned(),
+                };
                 let r = report(cx, unit, b.range, format!("`{shown}` imported but unused"));
                 let _ = r.fix_opt(fix.clone());
             }
@@ -343,7 +545,8 @@ mod tests {
             ),
             (
                 "def f():\n    class C:\n        import os\n        import sys\n    def g():\n        import re\n        import json\n        import glob\n    return C, g\n",
-                "def f():\n    class C:\n        pass\n    def g():\n        pass\n    return C, g\n",
+                // Class bodies are left alone: their names are attributes.
+                "def f():\n    class C:\n        import os\n        import sys\n    def g():\n        pass\n    return C, g\n",
             ),
         ];
         for (code, expected) in cases {
@@ -422,6 +625,105 @@ mod tests {
         assert_eq!(
             d[0].fix.as_ref().map(|f| f.applicability),
             Some(crate::diagnostic::Applicability::Safe)
+        );
+    }
+
+    fn applicability(d: &[crate::Diagnostic]) -> Vec<Option<crate::diagnostic::Applicability>> {
+        d.iter()
+            .map(|d| d.fix.as_ref().map(|f| f.applicability))
+            .collect()
+    }
+
+    /// Names bound in a class body are class attributes (`self.os`,
+    /// `C.os`), used in ways no reference shows. Jython: removing them
+    /// raises AttributeError.
+    #[test]
+    fn class_body_imports_are_attributes() {
+        let code = "class C(object):\n    import os\n    from java.lang import System\n    def f(self):\n        return self.os.getcwd(), self.System.currentTimeMillis()\nclass D:\n    import json as j\ndef use():\n    return D.j.dumps({})\nclass E:\n    import os\n\nprint E.os.name\n";
+        let f = library("m", code);
+        assert!(f.lint(&["SCR102"]).is_empty());
+    }
+
+    #[test]
+    fn message_names_the_binding() {
+        let d = lint_module(
+            "SCR102",
+            "def f():\n    import json as j\n    from os import path as p\n    import os.path\n",
+        );
+        assert_eq!(
+            messages(&d),
+            [
+                "`json as j` imported but unused",
+                "`path as p` imported but unused",
+                "`os.path` imported but unused"
+            ]
+        );
+    }
+
+    /// Code that reads the module's globals by name may use any import.
+    #[test]
+    fn dynamic_global_reads_keep_module_imports() {
+        for reader in [
+            "def f(n):\n    return globals()[n]\n",
+            "def f(n):\n    return eval(n)\n",
+            "def f(code):\n    exec code\n",
+            "import sys\ndef f(n):\n    return getattr(sys.modules[__name__], n)\n",
+            "def f():\n    return f.func_globals\n",
+        ] {
+            let d = lint_module("SCR102", &format!("import os\n{reader}"));
+            assert!(!flagged(&d).contains(&"os".to_owned()), "{reader}: {d:?}");
+        }
+        // Function imports are still checked.
+        let d = lint_module(
+            "SCR102",
+            "def f(n):\n    import re\n    return globals()[n]\n",
+        );
+        assert_eq!(flagged(&d), ["re"]);
+    }
+
+    /// Removing an import is safe only when importing has no effect
+    /// outside the module: JDK classes and listed standard library
+    /// modules. Everything else runs code when imported.
+    #[test]
+    fn imports_with_possible_side_effects_have_unsafe_fixes() {
+        use crate::diagnostic::Applicability::{Safe, Unsafe};
+        let cases: &[(&str, crate::diagnostic::Applicability)] = &[
+            ("import os", Safe),
+            ("import json", Safe),
+            ("from java.util import ArrayList", Safe),
+            ("import javax.swing", Safe),
+            ("from re import compile", Safe),
+            // Runs project code or registers things.
+            ("import helpers", Unsafe),
+            ("from helpers import thing", Unsafe),
+            (
+                "from com.inductiveautomation.ignition.common import BasicDataset",
+                Unsafe,
+            ),
+            ("import socket", Unsafe),
+            ("import logging", Unsafe),
+            // Loads a submodule for every other script.
+            ("import xml.dom.minidom", Unsafe),
+            ("from json import decoder", Unsafe),
+            ("from . import sibling", Unsafe),
+        ];
+        for (import, expected) in cases {
+            let f = library("m", &format!("def f():\n    {import}\n    return 1\n"));
+            let d = f.lint(&["SCR102"]);
+            assert_eq!(applicability(&d), [Some(*expected)], "{import}");
+        }
+        // A project library package with a standard name shadows it.
+        let f = with_library(
+            library("m", "def f():\n    import json\n    return 1\n"),
+            "json/codec",
+            "x = 1\n",
+        );
+        assert_eq!(applicability(&f.lint(&["SCR102"])), [Some(Unsafe)]);
+        // A statement with a pure and an impure name: unsafe.
+        let f = library("m", "def f():\n    import os, helpers\n    return 1\n");
+        assert_eq!(
+            applicability(&f.lint(&["SCR102"])),
+            [Some(Unsafe), Some(Unsafe)]
         );
     }
 }
