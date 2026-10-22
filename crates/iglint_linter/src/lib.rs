@@ -15,6 +15,7 @@ pub mod rule;
 pub mod rules;
 pub mod script_facts;
 pub mod settings;
+pub mod stack;
 pub mod suggest;
 pub mod suppression;
 #[cfg(any(test, feature = "testing"))]

@@ -74,6 +74,7 @@ impl Environment {
 
 /// Runs iglint with `args` (including the program name).
 pub fn run(args: Vec<OsString>, environment: &Environment, io: &mut Io<'_>) -> ExitStatus {
+    iglint_linter::stack::configure_global_pool();
     let program = args
         .first()
         .map(|a| {

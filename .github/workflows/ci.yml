@@ -68,6 +68,21 @@ jobs:
           -p iglint_python_semantic --test compile_oracle
           -p iglint_expression --test oracle
 
+  stress:
+    name: stress (${{ matrix.os }})
+    # Generated inputs at and beyond the depth limits, through the release
+    # binary, the ign-lint mode and the language server.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --release --locked -p iglint --test stress
+
   msrv:
     name: MSRV
     runs-on: ubuntu-latest

@@ -1089,17 +1089,17 @@ impl Parser<'_> {
     /// Jython's `makeKeywords`: every keyword must be a plain name.
     pub(super) fn make_keywords(&mut self, keywords: Vec<(Expr, Expr)>) -> Vec<Keyword> {
         let mut result = Vec::with_capacity(keywords.len());
-        for (key, value) in keywords {
+        for (mut key, value) in keywords {
             if let Some(error) = super::target::check_assign(&key) {
                 self.report(error);
             }
             match key {
-                Expr::Name(name) => {
+                Expr::Name(ref mut name) => {
                     let range = TextRange::new(name.range.start(), value.range().end());
                     result.push(Keyword {
                         range,
                         arg: Identifier {
-                            id: name.id,
+                            id: std::mem::take(&mut name.id),
                             range: name.range,
                         },
                         value,
