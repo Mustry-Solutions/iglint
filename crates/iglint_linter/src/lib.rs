@@ -8,6 +8,7 @@ pub mod diagnostic;
 pub mod discovery;
 pub mod engine;
 mod fix;
+pub mod live;
 pub mod options;
 pub mod registry;
 pub mod rule;

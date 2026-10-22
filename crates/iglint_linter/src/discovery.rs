@@ -264,7 +264,8 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
     discovery
 }
 
-fn skip_reason(settings: &ProjectSettings, file: &Path) -> Option<SkipReason> {
+/// Why `file` is not linted (excluded or whitelisted), if it is not.
+pub fn skip_reason(settings: &ProjectSettings, file: &Path) -> Option<SkipReason> {
     let relative = settings.relative_path(file);
     if settings
         .exclude
