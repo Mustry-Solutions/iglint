@@ -63,6 +63,8 @@ finding).
   referenced (4 entries).
 * Unknown kwargs are reported as configuration notices instead of being
   ignored silently (bug 9).
+* Keys of Ignition's dataset encoding (`$`, `$columns`) are Ignition's
+  names, not the user's, and are not checked.
 
 ## PollingIntervalRule (`BIND004`)
 
@@ -117,6 +119,11 @@ The expression and property binding part:
   (2 missing).
 * `output` parameters are written by the view and read by its caller; they
   are `VIEW019`'s concern (2 missing).
+* A script that uses a property container in a way that cannot be
+  followed (`self.view.params.get(...)`, a subscript, `self` or the view
+  passed to a function, an alias) counts as reading every property of it,
+  so the rule stays silent instead of guessing. ign-lint reports the
+  properties that the text never names.
 
 ## ExcessiveContextDataRule (`VIEW006`)
 

@@ -11,7 +11,8 @@
 # other load. Baselines are machine-specific: record them on the CI runner.
 #
 # Environment: RUNS, THRESHOLD (default 0.10), CORPORA_DIR (default
-# target/bench-corpora), IGLINT_THREADS (default: all CPUs).
+# ~/.cache/iglint-bench/corpora), IGLINT_THREADS (default: all CPUs),
+# CARGO_TARGET_DIR.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,19 +20,21 @@ repo="$(dirname "$here")"
 baseline="$here/baseline.json"
 runs="${RUNS:-15}"
 threshold="${THRESHOLD:-0.10}"
-corpus="${CORPORA_DIR:-$repo/target/bench-corpora}/medium"
+corpus="${CORPORA_DIR:-$HOME/.cache/iglint-bench/corpora}/medium"
+target="${CARGO_TARGET_DIR:-$repo/target}"
 
 # shellcheck disable=SC1091
 [[ -f "$HOME/.cargo/env" ]] && . "$HOME/.cargo/env"
-(cd "$repo" && cargo build --release -q -p iglint -p iglint_bench_gen)
+(cd "$repo" && CARGO_TARGET_DIR="$target" cargo build --release -q -p iglint -p iglint_bench_gen)
 if [[ ! -f "$corpus/.complete" ]]; then
-  "$repo/target/release/iglint-bench-gen" --size medium --seed 1 --out "$corpus" --force >/dev/null
+  mkdir -p "$(dirname "$corpus")"
+  "$target/release/iglint-bench-gen" --size medium --seed 1 --out "$corpus" --force >/dev/null
   touch "$corpus/.complete"
 fi
 
 threads=()
 [[ -n "${IGLINT_THREADS:-}" ]] && threads=(--threads "$IGLINT_THREADS")
-python3 -I - "$repo/target/release/iglint" "$corpus" "$runs" "$threshold" "$baseline" "${1:-}" "${threads[@]}" <<'PY'
+python3 -I - "$target/release/iglint" "$corpus" "$runs" "$threshold" "$baseline" "${1:-}" "${threads[@]}" <<'PY'
 import json, subprocess, sys, time
 iglint, corpus, runs, threshold, baseline, mode, *extra = sys.argv[1:]
 cmd = [iglint, "check", "--no-cache", "--exit-zero", "-q", *extra, "."]

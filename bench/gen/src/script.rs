@@ -264,7 +264,7 @@ impl Gen<'_, '_> {
     /// A simple expression using defined names.
     fn value_expr(&mut self) -> String {
         match self.rng.below(7) {
-            0 | 1 | 2 => self.local().unwrap_or_else(|| "None".to_owned()),
+            0..=2 => self.local().unwrap_or_else(|| "None".to_owned()),
             3 => format!("{}", self.rng.below(100)),
             4 => self.string_lit(),
             5 => match self.local() {

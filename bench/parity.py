@@ -19,7 +19,7 @@ Example:
 
 With --private (or when CORPUS is $IGLINT_PRIVATE_CORPUS) only aggregate
 counts are printed; the detailed lists go to --out, which must be outside
-the iglint repository (default /tmp/iglint-parity-private).
+the iglint repository (default ~/.cache/iglint-bench/parity-private).
 """
 
 import argparse
@@ -32,8 +32,11 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-DEFAULT_IGN_LINT = os.environ.get("IGN_LINT", "/tmp/ignlint-venv/bin/ign-lint")
-DEFAULT_IGLINT = os.environ.get("IGLINT", str(REPO / "target/release/iglint"))
+BENCH_HOME = Path(os.environ.get("BENCH_HOME", Path.home() / ".cache/iglint-bench"))
+DEFAULT_IGN_LINT = os.environ.get("IGN_LINT", str(BENCH_HOME / "venv/bin/ign-lint"))
+DEFAULT_IGLINT = os.environ.get(
+    "IGLINT", str(Path(os.environ.get("CARGO_TARGET_DIR", BENCH_HOME / "target")) / "release/iglint")
+)
 
 ABBREVIATIONS = (
     "API HTTP HTTPS XML JSON SQL URL URI UUID CPU GPU RAM SSD HDD PDF CSV ZIP GIF PNG JPG JPEG "
@@ -76,6 +79,13 @@ def parse_results(path):
         if PYLINT_CAT.match(line):
             continue
         m = MESSAGE.match(line) or PYLINT_MESSAGE.match(line)
+        if not m and findings and line.strip() and not line.startswith(("=", "-", " ")) and findings[-1]["file"] == current:
+            # A name with a line break continues the previous message.
+            last = findings[-1]
+            last["raw"] += "\n" + line
+            node, sep, text = last["raw"].partition(": ")
+            last["path"], last["text"] = (node, text) if sep else ("", last["raw"])
+            continue
         if m and current and rule:
             raw = m.group(1)
             node, sep, text = raw.partition(": ")
@@ -126,6 +136,45 @@ def prop_config(view, path):
     return (view.get("propConfig") or {}).get(f"{m.group(1)}.{m.group(2)}")
 
 
+# Script uses of a property container that VIEW015 cannot follow
+# (`params.get(...)`, subscripts, `self` or the view passed on, aliases).
+DYNAMIC_ACCESS = re.compile(
+    r"self\.view\.(params|custom)\.get\(|self\.view\.(params|custom)\[|\(self[,)]|, ?self[,)]"
+    r"|self\.view\)|= ?self\.view\b|getattr\("
+)
+
+
+def resolve(view, path):
+    """The JSON value at an ign-lint node path (`custom.a.b`,
+    `root.root.children.Name.custom.x`), or None."""
+    if not isinstance(view, dict) or not path:
+        return None
+    parts = re.split(r"\.|\[(\d+)\]", path)
+    parts = [p for p in parts if p]
+    node = view
+    if parts[:2] == ["root", "root"]:
+        node, parts = view.get("root"), parts[2:]
+    i = 0
+    while i < len(parts) and node is not None:
+        key = parts[i]
+        if key == "children" and isinstance(node, dict) and i + 1 < len(parts):
+            name = parts[i + 1]
+            kids = node.get("children") or []
+            node = next((k for k in kids if (k.get("meta") or {}).get("name") == name), None)
+            if node is None and name.isdigit() and int(name) < len(kids):
+                node = kids[int(name)]
+            i += 2
+            continue
+        if isinstance(node, dict):
+            node = node.get(key)
+        elif isinstance(node, list) and key.isdigit() and int(key) < len(node):
+            node = node[int(key)]
+        else:
+            return None
+        i += 1
+    return node
+
+
 def has_abbreviation(name):
     up = name.upper()
     return any(a.upper() in up for a in ABBREVIATIONS)
@@ -139,7 +188,7 @@ def classify(f, side, views):
     if rule == "ComponentReferenceValidationRule":
         if side == "ign-lint" and (".scripts." in path or ".events." in path or "onChange" in path or "self." in text):
             return "not compared: ComponentReferenceValidationRule script part (SCR305)"
-        if side == "iglint" and re.search(r"\b(custom|params)\b", text) and "property" in text.lower():
+        if side == "iglint" and re.search(r"(view parameter|custom property) `[^`]*` is not defined", text):
             return "BIND005: custom/params existence"
         if not path.startswith("root"):
             return "BIND005: view-level bindings resolve from the view (bug 20)"
@@ -152,6 +201,10 @@ def classify(f, side, views):
             return "NAME001: abbreviations are whole words (bug 6)"
         if "already in use" in text:
             return "NAME001: no self-collision message (bug 7)"
+        if m and side == "ign-lint" and m.group(1).startswith("$"):
+            return "NAME001: dataset encoding keys (`$`, `$columns`) are Ignition's names"
+        if side == "iglint" and isinstance(resolve(views.get(f["file"]), path), (dict, list)):
+            return "NAME001: keys whose value is an object or array are checked"
     if rule == "PollingIntervalRule" and side == "ign-lint":
         if re.search(r"(?<![A-Za-z_])now\s*\(\s*\)", text) or re.search(r"[A-Za-z_]now\s*\(", text):
             return "BIND004: expressions are parsed (bug 10)"
@@ -167,22 +220,26 @@ def classify(f, side, views):
                 return "VIEW015: property with a change script is used"
             if cfg.get("paramDirection") == "output":
                 return "VIEW015: output parameters are VIEW019's concern"
+        if side == "ign-lint" and view is not None and DYNAMIC_ACCESS.search(json.dumps(view)):
+            return "VIEW015: a script reads the container dynamically, which counts as reading every property"
         if side == "iglint":
-            return "VIEW015: exact reference matching (bugs 21-23)" if view is not None and _substring_use(view, path) else None
+            if view is not None and _mentioned_elsewhere(view, path):
+                return "VIEW015: exact references; writes and look-alike names are not reads (bugs 21-23)"
+            return None
     if rule == "ExcessiveContextDataRule" and side == "iglint":
         return "VIEW006: complete measurement (bug 24)"
     return None
 
 
-def _substring_use(view, path):
-    """True when the property name is a substring of a longer referenced
-    name, which ign-lint counts as a use (bug 21)."""
+def _mentioned_elsewhere(view, path):
+    """True when the property's name occurs in the view other than as its
+    own definition: ign-lint counts any such text (a write, a longer name
+    that contains it, a same-named property elsewhere) as a use."""
     m = re.match(r"^(?:.*\.)?(custom|params)\.([^.\[]+)", path)
     if not m:
         return False
-    name = m.group(2)
     text = json.dumps(view)
-    return re.search(rf"{m.group(1)}\.{re.escape(name)}\w", text) is not None
+    return len(re.findall(rf"{re.escape(m.group(2))}", text)) > 2
 
 
 def run(cmd, cwd, log):
@@ -206,7 +263,7 @@ def main():
     corpus = Path(a.corpus).resolve()
     private_env = os.environ.get("IGLINT_PRIVATE_CORPUS")
     private = a.private or (private_env and Path(private_env).resolve() == corpus)
-    out = Path(a.out or ("/tmp/iglint-parity-private" if private else REPO / "bench/results/parity" / corpus.name)).resolve()
+    out = Path(a.out or (BENCH_HOME / "parity-private" if private else REPO / "bench/results/parity" / corpus.name)).resolve()
     if private and (out == REPO or REPO in out.parents):
         sys.exit("parity: --out must be outside the iglint repository for a private corpus")
     out.mkdir(parents=True, exist_ok=True)
@@ -289,6 +346,29 @@ def main():
     print("\nunexplained differences by side, rule and message shape:")
     for (side, rule, shape), n in unexplained.most_common():
         print(f"  {n:6}  {side:13} {rule:34} {shape if not private else ''}")
+    # PylintScriptRule (SCR900): ign-lint lints one combined file per view,
+    # iglint every script on its own, so lines and file-level messages
+    # differ. Compare (file, node path, message code) multisets.
+    def codes(findings):
+        c = collections.Counter()
+        for f in findings:
+            m = re.search(r"\(([A-Z]\d{4})\)$", f["text"])
+            if f["rule"] == "PylintScriptRule" and m:
+                c[(f["file"], f["path"], m.group(1))] += 1
+        return c
+
+    lc, rc = codes(left), codes(right)
+    if lc or rc:
+        per_code = collections.defaultdict(collections.Counter)
+        for k in set(lc) | set(rc):
+            both = min(lc[k], rc[k])
+            per_code[k[2]]["both"] += both
+            per_code[k[2]]["ign-lint-only"] += lc[k] - both
+            per_code[k[2]]["iglint-only"] += rc[k] - both
+        print("\nPylintScriptRule / SCR900 by message code (file, node path, code):")
+        print(f"  {'code':6} {'both':>6} {'ign-lint-only':>13} {'iglint-only':>11}")
+        for code, c in sorted(per_code.items(), key=lambda kv: -sum(kv[1].values()))[:20]:
+            print(f"  {code:6} {c['both']:>6} {c['ign-lint-only']:>13} {c['iglint-only']:>11}")
     (out / "differences.json").write_text(json.dumps(diffs, indent=1, ensure_ascii=False), encoding="utf-8")
     print(f"\nunexplained: {len(diffs)} (details: {out / 'differences.json'})")
     if a.list and not private:

@@ -549,6 +549,7 @@ dependencies = [
  "insta",
  "mimalloc",
  "predicates",
+ "rayon",
  "regex",
  "serde",
  "serde_json",

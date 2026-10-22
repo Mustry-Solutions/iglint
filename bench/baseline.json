@@ -1,0 +1,7 @@
+{
+  "corpus": "medium",
+  "seed": 1,
+  "command": "iglint check --no-cache",
+  "min_seconds": 0.1214,
+  "median_seconds": 0.1301
+}
