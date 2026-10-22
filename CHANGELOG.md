@@ -7,7 +7,35 @@ from 0.1.0 on.
 
 ## [Unreleased]
 
+### Changed
+
+- Faster runs: about 3x on a 300-view project and 2x on 5,000 views
+  (whitelist lookups, JSON formatting detected once per file, mimalloc,
+  no teardown at exit, `iglint ign-lint` builds ign-lint's node model only
+  for the options that show it). Peak memory on 5,000 views is down from
+  1.9 GB to 1.1 GB: parse trees live for one phase only, and JSON arrays
+  and objects are allocated at their exact size.
+- The cache keeps a unit's results when another file changes without
+  changing the facts the project index is built from (most edits inside
+  one view or script), instead of discarding every entry.
+- SCR900 runs pylint while the native rules run and, on POSIX, forks one
+  worker per CPU from a single Python process; `jobs` is the number of
+  workers.
+
+### Added
+
+- SCR900 option `disable`. A configuration read from an ign-lint
+  `rule_config.json` sets it to the messages ign-lint's combined file
+  disables (`unused-argument`, `missing-docstring`,
+  `redefined-outer-name`, `function-redefined`), also with a `pylintrc`
+  of its own.
+- Benchmark and parity harness in `bench/` (see bench/README.md).
+
 ### Fixed
+
+- `iglint ign-lint` prints ign-lint node paths for every finding,
+  including BIND005 findings in query binding parameters and other binding
+  expressions.
 
 - `\N{...}` escapes in unicode literals resolve every name IA's Jython
   2.7.3 accepts (its Unicode 9.0 table, with its lookup quirks); unknown

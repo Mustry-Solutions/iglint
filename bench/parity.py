@@ -190,6 +190,8 @@ def classify(f, side, views):
             return "not compared: ComponentReferenceValidationRule script part (SCR305)"
         if side == "iglint" and re.search(r"(view parameter|custom property) `[^`]*` is not defined", text):
             return "BIND005: custom/params existence"
+        if side == "iglint" and _query_parameter(views.get(f["file"]), path):
+            return "BIND005: references in query parameters and other binding expressions are checked"
         if not path.startswith("root"):
             return "BIND005: view-level bindings resolve from the view (bug 20)"
     if rule == "BadComponentReferenceRule":
@@ -205,6 +207,8 @@ def classify(f, side, views):
             return "NAME001: dataset encoding keys (`$`, `$columns`) are Ignition's names"
         if side == "iglint" and isinstance(resolve(views.get(f["file"]), path), (dict, list)):
             return "NAME001: keys whose value is an object or array are checked"
+        if side == "iglint" and _propconfig_only(views.get(f["file"]), path):
+            return "NAME001: propConfig-only component properties are checked"
     if rule == "PollingIntervalRule" and side == "ign-lint":
         if re.search(r"(?<![A-Za-z_])now\s*\(\s*\)", text) or re.search(r"[A-Za-z_]now\s*\(", text):
             return "BIND004: expressions are parsed (bug 10)"
@@ -239,7 +243,40 @@ def _mentioned_elsewhere(view, path):
     if not m:
         return False
     text = json.dumps(view)
-    return len(re.findall(rf"{re.escape(m.group(2))}", text)) > 2
+    return len(re.findall(rf"{re.escape(m.group(2))}", text)) > 1
+
+
+def _query_parameter(view, path):
+    """True when the last segment of `path` names a parameter of a query
+    binding of the view (`{binding}.{parameter}` paths)."""
+    name = path.rsplit(".", 1)[-1]
+    found = []
+
+    def walk(v):
+        if isinstance(v, dict):
+            if v.get("type") == "query" and isinstance(v.get("config"), dict):
+                if name in (v["config"].get("parameters") or {}):
+                    found.append(True)
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+
+    walk(view)
+    return bool(found)
+
+
+def _propconfig_only(view, path):
+    """True for `<component>.custom.<name>` that the component declares in
+    its `propConfig` but not in its `custom` object."""
+    head, sep, name = path.rpartition(".custom.")
+    if not sep or "." in name or not head.startswith("root"):
+        return False
+    component = resolve(view, head)
+    if not isinstance(component, dict):
+        return False
+    return name not in (component.get("custom") or {}) and f"custom.{name}" in (component.get("propConfig") or {})
 
 
 def run(cmd, cwd, log):

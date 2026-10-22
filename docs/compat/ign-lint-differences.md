@@ -65,6 +65,11 @@ finding).
   ignored silently (bug 9).
 * Keys of Ignition's dataset encoding (`$`, `$columns`) are Ignition's
   names, not the user's, and are not checked.
+* A component custom property that exists only in the component's
+  `propConfig` (a bound property without a stored value) is a property
+  like any other and is checked. ign-lint only sees component properties
+  that have a stored value (it adds `propConfig`-only properties at view
+  level only).
 
 ## PollingIntervalRule (`BIND004`)
 
@@ -100,6 +105,12 @@ The expression and property binding part:
   bindings resolve from the view, not from a fake `root` component (bug 20).
 * `BIND005` also checks that referenced `custom` properties and view
   `params` exist, which ign-lint does not (1 extra).
+* `BIND005` checks the references in every expression of a binding:
+  query parameters, tag history and HTTP binding expressions and map
+  transform expressions too, not only expression bindings, structure
+  leaves and expression transforms. In `iglint ign-lint` these are
+  reported at ign-lint style paths (`{binding}.{parameter}` for a query
+  parameter).
 
 ## BadComponentReferenceRule (`VIEW018`)
 
@@ -119,6 +130,9 @@ The expression and property binding part:
   (2 missing).
 * `output` parameters are written by the view and read by its caller; they
   are `VIEW019`'s concern (2 missing).
+* Assignments in scripts (`self.view.custom.x = ...`,
+  `self.getChild('A').custom.x = ...`) write the property; they do not
+  read it. ign-lint counts any text that names the property as a use.
 * A script that uses a property container in a way that cannot be
   followed (`self.view.params.get(...)`, a subscript, `self` or the view
   passed to a function, an alias) counts as reading every property of it,

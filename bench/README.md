@@ -193,9 +193,9 @@ took 1,326 s there.
 
 Not reached yet: with pylint on the small corpus (pylint's fixed start-up
 cost) and single-CPU runs. **xl (20,000 views) was not run on this
-machine:** iglint's peak memory grows by about 0.38 MB per view (1.9 GB on
+machine:** iglint's peak memory grew by about 0.38 MB per view (1.9 GB on
 large, a projected 7 to 8 GB on xl), more than was free next to the other
-jobs. Memory is the first item of the profile below.
+jobs. It is now about 0.22 MB per view (see the profile below).
 
 On a private production project (287 views, its CI command with its own
 `rule_config.json` and whitelist; aggregates only): ign-lint `jobs=1`
@@ -224,22 +224,34 @@ Together: private project 0.33 s to 0.11 s (`iglint check`), 0.29 s to
 0.06 s (`iglint ign-lint` without pylint), 0.87 s to 0.46 s with pylint;
 large corpus 1.50 s to 0.70 s.
 
+Memory and the cache (after the numbers above were taken; final numbers
+to be rerun on a quiet machine):
+
+* Peak RSS on large went from 1.92 GB to 1.09 GB at the same speed. Per-unit
+  caches (Python parse trees above all, about 25 bytes per byte of
+  Python) now live for one phase only; phase B re-parses the scripts of the
+  units it lints, and suppression state and pylint results are carried
+  over. JSON arrays and objects are built on a scratch stack and allocated
+  at their exact size (the tree went from about 6 to 4 bytes per byte of
+  input, and the `Vec<Member>` growth hotspot is gone).
+* The cache context is now the layout, the manifests and a hash of every
+  resource summary, instead of the text of every file. A change that
+  leaves the summaries as they were keeps every other unit's results:
+  on large, one changed view costs 0.55 s (as much as a warm run) instead
+  of 0.77 s. A cold run that writes the cache parses everything once more
+  (0.91 s instead of 0.73 s). `crates/iglint_linter/tests/incremental.rs`
+  checks every one-file change of the fixture workspace (and a dependent
+  view) against an uncached run.
+
 Remaining hotspots (large corpus):
 
-1. Memory: about 9 bytes of model per byte of input. A third of the
-   samples are mimalloc initialising fresh pages; `Vec<Member>` growth in
-   the JSON parser alone is 13%. Smaller JSON nodes (no owned `Cow`
-   strings for keys, exact-capacity member vectors) and dropping each
-   resource's syntax tree after its summary would cut both time and the
-   xl blocker.
-2. The incremental run is slower than a cold run: the cache key includes
-   every file of the workspace, so one changed view re-analyses everything
-   and rewrites the cache. Per-resource keys plus a project-index key
-   would make one-file changes cost one file.
-3. Script parsing and the semantic model: about 25%. Each script is
-   parsed once (first in the summary phase, `add_script_references`) and
-   shared with the rules through the unit cache; the parser and the
-   semantic model builder are the next targets.
+1. Memory: still about 5 bytes per byte of input. `JsonString` keeps the
+   raw text slice next to the decoded `Cow` (48 bytes per string), and
+   Python syntax trees own every identifier as a `String`.
+2. Warm runs still parse every file to build the summaries; caching the
+   summaries themselves (they are owned data) would let unchanged files
+   skip parsing.
+3. Script parsing and the semantic model: about 25% of the samples.
 4. Discovery walks the tree twice (engine discovery and
    `Workspace::discover`, 30 + 10 ms on the private project) on one thread.
 5. Text output: `display_line` and `LineIndex::new` for code frames (6%).
@@ -266,40 +278,35 @@ corpus (`--private`, or the corpus is `$IGLINT_PRIVATE_CORPUS`) only
 aggregates are printed and the output directory must be outside the
 repository (default `~/.cache/iglint-bench/parity-private`).
 
-Results without pylint (`bench/configs/rules-only.json`, seed 1):
+Results without pylint (`bench/configs/rules-only.json`, seed 1), and the
+private project with its own configuration (pylint included):
 
 | corpus | identical | expected | unexplained ign-lint-only | unexplained iglint-only |
 |---|---|---|---|---|
 | small | 24 | 7 | 0 | 0 |
-| medium | 218 | 106 | 0 | 2 |
-| large | 2,247 | 1,142 | 0 | 4 |
-| private project (aggregates) | 1,482 | 4,044 ² | 0 | 4 |
+| medium | 218 | 108 | 0 | 0 |
+| large | 2,247 | 1,146 | 0 | 0 |
+| private project (aggregates) | 1,482 | 4,048 ² | 0 | 0 |
 
-² Including 3,072 pylint findings counted as "not compared" in the
-rule table and compared by message code instead.
+² Including 3,072 pylint findings, which are compared by message code
+instead (below).
 
-* All unexplained synthetic differences are one case: `BIND005` reports
-  an unresolved component reference in a **query binding parameter**,
-  which ign-lint does not check. The finding is right, but in
-  `iglint ign-lint` it carries iglint's own node path
-  (`root/A/B.meta.visible@binding.parameters.p`) instead of an ign-lint
-  path, and the difference is not documented yet.
-* Private project: 3 `NAME001` findings on custom property names and 1
-  `VIEW015` finding that ign-lint does not report and no documented
-  difference explains (potential false positives, to be checked).
-* Pylint, private project, by message code: 1,152 messages on both sides.
-  ign-lint-only are `E0602` undefined names that iglint provides
-  (`system`, library packages: 279) and messages caused by ign-lint's
-  combined file (`C0103` module-level names 343, `W1405` quote consistency
-  across scripts 201). iglint-only are 32 `W0311` (indentation, ign-lint
-  re-indents scripts), 14 `C0103`, 9 `W1405` and 3 others.
-* Pylint, medium corpus, with an explicit `pylintrc`: iglint additionally
-  reports `missing-module-docstring` (103), `unused-argument` (70) and
-  `missing-function-docstring` (32). ign-lint's combined file disables
-  `unused-argument`, `missing-docstring`, `redefined-outer-name` and
-  `function-redefined` in its header whatever the rcfile says; iglint
-  applies those four only to its bundled rcfile. In `iglint ign-lint` mode
-  they should be disabled for a user rcfile too.
+Every expected difference has a category in
+`docs/compat/ign-lint-differences.md`. The ones found with this tool and
+added there: BIND005 checks query parameters and other binding
+expressions; NAME001 skips dataset encoding keys and checks
+`propConfig`-only component properties; VIEW015 treats script
+assignments as writes and stays silent when a script reads a property
+container dynamically.
+
+Pylint on the private project, by message code: 1,152 messages on both
+sides. ign-lint-only are `E0602` undefined names that iglint provides
+(`system`, library packages: 279) and messages caused by ign-lint's
+combined file (`C0103` module-level names 343, `W1405` quote consistency
+across scripts 201). iglint-only are 32 `W0311` (indentation; ign-lint
+re-indents scripts), 14 `C0103`, 9 `W1405` and 3 others. With an explicit
+`pylintrc`, iglint applies the disables of ign-lint's combined-file header
+(SCR900 option `disable`), so equal configurations give the same messages.
 
 ## Regression gate
 
