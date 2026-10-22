@@ -82,82 +82,127 @@ struct PercentSpec {
     keys: Vec<String>,
 }
 
-/// Parses a `%` format string like `PyString.StringFormatter`.
-fn parse_percent(s: &str) -> Result<PercentSpec, String> {
+/// Why a format string cannot be checked.
+#[derive(Debug, PartialEq)]
+enum Bad {
+    /// Formatting raises whatever the arguments are.
+    Error(String),
+    /// The string uses something we do not model exactly (non-ASCII
+    /// digits, which Java's `Character.isDigit` accepts): no finding.
+    Unknown,
+}
+
+impl From<&str> for Bad {
+    fn from(s: &str) -> Self {
+        Bad::Error(s.to_owned())
+    }
+}
+
+impl From<String> for Bad {
+    fn from(s: String) -> Self {
+        Bad::Error(s)
+    }
+}
+
+/// A non-ASCII character Java may take for a digit: we cannot tell.
+fn maybe_java_digit(c: char) -> bool {
+    !c.is_ascii() && c.is_numeric()
+}
+
+/// Parses a `%` format string like Jython's `StringFormatter.format`
+/// (verified on Jython): `%`, an optional `(key)` with nested parentheses,
+/// any flags of `-+ #0`, a width (digits or `*`), a precision (`.` and
+/// digits or `*`), at most one length modifier of `hlL`, the conversion.
+/// `%%` (also `%5%`, `%*%`) prints `%` but still consumes `*` values.
+fn parse_percent(s: &str) -> Result<PercentSpec, Bad> {
     let chars: Vec<char> = s.chars().collect();
     let mut spec = PercentSpec::default();
     let mut i = 0;
+    let pop = |i: &mut usize| -> Result<char, Bad> {
+        let c = *chars.get(*i).ok_or(Bad::from("incomplete format"))?;
+        *i += 1;
+        Ok(c)
+    };
+    // `getNumber`: `*` (one value), digits, or nothing.
+    let number = |i: &mut usize, stars: &mut usize| -> Result<(), Bad> {
+        let c = pop(i)?;
+        if c == '*' {
+            *stars += 1;
+            return Ok(());
+        }
+        if maybe_java_digit(c) {
+            return Err(Bad::Unknown);
+        }
+        if !c.is_ascii_digit() {
+            *i -= 1;
+            return Ok(());
+        }
+        let start = *i - 1;
+        while chars.get(*i).is_some_and(char::is_ascii_digit) {
+            *i += 1;
+        }
+        if chars.get(*i).is_some_and(|c| maybe_java_digit(*c)) {
+            return Err(Bad::Unknown);
+        }
+        let digits: String = chars[start..*i].iter().collect();
+        if digits.parse::<i32>().is_err() {
+            return Err(Bad::Error(format!(
+                "`{digits}` does not fit in an int (Jython raises NumberFormatException)"
+            )));
+        }
+        Ok(())
+    };
     while i < chars.len() {
         if chars[i] != '%' {
             i += 1;
             continue;
         }
-        let start = i;
         i += 1;
         let mut keyed = false;
-        if chars.get(i) == Some(&'(') {
+        if pop(&mut i)? == '(' {
+            let key_start = i;
             let mut depth = 1;
-            let key_start = i + 1;
-            i += 1;
-            while i < chars.len() && depth > 0 {
-                match chars[i] {
+            while depth > 0 {
+                match pop(&mut i)? {
                     '(' => depth += 1,
                     ')' => depth -= 1,
                     _ => {}
                 }
-                i += 1;
-            }
-            if depth > 0 {
-                return Err("incomplete format key".into());
             }
             spec.keys.push(chars[key_start..i - 1].iter().collect());
             keyed = true;
-        }
-        while i < chars.len() && matches!(chars[i], '-' | '+' | ' ' | '#' | '0') {
-            i += 1;
-        }
-        let mut stars = 0;
-        if chars.get(i) == Some(&'*') {
-            stars += 1;
-            i += 1;
         } else {
-            while i < chars.len() && chars[i].is_ascii_digit() {
-                i += 1;
-            }
+            i -= 1;
         }
-        if chars.get(i) == Some(&'.') {
-            i += 1;
-            if chars.get(i) == Some(&'*') {
-                stars += 1;
-                i += 1;
-            } else {
-                while i < chars.len() && chars[i].is_ascii_digit() {
-                    i += 1;
-                }
-            }
+        while matches!(pop(&mut i)?, '-' | '+' | ' ' | '#' | '0') {}
+        i -= 1;
+        let mut stars = 0;
+        number(&mut i, &mut stars)?;
+        let mut c = pop(&mut i)?;
+        if c == '.' {
+            number(&mut i, &mut stars)?;
+            c = pop(&mut i)?;
         }
-        while i < chars.len() && matches!(chars[i], 'h' | 'l' | 'L') {
-            i += 1;
+        if matches!(c, 'h' | 'l' | 'L') {
+            c = pop(&mut i)?;
         }
-        let Some(&conversion) = chars.get(i) else {
-            return Err("incomplete format".into());
-        };
-        i += 1;
-        match conversion {
-            '%' => {
-                // `%%` consumes nothing; `%(key)%` neither.
-                let _ = start;
-            }
+        match c {
+            // Prints `%`; `*` values are still taken.
+            '%' => spec.positional += stars,
             'd' | 'i' | 'o' | 'u' | 'x' | 'X' | 'e' | 'E' | 'f' | 'F' | 'g' | 'G' | 'c' | 'r'
             | 's' => {
                 spec.positional += stars + usize::from(!keyed);
             }
             other => {
-                return Err(format!(
-                    "unsupported format character '{other}' (0x{:x}) at index {}",
+                if maybe_java_digit(other) {
+                    return Err(Bad::Unknown);
+                }
+                // Java's index counts UTF-16 code units.
+                let index: usize = chars[..i - 1].iter().map(|c| c.len_utf16()).sum();
+                return Err(Bad::Error(format!(
+                    "unsupported format character '{other}' (0x{:x}) at index {index}",
                     other as u32,
-                    i - 1
-                ));
+                )));
             }
         }
     }
@@ -172,8 +217,9 @@ struct BraceSpec {
     keywords: Vec<String>,
 }
 
-/// Parses a `str.format` string like Jython's `MarkupIterator`.
-fn parse_braces(s: &str) -> Result<BraceSpec, String> {
+/// Parses a `str.format` string like Jython's `MarkupIterator` and
+/// `FieldNameIterator` (verified on Jython).
+fn parse_braces(s: &str) -> Result<BraceSpec, Bad> {
     let mut spec = BraceSpec::default();
     let mut auto: Option<bool> = None;
     let mut next_auto = 0usize;
@@ -187,7 +233,7 @@ fn parse_braces_into(
     auto: &mut Option<bool>,
     next_auto: &mut usize,
     depth: u32,
-) -> Result<(), String> {
+) -> Result<(), Bad> {
     let chars: Vec<char> = s.chars().collect();
     let mut i = 0;
     while i < chars.len() {
@@ -196,7 +242,8 @@ fn parse_braces_into(
             '}' if chars.get(i + 1) == Some(&'}') => i += 2,
             '}' => return Err("Single '}' encountered in format string".into()),
             '{' => {
-                // Find the matching close brace (nested fields in the spec).
+                // Find the matching close brace (nested fields in the spec;
+                // brackets do not protect braces).
                 let mut level = 1;
                 let mut j = i + 1;
                 while j < chars.len() && level > 0 {
@@ -226,48 +273,19 @@ fn field_spec(
     auto: &mut Option<bool>,
     next_auto: &mut usize,
     depth: u32,
-) -> Result<(), String> {
-    // field_name [!conversion] [:format_spec]; `!` and `:` inside `[...]`
-    // belong to the key.
-    let mut name_end = field.len();
-    let mut in_bracket = false;
-    for (k, c) in field.char_indices() {
-        match c {
-            '[' => in_bracket = true,
-            ']' => in_bracket = false,
-            '!' | ':' if !in_bracket => {
-                name_end = k;
-                break;
-            }
-            _ => {}
-        }
-    }
+) -> Result<(), Bad> {
+    // field_name [!conversion] [:format_spec]: Jython ends the name at the
+    // first `!` or `:`, also inside `[...]`.
+    let name_end = field.find(['!', ':']).unwrap_or(field.len());
     let name = &field[..name_end];
-    let mut rest = &field[name_end..];
-    if let Some(r) = rest.strip_prefix('!') {
-        let mut chars = r.chars();
-        let conversion = chars.next();
-        match conversion {
-            Some('r' | 's') => {}
-            Some(c) => return Err(format!("Unknown conversion specifier {c}")),
-            None => return Err("end of format while looking for conversion specifier".into()),
-        }
-        rest = chars.as_str();
-        if !rest.is_empty() && !rest.starts_with(':') {
-            return Err("expected ':' after format specifier".into());
-        }
-    }
     let first_end = name.find(['.', '[']).unwrap_or(name.len());
-    let arg = &name[..first_end];
-    if name[first_end..].starts_with(".")
-        && name[first_end + 1..].split(['.', '[']).next() == Some("")
-    {
-        return Err("Empty attribute in format string".into());
+    let head = &name[..first_end];
+    if head.chars().any(maybe_java_digit) {
+        return Err(Bad::Unknown);
     }
-    if name[first_end..].contains("[]") {
-        return Err("Empty attribute in format string".into());
-    }
-    if arg.is_empty() {
+    // Numbering is manual when the name starts with a digit, automatic
+    // when it is empty; `{+0}` and `{-0}` are neither.
+    if head.is_empty() {
         if *auto == Some(false) {
             return Err(
                 "cannot switch from manual field specification to automatic field numbering".into(),
@@ -276,24 +294,86 @@ fn field_spec(
         *auto = Some(true);
         *next_auto += 1;
         spec.positional = spec.positional.max(*next_auto);
-    } else if arg.bytes().all(|b| b.is_ascii_digit()) {
+    } else if head.starts_with(|c: char| c.is_ascii_digit()) {
         if *auto == Some(true) {
             return Err(
                 "cannot switch from automatic field numbering to manual field specification".into(),
             );
         }
         *auto = Some(false);
-        if let Ok(index) = arg.parse::<usize>() {
-            spec.positional = spec.positional.max(index + 1);
+    }
+    // `Integer.parseInt`: an index when it fits in an int, else a keyword.
+    if !head.is_empty() {
+        let digits = head.strip_prefix(['+', '-']).unwrap_or(head);
+        let numeric = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
+        match head.parse::<i32>() {
+            Ok(index) if numeric => match usize::try_from(index) {
+                Ok(index) => spec.positional = spec.positional.max(index.saturating_add(1)),
+                // A negative index fails with a Java exception, or not.
+                Err(_) => return Err(Bad::Unknown),
+            },
+            Err(_) if numeric && !head.starts_with(['+', '-']) => {
+                return Err(format!(
+                    "field `{{{head}}}` is too large for an index, so it is looked up as a keyword (KeyError)"
+                )
+                .into());
+            }
+            _ => {
+                if !spec.keywords.iter().any(|k| k == head) {
+                    spec.keywords.push(head.to_owned());
+                }
+            }
         }
-    } else if !arg.starts_with('-') && !spec.keywords.iter().any(|k| k == arg) {
-        spec.keywords.push(arg.to_owned());
+    }
+    field_rest(&name[first_end..])?;
+    let mut rest = &field[name_end..];
+    if let Some(r) = rest.strip_prefix('!') {
+        let mut chars = r.chars();
+        match chars.next() {
+            Some('r' | 's') => {}
+            Some(c) => return Err(format!("Unknown conversion specifier {c}").into()),
+            None => return Err("end of format while looking for conversion specifier".into()),
+        }
+        rest = chars.as_str();
+        if !rest.is_empty() && !rest.starts_with(':') {
+            return Err("expected ':' after conversion specifier".into());
+        }
     }
     if let Some(format_spec) = rest.strip_prefix(':')
         && format_spec.contains('{')
-        && depth < 2
     {
+        if depth >= 1 {
+            return Err("Max string recursion exceeded".into());
+        }
         parse_braces_into(format_spec, spec, auto, next_auto, depth + 1)?;
+    }
+    Ok(())
+}
+
+/// The `.attr` and `[key]` parts after a field's first name, like
+/// `FieldNameIterator`.
+fn field_rest(mut rest: &str) -> Result<(), Bad> {
+    while !rest.is_empty() {
+        if let Some(r) = rest.strip_prefix('.') {
+            let end = r.find(['.', '[']).unwrap_or(r.len());
+            if end == 0 {
+                return Err("Empty attribute in format string".into());
+            }
+            rest = &r[end..];
+        } else if let Some(r) = rest.strip_prefix('[') {
+            let Some(end) = r.find(']') else {
+                return Err("Missing ']' in format string".into());
+            };
+            if end == 0 {
+                return Err("Empty attribute in format string".into());
+            }
+            rest = &r[end + 1..];
+            if !rest.is_empty() && !rest.starts_with(['.', '[']) {
+                return Err("Only '.' or '[' may follow ']' in format field specifier".into());
+            }
+        } else {
+            return Ok(());
+        }
     }
     Ok(())
 }
@@ -354,7 +434,8 @@ impl ScriptRule for FormatString {
 fn check_percent(format: &str, right: &Expr) -> Option<String> {
     let spec = match parse_percent(format) {
         Ok(s) => s,
-        Err(e) => return Some(format!("Bad `%` format string: {e}")),
+        Err(Bad::Error(e)) => return Some(format!("Bad `%` format string: {e}")),
+        Err(Bad::Unknown) => return None,
     };
     match right {
         Expr::Tuple(t) => {
@@ -407,7 +488,8 @@ fn check_percent(format: &str, right: &Expr) -> Option<String> {
 fn check_format_call(format: &str, call: &iglint_python::ast::ExprCall) -> Option<String> {
     let spec = match parse_braces(format) {
         Ok(s) => s,
-        Err(e) => return Some(format!("Bad `format` string: {e}")),
+        Err(Bad::Error(e)) => return Some(format!("Bad `format` string: {e}")),
+        Err(Bad::Unknown) => return None,
     };
     if call.starargs.is_none() && spec.positional > call.args.len() {
         return Some(format!(
@@ -439,13 +521,15 @@ mod tests {
         assert_eq!(parse_percent("%*.*f").unwrap().positional, 3);
         assert_eq!(parse_percent("%(a)s %(b(c))r").unwrap().keys, ["a", "b(c)"]);
         assert_eq!(parse_percent("%ld %-+ #05.2f").unwrap().positional, 2);
-        assert!(
-            parse_percent("%q")
-                .unwrap_err()
-                .contains("unsupported format character 'q'")
-        );
+        assert!(matches!(
+            parse_percent("%q"),
+            Err(Bad::Error(e)) if e.contains("unsupported format character 'q'")
+        ));
         assert!(parse_percent("%a").is_err());
-        assert_eq!(parse_percent("abc %").unwrap_err(), "incomplete format");
+        assert_eq!(
+            parse_percent("abc %").unwrap_err(),
+            "incomplete format".into()
+        );
     }
 
     #[test]
@@ -463,7 +547,7 @@ mod tests {
         assert!(parse_braces("{0!a}").is_err());
         assert!(parse_braces("{0[]}").is_err());
         assert_eq!(parse_braces("{00}").unwrap().positional, 1);
-        assert_eq!(parse_braces("{-1}").unwrap(), BraceSpec::default());
+        assert_eq!(parse_braces("{-1}").unwrap_err(), Bad::Unknown);
     }
 
     #[test]
@@ -487,5 +571,112 @@ m = u"%d%%" % (5,)
             lines(&d).into_iter().map(|(l, _)| l).collect::<Vec<_>>(),
             [1, 2, 3, 4, 5, 6, 7]
         );
+    }
+
+    fn percent_error(format: &str) -> String {
+        match parse_percent(format) {
+            Err(Bad::Error(e)) => e,
+            other => panic!("{format}: {other:?}"),
+        }
+    }
+
+    fn brace_error(format: &str) -> String {
+        match parse_braces(format) {
+            Err(Bad::Error(e)) => e,
+            other => panic!("{format}: {other:?}"),
+        }
+    }
+
+    /// Each case was run on Jython 2.7 (Ignition 8.3.3).
+    #[test]
+    fn percent_grammar_matches_jython() {
+        // One length modifier at most.
+        assert_eq!(
+            percent_error("%lls"),
+            "unsupported format character 'l' (0x6c) at index 2"
+        );
+        assert_eq!(
+            percent_error("%hls"),
+            "unsupported format character 'l' (0x6c) at index 2"
+        );
+        assert_eq!(parse_percent("%ls %Ls %hd").unwrap().positional, 3);
+        // `%%` after flags, width or precision; `*` values are still taken.
+        assert_eq!(parse_percent("%5% %.%").unwrap().positional, 0);
+        assert_eq!(parse_percent("%*%").unwrap().positional, 1);
+        assert_eq!(parse_percent("%0*.*f").unwrap().positional, 3);
+        assert_eq!(parse_percent("%(a)%").unwrap().keys, ["a"]);
+        assert_eq!(parse_percent("%(a(b))s").unwrap().keys, ["a(b)"]);
+        assert_eq!(
+            parse_percent("%.s %0-5d %-+ #05.3ld").unwrap().positional,
+            3
+        );
+        assert_eq!(
+            percent_error("%5.2.3f"),
+            "unsupported format character '.' (0x2e) at index 4"
+        );
+        for incomplete in ["%", "%5", "%(a", "%5.", "%l"] {
+            assert_eq!(
+                percent_error(incomplete),
+                "incomplete format",
+                "{incomplete}"
+            );
+        }
+        assert!(percent_error("%99999999999s").contains("NumberFormatException"));
+        assert!(percent_error("%.2147483648f").contains("NumberFormatException"));
+        // Java counts UTF-16 code units.
+        assert_eq!(
+            percent_error("\u{1F600}%q"),
+            "unsupported format character 'q' (0x71) at index 3"
+        );
+        // Java's isDigit accepts other digits: not modelled, no finding.
+        assert_eq!(parse_percent("%\u{663}s").unwrap_err(), Bad::Unknown);
+    }
+
+    /// Each case was run on Jython 2.7 (Ignition 8.3.3).
+    #[test]
+    fn brace_grammar_matches_jython() {
+        // Indexes that do not fit in an int are keywords: KeyError.
+        assert!(brace_error("{18446744073709551615}").contains("KeyError"));
+        assert!(brace_error("{2147483648}").contains("KeyError"));
+        assert_eq!(parse_braces("{2147483647}").unwrap().positional, 2147483648);
+        // A sign makes an index without switching to manual numbering.
+        assert_eq!(parse_braces("{+0}{}").unwrap().positional, 1);
+        assert_eq!(parse_braces("{-0}{}").unwrap().positional, 1);
+        assert_eq!(parse_braces("{+1}").unwrap().positional, 2);
+        assert_eq!(
+            parse_braces("{+2147483648}").unwrap().keywords,
+            ["+2147483648"]
+        );
+        assert!(brace_error("{00}{}").contains("cannot switch"));
+        assert!(brace_error("{}{2147483648}").contains("cannot switch"));
+        assert_eq!(parse_braces("{a}{}").unwrap().positional, 1);
+        assert_eq!(
+            parse_braces("{0x1} { 0} {0]}").unwrap().keywords,
+            ["0x1", " 0", "0]"]
+        );
+        // The name ends at the first `!` or `:`, even inside brackets.
+        assert_eq!(brace_error("{0[!]}"), "Missing ']' in format string");
+        assert_eq!(brace_error("{0[:]}"), "Missing ']' in format string");
+        assert_eq!(brace_error("{0[a}b]}"), "Missing ']' in format string");
+        assert_eq!(
+            brace_error("{0[0]x}"),
+            "Only '.' or '[' may follow ']' in format field specifier"
+        );
+        assert_eq!(
+            brace_error("{0!rr}"),
+            "expected ':' after conversion specifier"
+        );
+        assert_eq!(brace_error("{0:{1:{2}}}"), "Max string recursion exceeded");
+        assert_eq!(brace_error("{:{:{}}}"), "Max string recursion exceeded");
+        assert_eq!(parse_braces("{0:{1:x}} {0[0].real}").unwrap().positional, 2);
+        assert_eq!(parse_braces("{\u{661}}").unwrap_err(), Bad::Unknown);
+    }
+
+    #[test]
+    fn huge_indexes_do_not_overflow() {
+        let d = lint_module("SCR112", "x = \"{18446744073709551615}\".format(1)\n");
+        assert_eq!(d.len(), 1);
+        assert!(lint_module("SCR112", "x = '%lls' % 'x'\n").len() == 1);
+        assert!(lint_module("SCR112", "x = '%*%' % (1,)\n").is_empty());
     }
 }

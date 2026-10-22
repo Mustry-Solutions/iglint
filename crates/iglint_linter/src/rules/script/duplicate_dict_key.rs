@@ -1,6 +1,7 @@
 //! SCR108 duplicate-dict-key.
 
-use iglint_python::ast::{Expr, Number, Operator, StringValue, UnaryOp};
+use iglint_python::ast::{Expr, ExprName, Number, Operator, StringValue, UnaryOp};
+use iglint_python_semantic::Resolution;
 use iglint_text::Ranged;
 use rustc_hash::FxHashMap;
 
@@ -8,7 +9,7 @@ use crate::checker::Checker;
 use crate::diagnostic::Severity;
 use crate::registry::{Category, RuleMeta};
 use crate::rule::{Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
-use crate::rules::script::{file_line, report, source, walk_exprs};
+use crate::rules::script::{file_line, report, semantic, source, walk_exprs};
 
 pub static META: RuleMeta = RuleMeta {
     code: "SCR108",
@@ -29,6 +30,10 @@ Python 2.7 equality:
   key; a `str` with non-ASCII bytes never equals a `unicode` (`'\xe9'` and
   `u'\xe9'` are two keys);
 * `None`, and tuples of such constants (`(1, 2)` and `(1.0, 2L)`).
+
+`True`, `False` and `None` count only where they are Jython's builtins: in
+Python 2 `True = 2` makes `True` an ordinary variable, and `from x import
+*`, `exec` or writes through `globals()` may rebind them.
 
 Number literals with `+`, `-` or `~` in front count as constants; other
 expressions do not.
@@ -215,7 +220,9 @@ fn exact_integer(f: f64) -> String {
 
 /// A numeric constant: a number literal, `True`/`False`, unary `+`, `-`
 /// and `~` on one, and `real + imaginary` / `real - imaginary`.
-fn number(e: &Expr) -> Option<Num<'_>> {
+/// `builtin` tells whether a name reads Jython's builtin (`True = 2` makes
+/// `True` an ordinary variable).
+fn number<'e>(e: &'e Expr, builtin: &dyn Fn(&ExprName) -> bool) -> Option<Num<'e>> {
     match e {
         Expr::Num(n) => Some(match &n.n {
             Number::Int(i) => Num::Small(i128::from(*i)),
@@ -223,10 +230,10 @@ fn number(e: &Expr) -> Option<Num<'_>> {
             Number::Float(f) => Num::Float(*f),
             Number::Complex(im) => Num::Complex(0.0, *im),
         }),
-        Expr::Name(n) if &*n.id == "True" => Some(Num::Small(1)),
-        Expr::Name(n) if &*n.id == "False" => Some(Num::Small(0)),
+        Expr::Name(n) if &*n.id == "True" && builtin(n) => Some(Num::Small(1)),
+        Expr::Name(n) if &*n.id == "False" && builtin(n) => Some(Num::Small(0)),
         Expr::UnaryOp(u) => {
-            let operand = number(&u.operand)?;
+            let operand = number(&u.operand, builtin)?;
             match u.op {
                 UnaryOp::UAdd => Some(operand),
                 UnaryOp::USub => operand.negate(),
@@ -241,7 +248,7 @@ fn number(e: &Expr) -> Option<Num<'_>> {
             let Number::Complex(im) = right.n else {
                 return None;
             };
-            let re = number(&b.left)?.to_f64()?;
+            let re = number(&b.left, builtin)?.to_f64()?;
             Some(match b.op {
                 Operator::Add => Num::Complex(re, im),
                 _ => Num::Complex(re, -im),
@@ -252,7 +259,7 @@ fn number(e: &Expr) -> Option<Num<'_>> {
 }
 
 /// The canonical form of a constant key.
-fn key(e: &Expr) -> Option<Key> {
+fn key(e: &Expr, builtin: &dyn Fn(&ExprName) -> bool) -> Option<Key> {
     match e {
         Expr::Str(s) => Some(match &s.s {
             StringValue::Unicode(u) => Key::Text(u.to_string()),
@@ -261,14 +268,14 @@ fn key(e: &Expr) -> Option<Key> {
             }
             StringValue::Bytes(b) => Key::Bytes(b.clone()),
         }),
-        Expr::Name(n) if &*n.id == "None" => Some(Key::None),
+        Expr::Name(n) if &*n.id == "None" && builtin(n) => Some(Key::None),
         Expr::Tuple(t) => t
             .elts
             .iter()
-            .map(key)
+            .map(|e| key(e, builtin))
             .collect::<Option<_>>()
             .map(Key::Tuple),
-        _ => number(e).map(Num::key),
+        _ => number(e, builtin).map(Num::key),
     }
 }
 
@@ -277,13 +284,23 @@ impl ScriptRule for DuplicateDictKey {
         if !unit.parsed.errors.is_empty() {
             return;
         }
+        let Some(model) = semantic(cx, unit) else {
+            return;
+        };
+        let builtin = |n: &ExprName| {
+            model.reference_at(n.range).is_some_and(|r| {
+                r.resolution == Resolution::Builtin && !model.is_dynamic_chain(r.scope)
+            })
+        };
         let text = source(unit);
         let mut found = Vec::new();
         walk_exprs(&unit.parsed.module.body, &mut |e| {
             let Expr::Dict(d) = e else { return };
             let mut seen: FxHashMap<Key, &Expr> = FxHashMap::default();
             for k in &d.keys {
-                let Some(canonical) = key(k) else { continue };
+                let Some(canonical) = key(k, &builtin) else {
+                    continue;
+                };
                 match seen.get(&canonical) {
                     Some(first) => found.push((first.range(), k.range())),
                     None => {
@@ -447,5 +464,13 @@ mod tests {
             "{}",
             d[0].message
         );
+    }
+
+    #[test]
+    fn rebound_true_is_an_ordinary_name() {
+        assert!(lint_module("SCR108", "True = 2\nd = {True: 'two', 1: 'one'}\n").is_empty());
+        assert!(lint_module("SCR108", "def f(False):\n    return {False: 1, 0: 2}\n").is_empty());
+        assert!(lint_module("SCR108", "from m import *\nd = {True: 1, 1: 2}\n").is_empty());
+        assert_eq!(lint_module("SCR108", "d = {True: 'a', 1: 'b'}\n").len(), 1);
     }
 }
