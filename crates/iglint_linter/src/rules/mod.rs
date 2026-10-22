@@ -101,6 +101,7 @@ rules![
     script::sleep_in_event_script,
     script::module_level_side_effect,
     script::shadowed_library_package,
+    script::pylint,
     sec::sql_string_building,
     sec::hardcoded_credential,
     sec::eval_exec,

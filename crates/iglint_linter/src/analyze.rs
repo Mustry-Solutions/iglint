@@ -9,11 +9,16 @@
 //!    ([`build_model`]) and summarised ([`summarize`]); rules in
 //!    [`Phase::Local`] run on linted resources in the same pass.
 //! 3. **Index.** [`ProjectIndex::build`] runs once over all summaries.
-//! 4. **Phase B, per resource, in parallel.** Rules in [`Phase::Project`]
+//! 4. **pylint.** When `SCR900 pylint` is enabled, pylint runs once over
+//!    the scripts of every linted unit ([`pylint_batch`]); its messages are
+//!    stored in the units' caches and reported by the rule in phase B.
+//! 5. **Phase B, per resource, in parallel.** Rules in [`Phase::Project`]
 //!    run with the index on the same models (kept alive since phase A), and
 //!    project rules once per linted project.
-//! 5. **Fixes.** Files with fixes are fixed and re-analysed one at a time,
-//!    against the index of the original text.
+//! 6. **Fixes.** Files with fixes are fixed and re-analysed one at a time,
+//!    against the index of the original text. pylint does not run again:
+//!    its findings are moved through the applied edits (dropped where an
+//!    edit touches them).
 //!
 //! Files in the lint set that belong to no resource (a `view.json` outside a
 //! project, a loose Python file, stdin) are analysed standalone: the same
@@ -24,6 +29,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use iglint_json::Value;
+use iglint_project::EmbeddedScript;
 use iglint_project::library::LibraryModule;
 use iglint_project::model::{FileError as ModelFileError, LoadedFile, LoadedResource, ModelData};
 use iglint_project::script::library_script;
@@ -31,16 +37,19 @@ use iglint_project::{
     Container, FileId, JsonDocument, ProjectIndex, ResourceId, ResourceModel, ResourceSummary,
     Workspace, build_model, build_view, summarize,
 };
+use iglint_text::TextEdit;
 use iglint_text::TextRange;
 use rayon::prelude::*;
-use rustc_hash::{FxHashMap, FxHasher};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 
 use crate::cache::Cache;
 use crate::checker::{Checker, FileTable, Unit, UnitCache};
 use crate::diagnostic::{Diagnostic, SourceFile};
 use crate::discovery::{FileKind, absolute};
 use crate::engine::{CheckOptions, CheckedFile, FileError, Outcome, fix_file};
+use crate::registry::RuleCode;
 use crate::rule::{PhaseHooks, RuleImpl, RuleSet, RuleSetCache, ScriptUnit};
+use crate::rules::script::pylint;
 use crate::settings::{LinterSettings, ProjectSettings};
 use crate::suppression::Suppressions;
 
@@ -59,6 +68,8 @@ pub(crate) struct Analysis {
     pub outcomes: Vec<Result<Outcome, FileError>>,
     /// Problems not tied to one linted file (invalid rule options).
     pub errors: Vec<FileError>,
+    /// Warnings about the run that do not fail it (pylint unavailable).
+    pub notices: Vec<String>,
 }
 
 /// Runs every rule of [`crate::rules::IMPLS`] on `targets`.
@@ -234,8 +245,10 @@ pub(crate) fn analyze_with(
         }
     }
 
-    // Cache: results depend on every file of the workspace.
-    let context = cache.map(|_| context_hash(&table));
+    // Cache: results depend on every file of the workspace (and on how
+    // pylint runs).
+    let context =
+        cache.map(|_| context_hash(&table) ^ pylint_context(rules, &sets, &targets, settings));
 
     // Phase A, part 2: model, summarise and run local rules.
     let models: Vec<ResourceModel<'_>> = loaded.par_iter().map(|l| build_model(&ws, l)).collect();
@@ -350,6 +363,80 @@ pub(crate) fn analyze_with(
     // Index.
     let index = ProjectIndex::build(&ws, summaries);
 
+    // Files outside any resource, modelled standalone.
+    struct Standalone {
+        target: usize,
+        file: FileId,
+        doc: Option<JsonDocument>,
+        text: Arc<str>,
+    }
+    let standalone_docs: Vec<Standalone> = standalone_files
+        .into_iter()
+        .map(|(target, file, text)| Standalone {
+            target,
+            file,
+            doc: is_json(&targets[target].path).then(|| JsonDocument::parse(Arc::clone(&text))),
+            text,
+        })
+        .collect();
+    let standalone_models: Vec<(ModelData<'_>, Vec<ModelFileError>, UnitCache)> = standalone_docs
+        .iter()
+        .map(|s| {
+            let (data, errors) =
+                standalone_model(&targets[s.target].path, s.file, s.doc.as_ref(), &s.text);
+            (data, errors, UnitCache::default())
+        })
+        .collect();
+
+    // pylint, once for every linted unit that enables SCR900.
+    let mut batch: Vec<BatchUnit<'_, '_>> = Vec::new();
+    for (i, model) in models.iter().enumerate() {
+        if !unit_results[i].as_ref().is_some_and(|u| !u.cached) {
+            continue;
+        }
+        let Some((_, s)) = unit_settings(model.resource.id) else {
+            continue;
+        };
+        let set = sets.get(rules, &s);
+        if pylint::options_in(&set).is_none() {
+            continue;
+        }
+        let scripts = model
+            .data
+            .scripts()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(position, (file, script))| {
+                let t = target_of.get(file.index()).copied().flatten()?;
+                Some((position, t, script))
+            })
+            .collect();
+        batch.push(BatchUnit {
+            set,
+            cache: &caches[i],
+            scripts,
+        });
+    }
+    for (s, (data, _, cache)) in standalone_docs.iter().zip(&standalone_models) {
+        let set = sets.get(rules, &targets[s.target].settings);
+        if pylint::options_in(&set).is_none() {
+            continue;
+        }
+        let scripts = data
+            .scripts()
+            .into_iter()
+            .enumerate()
+            .map(|(position, (_, script))| (position, s.target, script))
+            .collect();
+        batch.push(BatchUnit {
+            set,
+            cache,
+            scripts,
+        });
+    }
+    let (pylint_failed, notices) = pylint_batch(&batch, &settings.root);
+    drop(batch);
+
     // Phase B.
     let phase_b: Vec<(usize, Vec<Diagnostic>, Duration)> = models
         .par_iter()
@@ -426,41 +513,25 @@ pub(crate) fn analyze_with(
     }
 
     // Standalone files.
-    struct Standalone {
-        target: usize,
-        file: FileId,
-        doc: Option<JsonDocument>,
-        text: Arc<str>,
-    }
-    let standalone_docs: Vec<Standalone> = standalone_files
-        .into_iter()
-        .map(|(target, file, text)| Standalone {
-            target,
-            file,
-            doc: is_json(&targets[target].path).then(|| JsonDocument::parse(Arc::clone(&text))),
-            text,
-        })
-        .collect();
     let standalone_results: Vec<(usize, Vec<Diagnostic>, Duration)> = standalone_docs
         .par_iter()
-        .map(|s| {
+        .zip(&standalone_models)
+        .map(|(s, (data, errors, cache))| {
             let start = Instant::now();
             let t = &targets[s.target];
             let mut diagnostics = Vec::new();
             let set = sets.get(rules, &t.settings);
             if !set.is_empty() {
-                let (data, errors) = standalone_model(&t.path, s.file, s.doc.as_ref(), &s.text);
-                let cache = UnitCache::default();
                 let unit = Unit {
                     ws: &ws,
                     resource: None,
                     project: None,
-                    data: &data,
-                    errors: &errors,
+                    data,
+                    errors,
                     primary: s.file,
                     files: &table,
                     strict: t.settings.strict,
-                    cache: &cache,
+                    cache,
                 };
                 run_phase(&unit, None, &set, &set.local, &mut diagnostics);
                 run_phase(&unit, Some(&index), &set, &set.project, &mut diagnostics);
@@ -553,7 +624,7 @@ pub(crate) fn analyze_with(
                     message: "file could not be read".to_owned(),
                 });
             };
-            let cache_entry = match (cache, context, cached[t]) {
+            let cache_entry = match (cache, context, cached[t] || pylint_failed.contains(&t)) {
                 (Some(c), Some(ctx), false) => c.entry(
                     &target.path,
                     target.kind,
@@ -564,17 +635,48 @@ pub(crate) fn analyze_with(
                 ),
                 _ => None,
             };
-            let reanalyze = |text: &str| -> Vec<Diagnostic> {
+            // pylint findings are carried through the fixes, not recomputed.
+            let pylint_code = RuleCode::new(&pylint::META);
+            let carried = std::cell::RefCell::new(
+                diagnostics
+                    .iter()
+                    .filter(|d| d.rule == pylint_code)
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            );
+            let reanalyze = |text: &str, edits: &[TextEdit]| -> Vec<Diagnostic> {
                 let text: Arc<str> = Arc::from(text);
-                match (file_of_target.get(&t), standalone_by_target.get(&t)) {
+                let mut out = match (file_of_target.get(&t), standalone_by_target.get(&t)) {
                     (Some(f), _) => reanalyze_resource(
-                        rules, &ws, &index, &target_of, &targets, &overrides, *f, text,
+                        rules,
+                        &ws,
+                        &index,
+                        &target_of,
+                        &targets,
+                        &overrides,
+                        *f,
+                        Arc::clone(&text),
                     ),
                     (None, Some(s)) => {
-                        reanalyze_standalone(rules, &ws, &index, target, s.file, text)
+                        reanalyze_standalone(rules, &ws, &index, target, s.file, Arc::clone(&text))
                     }
                     _ => Vec::new(),
+                };
+                let mut carried = carried.borrow_mut();
+                if !carried.is_empty() {
+                    let file = SourceFile::new(target.path.clone(), text);
+                    carried.retain_mut(|d| {
+                        let Some(range) = crate::fix::shift_range(d.range, edits) else {
+                            return false;
+                        };
+                        d.range = range;
+                        d.file = file.clone();
+                        true
+                    });
+                    out.retain(|d| d.rule != pylint_code);
+                    out.extend(carried.iter().cloned());
                 }
+                out
             };
             let (fix, diagnostics) = fix_file(
                 settings,
@@ -598,7 +700,124 @@ pub(crate) fn analyze_with(
             })
         })
         .collect();
-    Analysis { outcomes, errors }
+    Analysis {
+        outcomes,
+        errors,
+        notices,
+    }
+}
+
+/// One unit whose scripts pylint lints.
+struct BatchUnit<'m, 'a> {
+    set: Arc<RuleSet>,
+    cache: &'m UnitCache,
+    /// `(position in data.scripts(), target of the script's file, script)`
+    /// for the scripts in linted files.
+    scripts: Vec<(usize, usize, &'m EmbeddedScript<'a>)>,
+}
+
+/// Runs pylint once per distinct pylint configuration (normally once) over
+/// the scripts of `units` and stores the messages in the units' caches.
+/// Returns the targets whose pylint findings are missing (pylint failed)
+/// and the run's notices.
+fn pylint_batch(units: &[BatchUnit<'_, '_>], root: &Path) -> (FxHashSet<usize>, Vec<String>) {
+    let mut failed = FxHashSet::default();
+    let mut notices: Vec<String> = Vec::new();
+    let notice = |n: String, notices: &mut Vec<String>| {
+        if !notices.contains(&n) {
+            notices.push(n);
+        }
+    };
+    let mut groups: std::collections::BTreeMap<pylint::run::Config, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for (i, unit) in units.iter().enumerate() {
+        let Some(options) = pylint::options_in(&unit.set) else {
+            continue;
+        };
+        let (config, warning) = pylint::run::Config::new(options, root);
+        if let Some(w) = warning {
+            notice(w, &mut notices);
+        }
+        groups.entry(config).or_default().push(i);
+    }
+    let syntax_rule = RuleCode::new(&crate::rules::script::syntax_error::META);
+    for (config, members) in groups {
+        let mut scripts = Vec::new();
+        let mut owners = Vec::new();
+        for &u in &members {
+            for &(position, _, script) in &units[u].scripts {
+                // Blank scripts are VIEW's `empty-script`; pylint would only
+                // report a syntax error.
+                if script.is_blank() {
+                    continue;
+                }
+                scripts.push(pylint::run::Script {
+                    source: &script.source,
+                    embedded: matches!(script.body, iglint_project::script::ScriptBody::Json(_)),
+                });
+                owners.push((u, position));
+            }
+        }
+        let outcome = pylint::run::run(&config, &scripts);
+        for n in outcome.notices {
+            notice(n, &mut notices);
+        }
+        let Some(messages) = outcome.messages else {
+            for &u in &members {
+                failed.extend(units[u].scripts.iter().map(|(_, t, _)| *t));
+            }
+            continue;
+        };
+        let mut per_unit: FxHashMap<usize, pylint::UnitMessages> = FxHashMap::default();
+        for ((u, position), found) in owners.into_iter().zip(messages) {
+            if !found.is_empty() {
+                per_unit
+                    .entry(u)
+                    .or_default()
+                    .by_script
+                    .insert(position, found);
+            }
+        }
+        for u in members {
+            let mut result = per_unit.remove(&u).unwrap_or_default();
+            result.syntax_rule_enabled = units[u].set.contains(syntax_rule);
+            let _ = units[u].cache.pylint.set(result);
+        }
+    }
+    (failed, notices)
+}
+
+/// Hash of how pylint runs for the targets that enable SCR900 (command,
+/// jobs and configuration text), part of the cache context.
+fn pylint_context(
+    rules: &'static [&'static RuleImpl],
+    sets: &RuleSetCache,
+    targets: &[Target],
+    settings: &ProjectSettings,
+) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut configs = std::collections::BTreeSet::new();
+    let mut seen: Vec<*const LinterSettings> = Vec::new();
+    for t in targets {
+        let ptr = Arc::as_ptr(&t.settings);
+        if seen.contains(&ptr) {
+            continue;
+        }
+        seen.push(ptr);
+        let set = sets.get(rules, &t.settings);
+        if let Some(options) = pylint::options_in(&set) {
+            configs.insert(pylint::run::Config::new(options, &settings.root).0);
+        }
+    }
+    if configs.is_empty() {
+        return 0;
+    }
+    let mut hasher = FxHasher::default();
+    for config in configs {
+        config.hash(&mut hasher);
+        config.rcfile_text().hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 /// Runs the hooks of one phase over a unit.

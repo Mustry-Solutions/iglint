@@ -61,6 +61,9 @@ pub struct UnitCache {
     /// suppressed in both phases (for `SCR123 unused-suppression`).
     pub(crate) suppressions:
         std::sync::Mutex<rustc_hash::FxHashMap<usize, crate::suppression::Suppressions>>,
+    /// Messages of `SCR900 pylint` for the unit's scripts, set by the
+    /// driver before the project phase when pylint ran for the unit.
+    pub(crate) pylint: OnceLock<crate::rules::script::pylint::UnitMessages>,
 }
 
 impl UnitCache {

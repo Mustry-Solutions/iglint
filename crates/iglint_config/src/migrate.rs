@@ -136,12 +136,8 @@ pub fn migrate(config: &RuleConfig, source: &Path, registry: &Registry) -> Migra
             summary.push(format!("{}: unknown rule, not migrated", entry.name));
             continue;
         };
-        let targets: Vec<RuleCode> = registry
-            .find_ign_lint(info.name)
-            .chain(info.aliases.iter().flat_map(|a| registry.find_ign_lint(a)))
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
+        let equivalents = compat::equivalents(info, registry);
+        let targets: Vec<RuleCode> = equivalents.iter().map(|e| e.rule).collect();
         if targets.is_empty() {
             if entry.configured {
                 out.push('\n');
@@ -184,7 +180,8 @@ pub fn migrate(config: &RuleConfig, source: &Path, registry: &Registry) -> Migra
         } else {
             summary.push(format!("{} -> {names}", entry.name));
         }
-        for rule in &targets {
+        for equivalent in &equivalents {
+            let rule = &equivalent.rule;
             if !written.insert(*rule) {
                 continue;
             }
@@ -204,6 +201,21 @@ pub fn migrate(config: &RuleConfig, source: &Path, registry: &Registry) -> Migra
                         let _ = writeln!(body, "{} = {}", toml_key(option), toml_value(value));
                     }
                 }
+            }
+            // Rules of the ign-lint rule's category take no kwargs and keep
+            // their defaults; only a disabled rule needs a section.
+            if !equivalent.direct {
+                if !body.is_empty() {
+                    out.push('\n');
+                    let _ = writeln!(out, "[rules.{}]", meta.code);
+                    let _ = writeln!(
+                        out,
+                        "# {}: {}, from ign-lint {}.",
+                        meta.name, meta.summary, entry.name
+                    );
+                    out.push_str(&body);
+                }
+                continue;
             }
             for (kwarg, value) in &entry.kwargs {
                 let mapped = meta.option_for_ign_lint_kwarg(kwarg).is_some() || kwarg == "severity";

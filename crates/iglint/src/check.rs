@@ -380,6 +380,11 @@ pub fn run(
         }
     }
 
+    if !args.quiet && !args.silent {
+        for notice in &result.notices {
+            err!(io, "warning: {notice}");
+        }
+    }
     if !args.silent {
         for error in &result.errors {
             err!(

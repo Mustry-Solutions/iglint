@@ -16,11 +16,16 @@ Bug numbers refer to the bug list in [ign-lint.md](ign-lint.md#13-bug-list).
 Counts are entries in the difference files (one per view, variant and
 finding).
 
+## Not compared
+
+* `PylintScriptRule`: see [its section](#pylintscriptrule-scr900-and-the-native-scr-rules).
+  Its findings depend on the installed pylint, and iglint lints each script
+  as Ignition compiles it instead of ign-lint's combined file, so lines,
+  wrappers and the set of messages differ by design. The parity test leaves
+  its findings out on both sides and does not run `SCR900`.
+
 ## Not yet compared
 
-* `PylintScriptRule`: iglint's equivalents are the native `SCR` rules and
-  `SCR900`, which are built in the script layer. Its findings are left out of
-  the comparison until those rules are registered.
 * `ComponentReferenceValidationRule`, script part (`self.getSibling('X')` and
   navigation chains): iglint's equivalent is `SCR305`. The expression and
   property binding part is `BIND005` and is compared.
@@ -109,6 +114,61 @@ finding).
 * The breadth of the top-level `custom` object is measured, arrays nested in
   arrays are measured, and arrays of empty objects count with their real
   length (bug 24; 1 extra).
+
+## PylintScriptRule (`SCR900` and the native `SCR` rules)
+
+`PylintScriptRule` maps to `SCR900`, which runs the real pylint, and to every
+default rule of the `SCR` category that no other ign-lint rule names
+(iglint's native script checks; rules added later join automatically).
+
+* **Configuration.** `pylintrc` and `category_mapping` configure `SCR900`
+  (`pylintrc` is relative to the project root, which is the current
+  directory in `iglint ign-lint`); `severity` is `SCR900`'s severity for
+  categories the mapping leaves out. `debug`, `batch_mode` and `debug_dir`
+  are reported as ignored: iglint always lints everything in one pylint
+  run and writes no debug files (bug 16). The native rules take no kwargs
+  and keep their own defaults, except that `category_mapping` sets their
+  severity like that of their pylint counterparts: error-level rules take
+  the severity mapped for `E`, warning-level rules the one for `W`. A
+  mapping value other than `error`, `warning` or `info` is a configuration
+  error instead of an error counted as a warning (bug 17).
+* **Disabling.** `"PylintScriptRule": {"enabled": false}` disables
+  `SCR900` and the native rules: ign-lint then did not check scripts at
+  all, and `iglint check` with a legacy configuration keeps that.
+  `iglint migrate` writes `enabled = false` for each of them so they can be
+  turned back on one by one.
+* **One pylint process per run** over all scripts of all linted files, with
+  one worker per CPU by default (`jobs`); ign-lint runs pylint once per view.
+* **One module per script.** Each script is written to its own file, as
+  Ignition compiles it (correct wrappers such as `def transform(self, value,
+  quality, timestamp):`, bug 13). Python 2 syntax in one script no longer
+  hides the findings of the other scripts of the view (bug 11), and
+  module-wide checks such as `inconsistent-quotes` do not mix scripts (bug
+  14). The bundled configuration is ign-lint's `.ignition-pylintrc` with the
+  four messages ign-lint's combined-file header disabled added to `disable`.
+* **Locations.** Findings point at the exact range in the file, also inside
+  JSON-escaped scripts; `iglint ign-lint` prints `Line {n}` with the real
+  body line instead of the line after it (bug 12). Messages about the
+  generated header (naming, docstrings, unused or too many arguments) are
+  not reported because Ignition writes the header; other header messages
+  are reported at the script's property. Custom method headers are the
+  user's and keep all messages.
+* **Messages that are wrong for Ignition are dropped:** `undefined-variable`
+  and `import-error` for `system`, `fpmi`, `sys`, the project's library
+  packages and Jython builtins such as `xrange` (bug list, 5.3), and
+  `syntax-error` for scripts Jython parses (Python 2 syntax). Real syntax
+  errors are `SCR001`'s; pylint's is shown only when `SCR001` is off.
+* **Data-quality findings** (script not indented, mixed tabs and spaces)
+  are not reproduced as such: an unindented body is a syntax error
+  (`SCR001`), and indentation style is pylint's `bad-indentation`.
+* **Fixes.** `SCR900` has none: ign-lint's trailing-whitespace fix never
+  triggers with the bundled configuration (6.4). The native rules' fixes
+  apply with `--fix` like those of any other equivalent, and
+  `allow_fix: false` makes all of them unfixable.
+* **pylint missing or failing** prints one warning for the run (`iglint
+  check`: `warning: SCR900: ...`; `iglint ign-lint`: a `⚠️` line) with how
+  to install or configure it; every other rule still runs and the exit
+  status is not affected by it.
 
 ## PropertyAccessRule and PropertyPersistenceRule (`VIEW012`, `VIEW013`)
 

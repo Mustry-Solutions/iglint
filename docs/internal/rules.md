@@ -23,7 +23,7 @@ All nine ign-lint rules have an equivalent. ign-lint option names are mapped
 |---|---|
 | NamePatternRule | NAME001 |
 | PollingIntervalRule | BIND004 |
-| PylintScriptRule | native SCR rules + SCR900 (real pylint, opt-in) |
+| PylintScriptRule | SCR900 (real pylint) + every default `SCR` rule no other ign-lint rule names (category-based, so new SCR rules join automatically) |
 | BadComponentReferenceRule | VIEW018 |
 | ComponentReferenceValidationRule | BIND005 (expressions/property bindings) + SCR305 (scripts) |
 | UnusedCustomPropertiesRule | VIEW015 |
@@ -138,7 +138,7 @@ Jython builtins).
 
 | Code | Name | Sev | Def | Fix | ign-lint | Summary |
 |---|---|---|---|---|---|---|
-| SCR900 | pylint | W | no | - | PylintScriptRule | Runs real pylint once for all scripts (one process), with correct wrappers and line mapping; category mapping as in ign-lint. Requires `pylint` on PATH. |
+| SCR900 | pylint | W | no | - | PylintScriptRule | Runs real pylint once per run (one process, `jobs` workers, default one per CPU) over every linted script, each written as its own module (`source`: generated header + body, as Ignition compiles it). Messages map back to exact file ranges through the source map (AST columns are UTF-8 bytes, token columns characters); header messages go to the script anchor, except naming/signature messages about Ignition's generated header (dropped; custom method headers are the user's). Dropped as wrong for Ignition: `undefined-variable`/`import-error` for injected names, library packages and Jython builtins (all `undefined-variable` when the library is unknown, like SCR101), and `syntax-error` when Jython parses the script (or SCR001 is on). Options `pylint` (command), `pylintrc` (default: bundled ign-lint rcfile), `jobs`, `category-mapping` (replaces F/E error, W/C/R warning). `# iglint: ignore[SCR900]` applies. pylint missing or failing: one run warning, other rules unaffected, no cache entries for the affected files. Fixes of other rules move its findings without re-running pylint. |
 
 ## REF: references between resources
 
