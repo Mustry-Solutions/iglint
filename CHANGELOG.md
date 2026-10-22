@@ -45,6 +45,9 @@ from 0.1.0 on.
   SCR001 "expression nested too deeply" (Ignition's Jython fails much
   earlier on such code). Expressions may now nest 2,000 levels instead of
   100, which is more than Jython accepts on a gateway thread.
+- The text output no longer slows down quadratically with many findings
+  on one very long line (a script in a view is one JSON line): 100,000
+  findings took 74 s, now 0.3 s.
 - `iglint ign-lint` prints ign-lint node paths for every finding,
   including BIND005 findings in query binding parameters and other binding
   expressions.

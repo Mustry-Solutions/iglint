@@ -107,9 +107,40 @@ struct DisplayLine {
     underline_width: usize,
 }
 
+/// Bytes of a long line that are examined after the start of the flagged
+/// range (half as many before it): more than a cropped line shows, so that
+/// many findings on one huge line (a minified script) cost no more than on
+/// short lines.
+const SCAN_BYTES: usize = 4 * MAX_LINE_WIDTH;
+
 /// Expands tabs in `line` and maps the byte range `start..end` of the line
 /// to display columns, cropping long lines around the range.
 fn display_line(line: &str, start: usize, end: usize) -> DisplayLine {
+    if line.len() <= 2 * SCAN_BYTES {
+        return display_window(line, start, end, false, false);
+    }
+    let mut lo = start.min(line.len()).saturating_sub(SCAN_BYTES / 2);
+    while !line.is_char_boundary(lo) {
+        lo -= 1;
+    }
+    let mut hi = (start + SCAN_BYTES).min(line.len());
+    while !line.is_char_boundary(hi) {
+        hi += 1;
+    }
+    let start = start.clamp(lo, hi);
+    let end = end.clamp(start, hi);
+    display_window(&line[lo..hi], start - lo, end - lo, lo > 0, hi < line.len())
+}
+
+/// [`display_line`] for a part of a line; `cut_left` and `cut_right` say
+/// whether the line continues on that side.
+fn display_window(
+    line: &str,
+    start: usize,
+    end: usize,
+    cut_left: bool,
+    cut_right: bool,
+) -> DisplayLine {
     let mut chars: Vec<char> = Vec::with_capacity(line.len());
     let mut start_col = None;
     let mut end_col = None;
@@ -133,7 +164,7 @@ fn display_line(line: &str, start: usize, end: usize) -> DisplayLine {
     let end_col = end_col.unwrap_or(chars.len()).max(start_col);
     let mut underline_start = start_col;
     let mut underline_width = end_col - start_col;
-    if chars.len() <= MAX_LINE_WIDTH {
+    if chars.len() <= MAX_LINE_WIDTH && !cut_left && !cut_right {
         return DisplayLine {
             text: chars.into_iter().collect(),
             underline_start,
@@ -142,15 +173,16 @@ fn display_line(line: &str, start: usize, end: usize) -> DisplayLine {
     }
     let window_start = start_col.saturating_sub(CROP_CONTEXT);
     let window_end = (window_start + MAX_LINE_WIDTH).min(chars.len());
+    let prefix = window_start > 0 || cut_left;
     let mut text = String::new();
-    if window_start > 0 {
+    if prefix {
         text.push_str("...");
         underline_start = underline_start - window_start + 3;
     }
     text.extend(&chars[window_start..window_end]);
-    let visible_end = window_end - window_start + usize::from(window_start > 0) * 3;
+    let visible_end = window_end - window_start + usize::from(prefix) * 3;
     underline_width = underline_width.min(visible_end.saturating_sub(underline_start));
-    if window_end < chars.len() {
+    if window_end < chars.len() || cut_right {
         text.push_str("...");
     }
     DisplayLine {
@@ -282,6 +314,25 @@ mod tests {
             "TARGET"
         );
         assert_eq!(shown.underline_width, 6);
+    }
+
+    #[test]
+    fn huge_lines_are_only_scanned_around_the_range() {
+        let line = "é".repeat(100_000) + "TARGET" + &"y".repeat(200_000);
+        let start = 200_000;
+        let shown = display_line(&line, start, start + 6);
+        assert!(shown.text.starts_with("..."));
+        assert!(shown.text.ends_with("..."));
+        let chars: Vec<char> = shown.text.chars().collect();
+        let underlined: String = chars
+            [shown.underline_start..shown.underline_start + shown.underline_width]
+            .iter()
+            .collect();
+        assert_eq!(underlined, "TARGET");
+        let at_start = display_line(&line, 0, 2);
+        assert_eq!((at_start.underline_start, at_start.underline_width), (0, 1));
+        assert!(!at_start.text.starts_with("..."));
+        assert!(at_start.text.ends_with("..."));
     }
 
     #[test]
