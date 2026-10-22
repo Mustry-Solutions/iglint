@@ -70,6 +70,26 @@ pub struct ScriptUnit<'s, 'a> {
     pub parsed: &'s iglint_python::Parsed,
     /// Position of the script in the unit's `data.scripts()`.
     pub index: usize,
+    /// The semantic model, built on first use by the script rules
+    /// (`crate::rules::script::semantic`) and shared by all of them.
+    pub(crate) semantic: std::cell::OnceCell<iglint_python_semantic::SemanticModel<'s>>,
+}
+
+impl<'s, 'a> ScriptUnit<'s, 'a> {
+    pub fn new(
+        file: FileId,
+        script: &'s EmbeddedScript<'a>,
+        parsed: &'s iglint_python::Parsed,
+        index: usize,
+    ) -> Self {
+        ScriptUnit {
+            file,
+            script,
+            parsed,
+            index,
+            semantic: std::cell::OnceCell::new(),
+        }
+    }
 }
 
 /// Checks one script location (library modules, event files, embedded

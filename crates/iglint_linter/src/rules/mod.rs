@@ -15,6 +15,7 @@ pub mod helpers;
 pub mod name;
 pub mod perf;
 pub mod refs;
+pub mod script;
 pub mod style;
 pub mod tag;
 #[cfg(test)]
@@ -41,6 +42,7 @@ rules![
     bind::indirect_tag_reference_mismatch,
     bind::placeholder_in_direct_tag_path,
     bind::disabled_binding,
+    bind::transform_without_return,
     bind::map_transform_duplicate_input,
     bind::expression_type_mismatch,
     name::name_pattern,
@@ -58,6 +60,31 @@ rules![
     refs::unknown_parent_project,
     refs::unused_view,
     refs::unused_named_query,
+    script::syntax_error,
+    script::compile_error,
+    script::undefined_name,
+    script::unused_import,
+    script::unused_variable,
+    script::redefined_unused,
+    script::unreachable_code,
+    script::bare_except,
+    script::mutable_default,
+    script::duplicate_dict_key,
+    script::self_assignment,
+    script::literal_identity,
+    script::assert_on_tuple,
+    script::format_string,
+    script::except_order,
+    script::pointless_statement,
+    script::except_tuple,
+    script::raise_string,
+    script::redefined_builtin,
+    script::used_before_assignment,
+    script::return_in_finally,
+    script::dangerous_loop_closure,
+    script::global_at_module_level,
+    script::print_statement,
+    script::unused_suppression,
     style::unknown_style_class,
     style::unused_style_class,
     style::empty_style_class,

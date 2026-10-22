@@ -661,6 +661,27 @@ impl<'w> ProjectIndex<'w> {
         names
     }
 
+    /// The library names a script of `project` may see as globals: the
+    /// project's own top-level library names and, for an inheritable
+    /// project, those of its descendants (its scripts may run there). The
+    /// flag is false when the list may be incomplete because the project's
+    /// ancestry is incomplete (a parent outside the workspace).
+    pub fn script_library_globals(&self, project: ProjectId) -> (Vec<&str>, bool) {
+        let data = &self.projects[project.index()];
+        let mut names: Vec<&str> = data.library.globals().collect();
+        let mut complete = data.complete;
+        if data.inheritable {
+            for d in &data.descendants {
+                let child = &self.projects[d.index()];
+                names.extend(child.library.globals());
+                complete &= child.complete;
+            }
+        }
+        names.sort_unstable();
+        names.dedup();
+        (names, complete)
+    }
+
     /// The symbols of a library module, when the script layer provided them.
     pub fn module_symbols(&self, module: ResourceId) -> Option<&ModuleSymbols> {
         match self.facts(module)? {

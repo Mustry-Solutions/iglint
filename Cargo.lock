@@ -446,6 +446,7 @@ dependencies = [
  "iglint_linter",
  "iglint_project",
  "iglint_python",
+ "iglint_python_semantic",
  "iglint_stubs",
  "iglint_text",
  "ignore",
@@ -483,6 +484,12 @@ dependencies = [
 [[package]]
 name = "iglint_python_semantic"
 version = "0.1.0"
+dependencies = [
+ "iglint_python",
+ "iglint_stubs",
+ "iglint_text",
+ "rustc-hash",
+]
 
 [[package]]
 name = "iglint_server"

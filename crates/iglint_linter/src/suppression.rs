@@ -34,6 +34,8 @@ pub struct Suppression {
     pub file_wide: bool,
     /// Whether it suppressed at least one finding.
     pub used: bool,
+    /// Per selector: whether it matched a suppressed finding.
+    pub used_selectors: Vec<bool>,
 }
 
 /// The suppressions of one script.
@@ -60,6 +62,7 @@ impl Suppressions {
                 } else {
                     Some(script.file_range(line))
                 },
+                used_selectors: vec![false; parsed.0.len()],
                 selectors: parsed.0,
                 file_wide: parsed.1,
                 used: false,
@@ -88,6 +91,9 @@ impl Suppressions {
                 if in_scope && selects(&s.selectors, d) {
                     s.used = true;
                     suppressed = true;
+                    for (selector, used) in s.selectors.iter().zip(&mut s.used_selectors) {
+                        *used |= selects(std::slice::from_ref(selector), d);
+                    }
                 }
             }
             !suppressed
