@@ -11,7 +11,11 @@ use iglint_text::{TextRange, TextSize};
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
 use crate::registry::{Category, RuleMeta};
-use crate::rule::{BindingRule, ExpressionRule, Hook, Phase, ResourceRule, RuleImpl};
+use crate::rule::{
+    BindingRule, ExpressionRule, Hook, Phase, ResourceRule, RuleImpl, ScriptRule, ScriptUnit,
+};
+use crate::script_facts::api::{ApiTarget, api_target};
+use crate::script_facts::calls::{call_sites, string_values};
 
 pub static META: RuleMeta = RuleMeta {
     code: "TAG003",
@@ -25,7 +29,12 @@ pub static META: RuleMeta = RuleMeta {
 Checks static, absolute tag paths (`[provider]path`) against the tags of
 the workspace's gateway configuration: direct tag bindings, `{[provider]...}`
 references and literal `tag("...")` calls in expressions (bindings and
-tag expressions), and the paths of tag change scripts. UDT instance
+tag expressions), the paths of tag change scripts, and literal paths passed
+to `system.tag.readBlocking`, `readAsync`, `writeBlocking`, `writeAsync`,
+`queryTagHistory` and the legacy `read`/`write` functions in scripts
+(through aliases and local names holding a literal; `system.tag.exists`,
+`browse` and `configure` are not checked, since they are how scripts test
+for and create tags). UDT instance
 members are resolved through their definitions, tag properties
 (`.Quality`) are ignored, and paths are compared case-insensitively.
 
@@ -72,6 +81,7 @@ pub static RULE: RuleImpl = RuleImpl {
         Hook::Binding(&UnknownTagPath),
         Hook::Expression(&UnknownTagPath),
         Hook::Resource(&UnknownTagPath),
+        Hook::Script(&UnknownTagPath),
     ],
     options: None,
 };
@@ -88,6 +98,51 @@ fn check(cx: &mut Checker<'_, '_>, file: FileId, path: &str, range: TextRange, n
     if index.tag(path) == Existence::Missing {
         cx.report_in(file, range, format!("Tag `{path}` does not exist"))
             .node_path(node);
+    }
+}
+
+impl ScriptRule for UnknownTagPath {
+    fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
+        let Some(index) = cx.index() else {
+            return;
+        };
+        let Some(model) = crate::rules::script::semantic(cx, unit) else {
+            return;
+        };
+        for site in call_sites(
+            model,
+            &model.module.body,
+            iglint_python_semantic::UnboundNames::Reject,
+        ) {
+            let Some(ApiTarget::TagPaths { paths }) = api_target(model, &site) else {
+                continue;
+            };
+            let elements: Vec<&iglint_python::ast::Expr> = match paths {
+                iglint_python::ast::Expr::List(l) => l.elts.iter().collect(),
+                iglint_python::ast::Expr::Tuple(t) => t.elts.iter().collect(),
+                other => vec![other],
+            };
+            for e in elements {
+                for literal in string_values(model, e).unwrap_or_default() {
+                    let path = literal.value.as_str();
+                    if path.contains('{') {
+                        continue;
+                    }
+                    let parsed = parse_tag_path(path, TextSize::ZERO);
+                    if !parsed.is_valid() || parsed.is_relative() || parsed.source.is_none() {
+                        continue;
+                    }
+                    if index.tag(path) == Existence::Missing {
+                        crate::rules::script::report(
+                            cx,
+                            unit,
+                            literal.range,
+                            format!("Tag `{path}` does not exist"),
+                        );
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -206,5 +261,21 @@ mod tests {
     fn providers_outside_the_workspace_are_unknown() {
         let f = Fixture::view(&view());
         assert!(f.lint(&["TAG003"]).is_empty());
+    }
+
+    #[test]
+    fn script_call_sites() {
+        use crate::rules::script::testing::{ViewScript, decoded_flagged, view_json};
+        let body = "\tP = '[default]Line/Gone2'\n\tsystem.tag.readBlocking(['[default]Line/Speed', '[default]M1/Speed', P, path, '[default]Line/{x}'])\n\tsystem.tag.writeBlocking('[default]Line/Gone3', [1])\n\tsystem.tag.exists('[default]Nope')\n\tsystem.tag.configure('[default]New', [])\n\tsystem.tag.readBlocking(['[Other]X', '[.]Rel'])";
+        let f = workspace().with_view("Script", &view_json(ViewScript::Action, body));
+        let d: Vec<_> = f
+            .lint(&["TAG003"])
+            .into_iter()
+            .filter(|d| d.file.path().to_string_lossy().contains("Script"))
+            .collect();
+        assert_eq!(
+            decoded_flagged(&d),
+            vec!["'[default]Line/Gone2'", "'[default]Line/Gone3'"]
+        );
     }
 }

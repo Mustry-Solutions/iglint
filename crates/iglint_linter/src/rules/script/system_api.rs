@@ -117,11 +117,16 @@ pub fn arity_problems(model: &SemanticModel<'_>, unit: &ScriptUnit<'_, '_>) -> V
         };
         let keywords = keyword_names(call);
         let mut first_error = None;
+        let mut keyword_overloads = false;
         for s in scopes {
             // Not existing in the scope is `SCR205`'s business.
             let Some(variant) = function.variant(s) else {
                 return;
             };
+            keyword_overloads |= variant
+                .overloads
+                .iter()
+                .any(|o| matches!(o.kind, iglint_stubs::OverloadKind::Keyword));
             match iglint_stubs::check_call(variant, call.args.len(), &keywords) {
                 Ok(()) => return,
                 Err(e) => {
@@ -138,6 +143,15 @@ pub fn arity_problems(model: &SemanticModel<'_>, unit: &ScriptUnit<'_, '_>) -> V
         };
         let (keyword, range) = match &error {
             ArityError::NotInScope => return,
+            // Some `@KeywordArgs` functions read their arguments into a map
+            // (`PyArgumentMap`) that ignores unknown keywords and lets a
+            // keyword replace a positional value; only those parsed with
+            // `PyArgParser` reject them, and the stubs do not say which.
+            ArityError::UnknownKeyword { .. } | ArityError::DuplicateArgument { .. }
+                if keyword_overloads =>
+            {
+                return;
+            }
             ArityError::KeywordsNotAccepted { keyword }
             | ArityError::UnknownKeyword { keyword } => (true, keyword_range(keyword)),
             ArityError::DuplicateArgument { name } => (false, keyword_range(name)),

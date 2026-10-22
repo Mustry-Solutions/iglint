@@ -19,8 +19,10 @@ pub static META: RuleMeta = RuleMeta {
 Checks calls to `system.*` functions (also through aliases such as
 `tag = system.tag`) against every signature the function has in the
 scope the script runs in: too many or too few positional arguments, a
-required argument missing, or the same argument given twice (positionally
-and by keyword). Unknown keyword arguments are `SCR203`.
+required argument missing, or (for functions written in Python) the same
+argument given twice. Unknown keyword arguments are `SCR203`. A Java
+`@KeywordArgs` function given the same argument positionally and by
+keyword is not reported: some of them keep the keyword's value.
 
 The signatures were measured on a real 8.3 gateway. Calls are not checked
 when they unpack arguments (`f(*args)`, `f(**kwargs)`), when the stubs do
@@ -108,10 +110,9 @@ mod tests {
         .lint(&["SCR202"]);
         assert_eq!(
             decoded_flagged(&d),
-            ["system.perspective.openPopup(id='p')", "id"]
+            ["system.perspective.openPopup(id='p')"]
         );
         assert!(messages(&d)[0].ends_with("missing required argument `view`"));
-        assert!(messages(&d)[1].ends_with("got multiple values for argument `id`"));
     }
 
     #[test]

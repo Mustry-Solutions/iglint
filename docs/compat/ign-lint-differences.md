@@ -24,12 +24,6 @@ finding).
   wrappers and the set of messages differ by design. The parity test leaves
   its findings out on both sides and does not run `SCR900`.
 
-## Not yet compared
-
-* `ComponentReferenceValidationRule`, script part (`self.getSibling('X')` and
-  navigation chains): iglint's equivalent is `SCR305`. The expression and
-  property binding part is `BIND005` and is compared.
-
 ## Whole run
 
 * An invalid JSON file is reported (`VIEW001`) and the other files are still
@@ -83,7 +77,22 @@ finding).
 * Indirect tag binding `references` are property paths or literals, not
   expressions (1 missing).
 
-## ComponentReferenceValidationRule (`BIND005`)
+## ComponentReferenceValidationRule (`BIND005`, `SCR305`)
+
+The script part is `SCR305` (`validate_scripts` maps to its
+`validate-scripts` option):
+
+* A missing sibling is reported once; ign-lint reports it twice, as
+  "Component 'X' not found as sibling in: ..." and "Script references
+  non-existent sibling component 'X'" (1 missing per view).
+* Navigation above the root container (`self.parent.parent...` from a
+  child of the root) is not reported: what it returns at run time is not
+  modelled (1 missing).
+* Lookups are resolved on the parsed script through aliases
+  (`card = self.getSibling('Card')`), and extension functions are checked
+  (bug 1; 1 extra).
+
+The expression and property binding part:
 
 * References are resolved from the binding's own component; view-level
   bindings resolve from the view, not from a fake `root` component (bug 20).

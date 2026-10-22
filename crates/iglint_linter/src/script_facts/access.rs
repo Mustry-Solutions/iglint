@@ -314,10 +314,9 @@ impl<'v, 'a> Analysis<'v, 'a, '_> {
                     return Some(Val::Object(AccessTarget::AnyComponent));
                 };
                 let parent = self.view.component(c).parent?;
-                let sibling = self
-                    .view
-                    .children(parent)
-                    .find(|s| s.name == name && s.id != c)?;
+                // `getSibling` looks the name up in the parent, so a
+                // component finds itself too.
+                let sibling = self.view.children(parent).find(|s| s.name == name)?;
                 Some(Val::Object(AccessTarget::Component(sibling.id)))
             }
             (AccessTarget::Component(c), "getChild") => match literal {
@@ -512,6 +511,148 @@ impl<'v, 'a> Analysis<'v, 'a, '_> {
         for child in children.0 {
             self.walk(child, Role::Value, false);
         }
+    }
+}
+
+/// A component lookup with a literal name that finds nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnresolvedLookup {
+    /// The name argument in the script source.
+    pub range: TextRange,
+    pub message: String,
+    /// The lookup call in the script source.
+    pub call: TextRange,
+    /// `getSibling` or `getChild`.
+    pub method: &'static str,
+    /// The literal name argument.
+    pub name: String,
+}
+
+/// Literal `getSibling`/`getChild` lookups of a view script whose base
+/// component (or the view) is known and that name no component. Lookups
+/// below components that cannot hold children in the view (embedded views,
+/// components without a `children` array that are not containers) are
+/// not reported.
+pub fn unresolved_lookups(unit: &ScriptUnit<'_, '_>, view: &View<'_>) -> Vec<UnresolvedLookup> {
+    let this = match unit.script.owner {
+        Owner::View => Val::Object(AccessTarget::View),
+        Owner::Component(c) => Val::Object(AccessTarget::Component(c)),
+        _ => return Vec::new(),
+    };
+    if !unit.parsed.is_valid() {
+        return Vec::new();
+    }
+    let mut sink = Vec::new();
+    let mut a = Analysis {
+        view,
+        this,
+        aliases: FxHashMap::default(),
+        out: &mut sink,
+    };
+    a.collect_aliases(&unit.parsed.module.body);
+    let mut out = Vec::new();
+    crate::rules::script::walk_exprs(&unit.parsed.module.body, &mut |e| {
+        let Expr::Call(c) = e else { return };
+        let Expr::Attribute(attr) = &*c.func else {
+            return;
+        };
+        let method = attr.attr.as_str();
+        if method != "getSibling" && method != "getChild" {
+            return;
+        }
+        let Some(Expr::Str(lit)) = c.args.first() else {
+            return;
+        };
+        let Some(name) = lit.s.as_str() else { return };
+        if c.args.len() != 1 || !c.keywords.is_empty() {
+            return;
+        }
+        let Some(Val::Object(base)) = a.peek(&attr.value) else {
+            return;
+        };
+        if let Some(message) = a.lookup_problem(base, method, name) {
+            out.push(UnresolvedLookup {
+                range: lit.range,
+                message,
+                call: c.range,
+                method: if method == "getSibling" {
+                    "getSibling"
+                } else {
+                    "getChild"
+                },
+                name: name.to_owned(),
+            });
+        }
+    });
+    out
+}
+
+impl Analysis<'_, '_, '_> {
+    /// Whether components may be looked up below `c` (it is a container).
+    fn holds_children(&self, c: ComponentId) -> bool {
+        let component = self.view.component(c);
+        component.value.get("children").is_some()
+            || component
+                .type_id
+                .is_some_and(|t| t.starts_with("ia.container."))
+    }
+
+    /// Why `base.method(name)` finds nothing, if it certainly does not.
+    fn lookup_problem(&self, base: AccessTarget, method: &str, name: &str) -> Option<String> {
+        let (start, path, describe) = match (base, method) {
+            (AccessTarget::Component(c), "getSibling") => {
+                let parent = self.view.component(c).parent?;
+                if name.contains('/') {
+                    return None;
+                }
+                (Some(parent), name, "sibling")
+            }
+            (AccessTarget::Component(c), "getChild") => (Some(c), name, "child"),
+            (AccessTarget::View, "getChild") => (None, name, "view path"),
+            _ => return None,
+        };
+        let mut segments = path.split('/').filter(|s| !s.is_empty()).peekable();
+        segments.peek()?;
+        let mut at = match start {
+            Some(c) => c,
+            None => {
+                let root = self.view.root_component()?;
+                // Paths start with the root container's name; other forms
+                // are not certain to fail.
+                if segments.next()? != root.name {
+                    return None;
+                }
+                root.id
+            }
+        };
+        for segment in segments {
+            if !self.holds_children(at) {
+                return None;
+            }
+            match self.view.children(at).find(|c| c.name == segment) {
+                Some(c) => at = c.id,
+                None => {
+                    let owner = self.view.component(at);
+                    let hint = self
+                        .view
+                        .children(at)
+                        .find(|c| c.name.eq_ignore_ascii_case(segment))
+                        .map(|c| format!(" (names are case-sensitive; did you mean `{}`?)", c.name))
+                        .unwrap_or_default();
+                    return Some(match describe {
+                        "sibling" => format!(
+                            "No sibling component named `{segment}` (in `{}`){hint}",
+                            owner.path
+                        ),
+                        _ => format!(
+                            "No child component named `{segment}` in `{}`{hint}",
+                            owner.path
+                        ),
+                    });
+                }
+            }
+        }
+        None
     }
 }
 

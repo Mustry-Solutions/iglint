@@ -18,8 +18,7 @@
 //! see `docs/compat/ign-lint-differences.md`), and pylint is an external
 //! program the test cannot assume. Their findings are left out on both
 //! sides and `SCR900` is not run. The script part of
-//! ComponentReferenceValidationRule is compared once `SCR305` is
-//! registered.
+//! ComponentReferenceValidationRule is `SCR305`.
 //!
 //! `PARITY_FILTER=<substring>` limits the run to views, variants or rules
 //! containing the substring and prints every mismatch.

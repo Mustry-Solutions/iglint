@@ -117,8 +117,8 @@ Jython builtins).
 | Code | Name | Sev | Def | Fix | Summary |
 |---|---|---|---|---|---|
 | SCR201 | unknown-system-function | E | yes | - | `system.x.y` (or `fpmi.x.y`, through aliases) does not exist in Ignition 8.3 (any scope). Third-party modules add packages and members, so by default only near misses of a known member are reported (with a suggestion); `strict` reports every unknown member of a known package; option `allow` (wildcards) lists module additions. |
-| SCR202 | system-function-arity | E | yes | - | Arguments match no overload in the script's scope (count, missing measured-required parameter, duplicate). Skips `*args`/`**kwargs`, unchecked and array-ending Java overloads; library modules only when the call fails in every scope. |
-| SCR203 | unknown-system-keyword | E | yes | - | Keyword argument the function does not accept (unknown name, or keywords to a plain Java function). Same exclusions as SCR202. |
+| SCR202 | system-function-arity | E | yes | - | Arguments match no overload in the script's scope (count, missing measured-required parameter, duplicate for Python functions). Skips `*args`/`**kwargs`, unchecked and array-ending Java overloads; library modules only when the call fails in every scope. |
+| SCR203 | unknown-system-keyword | E | yes | - | Keyword argument the function does not accept: keywords to a plain Java function, unknown names for Python functions. Unknown keywords of `@KeywordArgs` Java functions are not reported (`PyArgumentMap` ignores them; the stubs do not say which parser a function uses). Same exclusions as SCR202. |
 | SCR204 | deprecated-system-function | W | yes | - | Deprecated function in the script's scope (library modules: in every scope), with replacement when known. |
 | SCR205 | wrong-scope-system-function | E | yes | - | Member not available in the scope where the script runs (`system.gui.*` in Perspective, gateway-only functions in Vision Client scripts), and `system.perspective.*` functions with a `sessionId` parameter called without it in gateway events, WebDev and tag scripts (no current session). Library modules are not reported. |
 | SCR206 | legacy-script-prefix | E | yes | U | `project.`, `shared.` or `app.` prefixes (unbound) do not exist in 8.3. Fix removes the prefix when the next name is a top-level library package of the project. |
@@ -131,8 +131,8 @@ Jython builtins).
 | SCR302 | sleep-in-event-script | W | yes | - | `time.sleep`/`Thread.sleep` directly in a Perspective event action, transform, change script, message handler or extension function (not in nested defs/lambdas; custom methods excluded: callers may run them in the background). |
 | SCR303 | module-level-side-effect | W | yes | - | Project library module runs `system.*` functions, `open`/`file`/`execfile` or sleeps at import time (module level, class bodies, decorators, defaults; not under `if __name__ == '__main__':`). Documented allowlist of benign calls. |
 | SCR304 | shadowed-library-package | E | yes | - | Library folder with its own `code.py` hides its sub-modules (with inheritance); reported on that `code.py`. |
-| SCR305 | unresolved-component-reference | E | yes | - | `self.getSibling('X')`, `self.getChild('X')`, `self.parent.getChild(...)` with literal names that do not exist. |
-| SCR306 | message-handler-payload-misuse | W | no | - | Handler reads payload keys no sender sends (strict). |
+| SCR305 | unresolved-component-reference | E | yes | - | `getSibling('X')`, `getChild('A/B')`, `self.view.getChild('root/...')` with literal names that match no component, following `self`, `.parent`, `.view`, `.rootContainer` and aliases. Lookups below non-containers (embedded views) and view paths not starting at the root are not checked. |
+| SCR306 | message-handler-payload-misuse | W | no | - | Strict only: handler reads `payload['k']` that no sender passes, when every send of the type is a literal dict payload. |
 
 ### External
 
@@ -145,19 +145,19 @@ Jython builtins).
 | Code | Name | Sev | Def | Fix | Summary |
 |---|---|---|---|---|---|
 | REF001 | unknown-view | E | yes | - | Embedded view, repeater, popup/dock/navigate action, page config or literal script argument names a view that does not exist in the project (with inheritance). |
-| REF002 | unknown-library-member | E | yes | - | `pkg.mod.func` where module or attribute does not exist in the effective library. |
-| REF003 | library-function-arity | E | yes | - | Call to a library function with an impossible argument count or unknown keyword. |
-| REF004 | unknown-named-query | E | yes | - | Query binding or `system.db.runNamedQuery` with a literal path that does not exist. |
-| REF005 | named-query-parameter-mismatch | E | yes | - | Missing or unknown parameters for a named query. |
-| REF006 | unknown-message-type | W | yes | - | `sendMessage` with a literal type that no handler in scope handles. |
-| REF007 | popup-param-mismatch | W | yes | - | Popup/embedded view params that are not params of the target view. |
-| REF008 | unknown-page-url | W | yes | - | Navigate to a URL not in page config. |
+| REF002 | unknown-library-member | E | yes | - | `pkg.mod.func` (through aliases and imports) where the module or attribute does not exist in the effective library, or a child module hidden by its parent's `code.py`. Silent for dynamic modules, guarded uses (`try`/`except AttributeError`), and names a descendant project defines. |
+| REF003 | library-function-arity | E | yes | - | Call to a library function with an impossible argument count, unknown keyword or duplicate argument. Only plain functions defined once and undecorated. |
+| REF004 | unknown-named-query | E | yes | - | Query binding or script call (`runNamedQuery`, project-scoped and keyword forms, `execQuery`, `execUpdate`, ...) with a literal path that does not exist. |
+| REF005 | named-query-parameter-mismatch | E | yes | - | Missing or unknown parameters for a named query (bindings, and dict literals in script calls). |
+| REF006 | unknown-message-type | W | yes | - | `system.perspective.sendMessage` with a literal type no component handler listens for (or none on the call's scope); `system.util.sendMessage`/`sendRequest` to a handler the target project does not have. |
+| REF007 | popup-param-mismatch | W | yes | - | Popup/embedded view params (also dict literals of script `openPopup`/`navigate`) that are not params of the target view. |
+| REF008 | unknown-page-url | W | yes | - | Navigate (action or script) to a URL not in page config. |
 | REF009 | resource-manifest-mismatch | W | yes | - | `resource.json` lists a missing file or misses a data file. |
 | REF010 | unknown-parent-project | E | yes | - | `parent` not found or not inheritable. |
-| REF011 | unused-view | I | no | - | View not referenced anywhere. |
-| REF012 | unused-library-function | I | no | - | Library function never referenced. |
-| REF013 | unused-named-query | I | no | - | Named query never referenced. |
-| REF014 | unhandled-message-handler | I | no | - | Handler type that nothing sends. |
+| REF011 | unused-view | I | no | - | View not referenced anywhere (bindings, actions, page config, scripts). Paths built at run time count by literal prefix. |
+| REF012 | unused-library-function | I | no | - | Library function never referenced by scripts or `runScript`. Silent for modules used as values or star-imported, and for projects with dynamic code. |
+| REF013 | unused-named-query | I | no | - | Named query never referenced by bindings or scripts. Paths built at run time count by literal prefix. |
+| REF014 | unhandled-message-handler | I | no | - | Component, gateway, session or client handler whose type no script sends (computed types count by prefix). |
 
 ## PERF
 

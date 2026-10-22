@@ -1,0 +1,36 @@
+{
+  "differences": [
+    {
+      "view": "cases/BadComponentReferences",
+      "variant": "*",
+      "rule": "ComponentReferenceValidationRule",
+      "kind": "missing",
+      "message": "root.root.children[5].TopContainer.children[4].ParentContainerScripts.children[2].BadScript.events.component.onActionPerformed: Script references non-existent sibling component 'UnknownButton'",
+      "reason": "ign-lint reports a missing sibling twice, in two wordings; SCR305 reports each lookup once (with the first wording)"
+    },
+    {
+      "view": "probes/ReferenceQuirks",
+      "variant": "*",
+      "rule": "ComponentReferenceValidationRule",
+      "kind": "missing",
+      "message": "root.root.children[1].Right.events.component.onActionPerformed: Script references non-existent sibling component 'Missing'",
+      "reason": "ign-lint reports a missing sibling twice, in two wordings; SCR305 reports each lookup once (with the first wording)"
+    },
+    {
+      "view": "probes/ReferenceQuirks",
+      "variant": "*",
+      "rule": "ComponentReferenceValidationRule",
+      "kind": "missing",
+      "message": "root.root.children[1].Right.events.component.onActionPerformed: Navigation chain goes beyond root: self.parent.parent.getChild('X')",
+      "reason": "SCR305 does not check navigation above the root container: what it returns at run time is not modelled, so the rule stays silent"
+    },
+    {
+      "view": "cases/ExtensionFunctions",
+      "variant": "*",
+      "rule": "ComponentReferenceValidationRule",
+      "kind": "extra",
+      "message": "root.root.children[1].ShelvedAlarmTable.scripts.extensionFunctions[0]: Component 'MissingLabel' not found as sibling in: self.getSibling('MissingLabel')",
+      "reason": "ign-lint does not model component extension functions as scripts (bug 1), so it never checks them; SCR305 does"
+    }
+  ]
+}
