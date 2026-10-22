@@ -798,6 +798,37 @@ mod tests {
         parse_rule_config(Path::new("rule_config.json"), text).unwrap()
     }
 
+    /// Configurations written for ign-lint 0.6.3 (the kwargs it accepts,
+    /// no `allow_fix`, no `max_value_length`, no property rules) and for
+    /// 0.6.4 both load without a message or a creation error.
+    #[test]
+    fn configurations_of_0_6_3_and_0_6_4_are_accepted() {
+        let v063 = parse(
+            r#"{
+              "NamePatternRule": {"kwargs": {"convention": "PascalCase", "target_node_types": ["component"], "allow_numbers": true, "min_length": 2, "max_length": 40, "forbidden_names": ["x"], "skip_names": ["root"], "allowed_abbreviations": ["ID"], "auto_detect_abbreviations": true, "severity": "warning"}},
+              "PollingIntervalRule": {"kwargs": {"minimum_interval": 10000}},
+              "PylintScriptRule": {"kwargs": {"pylintrc": ".pylintrc", "debug": false, "batch_mode": false, "debug_dir": "d", "category_mapping": {"E": "error"}}},
+              "BadComponentReferenceRule": {"kwargs": {"forbidden_patterns": [".getSibling("], "case_sensitive": true}},
+              "ComponentReferenceValidationRule": {"kwargs": {"validate_expressions": true, "validate_property_bindings": true, "validate_scripts": true}},
+              "UnusedCustomPropertiesRule": {"enabled": true},
+              "ExcessiveContextDataRule": {"kwargs": {"max_array_size": 50, "max_sibling_properties": 50, "max_nesting_depth": 5, "max_data_points": 1000}}
+            }"#,
+        );
+        let v064 = parse(
+            r#"{
+              "UnusedCustomPropertiesRule": {"allow_fix": false},
+              "ExcessiveContextDataRule": {"kwargs": {"max_value_length": 20000}},
+              "PropertyAccessRule": {"kwargs": {"expected_access": "PRIVATE", "exempt_props": []}},
+              "PropertyPersistenceRule": {"allow_fix": true, "kwargs": {"expected_persistent": false, "exempt_binding_types": []}}
+            }"#,
+        );
+        for config in [&v063, &v064] {
+            assert!(config.messages.is_empty(), "{:?}", config.messages);
+            assert!(config.rules.iter().all(|r| r.error.is_none()));
+            assert_eq!(config.loaded_rules().count(), IGN_LINT_RULES.len());
+        }
+    }
+
     #[test]
     fn empty_config_runs_every_rule() {
         let config = parse("{}");

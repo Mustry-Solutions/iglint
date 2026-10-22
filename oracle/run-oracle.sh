@@ -28,11 +28,19 @@ list="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
 out="$3"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+# A named container, removed when the script ends or is interrupted (a
+# killed `docker run` client leaves the container running).
+container="iglint-oracle-$$-${script%.py}"
+cleanup() {
+  docker rm -f "$container" >/dev/null 2>&1 || true
+  rm -rf "$work"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 cp "$list" "$work/list.txt"
 chmod 777 "$work"
 
-docker run --rm \
+docker run --rm --name "$container" \
   -v "$root":/w:ro \
   -v "$work":/out \
   -v "$here":/oracle:ro \

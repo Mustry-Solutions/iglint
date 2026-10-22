@@ -24,6 +24,9 @@ from 0.1.0 on.
 
 ### Added
 
+- `docs/compat/ign-lint.md` lists what changed between ign-lint 0.6.3 and
+  0.6.4; configurations of both versions are accepted.
+
 - SCR900 option `disable`. A configuration read from an ign-lint
   `rule_config.json` sets it to the messages ign-lint's combined file
   disables (`unused-argument`, `missing-docstring`,
@@ -36,6 +39,10 @@ from 0.1.0 on.
 
 ### Fixed
 
+- `iglint ign-lint --version` prints the ign-lint version it emulates:
+  `ign-lint 0.6.4 (iglint 0.1.0 compatibility mode)`.
+- The oracle scripts name their containers (`iglint-oracle-<pid>-...`)
+  and remove them when interrupted.
 - `VIEW015` follows the library functions view scripts hand `self`, the
   view or a property container to (`lib.util.handle(self)`,
   `handle(self=self)`): a function that does not exist reads nothing (the

@@ -22,9 +22,18 @@ root="$(cd "$here/../.." && pwd)"
 image="${IGLINT_ORACLE_IMAGE:-inductiveautomation/ignition:8.3.3}"
 recorded="$root/crates/iglint_expression/tests/oracle"
 
+# Containers are named iglint-oracle-<pid>-<kind>-<n> and removed when the
+# script ends or is interrupted (a killed `docker run` client leaves the
+# container running).
+containers=()
+runs=0
+
 # oracle KIND CASES_FILE OUT_FILE (both in $work)
 oracle() {
-  docker run --rm --user "$(id -u):$(id -g)" \
+  runs=$((runs + 1))
+  local container="iglint-oracle-$$-expression-$1-$runs"
+  containers+=("$container")
+  docker run --rm --name "$container" --user "$(id -u):$(id -g)" \
     -v "$here:/oracle:ro" -v "$work:/work" \
     --entrypoint /usr/local/bin/ignition/lib/runtime/jre-nix/bin/java \
     "$image" \
@@ -43,7 +52,15 @@ expect() {
 }
 
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+cleanup() {
+  local c
+  for c in "${containers[@]}"; do
+    docker rm -f "$c" >/dev/null 2>&1 || true
+  done
+  rm -rf "$work"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 case "${1:-}" in
   record)

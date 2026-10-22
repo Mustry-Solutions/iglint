@@ -14,10 +14,16 @@ image="${IGLINT_ORACLE_IMAGE:-inductiveautomation/ignition:8.3.3}"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 dest="$here/../crates/iglint_python/src/unicode_names"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+container="iglint-oracle-$$-unicode-names"
+cleanup() {
+  docker rm -f "$container" >/dev/null 2>&1 || true
+  rm -rf "$work"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 chmod 777 "$work"
 
-docker run --rm \
+docker run --rm --name "$container" \
   -v "$work":/out \
   -v "$here":/oracle:ro \
   --entrypoint sh "$image" -c '

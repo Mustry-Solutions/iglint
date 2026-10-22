@@ -578,7 +578,10 @@ fn version_help_and_usage_errors() {
     assert_eq!(run.status, ExitStatus::Success);
     assert_eq!(
         run.stdout,
-        format!("ign-lint {}\n", env!("CARGO_PKG_VERSION"))
+        format!(
+            "ign-lint 0.6.4 (iglint {} compatibility mode)\n",
+            env!("CARGO_PKG_VERSION")
+        )
     );
     let run = run_in(dir.path(), &["--bogus-flag"]);
     assert_eq!(run.status, ExitStatus::Error);

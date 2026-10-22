@@ -8,7 +8,8 @@
 //!
 //! * an invalid JSON file is reported and skipped instead of aborting the run
 //!   (the exit code is still 1);
-//! * `--version` prints the real version;
+//! * `--version` prints the ign-lint version this mode emulates and
+//!   iglint's version (ign-lint itself prints `dev`);
 //! * `--stats-only --timing-output` writes the timing report;
 //! * `--debug-output` mirrors each file's path instead of overwriting;
 //! * `--debug-nodes`/`--analyze-rules` count every node once;
@@ -18,6 +19,9 @@
 pub mod files;
 pub mod model;
 pub mod report;
+
+/// The ign-lint release whose behaviour this mode reproduces.
+pub const EMULATED_VERSION: &str = "0.6.4";
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ffi::OsString;
@@ -292,7 +296,11 @@ fn run_inner(
     let cwd = environment.cwd.as_path();
 
     if matches.get_flag("version") {
-        writeln!(out, "{program} {}", env!("CARGO_PKG_VERSION"))?;
+        writeln!(
+            out,
+            "{program} {EMULATED_VERSION} (iglint {} compatibility mode)",
+            env!("CARGO_PKG_VERSION")
+        )?;
         return Ok(ExitStatus::Success);
     }
 

@@ -10,10 +10,31 @@ MIT) so that iglint can support every feature without reading its code.
 * Verified by running ign-lint 0.6.4 from PyPI with Python 3.13.16,
   pylint 4.1.3 and astroid 4.3.4 (the package pins `pylint = "*"`, so pylint
   findings depend on the installed pylint version).
+* Projects that still pin **v0.6.3** are covered too: see
+  [0.6.3 and 0.6.4](#063-and-064) below.
 * "Bug" marks behaviour we believe is wrong. iglint is correct, not
   bug-compatible, but parity tests must know where outputs differ. Every
   bug listed here was reproduced; the probe views in
   `crates/iglint_linter/tests/fixtures/ign-lint/probes/` pin most of them.
+
+### 0.6.3 and 0.6.4
+
+v0.6.4 (compared on the PyPI wheels of both releases) changed only this;
+every other module is identical:
+
+| | v0.6.3 | v0.6.4 | iglint |
+|---|---|---|---|
+| `allow_fix` in a rule entry | Not read: ignored, whatever its value. | Must be a JSON boolean (else `Error creating rule {name}: allow_fix must be true or false; got {v!r}` and the rule does not run); `false` keeps the rule's findings but `--fix` / `--fix-dry-run` skip it; an explicit `--fix-rules` overrides it; `Note: allow_fix has no effect on {name} ...` for rules without fixes. The rule list printed at start-up shows `, allow_fix=false`. | 0.6.4 (`unfixable` after `iglint migrate`). |
+| `ExcessiveContextDataRule` | Four detectors (array size, siblings, depth, data points); kwargs may also be passed positionally. | Adds the value-length detector (`max_value_length`, default 10000 characters, [5.7](#57-excessivecontextdatarule)); kwargs are keyword-only. A 0.6.4 configuration that sets `max_value_length` fails to create the rule in 0.6.3 (`TypeError`). | 0.6.4: long strings in view `custom` are reported. To match a 0.6.3 CI, set `max-value-length` very high in `iglint.toml` (or `max_value_length` in `rule_config.json`, which 0.6.3 itself rejects). |
+| `PropertyAccessRule`, `PropertyPersistenceRule` | Do not exist: `Unknown rule in config: {name}`. | New, inert until configured ([5.8](#58-propertyaccessrule), [5.9](#59-propertypersistencerule)). | 0.6.4. |
+| `--fix-rules` | Names that match no rule are ignored silently. | Prints a warning for names that match no loaded rule and for rules without fix support. | 0.6.4. |
+| Node order of `propConfig`-only properties | Hash order of a set: varies between runs, so `--debug-nodes` / `--debug-output` and the order of some findings are not reproducible. | Sorted. | Sorted. |
+
+Every configuration valid for 0.6.3 is valid for 0.6.4 and is read the same
+way, except a non-boolean `allow_fix` (ignored by 0.6.3, a creation error in
+0.6.4 and iglint). `iglint ign-lint` and `iglint migrate` accept both;
+`iglint ign-lint --version` prints `ign-lint 0.6.4 (iglint <version>
+compatibility mode)`.
 
 Contents
 
