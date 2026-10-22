@@ -12,7 +12,12 @@ use crate::checker::Checker;
 use crate::diagnostic::{Fix, Severity};
 use crate::registry::{Category, FixAvailability, RuleMeta};
 use crate::rule::{Hook, Phase, RuleImpl, ViewRule};
+use crate::rules::refs::unknown_library_member::resolve;
+use crate::script_facts::access::{Callee, CalleeContext, LibraryCall, follow_call};
 use crate::script_facts::{AccessTarget, PropertyAccess};
+use iglint_project::library::{LibraryLookup, SymbolKind};
+use iglint_project::script::IMPLICIT_GLOBALS;
+use iglint_project::{ProjectId, ProjectIndex};
 
 pub static META: RuleMeta = RuleMeta {
     code: "VIEW015",
@@ -43,9 +48,18 @@ by a text search:
   `self.parent.getChild('A').custom.x`, `self.custom['x']`, and local
   aliases (`view = self.view`). A script that uses a property container in
   a way that cannot be followed (`self.view.custom[key]`, passing `self`
-  to a library function, a script that does not parse) counts as reading
-  every property it could reach, so the rule stays silent rather than
-  guess.
+  to a function iglint cannot follow, a script that does not parse) counts
+  as reading every property it could reach, so the rule stays silent
+  rather than guess;
+* project library functions a script passes `self`, the view or a
+  property container to (`lib.util.handle(self)`, `handle(view=self.view)`):
+  the function's body is followed with the same rules (`param.view.custom.x`,
+  `param.getSibling('A').custom.y`, passing it on to other library
+  functions, up to 4 calls deep). A function that does not exist reads
+  nothing (the call fails, which `REF002` reports). A function that uses
+  the value in a way that cannot be followed, a function a child project
+  overrides, and calls of anything but a library function count as
+  reading everything.
 
 These never count as unused:
 
@@ -78,9 +92,11 @@ that are ignored.
 
 ## Fix
 
-Safe, for custom properties: removes the property and its `propConfig`
-entries. View parameters are never removed automatically (callers pass
-them).
+For custom properties: removes the property and its `propConfig`
+entries. Safe when nothing writes the property; unsafe when a script or a
+bidirectional binding writes it (the write recreates the property, without
+the `access` and `persistent` settings of its `propConfig`). View
+parameters are never removed automatically (callers pass them).
 
 ## ign-lint
 
@@ -97,7 +113,9 @@ resolves every reference instead.
 
 pub static RULE: RuleImpl = RuleImpl {
     meta: &META,
-    phase: Phase::Local,
+    // Library functions that scripts hand `self` to are resolved through
+    // the project index.
+    phase: Phase::Project,
     hooks: &[Hook::View(&UnusedCustomProperty)],
     options: None,
 };
@@ -384,7 +402,8 @@ impl ViewRule for UnusedCustomProperty {
         if !complete && !view.scripts.is_empty() {
             return;
         }
-        let usage = usage(view, accesses);
+        let accesses = follow_library_calls(cx, view, accesses);
+        let usage = usage(view, &accesses);
         for (i, def) in view.properties.iter().enumerate() {
             if def.name.starts_with('_') || def.name.is_empty() || is_active(view, def) {
                 continue;
@@ -401,7 +420,7 @@ impl ViewRule for UnusedCustomProperty {
                 continue;
             }
             let fix = match def.category {
-                PropCategory::Custom => fix(cx, view, file, def),
+                PropCategory::Custom => fix(cx, view, file, def, usage.is_written(i, def)),
                 PropCategory::Params => None,
             };
             let message = if usage.is_written(i, def) {
@@ -426,6 +445,7 @@ fn fix(
     view: &View<'_>,
     file: iglint_project::FileId,
     def: &PropertyDef<'_>,
+    written: bool,
 ) -> Option<Fix> {
     let editor = cx.json_editor(file, view.root)?;
     let mut edits = Vec::new();
@@ -455,14 +475,138 @@ fn fix(
     if edits.is_empty() {
         return None;
     }
-    Some(Fix::safe(
-        format!("Remove unused custom property '{}'", def.name),
-        cx.file_edits(file, edits),
-    ))
+    let message = format!("Remove unused custom property '{}'", def.name);
+    let edits = cx.file_edits(file, edits);
+    // A write recreates the property at run time, without the `access`
+    // and `persistent` settings of the removed `propConfig` entry.
+    Some(if written {
+        Fix::unsafe_edit(message, edits)
+    } else {
+        Fix::safe(message, edits)
+    })
+}
+
+/// `accesses` with the assumptions made for library calls
+/// ([`PropertyAccess::via`]) replaced by what the called functions do.
+fn follow_library_calls<'a>(
+    cx: &Checker<'_, '_>,
+    view: &View<'_>,
+    accesses: &'a [PropertyAccess],
+) -> std::borrow::Cow<'a, [PropertyAccess]> {
+    if accesses.iter().all(|a| a.via.is_none()) {
+        return std::borrow::Cow::Borrowed(accesses);
+    }
+    let Some((index, project)) = cx.project_index() else {
+        return std::borrow::Cow::Borrowed(accesses);
+    };
+    let resolve = |callee: &str, context: Option<CalleeContext>| {
+        resolve_callee(index, project, callee, context)
+    };
+    let mut out: Vec<PropertyAccess> = Vec::with_capacity(accesses.len());
+    let mut followed: Vec<&std::sync::Arc<LibraryCall>> = Vec::new();
+    for a in accesses {
+        match &a.via {
+            None => out.push(a.clone()),
+            Some(call) => {
+                // The assumed accesses of one call share it.
+                if followed.iter().any(|f| std::sync::Arc::ptr_eq(f, call)) {
+                    continue;
+                }
+                followed.push(call);
+                out.extend(follow_call(view, call, a.range, &resolve));
+            }
+        }
+    }
+    std::borrow::Cow::Owned(out)
+}
+
+/// Resolves a name called with a value of a view: written in the view
+/// script (`context` `None`) or in the body of a library function.
+fn resolve_callee<'i>(
+    index: &'i ProjectIndex<'_>,
+    project: ProjectId,
+    callee: &str,
+    context: Option<CalleeContext>,
+) -> Callee<'i> {
+    let (head, rest) = match callee.split_once('.') {
+        Some((head, rest)) => (head, Some(rest)),
+        None => (callee, None),
+    };
+    let library = index.library(project);
+    let dotted = match context {
+        None if library.is_global(head) => callee.to_owned(),
+        None => return Callee::Unknown,
+        Some(context) => {
+            let Some(symbols) = index.module_symbols(context.module) else {
+                return Callee::Unknown;
+            };
+            let module = index
+                .workspace()
+                .resource(context.module)
+                .path
+                .replace('/', ".");
+            match symbols.get(head).map(|s| &s.kind) {
+                Some(SymbolKind::Function(_)) => format!("{module}.{callee}"),
+                Some(SymbolKind::Import {
+                    target: Some(target),
+                }) => match rest {
+                    Some(rest) => format!("{target}.{rest}"),
+                    None => target.clone(),
+                },
+                Some(_) => return Callee::Unknown,
+                None if symbols.dynamic => return Callee::Unknown,
+                None if library.is_global(head) => callee.to_owned(),
+                None => return Callee::Unknown,
+            }
+        }
+    };
+    let segments: Vec<&str> = dotted.split('.').collect();
+    match resolve(index, project, &dotted) {
+        LibraryLookup::Missing { .. } | LibraryLookup::HiddenByModule { .. } => Callee::Missing,
+        LibraryLookup::MissingAttribute { index: i, .. } => {
+            let name = segments.get(i).copied().unwrap_or("");
+            if (name.starts_with("__") && name.ends_with("__"))
+                || IMPLICIT_GLOBALS.contains(&name)
+                || library.is_global(name)
+            {
+                Callee::Unknown
+            } else {
+                Callee::Missing
+            }
+        }
+        LibraryLookup::Symbol {
+            resource,
+            symbol,
+            rest: 0,
+        } => {
+            let SymbolKind::Function(signature) = &symbol.kind else {
+                return Callee::Unknown;
+            };
+            // A child project that inherits the view may override the
+            // module with another function.
+            let same_everywhere = index
+                .workspace()
+                .project_descendants(project)
+                .into_iter()
+                .all(|d| {
+                    matches!(
+                        index.resolve_library(d, &dotted),
+                        LibraryLookup::Symbol { resource: r, rest: 0, .. } if r == resource
+                    )
+                });
+            if same_everywhere {
+                Callee::Function(signature, CalleeContext { module: resource })
+            } else {
+                Callee::Unknown
+            }
+        }
+        _ => Callee::Unknown,
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::Diagnostic;
     use crate::rules::test_support::*;
 
     fn unused(view: &str) -> Vec<String> {
@@ -697,6 +841,177 @@ mod tests {
                 ",\n    \"custom.unused\": {\n      \"persistent\": false\n    },\n    \"custom.unused.deep\": {\n      \"access\": \"PRIVATE\"\n    }",
                 ""
             )
+        );
+    }
+    fn event(script: &str) -> String {
+        format!(
+            r#", "events": {{"component": {{"onActionPerformed": {{"type": "script", "scope": "G", "config": {{"script": "{script}"}}}}}}}}"#
+        )
+    }
+
+    /// Unused properties of a view whose button runs `script`, in a project
+    /// whose library has `modules` (`(path, code)`).
+    fn with_library(script: &str, modules: &[(&str, &str)]) -> Vec<Diagnostic> {
+        let v = view(
+            r#"{"a": 1, "b": 2, "c": 3}"#,
+            "{}",
+            &[
+                label("A", r#", "custom": {"x": 1, "y": 2}"#),
+                label("Btn", &event(script)),
+            ],
+            "{}",
+        );
+        let mut f = Fixture::view(&v);
+        for (path, code) in modules {
+            f = f.resource(
+                &format!("projects/p/ignition/script-python/{path}"),
+                &[("code.py", code)],
+            );
+        }
+        f.lint(&["VIEW015"])
+    }
+
+    fn paths(d: &[Diagnostic]) -> Vec<String> {
+        d.iter().map(|d| d.node_path.clone().unwrap()).collect()
+    }
+
+    const ALL: [&str; 5] = [
+        "view.custom.a",
+        "view.custom.b",
+        "view.custom.c",
+        "root/A.custom.x",
+        "root/A.custom.y",
+    ];
+
+    #[test]
+    fn library_functions_that_do_not_exist_read_nothing() {
+        // `util` has no `missing`: the call fails before anything is read.
+        let d = with_library(
+            "\\tlib.util.missing(self=self)",
+            &[("lib/util", "def other(a):\n    return a\n")],
+        );
+        assert_eq!(paths(&d), ALL);
+        let d = with_library("\\tlib.nope.handle(self)", &[("lib/util", "")]);
+        assert_eq!(paths(&d), ALL);
+    }
+
+    #[test]
+    fn library_functions_are_followed() {
+        let util = "def handle(self, x=1):\n    if self is None:\n        return\n    v = self.view\n    print v.custom.a, self.getSibling('A').custom['x']\n";
+        let d = with_library("\\tlib.util.handle(self)", &[("lib/util", util)]);
+        assert_eq!(
+            paths(&d),
+            ["view.custom.b", "view.custom.c", "root/A.custom.y"]
+        );
+        // Keyword arguments, containers, calls passed on within the module
+        // and to other modules.
+        let util = "import lib.other as o\ndef handle(c, comp=None):\n    print c.b\n    inner(comp)\n    o.go(comp)\ndef inner(q):\n    return q.custom.x\n";
+        let other = "def go(p):\n    p.custom.y += 1\n";
+        let d = with_library(
+            "\\tlib.util.handle(comp=self.getSibling('A'), c=self.view.custom)",
+            &[("lib/util", util), ("lib/other", other)],
+        );
+        assert_eq!(paths(&d), ["view.custom.a", "view.custom.c"]);
+    }
+
+    #[test]
+    fn library_uses_that_cannot_be_followed_read_everything() {
+        for util in [
+            // Dynamic access, the parameter returned, rebound, used in a
+            // nested function, passed to something that is not a library
+            // function, `*args`.
+            "def handle(p):\n    return getattr(p, 'view')\n",
+            "def handle(p):\n    return p\n",
+            "def handle(p):\n    p = p.parent\n    print p.custom.x\n",
+            "def handle(p):\n    def f():\n        return p.view.custom.a\n    return f()\n",
+            "def handle(p):\n    system.perspective.print(p)\n",
+            "def handle(*args):\n    pass\n",
+            "def handle(p):\n    exec 'print 1'\n",
+            "handle = lambda p: None\n",
+        ] {
+            let d = with_library("\\tlib.util.handle(self)", &[("lib/util", util)]);
+            assert!(d.is_empty(), "{util}: {:?}", paths(&d));
+        }
+        // Calls more than 4 deep.
+        let util = "def f1(p):\n    f2(p)\ndef f2(p):\n    f3(p)\ndef f3(p):\n    f4(p)\ndef f4(p):\n    f5(p)\ndef f5(p):\n    pass\n";
+        let d = with_library("\\tlib.util.f1(self)", &[("lib/util", util)]);
+        assert!(d.is_empty(), "{:?}", paths(&d));
+        // A name the script binds is not the library.
+        let d = with_library(
+            "\\tlib = other\\n\\tlib.util.missing(self)",
+            &[("lib/util", "")],
+        );
+        assert!(d.is_empty(), "{:?}", paths(&d));
+    }
+
+    #[test]
+    fn library_functions_a_child_project_overrides_read_everything() {
+        let v = view(
+            r#"{"a": 1}"#,
+            "{}",
+            &[label("Btn", &event("\\tlib.util.handle(self)"))],
+            "{}",
+        );
+        let f = Fixture::view(&v)
+            .file(
+                "projects/p/project.json",
+                r#"{"title": "p", "enabled": true, "inheritable": true}"#,
+            )
+            .resource(
+                "projects/p/ignition/script-python/lib/util",
+                &[("code.py", "def handle(p):\n    pass\n")],
+            )
+            .file(
+                "projects/child/project.json",
+                r#"{"title": "child", "enabled": true, "parent": "p"}"#,
+            );
+        // Without an override the child runs the same function.
+        assert_eq!(paths(&f.lint(&["VIEW015"])), ["view.custom.a"]);
+        let f = f.resource(
+            "projects/child/ignition/script-python/lib/util",
+            &[("code.py", "def handle(p):\n    print p.view.custom.a\n")],
+        );
+        assert!(f.lint(&["VIEW015"]).is_empty());
+    }
+
+    #[test]
+    fn fix_is_unsafe_for_written_properties() {
+        let v = view(
+            r#"{"a": 1, "b": 2}"#,
+            "{}",
+            &[label("Btn", &event("\\tself.view.custom.a = 2"))],
+            r#"{"custom.a": {"access": "PRIVATE"}}"#,
+        );
+        let d = Fixture::view(&v).lint(&["VIEW015"]);
+        let fixes: Vec<(String, crate::Applicability)> = d
+            .iter()
+            .map(|d| {
+                (
+                    d.node_path.clone().unwrap(),
+                    d.fix.as_ref().unwrap().applicability,
+                )
+            })
+            .collect();
+        assert_eq!(
+            fixes,
+            [
+                ("view.custom.a".to_owned(), crate::Applicability::Unsafe),
+                ("view.custom.b".to_owned(), crate::Applicability::Safe),
+            ]
+        );
+        // Written by a library function.
+        let d = with_library(
+            "\\tlib.util.handle(self)",
+            &[("lib/util", "def handle(p):\n    p.view.custom.c = 1\n")],
+        );
+        let c = d
+            .iter()
+            .find(|d| d.node_path.as_deref() == Some("view.custom.c"))
+            .unwrap();
+        assert_eq!(c.message, "Custom property `c` is written but never read");
+        assert_eq!(
+            c.fix.as_ref().unwrap().applicability,
+            crate::Applicability::Unsafe
         );
     }
 }

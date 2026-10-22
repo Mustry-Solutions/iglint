@@ -79,6 +79,89 @@ pub enum SymbolKind {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Signature {
     pub params: Vec<Parameter>,
+    /// How the function uses each of `params` (same order) when it is a
+    /// Perspective object: what a view script hands over when it calls
+    /// `lib.f(self)`. Empty when unknown (every parameter is
+    /// [`ParamUse::Dynamic`]).
+    pub uses: Vec<ParamUse>,
+}
+
+impl Signature {
+    /// The use of the parameter an argument binds to: the `index`-th
+    /// positional argument, or the keyword argument `keyword`. `Dynamic`
+    /// for `*args` / `**kwargs` and unknown parameters.
+    pub fn use_of(&self, slot: &ArgSlot) -> &ParamUse {
+        const DYNAMIC: &ParamUse = &ParamUse::Dynamic;
+        let position = match slot {
+            ArgSlot::Position(i) => {
+                let named = self
+                    .params
+                    .iter()
+                    .take_while(|p| p.kind == ParameterKind::Positional)
+                    .count();
+                (*i < named).then_some(*i)
+            }
+            ArgSlot::Keyword(k) => self
+                .params
+                .iter()
+                .position(|p| p.kind == ParameterKind::Positional && p.name == *k),
+        };
+        position.and_then(|i| self.uses.get(i)).unwrap_or(DYNAMIC)
+    }
+}
+
+/// Which parameter an argument of a call binds to.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ArgSlot {
+    Position(usize),
+    Keyword(String),
+}
+
+/// What a function does with one parameter, followed like `self` in view
+/// scripts (see `iglint_linter::script_facts::access`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum ParamUse {
+    /// Every use of the parameter is one of these paths (none: unused).
+    Paths(Vec<ParamPath>),
+    /// Used in a way that cannot be followed (rebound, used in a nested
+    /// function, `exec`, `locals()`, ...): it may access anything.
+    #[default]
+    Dynamic,
+}
+
+/// One use of a parameter: the attribute, method and subscript steps from
+/// the parameter, and what happens to the result.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParamPath {
+    pub steps: Vec<PathStep>,
+    pub end: PathEnd,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PathStep {
+    /// `.name`
+    Attr(String),
+    /// `.name(...)`; `literal` is the first argument when it is a string
+    /// literal.
+    Method {
+        name: String,
+        literal: Option<String>,
+    },
+    /// `[key]`; `None` for a key that is not a string literal.
+    Index(Option<String>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PathEnd {
+    /// The value is read and used (stored, returned, compared, ...).
+    Load,
+    /// The last step is assigned or deleted.
+    Store,
+    /// The last step is updated (`+=`).
+    Update,
+    /// The value is passed to `callee` (a dotted name as written: a
+    /// top-level name of the module or a library name).
+    Passed { callee: String, slot: ArgSlot },
 }
 
 /// One parameter.
@@ -426,6 +509,7 @@ mod tests {
         };
         let sig = Signature {
             params: vec![p("value", false), p("digits", true)],
+            ..Signature::default()
         };
         assert!(sig.check_call(1, &[], false, false).is_ok());
         assert!(sig.check_call(1, &["digits"], false, false).is_ok());

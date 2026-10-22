@@ -36,6 +36,14 @@ from 0.1.0 on.
 
 ### Fixed
 
+- `VIEW015` follows the library functions view scripts hand `self`, the
+  view or a property container to (`lib.util.handle(self)`,
+  `handle(self=self)`): a function that does not exist reads nothing (the
+  call fails; `REF002` reports it), and an existing one is followed
+  through its body (`param.view.custom.x`, `param.getSibling('A')`,
+  further library calls up to 4 deep). Anything that cannot be followed,
+  and functions a child project overrides, still count as reading
+  everything. The fix is unsafe when something writes the property.
 - `iglint migrate` keeps ign-lint's scope: the rules ign-lint adds to
   iglint's defaults (above all `SCR900`) are selected for `view.json`
   files only, through an `[[overrides]]` entry, instead of for the whole

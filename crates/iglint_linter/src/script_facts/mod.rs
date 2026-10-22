@@ -66,6 +66,11 @@ pub struct PropertyAccess {
     pub write: bool,
     /// Where in the file the access is.
     pub range: TextRange,
+    /// Set when the access is assumed because a followed value is passed
+    /// to a call of a dotted name (`lib.util.handle(self)`): rules with the
+    /// project index can resolve the callee and replace the assumption by
+    /// what the function does (see [`access::LibraryCall`]).
+    pub via: Option<std::sync::Arc<access::LibraryCall>>,
 }
 
 /// Facts extracted from parsed scripts.

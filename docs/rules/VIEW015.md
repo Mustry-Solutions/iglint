@@ -35,9 +35,18 @@ by a text search:
   `self.parent.getChild('A').custom.x`, `self.custom['x']`, and local
   aliases (`view = self.view`). A script that uses a property container in
   a way that cannot be followed (`self.view.custom[key]`, passing `self`
-  to a library function, a script that does not parse) counts as reading
-  every property it could reach, so the rule stays silent rather than
-  guess.
+  to a function iglint cannot follow, a script that does not parse) counts
+  as reading every property it could reach, so the rule stays silent
+  rather than guess;
+* project library functions a script passes `self`, the view or a
+  property container to (`lib.util.handle(self)`, `handle(view=self.view)`):
+  the function's body is followed with the same rules (`param.view.custom.x`,
+  `param.getSibling('A').custom.y`, passing it on to other library
+  functions, up to 4 calls deep). A function that does not exist reads
+  nothing (the call fails, which `REF002` reports). A function that uses
+  the value in a way that cannot be followed, a function a child project
+  overrides, and calls of anything but a library function count as
+  reading everything.
 
 These never count as unused:
 
@@ -70,9 +79,11 @@ that are ignored.
 
 ## Fix
 
-Safe, for custom properties: removes the property and its `propConfig`
-entries. View parameters are never removed automatically (callers pass
-them).
+For custom properties: removes the property and its `propConfig`
+entries. Safe when nothing writes the property; unsafe when a script or a
+bidirectional binding writes it (the write recreates the property, without
+the `access` and `persistent` settings of its `propConfig`). View
+parameters are never removed automatically (callers pass them).
 
 ## ign-lint
 

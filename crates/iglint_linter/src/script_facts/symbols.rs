@@ -40,7 +40,9 @@ pub fn module_symbols(model: &SemanticModel<'_>) -> ModuleSymbols {
             match first.kind {
                 BindingKind::FunctionDef => match first.stmt {
                     Some(Stmt::FunctionDef(f)) if f.decorator_list.is_empty() => {
-                        SymbolKind::Function(signature(&f.args))
+                        let mut signature = signature(&f.args);
+                        signature.uses = super::access::param_uses(f);
+                        SymbolKind::Function(signature)
                     }
                     _ => SymbolKind::Variable,
                 },
@@ -90,7 +92,10 @@ pub fn signature(args: &Arguments) -> Signature {
             has_default: true,
         });
     }
-    Signature { params }
+    Signature {
+        params,
+        uses: Vec::new(),
+    }
 }
 
 #[cfg(test)]

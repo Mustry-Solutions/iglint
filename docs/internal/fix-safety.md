@@ -37,7 +37,7 @@ code before and after the edit.
 | `NAME001` | Rename a component and every reference to it in the view | No reference to the component at all; no script reads `meta.name`; no script looks children up with a computed name or has a string literal equal to the name; every script parses; and no script of the view hands a component to code outside the view (library call, message payload, `getGlobals()`, an opaque call such as `locals()`): a library function that receives a component can call `getChild('Name')` itself | Unsafe when references exist or a component may escape; no fix when a lookup cannot be rewritten or the new name is taken |
 | `VIEW012` | Set, add or remove `access` in `propConfig` | Never: the access mode decides whether the browser receives the property and whether it may write it | Unsafe |
 | `VIEW013` | Set `persistent: false` (and remove the stored value) | No stored value: the property starts out absent either way | Unsafe when a stored value is removed: scripts and expressions that run before the binding delivers (query bindings are asynchronous) see a different value |
-| `VIEW015` | Remove an unused custom property and its `propConfig` entries | Resolved reads cover expressions, bindings and scripts (with component escapes counting as reading everything); properties with a binding or change script are never reported, so nothing that runs is removed | Owned by a separate change (see below) |
+| `VIEW015` | Remove an unused custom property and its `propConfig` entries | Nothing reads or writes the property: resolved reads and writes cover expressions, bindings (bidirectional ones write) and scripts, including the library functions scripts hand `self` to (followed through their bodies; anything that cannot be followed counts as reading and writing everything); properties with a binding or change script are never reported, so nothing that runs is removed | Unsafe when a script, a library function it calls or a bidirectional binding writes the property: the write recreates it at run time without the `access` and `persistent` settings of the removed `propConfig` entry |
 | `SCR102` | Remove unused import names or statements | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); a top-level library import is provably unused by other resources; and every removed import is effect-free: `java.*` / `javax.*`, or a plain `import x` / non-package `from x import y` of a standard module on the verified list, with no project library package of that name | Unsafe (project library modules, third-party and non-JDK Java packages, `socket`, `logging`, dotted imports, relative imports, unknown project) |
 | `SCR103` | Remove `x = value`, or only `x = ` when the value makes a call | Never | Unsafe: the value may be wanted under another name, and a removed attribute or subscript read can raise or run a getter. The statement is removed only when the value calls nothing, so no pointless statement (`SCR114`) is left |
 | `SCR110` | `is` to `==`, `is not` to `!=` | Never: the result changes whenever identity and equality differ (`int('1000') is 1000` is `False` in Jython), and `==` calls `__eq__` / Java `equals` | Unsafe |
@@ -67,8 +67,12 @@ fix-all action applies unsafe fixes only when configured to.
   inheritable project, an incomplete parent chain, or resources whose
   scripts iglint does not model make cross-resource facts unknown; fixes
   that depend on them are unsafe.
-* **`VIEW015`.** Its findings and fix are being reworked in a separate
-  change. From this audit: removing a property that a script only writes is
-  not neutral when its `propConfig` entry sets `access` (the property
-  recreated by the write would be `PUBLIC`), so the fix should be unsafe for
-  written properties.
+* **`VIEW015`.** Removing a property that a script only writes is not
+  neutral when its `propConfig` entry sets `access` (the property recreated
+  by the write would be `PUBLIC`), so the fix is unsafe for written
+  properties. A property that might be read dynamically is never reported
+  (dynamic reads count as reading every property they could reach), so
+  the fix is safe only when the property is provably unread and
+  unwritten. Library calls are resolved in the project the view belongs
+  to and in every project inheriting from it; a function a child project
+  overrides counts as reading everything.
