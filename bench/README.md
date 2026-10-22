@@ -79,7 +79,11 @@ bench/run.sh                    # small medium large
 bench/run.sh medium             # one corpus
 IGN_LINT_VARIANTS="jobs1 rules-only" bench/run.sh large xl
 IGLINT_PRIVATE_CORPUS=/path/to/repo bench/run.sh private
+CPU_LIMITS="2" bench/run.sh medium        # pinned runs on 2 CPUs only
 ```
+
+`run.sh private` benchmarks a copy of the corpus (`$BENCH_HOME/private-corpus`,
+refreshed with `rsync`): the incremental runs edit a view.
 
 `run.sh` installs hyperfine (`cargo install hyperfine`) if needed, creates
 an ign-lint 0.6.4 virtualenv with `uv` (pylint 4.1.3, astroid 4.3.4, the
@@ -114,6 +118,8 @@ iglint variants:
 | `iglint-incremental` | populated cache, one `view.json` changed before every run |
 | `iglint-select-all` | `--select ALL --no-cache` |
 | `*-1core` | the same pinned to one CPU with `taskset -c 0` (pylint workers included) |
+| `iglint-migrated` | the migration path, in a copy of the corpus (`$BENCH_HOME/migrated/<corpus>`): `iglint migrate` of ign-lint's configuration (`ign-lint-default`'s, so `SCR900` runs on views) and whitelist, `iglint baseline`, then `iglint check --no-cache` as the CI gate (pylint on `PATH`) |
+| `cpu<N>-*` | pinned to N CPUs with `taskset -c 0-<N-1>` (`CPU_LIMITS`, default `2 1`; a hosted CI agent has 2): `ign-lint-default`, `ign-lint-jobs1` (when in `IGN_LINT_VARIANTS`), `iglint-ign-lint-pylint`, `iglint-migrated` and `iglint-cold` |
 
 Wall time is from hyperfine (minimum and mean ± σ); peak RSS is
 hyperfine's per-run maximum resident set size, cross-checked with one
@@ -203,6 +209,42 @@ On a private production project (287 views, its CI command with its own
 1.94 s; `iglint ign-lint` with pylint 416 ms (**15x**; 1.56 s on one CPU,
 4.0x), without pylint 50 ms (**39x**; 167 ms on one CPU, 12x);
 `iglint check --no-cache projects services` 108 ms (384 ms on one CPU).
+
+### Pinned to 2 CPUs and 1 CPU, and the migration path
+
+The CI today runs ign-lint as shipped (bundled rcfile, `jobs=4`) on a
+hosted agent with 2 CPUs. Same machine and branch, pinned with `taskset`
+(minimum wall times; x = ign-lint as shipped / this). The large corpus was
+run without `ign-lint-default` (about 20 minutes per run), so its ratios
+are against `jobs=1`.
+
+| | small, 2 CPUs | small, 1 CPU | medium, 2 CPUs | medium, 1 CPU | large, 2 CPUs | large, 1 CPU |
+|---|---|---|---|---|---|---|
+| ign-lint as shipped (`jobs=4`) | 5.69 s | 6.19 s | 79.5 s | 85.8 s | not run | not run |
+| ign-lint `jobs=1` | 1.70 s (3.3x) | 1.68 s (3.7x) | 16.8 s (4.7x) | 16.6 s (5.2x) | 178.5 s | 177.3 s |
+| `iglint ign-lint`, with pylint | 381 ms (**15x**) | 616 ms (**10x**) | 2.47 s (**32x**) | 4.57 s (**19x**) | 24.9 s (7.2x vs `jobs=1`) | 46.9 s (3.8x vs `jobs=1`) |
+| `iglint migrate` + `iglint baseline`, then `iglint check` | 402 ms (**14x**) | 653 ms (9.5x) | 2.78 s (**29x**) | 4.96 s (**17x**) | 26.4 s (6.8x vs `jobs=1`) | 48.8 s (3.6x vs `jobs=1`) |
+| `iglint check`, default rules | 51 ms (112x) | 86 ms (72x) | 427 ms (186x) | 781 ms (110x) | 2.44 s | 4.48 s |
+
+All CPUs (16) for comparison: migrated `iglint check` 248 ms (small),
+651 ms (medium), 4.37 s (large; ign-lint `jobs=1` 172 s).
+
+With pylint, iglint's time on few CPUs is pylint's own per-module cost:
+`iglint migrate` keeps ign-lint's scope (`SCR900` on `view.json` files
+only), so the migrated gate runs pylint on the same scripts as
+`iglint ign-lint` plus the native rules on the whole repository, about
+10% more. Before that scope fix the migrated gate ran pylint on library
+modules and WebDev scripts as well (on the private project 4.4x instead of
+16x on 2 CPUs).
+
+On the private production project (287 views, its CI command with its own
+`rule_config.json` and whitelist; aggregates only), on 2 CPUs: ign-lint as
+shipped 23.1 s, `jobs=1` 6.32 s; `iglint ign-lint` 1.00 s (**23x**);
+migrated `iglint check` with its baseline 1.41 s (**16x**); native
+`iglint check` 267 ms (86x). On 1 CPU: 25.2 s, 6.26 s, 1.61 s (16x),
+2.35 s (**11x**), 377 ms (67x). With all 16 CPUs the migrated gate takes
+611 ms (36x). The migrated baseline holds 6,352 findings (13,732 before
+the scope fix).
 
 ## Profile
 
