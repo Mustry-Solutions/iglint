@@ -102,8 +102,12 @@ Comparison 'self.props.text == None' should be 'self.props.text is None' (single
 
 ## Options
 
-* `pylint`: the command that runs pylint, split on whitespace (for
-  example `"python3 -m pylint"`). A relative path with a directory part
+* `pylint`: the command that runs pylint, with arguments, split on
+  whitespace (for example `"python3 -m pylint --enable=C0303"`). Single
+  and double quotes group a word that contains spaces (`"'/opt/my
+  tools/pylint' --jobs=1"`); inside double quotes `\"` and `\\` escape,
+  other backslashes are literal (Windows paths). Every argument is passed
+  to pylint, before iglint's own. A relative path with a directory part
   is relative to the project root.
 * `pylintrc`: pylint configuration file, relative to the project root.
   By default iglint uses its bundled configuration: ign-lint's
@@ -231,12 +235,46 @@ impl PylintOptions {
     }
 }
 
+/// Splits the `pylint` option into words: whitespace separates them,
+/// `'...'` and `"..."` quote (inside double quotes `\"` and `\\` escape);
+/// other backslashes are kept, for Windows paths.
+pub(crate) fn split_command(text: &str) -> Result<Vec<String>, String> {
+    let mut words = Vec::new();
+    let mut word: Option<String> = None;
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            c if c.is_whitespace() => {
+                if let Some(w) = word.take() {
+                    words.push(w);
+                }
+            }
+            '\'' | '"' => {
+                let w = word.get_or_insert_with(String::new);
+                loop {
+                    match chars.next() {
+                        None => {
+                            return Err(format!(
+                                "option `pylint` of SCR900 has an unterminated {c} quote"
+                            ));
+                        }
+                        Some(q) if q == c => break,
+                        Some('\\') if c == '"' && matches!(chars.peek(), Some('"' | '\\')) => {
+                            w.extend(chars.next());
+                        }
+                        Some(other) => w.push(other),
+                    }
+                }
+            }
+            c => word.get_or_insert_with(String::new).push(c),
+        }
+    }
+    words.extend(word);
+    Ok(words)
+}
+
 fn parse_options(r: &OptionReader<'_>) -> Result<ParsedOptions, String> {
-    let command: Vec<String> = r
-        .string("pylint")?
-        .split_whitespace()
-        .map(str::to_owned)
-        .collect();
+    let command = split_command(&r.string("pylint")?)?;
     if command.is_empty() {
         return Err("option `pylint` of SCR900 must name a command".to_owned());
     }

@@ -1,6 +1,6 @@
 use iglint_text::{TextRange, TextSize};
 
-use super::run::{Script, map_messages, parse_report, source_range};
+use super::run::{Forking, Script, forking, map_messages, parse_report, source_range};
 use super::*;
 #[cfg(unix)]
 use crate::diagnostic::Diagnostic;
@@ -834,5 +834,147 @@ fn category_mapping_applies_to_every_script_kind() {
         let d = f.lint_with(&[("SCR900", &options)]);
         let severities: Vec<Severity> = d.iter().map(|d| d.severity).collect();
         assert_eq!(severities, [Severity::Info], "{kind}: {d:?}");
+    }
+}
+
+#[test]
+fn command_words() {
+    let words = |s: &str| split_command(s).unwrap();
+    assert_eq!(words("python3  -m pylint"), ["python3", "-m", "pylint"]);
+    assert_eq!(
+        words("'/opt/my tools/pylint' \"--init-hook=import sys; sys.path.append('x')\""),
+        [
+            "/opt/my tools/pylint",
+            "--init-hook=import sys; sys.path.append('x')"
+        ]
+    );
+    assert_eq!(words(r#"a"b c"d "\"q\" \\""#), ["ab cd", r#""q" \"#]);
+    assert_eq!(
+        words(r"C:\Python\python.exe -m pylint"),
+        [r"C:\Python\python.exe", "-m", "pylint"]
+    );
+    assert_eq!(words("pylint ''"), ["pylint", ""]);
+    assert!(split_command("pylint 'open").is_err());
+}
+
+#[test]
+fn forking_keeps_every_argument() {
+    let v = |s: &[&str]| s.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+    let fork = |s: &[&str]| forking(&v(s));
+    assert_eq!(
+        fork(&[
+            "python3",
+            "-m",
+            "pylint",
+            "--enable=trailing-whitespace",
+            "--disable",
+            "C0103"
+        ]),
+        Some(Forking {
+            python: v(&["python3"]),
+            pylint_args: v(&["--enable=trailing-whitespace", "--disable", "C0103"]),
+        })
+    );
+    assert_eq!(
+        fork(&["python3", "-X", "utf8", "-m", "pylint"]),
+        Some(Forking {
+            python: v(&["python3", "-X", "utf8"]),
+            pylint_args: Vec::new(),
+        })
+    );
+    // Not `-m pylint`: the command runs as configured.
+    assert_eq!(fork(&["-m", "pylint"]), None);
+    assert_eq!(fork(&["python3", "-m", "pylint.lint"]), None);
+    assert_eq!(fork(&["python3", "-mpylint"]), None);
+    // Arguments that change pylint's output.
+    for args in [
+        &["--output-format=text"][..],
+        &["-f", "json"],
+        &["-fjson"],
+        &["--version"],
+        &["--output", "x"],
+    ] {
+        let mut command = v(&["python3", "-m", "pylint"]);
+        command.extend(v(args));
+        assert_eq!(forking(&command), None, "{args:?}");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn forking_reads_the_scripts_interpreter() {
+    let f = Fixture::new()
+        .file("bin/plain", "#!/opt/py/bin/python3.11\nimport pylint\n")
+        .file("bin/env", "#!/usr/bin/env python3\n")
+        .file("bin/flag", "#!/usr/bin/python3 -E -s\n")
+        .file("bin/envflag", "#!/usr/bin/env python3 -E\n")
+        .file("bin/shell", "#!/bin/sh\nexec python3 -m pylint \"$@\"\n");
+    let path = |name: &str| {
+        f.path(&format!("bin/{name}"))
+            .to_string_lossy()
+            .into_owned()
+    };
+    let fork = |name: &str, args: &[&str]| {
+        let mut command = vec![path(name)];
+        command.extend(args.iter().map(|a| (*a).to_owned()));
+        forking(&command)
+    };
+    let python = |f: Option<Forking>| f.map(|f| (f.python, f.pylint_args));
+    assert_eq!(
+        python(fork("plain", &["--enable=C0303"])),
+        Some((
+            vec!["/opt/py/bin/python3.11".to_owned()],
+            vec!["--enable=C0303".to_owned()]
+        ))
+    );
+    assert_eq!(
+        python(fork("env", &[])),
+        Some((vec!["python3".to_owned()], vec![]))
+    );
+    // The kernel passes the rest of the line as one argument.
+    assert_eq!(
+        python(fork("flag", &[])),
+        Some((
+            vec!["/usr/bin/python3".to_owned(), "-E -s".to_owned()],
+            vec![]
+        ))
+    );
+    assert_eq!(fork("envflag", &[]), None);
+    assert_eq!(fork("shell", &[]), None);
+    assert_eq!(fork("missing", &[]), None);
+}
+
+/// Every supported form of the `pylint` command passes its arguments to
+/// pylint: `--enable=trailing-whitespace` turns on `C0303`, which the
+/// bundled configuration disables. Runs the real pylint named by
+/// `IGLINT_TEST_PYLINT`, whose directory must hold its `python`.
+#[cfg(unix)]
+#[test]
+fn real_pylint_gets_command_arguments() {
+    let Ok(pylint) = std::env::var("IGLINT_TEST_PYLINT") else {
+        eprintln!("note: IGLINT_TEST_PYLINT is not set; skipping the real pylint test");
+        return;
+    };
+    let python = std::path::Path::new(&pylint).with_file_name("python");
+    let python = python.display();
+    let f = library("m", "def f():\n\treturn 1   \n");
+    for command in [
+        format!("{pylint} --enable=trailing-whitespace"),
+        format!("'{pylint}' \\\"--enable=trailing-whitespace\\\""),
+        format!("{python} -m pylint --enable=trailing-whitespace"),
+        format!("{python} -m pylint --enable trailing-whitespace"),
+        format!("env {pylint} --enable=trailing-whitespace"),
+    ] {
+        let options = format!("pylint = \"{command}\"\njobs = 1");
+        let result = f.run(&[("SCR900", &options)], FixMode::None);
+        assert!(result.notices.is_empty(), "{command}: {:?}", result.notices);
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("(trailing-whitespace, C0303)")),
+            "{command}: {:?}",
+            result.diagnostics
+        );
     }
 }

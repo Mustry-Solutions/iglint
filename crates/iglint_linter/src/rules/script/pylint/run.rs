@@ -219,7 +219,7 @@ pub(crate) fn run(config: &Config, scripts: &[Script<'_>]) -> Outcome {
     // The forking driver needs a Python interpreter and `fork`; otherwise
     // the pylint command runs over all scripts in one directory.
     let python = if cfg!(unix) {
-        interpreter(config)
+        forking(&config.command)
     } else {
         None
     };
@@ -264,7 +264,7 @@ pub(crate) fn run(config: &Config, scripts: &[Script<'_>]) -> Outcome {
     }
     let shard_dirs: Vec<String> = (0..shards.len()).map(|k| format!("s{k}")).collect();
     let raw = match run_forking(
-        python.as_deref(),
+        python.as_ref(),
         &config.disable,
         &dir.0,
         &rcfile,
@@ -304,7 +304,7 @@ except BaseException as e:
     sys.exit(3)
 if not hasattr(os, "fork"):
     sys.exit(3)
-rc, disable, dirs = sys.argv[1], sys.argv[2], sys.argv[3:]
+rc, disable, user, dirs = sys.argv[1], sys.argv[2], json.loads(sys.argv[3]), sys.argv[4:]
 extra = ["--disable=" + disable] if disable else []
 root = os.getcwd()
 children = []
@@ -315,7 +315,7 @@ for d in dirs:
         try:
             os.chdir(os.path.join(root, d))
             out = io.StringIO()
-            Run(["--rcfile=" + rc] + extra + ["--score=no", "--persistent=no", "--recursive=y", "--jobs=1", "."],
+            Run(user + ["--score=no", "--persistent=no", "--recursive=y", "--rcfile=" + rc] + extra + ["--jobs=1", "."],
                 reporter=JSONReporter(out), exit=False)
             with open(os.path.join(root, d + ".json"), "w") as f:
                 f.write(out.getvalue() or "[]")
@@ -333,19 +333,75 @@ for pid in children:
 sys.exit(1 if failed else 0)
 "#;
 
-/// The Python interpreter behind the configured pylint command: the
-/// program of `python -m pylint`, or the `#!` interpreter of a `pylint`
-/// script found on `PATH`.
-fn interpreter(config: &Config) -> Option<Vec<String>> {
-    let command = &config.command;
-    if let Some(m) = command.iter().position(|a| a == "-m") {
-        return (command.get(m + 1).map(String::as_str) == Some("pylint"))
-            .then(|| command[..m].to_vec());
-    }
-    if command.len() != 1 {
-        return None;
-    }
-    let program = Path::new(&command[0]);
+/// How the forking driver runs the configured pylint command: the Python
+/// interpreter (with its arguments) and the arguments for pylint.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Forking {
+    pub python: Vec<String>,
+    pub pylint_args: Vec<String>,
+}
+
+/// pylint options that change what pylint prints or does instead of
+/// linting: with them the command runs as configured, without the driver.
+const CLI_ONLY_OPTIONS: &[&str] = &[
+    "--output-format",
+    "-f",
+    "--output",
+    "--from-stdin",
+    "--help",
+    "-h",
+    "--long-help",
+    "--version",
+    "--help-msg",
+    "--list-msgs",
+    "--list-msgs-enabled",
+    "--list-groups",
+    "--list-conf-levels",
+    "--list-extensions",
+    "--full-documentation",
+    "--generate-rcfile",
+    "--generate-toml-config",
+];
+
+/// The forking driver's form of the configured pylint command:
+///
+/// * `python [python args] -m pylint [args]`;
+/// * `pylint [args]` or `/path/to/pylint [args]`, a script whose `#!` line
+///   names a Python interpreter (`#!/usr/bin/env python3` included; the
+///   rest of a `#!` line is one argument, as the kernel passes it).
+///
+/// The pylint arguments are passed through unchanged, before iglint's
+/// own, as `run_cli` does. `None` (run the command itself) for any other
+/// form, and when an argument changes pylint's output or makes it do
+/// something else than lint.
+pub(crate) fn forking(command: &[String]) -> Option<Forking> {
+    let (python, pylint_args) = if let Some(m) = command.iter().position(|a| a == "-m") {
+        if command.get(m + 1).map(String::as_str) != Some("pylint") || m == 0 {
+            return None;
+        }
+        (command[..m].to_vec(), command[m + 2..].to_vec())
+    } else {
+        (
+            shebang_interpreter(command.first()?)?,
+            command[1..].to_vec(),
+        )
+    };
+    let cli_only = pylint_args.iter().any(|a| {
+        let name = a.split_once('=').map_or(a.as_str(), |(n, _)| n);
+        CLI_ONLY_OPTIONS.contains(&name)
+            || (a.starts_with("-f") && !a.starts_with("--"))
+            || (a.starts_with("-h") && !a.starts_with("--"))
+    });
+    (!cli_only).then_some(Forking {
+        python,
+        pylint_args,
+    })
+}
+
+/// The interpreter of a `pylint` script named by `program` (found on
+/// `PATH` when it has no directory part), from its `#!` line.
+fn shebang_interpreter(program: &str) -> Option<Vec<String>> {
+    let program = Path::new(program);
     let path = if program.components().count() > 1 {
         program.to_path_buf()
     } else {
@@ -356,36 +412,51 @@ fn interpreter(config: &Config) -> Option<Vec<String>> {
     let head = std::fs::read(&path).ok()?;
     let first = head.split(|b| *b == b'\n').next()?;
     let line = std::str::from_utf8(first).ok()?.strip_prefix("#!")?.trim();
-    let mut parts = line.split_whitespace();
-    let interpreter = parts.next()?;
-    // `#!/usr/bin/env python3`
-    let interpreter = if interpreter.ends_with("/env") {
-        parts.next()?
-    } else {
-        interpreter
+    let (interpreter, rest) = match line.split_once([' ', '\t']) {
+        Some((i, rest)) => (i, rest.trim()),
+        None => (line, ""),
     };
-    let name = Path::new(interpreter).file_name()?.to_str()?;
-    name.starts_with("python")
-        .then(|| vec![interpreter.to_owned()])
+    let python = if interpreter.ends_with("/env") {
+        // `#!/usr/bin/env python3`; `env` gets the rest as one word, so
+        // anything after the program name is not what it seems.
+        if rest.is_empty() || rest.contains(char::is_whitespace) {
+            return None;
+        }
+        vec![rest.to_owned()]
+    } else {
+        let mut v = vec![interpreter.to_owned()];
+        if !rest.is_empty() {
+            v.push(rest.to_owned());
+        }
+        v
+    };
+    let name = Path::new(&python[0]).file_name()?.to_str()?;
+    if !name.starts_with("python") {
+        return None;
+    }
+    Some(python)
 }
 
 /// `None` when the forking driver is not available here (not POSIX, no
 /// Python interpreter found, or pylint not importable by it); the caller
 /// then runs the pylint command.
 fn run_forking(
-    python: Option<&[String]>,
+    forking: Option<&Forking>,
     disable: &[String],
     dir: &Path,
     rcfile: &Path,
     shards: &[String],
 ) -> Option<Result<Vec<RawMessage>, String>> {
-    let python = python?;
+    let forking = forking?;
+    let python = &forking.python;
+    let pylint_args = serde_json::to_string(&forking.pylint_args).ok()?;
     let output = Command::new(&python[0])
         .args(&python[1..])
         .arg("-c")
         .arg(FORKING_DRIVER)
         .arg(rcfile)
         .arg(disable.join(","))
+        .arg(pylint_args)
         .args(shards)
         .current_dir(dir)
         .stdin(std::process::Stdio::null())
