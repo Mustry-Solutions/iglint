@@ -151,6 +151,8 @@ pub fn parse_with(text: &str, options: ParseOptions) -> Result<Value<'_>, ParseE
         pos: 0,
         options,
         depth: 0,
+        elements: Vec::new(),
+        members: Vec::new(),
     };
     if text.starts_with('\u{FEFF}') {
         p.pos = 3;
@@ -171,6 +173,12 @@ struct Parser<'a> {
     pos: usize,
     options: ParseOptions,
     depth: usize,
+    /// Elements and members of the arrays and objects being parsed, nested
+    /// ones on top. Each container takes its own off the top into a vector
+    /// of exactly the right size: no growth while parsing, no spare
+    /// capacity kept in the tree.
+    elements: Vec<Value<'a>>,
+    members: Vec<Member<'a>>,
 }
 
 /// Bytes that end a fast string scan: `"`, `\` and control characters.
@@ -437,13 +445,14 @@ impl<'a> Parser<'a> {
         let start = self.pos;
         self.enter()?;
         self.pos += 1;
-        let mut elements = Vec::new();
+        let first = self.elements.len();
         self.skip_ws();
         if self.peek() == Some(b']') {
             self.pos += 1;
         } else {
             loop {
-                elements.push(self.value()?);
+                let value = self.value()?;
+                self.elements.push(value);
                 self.skip_ws();
                 match self.peek() {
                     Some(b',') => {
@@ -467,6 +476,7 @@ impl<'a> Parser<'a> {
             }
         }
         self.depth -= 1;
+        let elements = self.elements.split_off(first);
         Ok(Value {
             range: range(start, self.pos),
             kind: ValueKind::Array(Array { elements }),
@@ -477,7 +487,7 @@ impl<'a> Parser<'a> {
         let start = self.pos;
         self.enter()?;
         self.pos += 1;
-        let mut members = Vec::new();
+        let first = self.members.len();
         self.skip_ws();
         if self.peek() == Some(b'}') {
             self.pos += 1;
@@ -494,7 +504,7 @@ impl<'a> Parser<'a> {
                 self.pos += 1;
                 self.skip_ws();
                 let value = self.value()?;
-                members.push(Member { key, value });
+                self.members.push(Member { key, value });
                 self.skip_ws();
                 match self.peek() {
                     Some(b',') => {
@@ -518,6 +528,7 @@ impl<'a> Parser<'a> {
             }
         }
         self.depth -= 1;
+        let members = self.members.split_off(first);
         Ok(Value {
             range: range(start, self.pos),
             kind: ValueKind::Object(Object { members }),

@@ -25,7 +25,7 @@
 //! phases with no project, so cross-resource rules stay silent.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use iglint_json::Value;
@@ -49,6 +49,9 @@ use crate::discovery::{FileKind, absolute};
 use crate::engine::{CheckOptions, CheckedFile, FileError, Outcome, fix_file};
 use crate::registry::RuleCode;
 use crate::rule::{PhaseHooks, RuleImpl, RuleSet, RuleSetCache, ScriptUnit};
+
+/// Suppressions of a unit's scripts by position, with what they matched.
+type SuppressionState = FxHashMap<usize, Suppressions>;
 use crate::rules::script::pylint;
 use crate::settings::{LinterSettings, ProjectSettings};
 use crate::suppression::Suppressions;
@@ -245,14 +248,34 @@ pub(crate) fn analyze_with(
         }
     }
 
-    // Cache: results depend on every file of the workspace (and on how
-    // pylint runs).
-    let context =
-        cache.map(|_| context_hash(&table) ^ pylint_context(rules, &sets, &targets, settings));
+    // Cache: a unit's results depend on its own files, on the workspace
+    // layout and manifests (phase A), on the project index (phase B) and on
+    // how pylint runs. The index is built from the resource summaries, so
+    // the cache context is a hash of the layout, the manifests and every
+    // summary: an edit that leaves all summaries as they were (most edits
+    // inside one view) keeps every other unit's cached results valid.
+    let context_base =
+        cache.map(|_| layout_hash(&ws, &table) ^ pylint_context(rules, &sets, &targets, settings));
 
     // Phase A, part 2: model, summarise and run local rules.
     let models: Vec<ResourceModel<'_>> = loaded.par_iter().map(|l| build_model(&ws, l)).collect();
-    let caches: Vec<UnitCache> = (0..models.len()).map(|_| UnitCache::default()).collect();
+    // With a cache, every summary is needed before any unit can be looked
+    // up. Their parse trees are dropped right away; units that are not
+    // cached parse again in phase A.
+    let presummaries: Vec<Option<ResourceSummary>> = match context_base {
+        Some(_) => models
+            .par_iter()
+            .map(|m| Some(summarize_with_scripts(&ws, m, &UnitCache::default())))
+            .collect(),
+        None => (0..models.len()).map(|_| None).collect(),
+    };
+    let context = context_base.map(|base| base ^ summaries_hash(&presummaries));
+    // Per-unit caches (parsed scripts above all) live only for one phase:
+    // keeping every parse tree of the workspace from phase A to phase B
+    // doubled the peak memory. What phase B needs from phase A is carried
+    // over: suppression bookkeeping and pylint's messages.
+    let pylint_results: Vec<OnceLock<pylint::UnitMessages>> =
+        (0..models.len()).map(|_| OnceLock::new()).collect();
     let unit_settings = |rid: ResourceId| -> Option<(usize, Arc<LinterSettings>)> {
         let r = ws.resource(rid);
         let t = r
@@ -273,6 +296,8 @@ pub(crate) fn analyze_with(
         diagnostics: Vec<Diagnostic>,
         time: Duration,
         cached: bool,
+        /// Suppression state of the unit's scripts after phase A.
+        suppressions: SuppressionState,
     }
     let cached_unit = |rid: ResourceId| -> Option<Vec<Diagnostic>> {
         let (cache, context) = (cache?, context?);
@@ -337,7 +362,7 @@ pub(crate) fn analyze_with(
             .collect();
         batch.push(BatchUnit {
             set,
-            cache: &caches[i],
+            pylint: &pylint_results[i],
             scripts,
         });
     }
@@ -346,9 +371,12 @@ pub(crate) fn analyze_with(
         models
             .par_iter()
             .zip(precached.into_par_iter())
-            .map(|(model, precached)| {
+            .zip(presummaries.into_par_iter())
+            .map(|((model, precached), presummary)| {
                 let rid = model.resource.id;
-                let summary = summarize_with_scripts(&ws, model, &caches[rid.index()]);
+                let cache = UnitCache::default();
+                let summary =
+                    presummary.unwrap_or_else(|| summarize_with_scripts(&ws, model, &cache));
                 if !linted[rid.index()] {
                     return (summary, None);
                 }
@@ -359,6 +387,7 @@ pub(crate) fn analyze_with(
                             diagnostics,
                             time: Duration::ZERO,
                             cached: true,
+                            suppressions: SuppressionState::default(),
                         }),
                     );
                 }
@@ -376,7 +405,7 @@ pub(crate) fn analyze_with(
                             primary: primary_file(model),
                             files: &table,
                             strict: strict_of(&s),
-                            cache: &caches[rid.index()],
+                            cache: &cache,
                         };
                         run_phase(&unit, None, &set, &set.local, &mut diagnostics);
                     }
@@ -387,6 +416,10 @@ pub(crate) fn analyze_with(
                         diagnostics,
                         time: start.elapsed(),
                         cached: false,
+                        suppressions: cache
+                            .suppressions
+                            .into_inner()
+                            .unwrap_or_else(|e| e.into_inner()),
                     }),
                 )
             })
@@ -444,7 +477,7 @@ pub(crate) fn analyze_with(
             .collect();
         batch.push(BatchUnit {
             set,
-            cache,
+            pylint: &cache.pylint,
             scripts,
         });
     }
@@ -461,11 +494,24 @@ pub(crate) fn analyze_with(
     drop(batch);
 
     // Phase B.
-    let phase_b: Vec<(usize, Vec<Diagnostic>, Duration)> = models
-        .par_iter()
+    let carried: Vec<(usize, SuppressionState, Option<pylint::UnitMessages>)> = unit_results
+        .iter_mut()
+        .zip(pylint_results)
         .enumerate()
-        .filter(|(i, _)| unit_results[*i].as_ref().is_some_and(|u| !u.cached))
-        .map(|(i, model)| {
+        .filter_map(|(i, (u, pylint))| {
+            let u = u.as_mut().filter(|u| !u.cached)?;
+            Some((i, std::mem::take(&mut u.suppressions), pylint.into_inner()))
+        })
+        .collect();
+    let phase_b: Vec<(usize, Vec<Diagnostic>, Duration)> = carried
+        .into_par_iter()
+        .map(|(i, suppressions, pylint)| {
+            let model = &models[i];
+            let cache = UnitCache::default();
+            *cache.suppressions.lock().unwrap_or_else(|e| e.into_inner()) = suppressions;
+            if let Some(messages) = pylint {
+                let _ = cache.pylint.set(messages);
+            }
             let start = Instant::now();
             let mut diagnostics = Vec::new();
             if let Some((_, s)) = unit_settings(model.resource.id) {
@@ -480,7 +526,7 @@ pub(crate) fn analyze_with(
                         primary: primary_file(model),
                         files: &table,
                         strict: strict_of(&s),
-                        cache: &caches[i],
+                        cache: &cache,
                     };
                     run_phase(&unit, Some(&index), &set, &set.project, &mut diagnostics);
                 }
@@ -728,7 +774,6 @@ pub(crate) fn analyze_with(
         // of a short run; a process that exits next does not need it.
         std::mem::forget(standalone_models);
         std::mem::forget(standalone_docs);
-        std::mem::forget(caches);
         std::mem::forget(index);
         std::mem::forget(models);
         std::mem::forget(loaded);
@@ -745,7 +790,8 @@ pub(crate) fn analyze_with(
 /// One unit whose scripts pylint lints.
 struct BatchUnit<'m, 'a> {
     set: Arc<RuleSet>,
-    cache: &'m UnitCache,
+    /// Where the unit's pylint messages go.
+    pylint: &'m OnceLock<pylint::UnitMessages>,
     /// `(position in data.scripts(), target of the script's file, script)`
     /// for the scripts in linted files.
     scripts: Vec<(usize, usize, &'m EmbeddedScript<'a>)>,
@@ -816,7 +862,7 @@ fn pylint_batch(units: &[BatchUnit<'_, '_>], root: &Path) -> (FxHashSet<usize>, 
         for u in members {
             let mut result = per_unit.remove(&u).unwrap_or_default();
             result.syntax_rule_enabled = units[u].set.contains(syntax_rule);
-            let _ = units[u].cache.pylint.set(result);
+            let _ = units[u].pylint.set(result);
         }
     }
     (failed, notices)
@@ -1208,15 +1254,45 @@ fn reanalyze_standalone(
 
 /// Hash of every file the run may read: cached results are only valid when
 /// nothing in the workspace changed.
-fn context_hash(table: &FileTable) -> u64 {
+/// Hash of the workspace layout: every file's path, and the text of every
+/// file that is not a data file of a resource (manifests, standalone
+/// files). Data files enter the cache context through their summaries.
+fn layout_hash(ws: &Workspace, table: &FileTable) -> u64 {
     use std::hash::Hasher;
+    let mut data = vec![false; table.len()];
+    for r in &ws.resources {
+        for f in &r.files {
+            if *f != r.manifest.file
+                && let Some(d) = data.get_mut(f.index())
+            {
+                *d = true;
+            }
+        }
+    }
     let mut hasher = FxHasher::default();
-    for i in 0..table.len() {
+    for (i, is_data) in data.iter().enumerate() {
         if let Some(f) = table.get(FileId(i as u32)) {
             hasher.write(f.path().as_os_str().as_encoded_bytes());
-            hasher.write_usize(f.text().len());
-            hasher.write(f.text().as_bytes());
+            if !is_data {
+                hasher.write_usize(f.text().len());
+                hasher.write(f.text().as_bytes());
+            }
         }
+    }
+    hasher.finish()
+}
+
+/// Hash of the resource summaries the project index is built from.
+fn summaries_hash(summaries: &[Option<ResourceSummary>]) -> u64 {
+    use std::fmt::Write as _;
+    use std::hash::Hasher;
+    let mut hasher = FxHasher::default();
+    let mut text = String::new();
+    for s in summaries.iter().flatten() {
+        text.clear();
+        // Summaries are plain owned data with a deterministic `Debug`.
+        let _ = write!(text, "{s:?}");
+        hasher.write(text.as_bytes());
     }
     hasher.finish()
 }
