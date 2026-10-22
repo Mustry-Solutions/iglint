@@ -199,6 +199,25 @@ impl Baseline {
         result
     }
 
+    /// `self` plus the entries of `previous` whose path is not
+    /// `in_scope`: writing a baseline from a run over some files keeps the
+    /// entries of the other files.
+    pub fn with_entries_outside(
+        mut self,
+        previous: &Baseline,
+        in_scope: impl Fn(&str) -> bool,
+    ) -> Baseline {
+        self.entries.extend(
+            previous
+                .entries
+                .iter()
+                .filter(|e| !in_scope(&e.path))
+                .cloned(),
+        );
+        self.entries.sort();
+        self
+    }
+
     /// The baseline without the stale part of each entry.
     pub fn pruned(&self, stale: &[BaselineEntry]) -> Baseline {
         let mut entries = self.entries.clone();
@@ -282,6 +301,23 @@ mod tests {
             file.clone(),
             TextRange::new(TextSize::new(start), TextSize::new(end)),
         )
+    }
+
+    #[test]
+    fn entries_outside_the_scope_are_kept() {
+        let file = SourceFile::new("/repo/a/x.py", "foo\n");
+        let settings = settings();
+        let previous = Baseline::from_diagnostics(
+            &settings,
+            &[
+                diagnostic(&file, 0, 3),
+                diagnostic(&SourceFile::new("/repo/b/y.py", "bar\n"), 0, 3),
+            ],
+        );
+        let rewritten = Baseline::from_diagnostics(&settings, &[])
+            .with_entries_outside(&previous, |path| path == "a/x.py");
+        let paths: Vec<&str> = rewritten.entries.iter().map(|e| e.path.as_str()).collect();
+        assert_eq!(paths, ["b/y.py"]);
     }
 
     #[test]

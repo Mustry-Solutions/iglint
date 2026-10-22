@@ -1,12 +1,19 @@
 //! REF: references between resources.
 
+pub mod library_function_arity;
+pub(crate) mod library_uses;
 pub mod manifest_mismatch;
 pub mod named_query_params;
 pub mod popup_params;
+pub(crate) mod script_calls;
+pub mod unhandled_message_handler;
+pub mod unknown_library_member;
+pub mod unknown_message_type;
 pub mod unknown_named_query;
 pub mod unknown_page_url;
 pub mod unknown_parent_project;
 pub mod unknown_view;
+pub mod unused_library_function;
 pub mod unused_named_query;
 pub mod unused_view;
 
@@ -15,6 +22,32 @@ use iglint_project::kinds::ResourceKind;
 use iglint_project::script::Owner;
 use iglint_project::view::View;
 use iglint_project::{Container, ProjectId, Workspace};
+
+/// Whether a project sees resources whose scripts iglint does not model
+/// (Vision windows and templates, reports, alarm pipelines, SFC charts,
+/// event streams). Such scripts may reference anything, so "unused" rules
+/// stay silent in that project.
+pub(crate) fn has_unmodelled_scripts(ws: &Workspace, project: ProjectId) -> bool {
+    ws.effective_resources(Container::Project(project))
+        .into_iter()
+        .chain(
+            ws.resources
+                .iter()
+                .filter(|r| matches!(r.container, Container::Collection(_)))
+                .map(|r| r.id),
+        )
+        .any(|r| {
+            matches!(
+                ws.resource(r).kind,
+                ResourceKind::VisionWindow
+                    | ResourceKind::VisionTemplate
+                    | ResourceKind::Report
+                    | ResourceKind::AlarmPipeline
+                    | ResourceKind::SfcChart
+                    | ResourceKind::EventStream
+            )
+        })
+}
 
 /// The effective resource of `kind` whose path equals `path` ignoring
 /// case, for "did you mean" hints when a lookup fails.

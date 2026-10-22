@@ -57,6 +57,7 @@ mod symbols;
 
 pub use compile::{CompileError, CompileErrorKind, compile_errors};
 pub use model::*;
+pub use resolve::UnboundNames;
 
 use iglint_python::ast::Module;
 use rustc_hash::FxHashSet;

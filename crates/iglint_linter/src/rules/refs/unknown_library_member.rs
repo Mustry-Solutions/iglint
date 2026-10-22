@@ -1,0 +1,271 @@
+//! REF002 unknown-library-member.
+
+use iglint_project::library::LibraryLookup;
+use iglint_project::script::IMPLICIT_GLOBALS;
+use iglint_project::{ProjectId, ProjectIndex};
+
+use super::library_uses::{LibraryUse, library_uses};
+use crate::checker::Checker;
+use crate::diagnostic::Severity;
+use crate::registry::{Category, RuleMeta};
+use crate::rule::{Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
+
+pub static META: RuleMeta = RuleMeta {
+    code: "REF002",
+    name: "unknown-library-member",
+    category: Category::Ref,
+    default_severity: Severity::Error,
+    default_enabled: true,
+    summary: "Library module or function does not exist",
+    explanation: r#"## What it does
+
+Resolves every use of the project script library in scripts against the
+library the project sees (its own modules and inherited ones):
+attribute chains such as `core.util.fmt(...)`, chains through aliases
+(`u = core.util`, `from core.util import fmt`) and `import` statements.
+It reports:
+
+* a package without the module (`core.nope` where `core/` has no `nope`);
+* a module without the attribute (`core.util.nope` where `core/util/code.py`
+  defines no top-level `nope`);
+* a child module hidden by its parent's own `code.py`: a folder with a
+  `code.py` is a module, and Ignition cannot reach the modules below it
+  (see `SCR304`).
+
+A module's top-level names are those its module-level code binds,
+including names bound through `global` in functions, names it imports,
+and the globals every script sees (`system`, `fpmi`, `sys` and the
+library's top-level packages).
+
+The rule stays silent where it cannot be sure: modules whose namespace is
+dynamic (`from x import *`, `exec`, writes through `globals()`), modules
+that do not parse, uses inside a `try` that catches `AttributeError`,
+`ImportError`, `NameError` or `Exception`, dunder attributes, scripts of
+projects whose parent project is not in the workspace, and names that a
+project inheriting from the script's project defines. Attribute stores
+(`core.util.flag = True`) are not checked.
+
+## Why is this bad?
+
+The script raises `AttributeError` (or `ImportError`) when it reaches the
+name. A missing library name is almost always a renamed or moved function
+or module.
+
+## Example
+
+```python
+core.util.formatUnits(value)
+```
+
+Use instead (the function is called `formatUnit`):
+
+```python
+core.util.formatUnit(value)
+```
+"#,
+    ..RuleMeta::DEFAULT
+};
+
+pub static RULE: RuleImpl = RuleImpl {
+    meta: &META,
+    phase: Phase::Project,
+    hooks: &[Hook::Script(&UnknownLibraryMember)],
+    options: None,
+};
+
+struct UnknownLibraryMember;
+
+/// Whether `lookup` names something that does not exist.
+pub(crate) fn is_miss(lookup: &LibraryLookup<'_>) -> bool {
+    matches!(
+        lookup,
+        LibraryLookup::Missing { .. }
+            | LibraryLookup::MissingAttribute { .. }
+            | LibraryLookup::HiddenByModule { .. }
+    )
+}
+
+/// Resolves `dotted` in `project`; a miss becomes `Unknown` when a project
+/// inheriting from it resolves the name (its scripts may run there).
+pub(crate) fn resolve<'i>(
+    index: &'i ProjectIndex<'_>,
+    project: ProjectId,
+    dotted: &str,
+) -> LibraryLookup<'i> {
+    let lookup = index.resolve_library(project, dotted);
+    if is_miss(&lookup) && index.workspace().project(project).inheritable() {
+        let found_below = index
+            .workspace()
+            .project_descendants(project)
+            .into_iter()
+            .any(|d| !is_miss(&index.resolve_library(d, dotted)));
+        if found_below {
+            return LibraryLookup::Unknown;
+        }
+    }
+    lookup
+}
+
+impl ScriptRule for UnknownLibraryMember {
+    fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
+        let Some(uses) = library_uses(cx, unit) else {
+            return;
+        };
+        let Some((index, project)) = cx.project_index() else {
+            return;
+        };
+        let mut reported = Vec::new();
+        for u in uses {
+            if u.guarded {
+                continue;
+            }
+            let Some((at, message)) = problem(index, project, &u) else {
+                continue;
+            };
+            if u.aliased > 0 && at <= u.aliased {
+                // Reported where the alias or import names it.
+                continue;
+            }
+            let range = u.segments[at];
+            if reported.contains(&range) {
+                continue;
+            }
+            reported.push(range);
+            crate::rules::script::report(cx, unit, range, message);
+        }
+    }
+}
+
+/// The failing segment and the message, if `u` names nothing.
+fn problem(
+    index: &ProjectIndex<'_>,
+    project: ProjectId,
+    u: &LibraryUse<'_>,
+) -> Option<(usize, String)> {
+    let segments: Vec<&str> = u.dotted.split('.').collect();
+    let prefix = |i: usize| segments[..=i].join(".");
+    match resolve(index, project, &u.dotted) {
+        LibraryLookup::Missing { index: i, parent } => Some((
+            i,
+            format!(
+                "`{}` does not exist: package `{parent}` has no module `{}`",
+                prefix(i),
+                segments[i]
+            ),
+        )),
+        LibraryLookup::HiddenByModule { index: i, module } => Some((
+            i,
+            format!(
+                "`{}` cannot be reached: module `{module}` has its own code.py, which hides the modules below it",
+                prefix(i)
+            ),
+        )),
+        LibraryLookup::MissingAttribute { index: i, .. } => {
+            let name = segments[i];
+            if (name.starts_with("__") && name.ends_with("__"))
+                || IMPLICIT_GLOBALS.contains(&name)
+                || index.library(project).is_global(name)
+            {
+                return None;
+            }
+            Some((
+                i,
+                format!(
+                    "Module `{}` has no attribute `{name}`",
+                    segments[..i].join(".")
+                ),
+            ))
+        }
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::rules::script::testing::{
+        ViewScript, decoded_flagged, flagged, library, messages, view, with_library,
+    };
+    use crate::rules::test_support::Fixture;
+
+    const UTIL: &str = "import json\nLIMIT = 3\ndef fmt(value, digits=2):\n    return value\ndef _setup():\n    global cache\n    cache = {}\nclass Unit(object):\n    pass\n";
+
+    fn project(f: Fixture) -> Fixture {
+        let f = with_library(f, "core/util", UTIL);
+        let f = with_library(f, "core/legacy", "X = 1\n");
+        let f = with_library(f, "core/legacy/inner", "Y = 1\n");
+        with_library(f, "dyn/star", "from java.util import *\n")
+    }
+
+    #[test]
+    fn missing_modules_attributes_and_hidden_modules() {
+        let f = project(library(
+            "app/main",
+            "import core.util\nfrom core.util import fmt, nope\nimport core.gone\ndef go():\n    core.util.fmt(1)\n    core.util.fmtt(1)\n    core.util.json.dumps(1)\n    core.util.cache\n    core.util.system\n    core.util.__name__\n    core.missing.f()\n    core.legacy.inner.Y\n    u = core.util\n    u.LIMITS\n    dyn.star.anything\n    core.util.LIMIT.real\n    core.util.Unit()\n    core.util.flag = 1\n",
+        ));
+        let d = f.lint(&["REF002"]);
+        assert_eq!(
+            flagged(&d),
+            vec!["nope", "core.gone", "fmtt", "missing", "inner", "LIMITS"]
+        );
+        assert_eq!(
+            messages(&d),
+            vec![
+                "Module `core.util` has no attribute `nope`",
+                "`core.gone` does not exist: package `core` has no module `gone`",
+                "Module `core.util` has no attribute `fmtt`",
+                "`core.missing` does not exist: package `core` has no module `missing`",
+                "`core.legacy.inner` cannot be reached: module `core.legacy` has its own code.py, which hides the modules below it",
+                "Module `core.util` has no attribute `LIMITS`",
+            ]
+        );
+    }
+
+    #[test]
+    fn aliases_are_reported_once_where_they_are_made() {
+        let f = project(library(
+            "app/main",
+            "from core.util import gone\ndef go():\n    gone()\n    gone.x\n",
+        ));
+        assert_eq!(flagged(&f.lint(&["REF002"])), vec!["gone"]);
+    }
+
+    #[test]
+    fn guarded_shadowed_and_view_scripts() {
+        let f = project(library(
+            "app/main",
+            "try:\n    core.util.maybe()\nexcept AttributeError:\n    pass\ndef go(core):\n    core.util.whatever\n",
+        ));
+        assert!(f.lint(&["REF002"]).is_empty());
+        let f = project(view(
+            ViewScript::Action,
+            "\tcore.util.fmt(self.props.text)\n\tcore.utill.fmt(1)\n\tsystem.tag.readBlocking([])",
+        ));
+        let d = f.lint(&["REF002"]);
+        assert_eq!(decoded_flagged(&d), vec!["utill"]);
+    }
+
+    #[test]
+    fn inherited_and_descendant_libraries() {
+        let f = Fixture::new()
+            .file(
+                "projects/base/project.json",
+                r#"{"title": "base", "enabled": true, "inheritable": true}"#,
+            )
+            .resource(
+                "projects/base/ignition/script-python/core/base",
+                &[(
+                    "code.py",
+                    "def go():\n    core.child.only()\n    core.nowhere.f()\n",
+                )],
+            )
+            .file(
+                "projects/p/project.json",
+                r#"{"title": "p", "parent": "base", "enabled": true, "inheritable": false}"#,
+            )
+            .resource(
+                "projects/p/ignition/script-python/core/child",
+                &[("code.py", "def only():\n    core.base.go()\n")],
+            );
+        assert_eq!(flagged(&f.lint(&["REF002"])), vec!["nowhere"]);
+    }
+}

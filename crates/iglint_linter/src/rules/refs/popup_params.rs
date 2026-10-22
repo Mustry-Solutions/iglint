@@ -9,7 +9,9 @@ use super::unknown_view::is_active;
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
 use crate::registry::{Category, RuleMeta};
-use crate::rule::{Hook, Phase, ResourceRule, RuleImpl};
+use crate::rule::{Hook, Phase, ResourceRule, RuleImpl, ScriptRule, ScriptUnit};
+use crate::script_facts::api::ApiTarget;
+use crate::script_facts::calls::{dict_keys, string_value};
 
 pub static META: RuleMeta = RuleMeta {
     code: "REF007",
@@ -23,8 +25,10 @@ pub static META: RuleMeta = RuleMeta {
 Checks the parameter names passed to a view against the parameters the
 target view declares: `props.params` of embedded views, flex repeater
 `instances`, view canvas, carousel, accordion, dashboard and table
-`viewParams`, popup, navigate and alter-dock action `viewParams`, and dock
-`viewParams` in the page configuration.
+`viewParams`, popup, navigate and alter-dock action `viewParams`, dock
+`viewParams` in the page configuration, and the parameters dict literal of
+script calls `system.perspective.openPopup`, `togglePopup` and
+`navigate(view=..., params=...)` with a literal view path.
 
 ## Why is this bad?
 
@@ -56,7 +60,7 @@ Use instead:
 pub static RULE: RuleImpl = RuleImpl {
     meta: &META,
     phase: Phase::Project,
-    hooks: &[Hook::Resource(&PopupParams)],
+    hooks: &[Hook::Resource(&PopupParams), Hook::Script(&PopupParams)],
     options: None,
 };
 
@@ -108,6 +112,41 @@ impl ResourceRule for PopupParams {
                 }
             }
             _ => {}
+        }
+    }
+}
+
+impl ScriptRule for PopupParams {
+    fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
+        let Some((model, targets)) = super::script_calls::api_targets(cx, unit) else {
+            return;
+        };
+        let Some((index, project)) = cx.project_index() else {
+            return;
+        };
+        for (_, target) in targets {
+            let ApiTarget::View { path, params } = target else {
+                continue;
+            };
+            let (Some(path), Some(params)) = (string_value(model, path), params.given()) else {
+                continue;
+            };
+            let Some(keys) = dict_keys(model, params) else {
+                continue;
+            };
+            let Lookup::Found {
+                facts: Some(facts), ..
+            } = index.view(project, &path.value)
+            else {
+                continue;
+            };
+            for k in keys {
+                if !facts.params.iter().any(|p| p.name == k.value) {
+                    let message =
+                        format!("`{}` is not a parameter of view `{}`", k.value, path.value);
+                    crate::rules::script::report(cx, unit, k.range, message);
+                }
+            }
         }
     }
 }
@@ -182,5 +221,16 @@ mod tests {
         ]}}"#;
         let f = Fixture::view(view).with_view("Popups/Motor", TARGET);
         assert!(f.lint(&["REF007"]).is_empty());
+    }
+
+    #[test]
+    fn script_call_sites() {
+        use crate::rules::script::testing::{ViewScript, decoded_flagged, view};
+        let body = "\tsystem.perspective.openPopup('id', 'Popups/Motor', {'motorId': 1, 'motor': 2})\n\tsystem.perspective.navigate(view='Popups/Motor', params=dict(mod=1))\n\tsystem.perspective.openPopup('id', 'Popups/Motor', p)";
+        let f = view(ViewScript::Action, body).with_view("Popups/Motor", TARGET);
+        assert_eq!(
+            decoded_flagged(&f.lint(&["REF007"])),
+            vec!["'motor'", "mod"]
+        );
     }
 }

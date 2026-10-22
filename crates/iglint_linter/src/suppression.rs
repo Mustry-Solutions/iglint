@@ -110,7 +110,7 @@ fn selects(selectors: &[String], d: &Diagnostic) -> bool {
 
 /// Parses `# iglint: ignore[...]` / `# iglint: ignore-file[...]`. Returns
 /// the selectors and whether it is file-wide.
-fn parse_comment(comment: &str) -> Option<(Vec<String>, bool)> {
+pub(crate) fn parse_comment(comment: &str) -> Option<(Vec<String>, bool)> {
     let body = comment.strip_prefix('#')?.trim_start();
     let rest = body.strip_prefix("iglint:")?.trim_start();
     let (file_wide, rest) = match rest.strip_prefix("ignore-file") {

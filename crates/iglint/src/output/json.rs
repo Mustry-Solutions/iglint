@@ -67,7 +67,7 @@ pub(super) fn diagnostic_value(report: &Report<'_>, diagnostic: &Diagnostic) -> 
         "node_path": diagnostic.node_path,
         "fingerprint": report.fingerprint(diagnostic),
         "fix": fix,
-        "url": Value::Null,
+        "url": diagnostic.rule.docs_url(),
     })
 }
 

@@ -3,7 +3,11 @@
 //! `rule_config.json` is read exactly as ign-lint 0.6.4 reads it (see
 //! `docs/compat/ign-lint.md`, section 7). Rule class names map to iglint
 //! rules through [`RuleMeta::ign_lint_names`] and kwargs to options through
-//! [`RuleMeta::ign_lint_option_map`].
+//! [`RuleMeta::ign_lint_option_map`]. An ign-lint rule can also stand for a
+//! whole category ([`IgnLintRule::category`]): `PylintScriptRule` maps to
+//! `SCR900` (real pylint) and to every default rule of the `SCR` category,
+//! iglint's native script checks, which take no kwargs and keep their own
+//! severities ([`equivalents`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -11,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use iglint_linter::Severity;
-use iglint_linter::registry::{OptionType, Registry, RuleCode, RuleMeta};
+use iglint_linter::registry::{Category, OptionType, Registry, RuleCode, RuleMeta};
 use iglint_linter::settings::{LinterSettings, OptionValue, ProjectSettings, RuleSettings};
 use serde_json::Value;
 
@@ -36,6 +40,9 @@ pub struct IgnLintRule {
     /// `severity` values other than `warning`/`error` are a creation error
     /// instead of silently meaning `error`.
     pub strict_severity: bool,
+    /// The rule also stands for every default rule of this iglint category
+    /// (besides the rules naming it in [`RuleMeta::ign_lint_names`]).
+    pub category: Option<Category>,
 }
 
 /// The rules registered in ign-lint 0.6.4, in the order the spec lists them.
@@ -61,6 +68,7 @@ pub const IGN_LINT_RULES: &[IgnLintRule] = &[
         ],
         accepts_any_kwarg: true,
         strict_severity: true,
+        category: None,
     },
     IgnLintRule {
         name: "PollingIntervalRule",
@@ -70,6 +78,7 @@ pub const IGN_LINT_RULES: &[IgnLintRule] = &[
         kwargs: &["minimum_interval"],
         accepts_any_kwarg: false,
         strict_severity: false,
+        category: None,
     },
     IgnLintRule {
         name: "PylintScriptRule",
@@ -85,6 +94,7 @@ pub const IGN_LINT_RULES: &[IgnLintRule] = &[
         ],
         accepts_any_kwarg: false,
         strict_severity: false,
+        category: Some(Category::Script),
     },
     IgnLintRule {
         name: "BadComponentReferenceRule",
@@ -94,6 +104,7 @@ pub const IGN_LINT_RULES: &[IgnLintRule] = &[
         kwargs: &["forbidden_patterns", "case_sensitive"],
         accepts_any_kwarg: false,
         strict_severity: false,
+        category: None,
     },
     IgnLintRule {
         name: "ComponentReferenceValidationRule",
@@ -107,6 +118,7 @@ pub const IGN_LINT_RULES: &[IgnLintRule] = &[
         ],
         accepts_any_kwarg: false,
         strict_severity: false,
+        category: None,
     },
     IgnLintRule {
         name: "UnusedCustomPropertiesRule",
@@ -116,6 +128,7 @@ pub const IGN_LINT_RULES: &[IgnLintRule] = &[
         kwargs: &[],
         accepts_any_kwarg: false,
         strict_severity: false,
+        category: None,
     },
     IgnLintRule {
         name: "ExcessiveContextDataRule",
@@ -131,6 +144,7 @@ pub const IGN_LINT_RULES: &[IgnLintRule] = &[
         ],
         accepts_any_kwarg: false,
         strict_severity: false,
+        category: None,
     },
     IgnLintRule {
         name: "PropertyAccessRule",
@@ -140,6 +154,7 @@ pub const IGN_LINT_RULES: &[IgnLintRule] = &[
         kwargs: &["expected_access", "exempt_props"],
         accepts_any_kwarg: false,
         strict_severity: false,
+        category: None,
     },
     IgnLintRule {
         name: "PropertyPersistenceRule",
@@ -149,6 +164,7 @@ pub const IGN_LINT_RULES: &[IgnLintRule] = &[
         kwargs: &["expected_persistent", "exempt_binding_types"],
         accepts_any_kwarg: false,
         strict_severity: false,
+        category: None,
     },
 ];
 
@@ -158,6 +174,48 @@ pub fn ign_lint_rule(name: &str) -> Option<&'static IgnLintRule> {
     IGN_LINT_RULES
         .iter()
         .find(|r| r.name == name || r.aliases.contains(&name))
+}
+
+/// One iglint rule an ign-lint rule maps to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Equivalent {
+    pub rule: RuleCode,
+    /// Named by the rule's [`RuleMeta::ign_lint_names`]: it takes the
+    /// ign-lint rule's kwargs and severity. `false` for the rules of
+    /// [`IgnLintRule::category`], which keep their own defaults.
+    pub direct: bool,
+}
+
+/// The iglint rules that implement `info`, in code order: the rules naming
+/// it or one of its aliases, and the default rules of its category that no
+/// ign-lint rule names.
+pub fn equivalents(info: &IgnLintRule, registry: &Registry) -> Vec<Equivalent> {
+    let mut out: Vec<Equivalent> = Vec::new();
+    for name in std::iter::once(&info.name).chain(info.aliases) {
+        for rule in registry.find_ign_lint(name) {
+            if !out.iter().any(|e| e.rule == rule) {
+                out.push(Equivalent { rule, direct: true });
+            }
+        }
+    }
+    if let Some(category) = info.category {
+        for rule in registry.iter() {
+            let meta = rule.meta();
+            // A rule another ign-lint rule names belongs to that rule.
+            if meta.category == category
+                && meta.default_enabled
+                && meta.ign_lint_names.is_empty()
+                && !out.iter().any(|e| e.rule == rule)
+            {
+                out.push(Equivalent {
+                    rule,
+                    direct: false,
+                });
+            }
+        }
+    }
+    out.sort_by_key(|e| e.rule);
+    out
 }
 
 /// A `rule_config.json` that could not be used at all.
@@ -570,6 +628,26 @@ fn rule_settings(
     RuleSettings { severity, options }
 }
 
+/// The severity of a native rule standing in for an ign-lint rule with a
+/// `category_mapping` (PylintScriptRule): an error-level rule takes the
+/// severity mapped for pylint's `E` category, a warning-level rule the one
+/// for `W`. Info-level rules and unmapped categories keep the rule's
+/// default. A project that maps `E` to `warning` because pylint
+/// misreports Ignition's names keeps its errors-only CI passing.
+fn native_severity(meta: &RuleMeta, entry: &RuleEntry) -> Severity {
+    let letter = match meta.default_severity {
+        Severity::Error => "E",
+        Severity::Warning => "W",
+        Severity::Info => return meta.default_severity,
+    };
+    entry
+        .kwarg("category_mapping")
+        .and_then(|m| m.get(letter))
+        .and_then(Value::as_str)
+        .and_then(Severity::parse)
+        .unwrap_or(meta.default_severity)
+}
+
 /// Resolves an ign-lint configuration into iglint settings rooted at `root`.
 pub fn to_settings(
     config: &RuleConfig,
@@ -596,14 +674,8 @@ pub fn to_settings(
         let Some(info) = entry.ign_lint else {
             continue;
         };
-        let mut targets: Vec<RuleCode> = registry.find_ign_lint(info.name).collect();
-        for alias in info.aliases {
-            for rule in registry.find_ign_lint(alias) {
-                if !targets.contains(&rule) {
-                    targets.push(rule);
-                }
-            }
-        }
+        let equivalents = equivalents(info, registry);
+        let targets: Vec<RuleCode> = equivalents.iter().map(|e| e.rule).collect();
         if !entry.loaded() {
             for rule in &targets {
                 rules.remove(rule);
@@ -622,7 +694,24 @@ pub fn to_settings(
         }
         let mut unmapped = BTreeSet::new();
         let mut mapped_somewhere = BTreeSet::new();
-        for rule in &targets {
+        for equivalent in &equivalents {
+            let rule = &equivalent.rule;
+            if !equivalent.direct {
+                // Native checks of the category: their own defaults, with
+                // the severity the entry's `category_mapping` gives their
+                // pylint counterparts.
+                rules.insert(
+                    *rule,
+                    RuleSettings {
+                        severity: native_severity(rule.meta(), entry),
+                        options: BTreeMap::new(),
+                    },
+                );
+                if entry.allow_fix == Some(false) {
+                    unfixable.insert(*rule);
+                }
+                continue;
+            }
             let mut unmapped_here = BTreeSet::new();
             let settings =
                 rule_settings(rule.meta(), entry, mode, &mut notices, &mut unmapped_here);
@@ -636,6 +725,15 @@ pub fn to_settings(
             if entry.allow_fix == Some(false) {
                 unfixable.insert(*rule);
             }
+        }
+        if !equivalents.iter().any(|e| e.direct) {
+            unmapped.extend(
+                entry
+                    .kwargs
+                    .iter()
+                    .map(|(k, _)| k.clone())
+                    .filter(|k| k != "severity"),
+            );
         }
         for kwarg in unmapped.difference(&mapped_somewhere) {
             notices.push(format!(

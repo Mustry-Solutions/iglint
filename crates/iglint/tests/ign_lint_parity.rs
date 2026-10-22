@@ -11,10 +11,14 @@
 //! `docs/compat/ign-lint-differences.md`). Unused entries of that list fail
 //! the test too, so it stays exact.
 //!
-//! Findings of ign-lint rules whose iglint equivalent lives in the script
-//! layer (PylintScriptRule, the script part of
-//! ComponentReferenceValidationRule) are compared only when that equivalent
-//! is registered.
+//! PylintScriptRule is not compared: its iglint equivalents (`SCR900`, which
+//! runs the real pylint per script, and the native `SCR` rules) report on
+//! each script as Ignition compiles it, so lines, wrappers and the set of
+//! messages differ from ign-lint's combined file by design (bugs 11 to 14,
+//! see `docs/compat/ign-lint-differences.md`), and pylint is an external
+//! program the test cannot assume. Their findings are left out on both
+//! sides and `SCR900` is not run. The script part of
+//! ComponentReferenceValidationRule is `SCR305`.
 //!
 //! `PARITY_FILTER=<substring>` limits the run to views, variants or rules
 //! containing the substring and prints every mismatch.
@@ -101,7 +105,7 @@ fn matches(p: &str, v: &str) -> bool {
 /// rules registered now.
 fn in_scope(rule: &str, message: &str) -> bool {
     match rule {
-        "PylintScriptRule" => REGISTRY.find("SCR900").is_some(),
+        "PylintScriptRule" => false,
         "ComponentReferenceValidationRule" => {
             let body = message.split_once(": ").map_or(message, |(_, m)| m);
             let script = body.starts_with("Script ")
@@ -155,13 +159,20 @@ fn actual_findings(view: &Path, config: &Value, variant: &str) -> Vec<Finding> {
     let rule_config =
         parse_rule_config(Path::new("rule_config.json"), &text).expect("valid rule config");
     let dir = view.parent().unwrap();
-    let compat = to_settings(&rule_config, &REGISTRY, dir, CompatMode::IgnLintOnly);
+    let mut compat = to_settings(&rule_config, &REGISTRY, dir, CompatMode::IgnLintOnly);
     let mut rule_names: BTreeMap<&str, String> = BTreeMap::new();
     for (name, codes) in &compat.rule_map {
+        if name == "PylintScriptRule" {
+            continue;
+        }
         for code in codes {
             rule_names.insert(code.code(), name.clone());
         }
     }
+    // PylintScriptRule is not compared (see the module documentation).
+    let mut base = (*compat.settings.base).clone();
+    base.rules.retain(|rule, _| rule.code() != "SCR900");
+    compat.settings.base = std::sync::Arc::new(base);
     let options = CheckOptions::default();
     let result = check(&compat.settings, &[view.to_path_buf()], &options);
     assert!(result.errors.is_empty(), "{:?}", result.errors);

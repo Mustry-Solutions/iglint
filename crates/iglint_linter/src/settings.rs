@@ -174,6 +174,15 @@ impl Default for ProjectSettings {
 /// directory name at any depth (and so everything below that directory),
 /// like `.gitignore`.
 pub fn glob_matches(pattern: &str, path: &str) -> bool {
+    // `\` is not an escape: patterns written with Windows separators match
+    // the `/`-separated paths too.
+    let normalized;
+    let pattern = if pattern.contains('\\') {
+        normalized = pattern.replace('\\', "/");
+        normalized.as_str()
+    } else {
+        pattern
+    };
     let pattern = pattern.strip_prefix("./").unwrap_or(pattern);
     if !pattern.contains('/') {
         return path
@@ -291,12 +300,7 @@ fn class_matches(pattern: &[u8], c: u8) -> Option<(bool, usize)> {
 impl ProjectSettings {
     /// Path of `file` relative to the settings root, `/`-separated.
     pub fn relative_path(&self, file: &Path) -> String {
-        let relative = file.strip_prefix(&self.root).unwrap_or(file);
-        relative
-            .components()
-            .map(|c| c.as_os_str().to_string_lossy())
-            .collect::<Vec<_>>()
-            .join("/")
+        crate::discovery::slash_path(file.strip_prefix(&self.root).unwrap_or(file))
     }
 
     /// Whether `file` is excluded from linting altogether.
@@ -352,7 +356,57 @@ impl ProjectSettings {
 
 #[cfg(test)]
 mod tests {
-    use super::glob_matches;
+    use std::path::{Path, PathBuf};
+
+    use super::{ProjectSettings, glob_matches};
+
+    fn settings(root: PathBuf) -> ProjectSettings {
+        ProjectSettings {
+            root,
+            ..ProjectSettings::default()
+        }
+    }
+
+    #[test]
+    fn relative_paths_use_forward_slashes() {
+        let root = std::env::temp_dir().join("iglint-root");
+        let settings = settings(root.clone());
+        // Built with the platform separator (`\` on Windows).
+        let file = root.join("projects").join("a").join("code.py");
+        assert_eq!(settings.relative_path(&file), "projects/a/code.py");
+        assert!(glob_matches(
+            "projects/*/code.py",
+            &settings.relative_path(&file)
+        ));
+        assert!(glob_matches(
+            "projects\\a\\**",
+            &settings.relative_path(&file)
+        ));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_paths() {
+        let settings = settings(PathBuf::from(r"C:\work\proj"));
+        assert_eq!(
+            settings.relative_path(Path::new(r"C:\work\proj\projects\a\views\V\view.json")),
+            "projects/a/views/V/view.json"
+        );
+        assert_eq!(
+            settings.relative_path(Path::new(r"D:\elsewhere\x.py")),
+            "D:/elsewhere/x.py"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn files_outside_the_root_keep_their_absolute_path() {
+        let settings = settings(PathBuf::from("/work/proj"));
+        assert_eq!(
+            settings.relative_path(Path::new("/elsewhere/x.py")),
+            "/elsewhere/x.py"
+        );
+    }
 
     #[test]
     fn globs() {

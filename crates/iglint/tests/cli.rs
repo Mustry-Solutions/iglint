@@ -66,6 +66,66 @@ fn project() -> tempfile::TempDir {
 }
 
 #[test]
+fn runs_over_some_files_keep_the_baseline_of_the_others() {
+    let dir = project();
+    let root = dir.path();
+    write(
+        root,
+        "projects/p/ignition/script-python/other/code.py",
+        "undefined_thing\n",
+    );
+    write(
+        root,
+        "projects/p/ignition/script-python/other/resource.json",
+        "{}\n",
+    );
+    let entries = |root: &Path| -> Vec<String> {
+        let baseline: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join(".iglint-baseline.json")).unwrap(),
+        )
+        .unwrap();
+        baseline["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["path"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    assert_eq!(
+        run(root, &["baseline", "--no-cache"]).status,
+        ExitStatus::Success
+    );
+    let all = entries(root);
+    assert!(all.iter().any(|p| p.ends_with("other/code.py")), "{all:?}");
+    let lib = "projects/p/ignition/script-python/lib/code.py";
+
+    // Linting one file neither reports nor prunes the other file's entries.
+    let one = run(root, &["--no-cache", "--prune-baseline", lib]);
+    assert_eq!(one.status, ExitStatus::Success, "{}", one.stdout);
+    assert!(!one.stderr.contains("Removed"), "{}", one.stderr);
+    assert_eq!(entries(root), all);
+
+    // Rewriting the baseline from one file keeps the other file's entries.
+    write(root, lib, "def f():\n    pass\n");
+    assert_eq!(
+        run(root, &["--no-cache", "--update-baseline", lib]).status,
+        ExitStatus::Success
+    );
+    let kept = entries(root);
+    assert!(
+        kept.iter().all(|p| p.ends_with("other/code.py")),
+        "{kept:?}"
+    );
+    assert!(!kept.is_empty());
+
+    // Entries of deleted files are stale even when other files are linted.
+    std::fs::remove_dir_all(root.join("projects/p/ignition/script-python/other")).unwrap();
+    let pruned = run(root, &["--no-cache", "--prune-baseline", lib]);
+    assert!(pruned.stderr.contains("Removed"), "{}", pruned.stderr);
+    assert!(entries(root).is_empty());
+}
+
+#[test]
 fn default_command_reports_findings() {
     let dir = project();
     let explicit = run(dir.path(), &["check", "--no-cache"]);
@@ -90,6 +150,7 @@ fn default_command_reports_findings() {
 #[test]
 fn exit_status_threshold() {
     let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "project.json", "{}\n");
     write(dir.path(), "a.py", "unused_var\nbad_prop\n");
     // A warning fails by default.
     assert_eq!(run(dir.path(), &["--isolated"]).status, ExitStatus::Failure);
@@ -130,6 +191,7 @@ fn exit_status_threshold() {
 #[test]
 fn fixes() {
     let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "project.json", "{}\n");
     let file = write(dir.path(), "a.py", "unused_var\nunusedProp\n");
 
     let diff = run(dir.path(), &["--isolated", "--diff"]);
@@ -171,6 +233,7 @@ fn fixes() {
 #[test]
 fn unsafe_fix_hint() {
     let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "project.json", "{}\n");
     write(dir.path(), "a.py", "unusedProp\n");
     let result = run(dir.path(), &["--isolated", "--output-format", "concise"]);
     assert!(
@@ -285,6 +348,31 @@ fn show_settings_and_files() {
     assert_eq!(
         files.stdout,
         "projects/p/ignition/script-python/lib/code.py\nprojects/p/ignition/script-python/lib/resource.json\n"
+    );
+}
+
+#[test]
+fn walks_only_lint_python_inside_ignition_trees() {
+    let dir = project();
+    write(dir.path(), "tools/x.py", "unused_var\n");
+    write(dir.path(), "projects/p/project.json", "{}\n");
+    write(dir.path(), "projects/p/scripts/stray.py", "");
+    let files = run(dir.path(), &["--show-files"]);
+    assert_eq!(
+        files.stdout,
+        "projects/p/ignition/script-python/lib/code.py\nprojects/p/ignition/script-python/lib/resource.json\nprojects/p/project.json\nprojects/p/scripts/stray.py\n"
+    );
+    let named = run(dir.path(), &["--show-files", "tools/x.py"]);
+    assert_eq!(named.stdout, "tools/x.py\n");
+    let linted = run(
+        dir.path(),
+        &["--output-format", "concise", "--no-cache", "tools/x.py"],
+    );
+    assert_eq!(linted.status, ExitStatus::Failure);
+    assert!(
+        linted.stdout.contains("tools/x.py:1:1: SCR102"),
+        "{}",
+        linted.stdout
     );
 }
 
@@ -462,7 +550,7 @@ fn migrate_writes_config_and_baseline_from_the_whitelist() {
     assert_eq!(migrated.status, ExitStatus::Success, "{}", migrated.stderr);
     assert_eq!(
         migrated.stdout,
-        "Wrote iglint.toml from rule_config.json.\n  NamePatternRule -> NAME001, NAME002\n  PollingIntervalRule -> BIND001\n  PylintScriptRule: no iglint equivalent, not migrated\n  BadComponentReferenceRule: no iglint equivalent, not migrated\n  ComponentReferenceValidationRule: no iglint equivalent, not migrated\n  UnusedCustomPropertiesRule -> VIEW001\n  ExcessiveContextDataRule: no iglint equivalent, not migrated\n  PropertyAccessRule: no iglint equivalent, not migrated\n  PropertyPersistenceRule: no iglint equivalent, not migrated\nWrote .iglint-baseline.json with 2 finding(s) in the 1 file(s) of the whitelist .ignition-lint-whitelist.txt.\n  1 whitelisted file(s) no longer exist and were dropped.\nThe whitelist is no longer needed: whitelisted files are linted, and only new findings fail.\n"
+        "Wrote iglint.toml from rule_config.json.\n  NamePatternRule -> NAME001, NAME002\n  PollingIntervalRule -> BIND001\n  PylintScriptRule -> SCR101, SCR102, SCR900\n  BadComponentReferenceRule: no iglint equivalent, not migrated\n  ComponentReferenceValidationRule: no iglint equivalent, not migrated\n  UnusedCustomPropertiesRule -> VIEW001\n  ExcessiveContextDataRule: no iglint equivalent, not migrated\n  PropertyAccessRule: no iglint equivalent, not migrated\n  PropertyPersistenceRule: no iglint equivalent, not migrated\nWrote .iglint-baseline.json with 2 finding(s) in the 1 file(s) of the whitelist .ignition-lint-whitelist.txt.\n  1 whitelisted file(s) no longer exist and were dropped.\nThe whitelist is no longer needed: whitelisted files are linted, and only new findings fail.\n"
     );
     let toml = std::fs::read_to_string(root.join("iglint.toml")).unwrap();
     assert!(toml.contains("# CI rules\n"), "{toml}");
@@ -541,7 +629,12 @@ fn help_version_and_ign_lint_dispatch() {
     assert_eq!(version.status, ExitStatus::Success);
     assert_eq!(
         version.stdout,
-        format!("iglint {}\n", env!("CARGO_PKG_VERSION"))
+        format!("iglint {}\n", env!("IGLINT_VERSION"))
+    );
+    assert!(
+        env!("IGLINT_VERSION").starts_with(env!("CARGO_PKG_VERSION")),
+        "{}",
+        env!("IGLINT_VERSION")
     );
     let help = run(dir.path(), &["--help"]);
     assert!(help.stdout.contains("Exit status: 0 when"));
@@ -583,6 +676,8 @@ fn cache_is_written_to_the_project_root() {
     let dir = project();
     let first = run(dir.path(), &["--output-format", "concise"]);
     assert!(dir.path().join(".iglint_cache").is_dir());
+    let tag = std::fs::read_to_string(dir.path().join(".iglint_cache/CACHEDIR.TAG")).unwrap();
+    assert!(tag.starts_with("Signature: 8a477f597d28d172789f06886806bc55\n"));
     let second = run(dir.path(), &["--output-format", "concise"]);
     assert_eq!(first.stdout, second.stdout);
     let other = run(dir.path(), &["--cache-dir", "elsewhere"]);

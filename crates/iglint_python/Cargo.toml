@@ -4,6 +4,8 @@ description = "Jython 2.7 lexer, parser and AST that match IA's Jython exactly"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 [lints]
 workspace = true

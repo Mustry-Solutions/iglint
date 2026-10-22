@@ -18,7 +18,7 @@ use std::sync::OnceLock;
 /// Source files a run may report on, by workspace file id. Files outside
 /// the workspace (standalone `view.json` files, stdin) get ids after the
 /// workspace's own.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct FileTable {
     files: Vec<Option<SourceFile>>,
 }
@@ -61,14 +61,20 @@ pub struct UnitCache {
     /// suppressed in both phases (for `SCR123 unused-suppression`).
     pub(crate) suppressions:
         std::sync::Mutex<rustc_hash::FxHashMap<usize, crate::suppression::Suppressions>>,
+    /// Messages of `SCR900 pylint` for the unit's scripts, set by the
+    /// driver before the project phase when pylint ran for the unit.
+    pub(crate) pylint: OnceLock<crate::rules::script::pylint::UnitMessages>,
 }
 
 impl UnitCache {
     /// The parse of every script of `data`, in `data.scripts()` order.
     pub fn parsed_scripts(&self, data: &ModelData<'_>) -> &[iglint_python::Parsed] {
+        // In parallel: a large view has hundreds of scripts, and the
+        // language server analyses one resource at a time.
         self.scripts.get_or_init(|| {
+            use rayon::prelude::*;
             data.scripts()
-                .iter()
+                .par_iter()
                 .map(|(_, s)| crate::script_facts::parse_script(s))
                 .collect()
         })

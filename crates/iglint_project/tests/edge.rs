@@ -133,7 +133,9 @@ fn missing_parent_makes_lookups_unknown() {
                 .id,
         )
         .unwrap();
-    assert_eq!(s.references.views, ["Missing/Elsewhere"]);
+    // The bound path's cached literal is not a reference; the binding's
+    // literal expression is.
+    assert_eq!(s.references.views, ["Missing/Elsewhere", "X/Y"]);
 
     let core = ws.collections.iter().find(|c| c.name == "core").unwrap();
     assert_eq!(core.parent, ParentLink::Missing("external".into()));

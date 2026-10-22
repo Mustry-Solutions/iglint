@@ -14,6 +14,7 @@
 //! JSON-escaped for scripts stored in `view.json` strings ([`fix`]).
 
 use iglint_json::EscapeStyle;
+use iglint_project::EmbeddedScript;
 use iglint_project::script::ScriptBody;
 use iglint_python::ast::{Expr, Stmt};
 use iglint_python_semantic::{SemanticModel, SemanticOptions};
@@ -27,27 +28,41 @@ pub mod assert_on_tuple;
 pub mod bare_except;
 pub mod compile_error;
 pub mod dangerous_loop_closure;
+pub mod deprecated_system_function;
 pub mod duplicate_dict_key;
 pub mod except_order;
 pub mod except_tuple;
 pub mod format_string;
 pub mod global_at_module_level;
+pub mod invalid_event_script_header;
+pub mod legacy_script_prefix;
 pub mod literal_identity;
+pub mod message_handler_payload_misuse;
+pub mod module_level_side_effect;
 pub mod mutable_default;
 pub mod pointless_statement;
 pub mod print_statement;
+pub mod pylint;
 pub mod raise_string;
 pub mod redefined_builtin;
 pub mod redefined_unused;
 pub mod return_in_finally;
 pub mod self_assignment;
+pub mod shadowed_library_package;
+pub mod sleep_in_event_script;
 pub mod syntax_error;
+pub mod system_api;
+pub mod system_function_arity;
 pub mod undefined_name;
+pub mod unknown_system_function;
+pub mod unknown_system_keyword;
 pub mod unreachable_code;
+pub mod unresolved_component_reference;
 pub mod unused_import;
 pub mod unused_suppression;
 pub mod unused_variable;
 pub mod used_before_assignment;
+pub mod wrong_scope_system_function;
 
 #[cfg(test)]
 mod locations_tests;
@@ -64,33 +79,46 @@ pub fn semantic<'u, 's>(
         return None;
     }
     Some(unit.semantic.get_or_init(|| {
-        let mut injected: Vec<&str> = unit.script.implicit_globals().collect();
-        let unknown_globals = match cx.project_index() {
-            Some((index, project)) => {
-                let (globals, complete) = index.script_library_globals(project);
-                injected.extend(globals);
-                !complete
-            }
-            // Scripts of a resource without a project (gateway collections:
-            // tag events run with the gateway scripting project's library)
-            // and `.py` files outside any project see library names we do
-            // not know.
-            None => true,
-        };
-        if cx.resource().is_none() {
-            // A file outside any project is a plain module run from disk.
-            injected.push("__file__");
-        }
-        if unit.script.kind == iglint_project::ScriptKind::LibraryModule {
-            // `__package__` appears once the module runs an import.
-            injected.push("__package__");
-        }
+        let (injected, unknown_globals) = injected_names(cx, unit.script);
         let options = SemanticOptions {
             injected,
             unknown_globals,
         };
         SemanticModel::build(&unit.parsed.module, &options)
     }))
+}
+
+/// The names `script` sees as globals without defining them (Ignition's
+/// implicit globals, the generated function's name, the project's
+/// top-level library packages), and whether that list may be incomplete
+/// (scripts outside a project, or a project whose ancestry is not in the
+/// workspace, see library names iglint does not know).
+pub fn injected_names<'n>(
+    cx: &'n Checker<'_, '_>,
+    script: &'n EmbeddedScript<'_>,
+) -> (Vec<&'n str>, bool) {
+    let mut injected: Vec<&str> = script.implicit_globals().collect();
+    let unknown_globals = match cx.project_index() {
+        Some((index, project)) => {
+            let (globals, complete) = index.script_library_globals(project);
+            injected.extend(globals);
+            !complete
+        }
+        // Scripts of a resource without a project (gateway collections:
+        // tag events run with the gateway scripting project's library)
+        // and `.py` files outside any project see library names we do
+        // not know.
+        None => true,
+    };
+    if cx.resource().is_none() {
+        // A file outside any project is a plain module run from disk.
+        injected.push("__file__");
+    }
+    if script.kind == iglint_project::ScriptKind::LibraryModule {
+        // `__package__` appears once the module runs an import.
+        injected.push("__package__");
+    }
+    (injected, unknown_globals)
 }
 
 /// The script source the parse and the model refer to.

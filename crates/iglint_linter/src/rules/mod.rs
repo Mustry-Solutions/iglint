@@ -16,6 +16,7 @@ pub mod name;
 pub mod perf;
 pub mod refs;
 pub mod script;
+pub mod sec;
 pub mod style;
 pub mod tag;
 #[cfg(test)]
@@ -52,14 +53,19 @@ rules![
     perf::hidden_component_bindings,
     perf::large_view,
     refs::unknown_view,
+    refs::unknown_library_member,
+    refs::library_function_arity,
     refs::unknown_named_query,
     refs::named_query_params,
+    refs::unknown_message_type,
     refs::popup_params,
     refs::unknown_page_url,
     refs::manifest_mismatch,
     refs::unknown_parent_project,
     refs::unused_view,
+    refs::unused_library_function,
     refs::unused_named_query,
+    refs::unhandled_message_handler,
     script::syntax_error,
     script::compile_error,
     script::undefined_name,
@@ -85,6 +91,25 @@ rules![
     script::global_at_module_level,
     script::print_statement,
     script::unused_suppression,
+    script::unknown_system_function,
+    script::system_function_arity,
+    script::unknown_system_keyword,
+    script::deprecated_system_function,
+    script::wrong_scope_system_function,
+    script::legacy_script_prefix,
+    script::invalid_event_script_header,
+    script::sleep_in_event_script,
+    script::module_level_side_effect,
+    script::shadowed_library_package,
+    script::unresolved_component_reference,
+    script::message_handler_payload_misuse,
+    script::pylint,
+    sec::sql_string_building,
+    sec::hardcoded_credential,
+    sec::eval_exec,
+    sec::insecure_url,
+    sec::querystring_parameter,
+    sec::os_command,
     style::unknown_style_class,
     style::unused_style_class,
     style::empty_style_class,

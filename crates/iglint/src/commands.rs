@@ -14,7 +14,7 @@ use crate::args::{ListFormat, MigrateArgs, RuleArgs, RulesArgs};
 use crate::output::display_path;
 use crate::{Environment, ExitStatus, Io};
 
-fn fix_text(fix: FixAvailability) -> &'static str {
+pub(crate) fn fix_text(fix: FixAvailability) -> &'static str {
     match fix {
         FixAvailability::None => "no",
         FixAvailability::Sometimes => "sometimes",
@@ -22,7 +22,7 @@ fn fix_text(fix: FixAvailability) -> &'static str {
     }
 }
 
-fn option_type(ty: OptionType) -> &'static str {
+pub(crate) fn option_type(ty: OptionType) -> &'static str {
     match ty {
         OptionType::Bool => "boolean",
         OptionType::Integer => "integer",

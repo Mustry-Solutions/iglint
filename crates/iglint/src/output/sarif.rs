@@ -25,6 +25,7 @@ fn rule_descriptor(rule: RuleCode) -> Value {
         "id": meta.code,
         "name": meta.name,
         "shortDescription": { "text": meta.summary },
+        "helpUri": rule.docs_url(),
         "defaultConfiguration": { "level": level(meta.default_severity) },
         "properties": { "category": meta.category.title() },
     });

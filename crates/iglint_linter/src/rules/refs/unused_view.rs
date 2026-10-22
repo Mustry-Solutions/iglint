@@ -1,6 +1,7 @@
 //! REF011 unused-view.
 
 use iglint_project::model::ModelData;
+use iglint_project::summary::covered_by_prefix;
 use iglint_text::{TextRange, TextSize};
 
 use crate::checker::Checker;
@@ -19,19 +20,24 @@ pub static META: RuleMeta = RuleMeta {
 
 Reports views that no literal reference in the project (or in a project
 inheriting from it) points at: no embedded view, repeater, table, popup,
-navigate or dock action, page or dock in the page configuration, and (once
-the script layer reports them) no literal path in a script.
+navigate or dock action, page or dock in the page configuration, and no
+script call (`system.perspective.openPopup`, `togglePopup`,
+`navigate(view=...)`) with a literal path.
 
 ## Why is this bad?
 
 Unused views are dead weight: they are still loaded, searched and
 maintained, and they confuse readers about what the application shows.
 
-This rule is not in the default set: views are also opened through paths
-built at run time (bound `props.path`, string concatenation in scripts,
-paths stored in tags or databases), which no static analysis sees. Views
-of inheritable projects are not reported, because projects outside the
-workspace may use them.
+Paths built at run time are taken into account by their literal prefix:
+a bound `props.path` whose expression is `'Cards/' + {view.params.kind}`,
+or a script call with `'Popups/' + name`, makes every view under that
+prefix count as used (a path with no literal prefix makes every view
+count). Views of inheritable projects are not reported, because projects
+outside the workspace may use them.
+
+This rule is not in the default set: paths can also come from tags,
+databases or session properties, which no static analysis sees.
 
 ## Example
 
@@ -55,6 +61,11 @@ impl ResourceRule for UnusedView {
         let ModelData::View { file, .. } = data else {
             return;
         };
+        if let (Some((index, project)), Some(resource)) = (cx.project_index(), cx.resource())
+            && covered_by_prefix(&index.dynamic_references(project).views, &resource.path)
+        {
+            return;
+        }
         report_unused(cx, *file, "View");
     }
 }
@@ -110,5 +121,35 @@ mod tests {
             )
             .with_view("Lonely", "{}");
         assert!(f.lint(&["REF011"]).is_empty());
+    }
+
+    #[test]
+    fn script_references_and_dynamic_prefixes() {
+        use crate::rules::script::testing::{ViewScript, view_json};
+        let main = view_json(
+            ViewScript::Action,
+            "\tsystem.perspective.openPopup('p', 'Popups/A')\n\tsystem.perspective.openPopup('p', 'Cards/' + kind)",
+        );
+        let bound = r#"{"root": {"type": "ia.display.view", "meta": {"name": "root"}, "props": {"path": "x"},
+            "propConfig": {"props.path": {"binding": {"type": "expr", "config": {"expression": "'Tiles/' + {view.params.k}"}}}}}}"#;
+        let f = Fixture::new()
+            .with_view("Main", &main)
+            .with_view("Holder", bound)
+            .with_view("Popups/A", "{}")
+            .with_view("Popups/B", "{}")
+            .with_view("Cards/X", "{}")
+            .with_view("Tiles/Y", "{}")
+            .resource(
+                "projects/p/com.inductiveautomation.perspective/page-config",
+                &[(
+                    "config.json",
+                    r#"{"pages": {"/": {"viewPath": "Main"}, "/h": {"viewPath": "Holder"}}}"#,
+                )],
+            );
+        let d = f.lint(&["REF011"]);
+        assert_eq!(
+            messages(&d).into_iter().map(|m| m.1).collect::<Vec<_>>(),
+            vec!["View `Popups/B` is not referenced anywhere".to_owned()]
+        );
     }
 }

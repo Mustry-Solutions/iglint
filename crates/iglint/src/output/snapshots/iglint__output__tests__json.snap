@@ -18,9 +18,9 @@ expression: "output(OutputFormat::Json, & diagnostics(), false)"
       "column": 1
     },
     "node_path": null,
-    "fingerprint": "30bad17765f4dd46",
+    "fingerprint": "8fb24852641a8d8e",
     "fix": null,
-    "url": null
+    "url": "https://github.com/Mustry-Solutions/iglint/blob/main/docs/rules/TST003.md"
   },
   {
     "code": "TST002",
@@ -56,7 +56,7 @@ expression: "output(OutputFormat::Json, & diagnostics(), false)"
         }
       ]
     },
-    "url": null
+    "url": "https://github.com/Mustry-Solutions/iglint/blob/main/docs/rules/TST002.md"
   },
   {
     "code": "TST001",
@@ -75,7 +75,7 @@ expression: "output(OutputFormat::Json, & diagnostics(), false)"
     "node_path": null,
     "fingerprint": "bb0cd88fb36159e3",
     "fix": null,
-    "url": null
+    "url": "https://github.com/Mustry-Solutions/iglint/blob/main/docs/rules/TST001.md"
   },
   {
     "code": "TST001",
@@ -111,7 +111,7 @@ expression: "output(OutputFormat::Json, & diagnostics(), false)"
         }
       ]
     },
-    "url": null
+    "url": "https://github.com/Mustry-Solutions/iglint/blob/main/docs/rules/TST001.md"
   },
   {
     "code": "TST002",
@@ -147,7 +147,7 @@ expression: "output(OutputFormat::Json, & diagnostics(), false)"
         }
       ]
     },
-    "url": null
+    "url": "https://github.com/Mustry-Solutions/iglint/blob/main/docs/rules/TST002.md"
   },
   {
     "code": "TST003",
@@ -166,6 +166,6 @@ expression: "output(OutputFormat::Json, & diagnostics(), false)"
     "node_path": null,
     "fingerprint": "949a3a2d89c2da25",
     "fix": null,
-    "url": null
+    "url": "https://github.com/Mustry-Solutions/iglint/blob/main/docs/rules/TST003.md"
   }
 ]

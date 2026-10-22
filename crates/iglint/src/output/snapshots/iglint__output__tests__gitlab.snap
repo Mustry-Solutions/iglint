@@ -6,7 +6,7 @@ expression: "output(OutputFormat::Gitlab, & diagnostics(), false)"
   {
     "description": "TST003: Empty range at the start",
     "check_name": "TST003",
-    "fingerprint": "30bad17765f4dd46",
+    "fingerprint": "8fb24852641a8d8e",
     "severity": "info",
     "location": {
       "path": "/other/lib.py",

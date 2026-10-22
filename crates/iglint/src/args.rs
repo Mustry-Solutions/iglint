@@ -9,7 +9,7 @@ use crate::output::OutputFormat;
 #[derive(Debug, Parser)]
 #[command(
     name = "iglint",
-    version,
+    version = env!("IGLINT_VERSION"),
     about = "A fast linter for Ignition 8.3 projects.",
     long_about = "A fast linter for Ignition 8.3 projects.\n\n`iglint [PATHS]...` is short for `iglint check [PATHS]...`.\n\nExit status: 0 when no finding reaches the --error-on threshold, 1 when one does (or a fix was applied with --exit-non-zero-on-fix), 2 for usage, configuration and internal errors.",
     disable_help_subcommand = true
@@ -33,8 +33,8 @@ pub enum Command {
     /// Write a baseline of the current findings, so that only new findings
     /// fail (same as `check --update-baseline`).
     Baseline(Box<CheckArgs>),
-    /// Run the language server.
-    #[command(hide = true)]
+    /// Run the language server (LSP over standard input and output), for
+    /// editor integrations.
     Server,
     /// Run with the command-line interface of ign-lint 0.6.4.
     #[command(name = "ign-lint", disable_help_flag = true)]
@@ -43,11 +43,22 @@ pub enum Command {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true, num_args = 0..)]
         args: Vec<std::ffi::OsString>,
     },
+    /// Write the rule reference (docs/rules/*.md) from the rule metadata.
+    #[command(name = "generate-docs", hide = true)]
+    GenerateDocs(GenerateDocsArgs),
 }
 
 /// Names of the subcommands, to recognise the implicit `check`.
 pub const SUBCOMMANDS: &[&str] = &[
-    "check", "rule", "rules", "migrate", "baseline", "server", "ign-lint", "help",
+    "check",
+    "rule",
+    "rules",
+    "migrate",
+    "baseline",
+    "server",
+    "ign-lint",
+    "generate-docs",
+    "help",
 ];
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
@@ -249,4 +260,14 @@ pub struct MigrateArgs {
     /// Print the configuration instead of writing files.
     #[arg(long)]
     pub dry_run: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct GenerateDocsArgs {
+    /// Directory to write the pages to.
+    #[arg(long, value_name = "DIR", default_value = "docs/rules")]
+    pub output_dir: PathBuf,
+    /// Only check that the pages are up to date (exit 1 when they are not).
+    #[arg(long)]
+    pub check: bool,
 }

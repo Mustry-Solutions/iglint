@@ -7,6 +7,11 @@ use std::fmt;
 
 use crate::diagnostic::Severity;
 
+/// Address of the documentation page of a rule (the generated
+/// `docs/rules/<CODE>.md`); `{code}` stands for the rule code.
+pub const RULE_DOCS_URL: &str =
+    "https://github.com/Mustry-Solutions/iglint/blob/main/docs/rules/{code}.md";
+
 /// Groups rules for selection (`select = ["SCR"]`) and documentation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Category {
@@ -189,6 +194,11 @@ impl RuleCode {
 
     pub const fn name(self) -> &'static str {
         self.0.name
+    }
+
+    /// The address of the rule's documentation page ([`RULE_DOCS_URL`]).
+    pub fn docs_url(self) -> String {
+        RULE_DOCS_URL.replace("{code}", self.0.code)
     }
 }
 

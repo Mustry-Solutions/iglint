@@ -54,7 +54,7 @@ fn help_and_version() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(format!("iglint {}\n", env!("CARGO_PKG_VERSION")));
+        .stdout(format!("iglint {}\n", env!("IGLINT_VERSION")));
     iglint(dir.path())
         .arg("--help")
         .assert()
@@ -86,4 +86,30 @@ fn ign_lint_symlink_dispatches_to_compat_mode() {
         .output()
         .unwrap();
     assert_eq!(output.status.code(), Some(2));
+}
+
+/// `iglint server` speaks LSP over the standard streams: the whole session
+/// (initialize, shutdown, exit) arrives at once and every answer comes back.
+#[test]
+fn server_speaks_lsp_over_stdio() {
+    let dir = tempfile::tempdir().unwrap();
+    let frame = |body: &str| format!("Content-Length: {}\r\n\r\n{body}", body.len());
+    let input = [
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}"#,
+        r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#,
+        r#"{"jsonrpc":"2.0","id":2,"method":"shutdown"}"#,
+        r#"{"jsonrpc":"2.0","method":"exit"}"#,
+    ]
+    .map(frame)
+    .concat();
+    iglint(dir.path())
+        .arg("server")
+        .write_stdin(input)
+        .timeout(std::time::Duration::from_secs(60))
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains(r#""serverInfo":{"name":"iglint""#)
+                .and(predicate::str::contains(r#""id":2,"result":null"#)),
+        );
 }

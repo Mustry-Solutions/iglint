@@ -99,10 +99,16 @@ enum Verdict {
     Unused(String),
 }
 
-fn verdict(selector: &str, set: &RuleSet) -> Verdict {
+/// `pylint_ran`: whether `SCR900 pylint` results were available for the
+/// unit (they are not when pylint could not run, or while a file is
+/// re-analysed after fixes), so its suppressions can be judged.
+fn verdict(selector: &str, set: &RuleSet, pylint_ran: bool) -> Verdict {
     let matched: Vec<_> = script_rules()
         .filter(|m| selected_by(selector, m))
         .collect();
+    if !pylint_ran && matched.iter().any(|m| m.code == super::pylint::META.code) {
+        return Verdict::Unknown;
+    }
     if matched.is_empty() {
         let any_rule = crate::rules::ALL.iter().any(|m| selected_by(selector, m));
         return Verdict::Unused(if any_rule {
@@ -128,13 +134,16 @@ pub(crate) fn report_unused(
     set: &RuleSet,
 ) {
     let source: &str = &unit.script.source;
+    let pylint_ran = cx.unit().cache.pylint.get().is_some();
     for s in &suppressions.items {
         let mut unused: Vec<(usize, String)> = Vec::new();
         if s.selectors.is_empty() {
             if s.used {
                 continue;
             }
-            if script_rules().all(|m| set.active.iter().any(|a| a.rule.code() == m.code)) {
+            let all_enabled =
+                script_rules().all(|m| set.active.iter().any(|a| a.rule.code() == m.code));
+            if all_enabled && pylint_ran {
                 unused.push((0, "Unused `# iglint: ignore` comment".into()));
             }
         } else {
@@ -142,7 +151,7 @@ pub(crate) fn report_unused(
                 if s.used_selectors.get(i).copied().unwrap_or(false) {
                     continue;
                 }
-                match verdict(selector, set) {
+                match verdict(selector, set, pylint_ran) {
                     Verdict::Unused(message) => unused.push((i, message)),
                     Verdict::Unknown => {}
                 }

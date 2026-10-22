@@ -171,6 +171,58 @@ pub enum MessageTarget {
 pub struct MessageSend {
     pub message_type: String,
     pub target: MessageTarget,
+    /// The top-level keys of the payload when it is a dict literal with
+    /// literal keys (`None` when the payload is anything else).
+    pub payload_keys: Option<Vec<String>>,
+}
+
+/// References whose target is computed at run time. Each list holds
+/// prefixes of the names the reference may produce (`"Popups/"` for
+/// `'Popups/' + name`); an empty prefix stands for any name. "Unused"
+/// rules stay silent for names a prefix covers.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DynamicReferences {
+    /// View paths.
+    pub views: Vec<String>,
+    /// Named query paths.
+    pub named_queries: Vec<String>,
+    /// Dotted library names reached in ways that cannot be followed: a
+    /// module used as a value, `getattr`, `from m import *`, a non-literal
+    /// `runScript` target.
+    pub library: Vec<String>,
+    /// Message types of `system.perspective.sendMessage`.
+    pub perspective_messages: Vec<String>,
+    /// Handler names of `system.util.sendMessage` / `sendRequest`, with
+    /// the target project (`None`: any project).
+    pub gateway_messages: Vec<(Option<String>, String)>,
+}
+
+impl DynamicReferences {
+    /// Appends everything from `other`.
+    pub fn extend(&mut self, other: &DynamicReferences) {
+        self.views.extend(other.views.iter().cloned());
+        self.named_queries
+            .extend(other.named_queries.iter().cloned());
+        self.library.extend(other.library.iter().cloned());
+        self.perspective_messages
+            .extend(other.perspective_messages.iter().cloned());
+        self.gateway_messages
+            .extend(other.gateway_messages.iter().cloned());
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.views.is_empty()
+            && self.named_queries.is_empty()
+            && self.library.is_empty()
+            && self.perspective_messages.is_empty()
+            && self.gateway_messages.is_empty()
+    }
+}
+
+/// Whether `name` may be produced by a dynamic reference with one of
+/// `prefixes`.
+pub fn covered_by_prefix(prefixes: &[String], name: &str) -> bool {
+    prefixes.iter().any(|p| name.starts_with(p.as_str()))
 }
 
 /// Outgoing literal references of a resource.
@@ -194,6 +246,8 @@ pub struct References {
     pub history_providers: Vec<String>,
     /// Database connection names.
     pub databases: Vec<String>,
+    /// References computed at run time.
+    pub dynamic: DynamicReferences,
 }
 
 impl References {
@@ -208,6 +262,7 @@ impl References {
         self.messages.extend(other.messages);
         self.history_providers.extend(other.history_providers);
         self.databases.extend(other.databases);
+        self.dynamic.extend(&other.dynamic);
     }
 }
 
@@ -347,6 +402,10 @@ fn expression_refs<'e>(
         for call in e.parsed.expr.calls() {
             let first = call.args.first().map(|a| &a.unparenthesized().kind);
             let Some(ExprKind::String(s)) = first else {
+                if call.is("runScript") {
+                    // A computed function name may reach any library name.
+                    refs.dynamic.library.push(String::new());
+                }
                 continue;
             };
             if call.is("runScript") {
@@ -404,6 +463,11 @@ fn view_facts(view: &View<'_>, refs: &mut References) -> ViewFacts {
     for r in &view.view_refs {
         if !r.bound {
             refs.views.push(r.path.value().to_owned());
+        } else {
+            match bound_view_path(view, r) {
+                BoundPath::Literal(path) => refs.views.push(path),
+                BoundPath::Prefix(prefix) => refs.dynamic.views.push(prefix),
+            }
         }
     }
     for s in &view.style_refs {
@@ -424,6 +488,51 @@ fn view_facts(view: &View<'_>, refs: &mut References) -> ViewFacts {
     ViewFacts {
         params,
         message_handlers,
+    }
+}
+
+/// What a bound view path may evaluate to.
+enum BoundPath {
+    Literal(String),
+    Prefix(String),
+}
+
+/// A bound view path: an expression binding without transforms whose
+/// expression is a string literal, or a concatenation starting with one,
+/// gives the path or its prefix; anything else may be any view.
+fn bound_view_path(view: &View<'_>, r: &crate::view::ViewRef<'_>) -> BoundPath {
+    let any = BoundPath::Prefix(String::new());
+    let Some(b) = view
+        .bindings
+        .iter()
+        .find(|b| b.owner == r.owner && b.property == r.property)
+    else {
+        return any;
+    };
+    let BindingConfig::Expr {
+        expression: Some(id),
+    } = &b.typed
+    else {
+        return any;
+    };
+    if !b.transforms.is_empty() {
+        return any;
+    }
+    let e = view.expression(*id);
+    if !e.parsed.errors.is_empty() {
+        return any;
+    }
+    fn prefix(e: &iglint_expression::Expr) -> Option<&str> {
+        match &e.kind {
+            ExprKind::String(s) => Some(s),
+            ExprKind::Paren(inner) => prefix(inner),
+            ExprKind::Binary(b) if b.op == iglint_expression::BinaryOp::Add => prefix(&b.left),
+            _ => None,
+        }
+    }
+    match &e.parsed.expr.kind {
+        ExprKind::String(s) => BoundPath::Literal(s.clone()),
+        _ => BoundPath::Prefix(prefix(&e.parsed.expr).unwrap_or("").to_owned()),
     }
 }
 

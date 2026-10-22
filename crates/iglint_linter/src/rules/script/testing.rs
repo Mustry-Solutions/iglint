@@ -108,6 +108,46 @@ pub fn gateway_message(code: &str) -> Fixture {
     )
 }
 
+/// A project with a Perspective session startup script `onStartup.py`.
+pub fn session_event(code: &str) -> Fixture {
+    Fixture::new().resource(
+        &format!("projects/p/{PERSPECTIVE}/startup"),
+        &[("onStartup.py", code)],
+    )
+}
+
+/// A project with a gateway timer script `handleTimerEvent.py`.
+pub fn gateway_timer(code: &str) -> Fixture {
+    Fixture::new().resource(
+        "projects/p/ignition/timer/t",
+        &[("handleTimerEvent.py", code)],
+    )
+}
+
+/// A project with a WebDev python resource `api` holding `doGet.py`.
+pub fn webdev(code: &str) -> Fixture {
+    Fixture::new().resource(
+        "projects/p/com.inductiveautomation.webdev/resources/api",
+        &[
+            (
+                "config.json",
+                r#"{"resource-type": "python-resource", "doGet": {"enabled": true}}"#,
+            ),
+            ("doGet.py", code),
+        ],
+    )
+}
+
+/// A gateway with a memory tag whose `valueChanged` event script has body
+/// `code`.
+pub fn tag_event(code: &str) -> Fixture {
+    let tags = format!(
+        r#"[{{"name": "T", "tagType": "AtomicTag", "valueSource": "memory", "eventScripts": [{{"eventid": "valueChanged", "script": {}}}]}}]"#,
+        json(code)
+    );
+    crate::rules::tag::fixtures::tags(crate::rules::tag::fixtures::gateway(), &tags, "[]")
+}
+
 /// A project with a view `Main` whose root has one script.
 pub fn view(kind: ViewScript, code: &str) -> Fixture {
     Fixture::new().with_view("Main", &view_json(kind, code))

@@ -30,7 +30,7 @@ Inside a `try` body, a lone name, attribute or subscript is not reported:
 Docstrings (the first statement of a module, class or function, including
 the body of a Perspective script) and string statements right after an
 assignment (attribute docstrings) are not reported. Other string
-statements are reported unless `allow_strings` is set: they are often
+statements are reported unless `allow-strings` is set: they are often
 used to comment out code, which is better done with `#`.
 
 ## Why is this bad?
@@ -57,7 +57,7 @@ def runAction(self, event):
 
 ## Options
 
-* `allow_strings` (default `false`): do not report string statements.
+* `allow-strings` (default `false`): do not report string statements.
 
 ## pylint
 
@@ -66,7 +66,7 @@ pointless-string-statement` and `W0106 expression-not-assigned`. pylint
 also reports the existence checks in `try` bodies that iglint allows.
 "#,
     options: &[OptionMeta {
-        name: "allow_strings",
+        name: "allow-strings",
         ty: OptionType::Bool,
         default: "false",
         description: "Do not report string statements.",
@@ -87,7 +87,7 @@ struct Options {
 
 fn parse_options(reader: &OptionReader<'_>) -> Result<ParsedOptions, String> {
     Ok(Box::new(Options {
-        allow_strings: reader.bool("allow_strings")?,
+        allow_strings: reader.bool("allow-strings")?,
     }))
 }
 
@@ -258,7 +258,7 @@ mod tests {
         let f = library("m", "x = 1\n'attribute doc'\nif x:\n    'disabled code'\n");
         assert_eq!(flagged(&f.lint(&["SCR114"])), ["'disabled code'"]);
         assert!(
-            f.lint_with(&[("SCR114", "allow_strings = true")])
+            f.lint_with(&[("SCR114", "allow-strings = true")])
                 .is_empty()
         );
     }

@@ -10,7 +10,9 @@ use super::{case_insensitive_match, owner_value, value_at};
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
 use crate::registry::{Category, RuleMeta};
-use crate::rule::{Hook, Phase, ResourceRule, RuleImpl};
+use crate::rule::{Hook, Phase, ResourceRule, RuleImpl, ScriptRule, ScriptUnit};
+use crate::script_facts::api::ApiTarget;
+use crate::script_facts::calls::string_values;
 
 pub static META: RuleMeta = RuleMeta {
     code: "REF001",
@@ -31,9 +33,11 @@ project sees (its own and inherited ones):
 * popup, navigate and alter-dock actions;
 * page and dock view paths in the page configuration.
 
-Literal view paths passed to `system.perspective.openPopup`,
-`navigate`, `openDock` and similar calls in scripts are checked too, as
-soon as the script layer reports them (see `script_facts`).
+Scripts are checked too: literal view paths passed to
+`system.perspective.openPopup`, `togglePopup` and `navigate(view=...)`,
+found through aliases (`nav = system.perspective.navigate`) and local
+names whose every assignment is a literal (`path = 'Popups/A'`). The
+finding points at the literal.
 
 ## Why is this bad?
 
@@ -64,7 +68,7 @@ Use instead:
 pub static RULE: RuleImpl = RuleImpl {
     meta: &META,
     phase: Phase::Project,
-    hooks: &[Hook::Resource(&UnknownView)],
+    hooks: &[Hook::Resource(&UnknownView), Hook::Script(&UnknownView)],
     options: None,
 };
 
@@ -108,6 +112,49 @@ impl ResourceRule for UnknownView {
     }
 }
 
+impl ScriptRule for UnknownView {
+    fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
+        let Some((model, targets)) = super::script_calls::api_targets(cx, unit) else {
+            return;
+        };
+        let Some((index, project)) = cx.project_index() else {
+            return;
+        };
+        for (_, target) in targets {
+            let ApiTarget::View { path, .. } = target else {
+                continue;
+            };
+            for literal in string_values(model, path).unwrap_or_default() {
+                let value = literal.value.as_str();
+                if value.trim().is_empty() || value.contains('{') {
+                    continue;
+                }
+                if !matches!(index.view(project, value), Lookup::Missing) {
+                    continue;
+                }
+                let message = missing_message(cx, project, value);
+                crate::rules::script::report(cx, unit, literal.range, message);
+            }
+        }
+    }
+}
+
+fn missing_message(
+    cx: &Checker<'_, '_>,
+    project: iglint_project::ProjectId,
+    value: &str,
+) -> String {
+    let mut message = format!("View `{value}` does not exist");
+    if let Some(similar) =
+        case_insensitive_match(cx.workspace(), project, ResourceKind::View, value)
+    {
+        message.push_str(&format!(
+            " (view paths are case-sensitive; did you mean `{similar}`?)"
+        ));
+    }
+    message
+}
+
 /// Whether the referencing property is actually used by Perspective.
 pub(crate) fn is_active(view: &View<'_>, r: &ViewRef<'_>) -> bool {
     let Some(owner) = owner_value(view, r.owner) else {
@@ -142,14 +189,7 @@ fn check(cx: &mut Checker<'_, '_>, file: FileId, path: &JsonString<'_>, node_pat
     if !matches!(index.view(project, value), Lookup::Missing) {
         return;
     }
-    let mut message = format!("View `{value}` does not exist");
-    if let Some(similar) =
-        case_insensitive_match(cx.workspace(), project, ResourceKind::View, value)
-    {
-        message.push_str(&format!(
-            " (view paths are case-sensitive; did you mean `{similar}`?)"
-        ));
-    }
+    let message = missing_message(cx, project, value);
     cx.report_in(file, path.range(), message)
         .node_path(node_path);
 }
@@ -267,6 +307,30 @@ mod tests {
             )
             .with_view("Main", &embed("Anything"));
         assert!(orphan.lint(&["REF001"]).is_empty());
+    }
+
+    #[test]
+    fn script_call_sites() {
+        use crate::rules::script::testing::{
+            ViewScript, decoded_flagged, gateway_message, library, view,
+        };
+        let body = "\tP = 'Popups/Gone'\n\tsystem.perspective.openPopup('id', P)\n\tnav = system.perspective.navigate\n\tnav(view='Popups/Detail')\n\tnav(view='popups/detail')\n\tsystem.perspective.openPopup('id', 'Dyn/' + x)\n\tsystem.perspective.togglePopup(id='t', view=\"Also\\\"Gone\")";
+        let f = view(ViewScript::Action, body).with_view("Popups/Detail", "{}");
+        let d = f.lint(&["REF001"]);
+        assert_eq!(
+            decoded_flagged(&d),
+            vec!["'Popups/Gone'", "'popups/detail'", "\"Also\\\"Gone\""]
+        );
+        assert!(d[1].message.contains("did you mean `Popups/Detail`"));
+        let lib = library(
+            "core/nav",
+            "def go(view='Lib/Gone'):\n    system.perspective.navigate(view=view)\n    system.perspective.navigate(view='Lib/Gone2')\n",
+        );
+        assert_eq!(flagged(&lib.lint(&["REF001"])), vec!["'Lib/Gone2'"]);
+        let gw = gateway_message(
+            "def handleMessage(payload):\n\tsystem.perspective.openPopup('i', 'X', sessionId=payload['s'], pageId=payload['p'])\n",
+        );
+        assert_eq!(flagged(&gw.lint(&["REF001"])), vec!["'X'"]);
     }
 
     #[test]

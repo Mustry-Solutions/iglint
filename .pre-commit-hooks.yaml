@@ -1,0 +1,20 @@
+# pre-commit hooks. `language: python` installs this repository with pip,
+# which builds the `iglint` binary with maturin (needs a Rust toolchain on
+# first use). See README.md for a hook that uses the PyPI wheel instead.
+- id: iglint
+  name: iglint
+  description: Lint Ignition 8.3 projects (views, scripts, expressions, resources) with iglint.
+  entry: iglint check
+  language: python
+  types_or: [json, python]
+  require_serial: true
+  minimum_pre_commit_version: "2.9.2"
+
+- id: iglint-fix
+  name: iglint (fix)
+  description: Apply iglint's safe fixes, then report what is left.
+  entry: iglint check --fix
+  language: python
+  types_or: [json, python]
+  require_serial: true
+  minimum_pre_commit_version: "2.9.2"
