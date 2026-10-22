@@ -72,9 +72,12 @@ def runAction(self, event):
 ## Fix
 
 For `x = value` with a single target: removes the statement when `value`
-has no side effects (literals and names), otherwise removes only `x = `
-and keeps the expression. Unsafe: the value may still be wanted under
-another name.
+calls nothing (literals, names, attribute and subscript reads, operators),
+otherwise removes only `x = ` and keeps the expression, so that its calls
+still run (a call is never a pointless statement for `SCR114`). Unsafe:
+the value may still be wanted under another name, and a removed read can
+have effects in Python (`value["pages"]` raises `KeyError` when the key is
+missing; a property, `__getattr__` or a Java getter runs code).
 
 ## pylint
 
@@ -185,7 +188,9 @@ impl ScriptRule for UnusedVariable {
     }
 }
 
-/// Removes `x = value`: the statement when the value is pure, else `x = `.
+/// Removes `x = value`: the statement when the value calls nothing, else
+/// `x = ` (the remaining expression statement still makes its calls, and
+/// `SCR114` does not report it).
 fn removal(
     model: &iglint_python_semantic::SemanticModel<'_>,
     text: &str,
@@ -195,7 +200,7 @@ fn removal(
     let [Expr::Name(target)] = a.targets.as_slice() else {
         return None;
     };
-    if is_pure(&a.value) {
+    if !super::pointless_statement::has_effect(&a.value) {
         let body = containing_body(&model.module.body, stmt)?;
         return delete_statement(text, body, stmt);
     }
@@ -210,17 +215,6 @@ fn removal(
         return None;
     }
     Some(StatementEdit::replace(prefix, String::new()))
-}
-
-fn is_pure(e: &Expr) -> bool {
-    match e {
-        Expr::Num(_) | Expr::Str(_) | Expr::Name(_) => true,
-        Expr::Tuple(t) => t.elts.iter().all(is_pure),
-        Expr::List(t) => t.elts.iter().all(is_pure),
-        Expr::Dict(d) => d.keys.iter().chain(&d.values).all(is_pure),
-        Expr::UnaryOp(u) => is_pure(&u.operand),
-        _ => false,
-    }
 }
 
 #[cfg(test)]
@@ -316,5 +310,21 @@ mod tests {
         let f = view(ViewScript::Action, "\tx \u{3d} 'a'\n\ty \u{3d} 'b'");
         let fixed = f.fixed(&[("SCR103", "")], true, &view_path(&f));
         assert!(fixed.contains(r#""script": "\tpass""#), "{fixed}");
+    }
+
+    /// The fix never leaves a pointless statement behind (`SCR114`).
+    #[test]
+    fn fix_leaves_no_pointless_statement() {
+        let f = library(
+            "m",
+            "def f(value, obj):\n    pages = value['pages']\n    n = obj.count + 1\n    r = obj.load()['x']\n    return 0\n",
+        );
+        let fixed = f.fixed(&[("SCR103", "")], true, &library_path(&f, "m"));
+        assert_eq!(
+            fixed,
+            "def f(value, obj):\n    obj.load()['x']\n    return 0\n"
+        );
+        let after = library("m", &fixed);
+        assert!(after.lint(&["SCR114"]).is_empty());
     }
 }

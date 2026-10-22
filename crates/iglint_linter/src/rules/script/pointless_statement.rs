@@ -94,7 +94,7 @@ fn parse_options(reader: &OptionReader<'_>) -> Result<ParsedOptions, String> {
 struct PointlessStatement;
 
 /// Whether evaluating the expression may have an effect.
-fn has_effect(e: &Expr) -> bool {
+pub(crate) fn has_effect(e: &Expr) -> bool {
     match e {
         Expr::Call(_) | Expr::Yield(_) => true,
         Expr::Lambda(_) => false,
