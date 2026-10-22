@@ -3,10 +3,11 @@
 #
 #   bench/run.sh [small] [medium] [large] [xl] [private]
 #
-# Default: small medium large. `private` benchmarks the corpus named by
-# $IGLINT_PRIVATE_CORPUS exactly like its CI runs ign-lint; its results go
-# to $IGLINT_PRIVATE_RESULTS (default ~/.cache/iglint-bench/private), never
-# into the repository. See bench/README.md.
+# Default: small medium large. `private` benchmarks a copy of the corpus
+# named by $IGLINT_PRIVATE_CORPUS exactly like its CI runs ign-lint; its
+# results go to $IGLINT_PRIVATE_RESULTS (default
+# ~/.cache/iglint-bench/private), never into the repository. See
+# bench/README.md.
 #
 # Everything large lives under $BENCH_HOME (default ~/.cache/iglint-bench),
 # on disk: corpora, the ign-lint virtualenv, the cargo target directory.
@@ -21,6 +22,11 @@
 #                      1,000 views, else 1)
 #   IGLINT_RUNS        minimum hyperfine runs per iglint variant (default 10)
 #   SKIP_IGN_LINT      1: benchmark iglint only
+#   CPU_LIMITS         CPU counts for the pinned comparison (default "2 1";
+#                      empty to skip): ign-lint as shipped and with jobs=1,
+#                      `iglint ign-lint`, the migrated `iglint check` and
+#                      the native `iglint check`, each under
+#                      `taskset -c 0-<N-1>`. 2 CPUs is a hosted CI agent.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,6 +50,8 @@ command -v hyperfine >/dev/null || cargo install hyperfine
 [[ -x /usr/bin/time ]] || { echo "run.sh: GNU time (/usr/bin/time) is required" >&2; exit 2; }
 single_core=()
 command -v taskset >/dev/null && single_core=(taskset -c 0)
+cpu_limits="${CPU_LIMITS-2 1}"
+command -v taskset >/dev/null || cpu_limits=""
 
 if [[ ! -x "$venv/bin/pylint" ]]; then
   command -v uv >/dev/null || { echo "run.sh: uv is required to create $venv" >&2; exit 2; }
@@ -110,6 +118,7 @@ rss() {
 
 run_corpus() { # label corpus-dir ign-lint-flags base-config check-paths
   local label="$1" dir="$2" flags="$3" base="$4" check_paths="$5" n ign_runs v
+  local start_dir="$PWD"
   out="$results/$label"
   mkdir -p "$out"
   cd "$dir"
@@ -161,7 +170,41 @@ run_corpus() { # label corpus-dir ign-lint-flags base-config check-paths
   bench iglint-select-all "min:$iglint_runs" 2 "$check --no-cache --select ALL $check_paths"
   rss iglint-select-all "$check --no-cache --select ALL $check_paths"
   rm -rf "$cache"
-  cd - >/dev/null
+
+  # The migration path: `iglint migrate` (rule_config.json and whitelist to
+  # iglint.toml and a baseline), `iglint baseline`, then `iglint check` as
+  # the CI gate, in a copy of the corpus.
+  local migrated="$home/migrated/$label"
+  rm -rf "$migrated"; mkdir -p "$migrated"
+  rsync -a --exclude .git --exclude .iglint_cache --exclude iglint.toml --exclude .iglint-baseline.json ./ "$migrated/"
+  cp "$configs/$label-default.json" "$migrated/rule_config.json"
+  (cd "$migrated" && "$iglint" migrate --force >/dev/null && $with_pylint "$iglint" baseline >/dev/null 2>&1)
+  local gate="$with_pylint $iglint check --no-cache -q"
+  cd "$migrated"
+  bench iglint-migrated "min:$iglint_runs" 1 "$gate"
+  rss iglint-migrated "$gate"
+  cd "$dir"
+
+  # Pinned to N CPUs (a hosted CI agent has 2): the CI as it is (ign-lint
+  # as shipped), ign-lint's best working configuration, and the ways to
+  # replace it.
+  local n_cpus pin
+  for n_cpus in $cpu_limits; do
+    pin="taskset -c 0-$((n_cpus - 1))"
+    if [[ "${SKIP_IGN_LINT:-0}" != 1 ]]; then
+      for v in default jobs1; do
+        [[ " $ign_variants " == *" $v "* ]] || continue
+        bench "cpu$n_cpus-ign-lint-$v" "$ign_runs" 0 "$pin $ign_lint --config $configs/$label-$v.json $flags"
+      done
+    fi
+    bench "cpu$n_cpus-iglint-ign-lint-pylint" "min:3" 1 "$pin $full"
+    bench "cpu$n_cpus-iglint-cold" "min:3" 1 "$pin $check --no-cache $check_paths"
+    cd "$migrated"
+    bench "cpu$n_cpus-iglint-migrated" "min:3" 1 "$pin $gate"
+    cd "$dir"
+  done
+  echo "$cpu_limits" > "$out/cpu-limits.txt"
+  cd "$start_dir"
 }
 
 for t in "${targets[@]}"; do
@@ -181,10 +224,14 @@ for t in "${targets[@]}"; do
       case "$private_results" in "$repo"|"$repo"/*) echo "run.sh: private results must be outside the repository" >&2; exit 2;; esac
       saved="$results"; results="$private_results"
       mkdir -p "$results/configs"; cp "$configs/pylintrc-jobs1" "$results/configs/"; configs="$results/configs"
+      # The benchmark edits files (incremental runs): work on a copy.
+      private_copy="$home/private-corpus"
+      mkdir -p "$private_copy"
+      rsync -a --delete --exclude .git --exclude .iglint_cache "$IGLINT_PRIVATE_CORPUS/" "$private_copy/"
       # Exactly the project's CI invocation of ign-lint.
-      run_corpus private "$IGLINT_PRIVATE_CORPUS" \
+      run_corpus private "$private_copy" \
         "--whitelist .ignition-lint-whitelist.txt --ignore-warnings --files 'projects/**/view.json'" \
-        "$IGLINT_PRIVATE_CORPUS/rule_config.json" "--whitelist .ignition-lint-whitelist.txt projects services"
+        "$private_copy/rule_config.json" "--whitelist .ignition-lint-whitelist.txt projects services"
       python3 "$here/summarize.py" "$results" > "$results/summary.md"
       results="$saved"; configs="$results/configs"
       ;;

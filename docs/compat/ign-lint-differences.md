@@ -170,6 +170,11 @@ default rule of the `SCR` category that no other ign-lint rule names
   all, and `iglint check` with a legacy configuration keeps that.
   `iglint migrate` writes `enabled = false` for each of them so they can be
   turned back on one by one.
+* **Scope.** ign-lint runs pylint on the scripts of `view.json` files only.
+  `iglint migrate` and `iglint check` with a `rule_config.json` keep that:
+  `SCR900` (and every other rule ign-lint adds to iglint's defaults) is
+  selected for `**/view.json` only. The native rules also lint library
+  modules, gateway events and WebDev scripts.
 * **One pylint process per run** over all scripts of all linted files, with
   one worker per CPU by default (`jobs`); ign-lint runs pylint once per view.
 * **One module per script.** Each script is written to its own file, as

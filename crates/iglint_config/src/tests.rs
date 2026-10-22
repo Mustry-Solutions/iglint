@@ -475,17 +475,24 @@ fn legacy_rule_config_is_detected_with_its_whitelist() {
         config.source,
         ConfigSource::IgnLint(root.join("rule_config.json"))
     );
-    // Defaults, plus ign-lint's PollingIntervalRule and PylintScriptRule,
-    // minus the disabled rule.
+    // Defaults, minus the disabled rule; on views (the files ign-lint
+    // lints) also ign-lint's PollingIntervalRule and PylintScriptRule.
+    assert_eq!(enabled(&config), ["NAME001", "SCR101", "SCR102"]);
+    let view: Vec<&str> = config
+        .settings
+        .for_file(&root.join("views/A/view.json"))
+        .rules
+        .keys()
+        .map(|r| r.code())
+        .collect();
     assert_eq!(
-        enabled(&config),
+        view,
         [
             "BIND001", "NAME001", "NAME002", "SCR101", "SCR102", "SCR900"
         ]
     );
-    let polling = config
-        .settings
-        .base
+    let view_settings = config.settings.for_file(&root.join("views/A/view.json"));
+    let polling = view_settings
         .rule(rule(&testing::POLLING_INTERVAL))
         .unwrap();
     assert_eq!(
@@ -658,9 +665,6 @@ fn migration_keeps_comments_and_behaviour() {
 # Project lint rules.
 # Keep in sync with CI.
 
-# ign-lint runs every rule that is not disabled.
-extend-select = ["BIND001", "NAME002", "SCR900"]
-
 [rules.NAME001]
 # component-name: Component name does not follow the convention, from ign-lint NamePatternRule.
 # Components only
@@ -693,6 +697,11 @@ severity = "error"
 enabled = false
 
 # MysteryRule: unknown to ign-lint 0.6.4; not migrated.
+
+# ign-lint runs every rule that is not disabled, on `view.json` files only.
+[[overrides]]
+files = ["**/view.json"]
+select = ["BIND001", "NAME002", "SCR900"]
 "#;
     assert_eq!(migration.toml, expected);
     assert!(
@@ -726,18 +735,20 @@ fn migrated_configurations_reproduce_ign_lint_settings() {
         let migrated = load(&options(dir.path()), &REGISTRY)
             .unwrap_or_else(|e| panic!("variant {name}: {e}\n{}", migration.toml));
         let ign_lint = compat::to_settings(&config, &REGISTRY, dir.path(), CompatMode::IgnLintOnly);
+        // On views, the files ign-lint lints, the settings are ign-lint's.
+        let view = migrated
+            .settings
+            .for_file(&dir.path().join("projects/p/views/A/view.json"));
         for (rule, settings) in &ign_lint.settings.base.rules {
             assert_eq!(
-                migrated.settings.base.rules.get(rule),
+                view.rules.get(rule),
                 Some(settings),
                 "variant {name}, rule {rule}\n{}",
                 migration.toml
             );
         }
         // Rules iglint adds on top of ign-lint are its own defaults.
-        let extra: BTreeMap<_, _> = migrated
-            .settings
-            .base
+        let extra: BTreeMap<_, _> = view
             .rules
             .iter()
             .filter(|(r, _)| !ign_lint.settings.base.rules.contains_key(r))
@@ -745,6 +756,16 @@ fn migrated_configurations_reproduce_ign_lint_settings() {
         assert!(
             extra.keys().all(|r| r.meta().default_enabled),
             "variant {name}"
+        );
+        // Elsewhere only iglint's defaults run.
+        let module = migrated.settings.for_file(
+            &dir.path()
+                .join("projects/p/ignition/script-python/m/code.py"),
+        );
+        assert!(
+            module.rules.keys().all(|r| r.meta().default_enabled),
+            "variant {name}\n{}",
+            migration.toml
         );
     }
 }
@@ -837,7 +858,7 @@ fn pylint_script_rule_maps_to_pylint_and_the_native_script_rules() {
     );
     let codes: Vec<&str> = resolved
         .settings
-        .base
+        .for_file(Path::new("/r/views/A/view.json"))
         .rules
         .keys()
         .map(|r| r.code())
@@ -846,6 +867,12 @@ fn pylint_script_rule_maps_to_pylint_and_the_native_script_rules() {
         codes.contains(&"SCR900") && codes.contains(&"SCR101"),
         "{codes:?}"
     );
+    // pylint runs on views only, like in ign-lint.
+    let module = resolved
+        .settings
+        .for_file(Path::new("/r/ignition/script-python/m/code.py"));
+    assert!(module.rules.keys().any(|r| r.code() == "SCR101"));
+    assert!(!module.rules.keys().any(|r| r.code() == "SCR900"));
 
     // The migration disables the native rules explicitly.
     let migration = migrate::migrate(&disabled, Path::new("/repo/rule_config.json"), &REGISTRY);

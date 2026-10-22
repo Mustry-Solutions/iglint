@@ -333,9 +333,17 @@ fn files_outside_resources_match_a_full_check() {
     write(&root, "projects/p/views/Stray/view.json", view);
     let script = "def f():\n    return undefined_x\n";
     write(&root, "projects/p/ignition/script-python/m/code.py", script);
-    write(&root, "projects/p/ignition/timer/t/handleTimerEvent.py", script);
+    write(
+        &root,
+        "projects/p/ignition/timer/t/handleTimerEvent.py",
+        script,
+    );
     write(&root, "projects/p/loose.py", script);
-    write(&root, "projects/p/other.module/things/x/resource.json", "{}");
+    write(
+        &root,
+        "projects/p/other.module/things/x/resource.json",
+        "{}",
+    );
     write(&root, "projects/p/other.module/things/x/code.py", script);
 
     let settings = all_rules(&root);

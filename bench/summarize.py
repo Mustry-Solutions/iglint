@@ -29,12 +29,27 @@ ORDER = [
     "iglint-warm",
     "iglint-incremental",
     "iglint-select-all",
+    "iglint-migrated",
 ]
+# Runs pinned to N CPUs: cpu<N>-<variant>.
+PINNED = [
+    ("ign-lint-default", "ign-lint, as shipped (the CI today)"),
+    ("ign-lint-jobs1", "ign-lint `jobs=1`"),
+    ("iglint-ign-lint-pylint", "`iglint ign-lint` (with pylint)"),
+    ("iglint-migrated", "`iglint migrate` + baseline, `iglint check`"),
+    ("iglint-cold", "`iglint check`, default rules"),
+]
+
+
+def cpu_limits(d):
+    f = d / "cpu-limits.txt"
+    return f.read_text().split() if f.exists() else []
 
 
 def load(d):
     out = {}
-    for name in ORDER:
+    names = ORDER + [f"cpu{n}-{v}" for n in cpu_limits(d) for v, _ in PINNED]
+    for name in names:
         f = d / f"{name}.json"
         if not f.exists():
             continue
@@ -94,6 +109,23 @@ def main():
         def x(a, b):
             q = ratio(r, a, b)
             return f"{q:.0f}x" if q and q >= 10 else (f"{q:.1f}x" if q else "")
+
+        limits = cpu_limits(d)
+        if limits:
+            print(f"Pinned with `taskset` (minimum wall time; x = ign-lint as shipped / this):\n")
+            print("| | " + " | ".join(f"{n} CPU{'s' if n != '1' else ''}" for n in limits) + " |")
+            print("|---|" + "---|" * len(limits))
+            for v, label in PINNED:
+                cells = []
+                for n in limits:
+                    k = f"cpu{n}-{v}"
+                    if k not in r:
+                        cells.append("")
+                        continue
+                    q = ratio(r, f"cpu{n}-ign-lint-default", k)
+                    cells.append(fmt_t(r[k]["min"]) + (f" ({q:.1f}x)" if q and not v.startswith("ign-lint-default") else ""))
+                print(f"| {label} | " + " | ".join(cells) + " |")
+            print()
 
         headline.append([
             d.name, str(views),

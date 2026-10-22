@@ -66,6 +66,9 @@ fn toml_key(key: &str) -> String {
     }
 }
 
+/// The files ign-lint lints (its default `--files`).
+pub const IGN_LINT_SCOPE: &str = "**/view.json";
+
 /// Converts `config` (read from `source`) into `iglint.toml` text.
 pub fn migrate(config: &RuleConfig, source: &Path, registry: &Registry) -> Migration {
     let root = source.parent().unwrap_or(Path::new(""));
@@ -97,19 +100,6 @@ pub fn migrate(config: &RuleConfig, source: &Path, registry: &Registry) -> Migra
         }
     }
     extend_select.sort();
-    if !extend_select.is_empty() {
-        out.push('\n');
-        out.push_str("# ign-lint runs every rule that is not disabled.\n");
-        let _ = writeln!(
-            out,
-            "extend-select = [{}]",
-            extend_select
-                .iter()
-                .map(|r| format!("\"{}\"", r.code()))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
-    }
     let unfixable: Vec<RuleCode> = resolved.settings.unfixable.iter().copied().collect();
     if !unfixable.is_empty() {
         out.push_str("# allow_fix: false in ign-lint.\n");
@@ -245,6 +235,35 @@ pub fn migrate(config: &RuleConfig, source: &Path, registry: &Registry) -> Migra
             }
             out.push_str(&body);
         }
+    }
+    // ign-lint lints `view.json` files only: the rules it adds to iglint's
+    // defaults (above all SCR900, which runs pylint) keep that scope, so
+    // that library modules and gateway scripts get the native rules only,
+    // as before the migration.
+    if !extend_select.is_empty() {
+        out.push('\n');
+        out.push_str(
+            "# ign-lint runs every rule that is not disabled, on `view.json` files only.\n",
+        );
+        out.push_str("[[overrides]]\n");
+        let _ = writeln!(out, "files = [\"{IGN_LINT_SCOPE}\"]");
+        let _ = writeln!(
+            out,
+            "select = [{}]",
+            extend_select
+                .iter()
+                .map(|r| format!("\"{}\"", r.code()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        summary.push(format!(
+            "{} run on `{IGN_LINT_SCOPE}` files only, like ign-lint",
+            extend_select
+                .iter()
+                .map(|r| r.code())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
     }
     for notice in &resolved.notices {
         summary.push(notice.clone());

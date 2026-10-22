@@ -36,6 +36,14 @@ from 0.1.0 on.
 
 ### Fixed
 
+- `iglint migrate` keeps ign-lint's scope: the rules ign-lint adds to
+  iglint's defaults (above all `SCR900`) are selected for `view.json`
+  files only, through an `[[overrides]]` entry, instead of for the whole
+  repository. pylint no longer runs on library modules and WebDev
+  scripts after a migration (thousands of extra messages, among them
+  `W0311` from ign-lint's tab-indented rcfile on space-indented code),
+  and the migrated `iglint check` is several times faster. `iglint check`
+  with a `rule_config.json` uses the same scope.
 - Resources without `resource.json` are no longer silently skipped: a
   directory that holds the main file of a resource type (`view.json`
   below `views/`, a library `code.py`, an event script, a style class,

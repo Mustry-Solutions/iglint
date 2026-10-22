@@ -155,6 +155,13 @@ configuration.
   `.whitelist.txt`) exists, the whitelisted files' current findings go into a
   baseline instead, so those files are linted from now on and only new
   findings fail. `iglint migrate --dry-run` shows the result first.
+  ign-lint lints only `view.json` files, so the rules it runs on top of
+  iglint's defaults (`SCR900`, which runs pylint, above all) are selected
+  for views only, in an `[[overrides]]` entry with
+  `files = ["**/view.json"]`; library modules, gateway events and WebDev
+  scripts get iglint's native rules. Move a rule out of that entry (into
+  `extend-select`) to run it everywhere. `iglint check` with a
+  `rule_config.json` uses the same scope.
 * **Keep the old command line:** `iglint ign-lint [ARGS]` accepts ign-lint
   0.6.4's arguments (`--config`, `--files`, `--whitelist`,
   `--ignore-warnings`, `--results-output`, ...) and prints ign-lint's output

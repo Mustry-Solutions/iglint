@@ -16,7 +16,9 @@ use std::sync::Arc;
 
 use iglint_linter::Severity;
 use iglint_linter::registry::{Category, OptionType, Registry, RuleCode, RuleMeta};
-use iglint_linter::settings::{LinterSettings, OptionValue, ProjectSettings, RuleSettings};
+use iglint_linter::settings::{
+    LinterSettings, OptionValue, Override, ProjectSettings, RuleSettings,
+};
 use serde_json::Value;
 
 /// Default name of the ign-lint configuration file.
@@ -753,12 +755,31 @@ pub fn to_settings(
         }
         rule_map.insert(entry.name.clone(), targets);
     }
+    // ign-lint lints `view.json` files only. On top of iglint's defaults,
+    // the rules it adds (SCR900 above all) keep that scope.
+    let mut overrides = Vec::new();
+    if mode == CompatMode::ExtendDefaults {
+        let added: BTreeMap<RuleCode, RuleSettings> = rules
+            .iter()
+            .filter(|(rule, _)| !rule.meta().default_enabled)
+            .map(|(rule, settings)| (*rule, settings.clone()))
+            .collect();
+        if !added.is_empty() {
+            rules.retain(|rule, _| rule.meta().default_enabled);
+            overrides.push(Override {
+                files: vec![crate::migrate::IGN_LINT_SCOPE.to_owned()],
+                enable: added,
+                ..Override::default()
+            });
+        }
+    }
     let settings = ProjectSettings {
         root: root.to_path_buf(),
         base: Arc::new(LinterSettings {
             rules,
             strict: false,
         }),
+        overrides,
         unfixable,
         ..ProjectSettings::default()
     };
