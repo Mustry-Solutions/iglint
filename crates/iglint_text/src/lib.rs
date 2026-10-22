@@ -372,6 +372,35 @@ impl fmt::Display for OverlappingEdits {
 
 impl std::error::Error for OverlappingEdits {}
 
+/// The byte that stands in for each byte of an invalid UTF-8 sequence in
+/// [`decode_utf8`]. Like U+FFFD (what Ignition's UTF-8 decoding produces),
+/// it is not valid in Python code outside strings and comments, and it is
+/// one byte, so every offset in the decoded text is the offset on disk.
+pub const INVALID_UTF8_SUBSTITUTE: char = '?';
+
+/// Decodes a file's bytes as UTF-8 without changing any offset: each byte
+/// of an invalid sequence becomes [`INVALID_UTF8_SUBSTITUTE`]. Also returns
+/// the range of each invalid sequence (maximal subparts, as decoders that
+/// replace with U+FFFD delimit them), empty for valid UTF-8.
+pub fn decode_utf8(bytes: Vec<u8>) -> (String, Vec<TextRange>) {
+    let bytes = match String::from_utf8(bytes) {
+        Ok(text) => return (text, Vec::new()),
+        Err(error) => error.into_bytes(),
+    };
+    let mut text = String::with_capacity(bytes.len());
+    let mut invalid = Vec::new();
+    for chunk in bytes.utf8_chunks() {
+        text.push_str(chunk.valid());
+        let bad = chunk.invalid();
+        if !bad.is_empty() {
+            let start = TextSize::from(text.len());
+            text.extend(std::iter::repeat_n(INVALID_UTF8_SUBSTITUTE, bad.len()));
+            invalid.push(TextRange::new(start, TextSize::from(text.len())));
+        }
+    }
+    (text, invalid)
+}
+
 /// Applies non-overlapping edits to `text`. Edits may be given in any order.
 /// Two insertions at the same offset are applied in the given order.
 pub fn apply_edits(text: &str, edits: &[TextEdit]) -> Result<String, OverlappingEdits> {
@@ -401,6 +430,28 @@ pub fn apply_edits(text: &str, edits: &[TextEdit]) -> Result<String, Overlapping
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decode_utf8_keeps_offsets() {
+        let (text, invalid) = decode_utf8(b"x = 'caf\xe9'\n".to_vec());
+        assert_eq!(text, "x = 'caf?'\n");
+        assert_eq!(invalid, [TextRange::from(8..9)]);
+        // A truncated three-byte sequence is one invalid sequence of two
+        // bytes; valid multi-byte characters are kept.
+        let (text, invalid) = decode_utf8(b"\xe2\x82 \xc3\xa9\xff\xfe".to_vec());
+        assert_eq!(text, "?? \u{e9}??");
+        assert_eq!(
+            invalid,
+            [
+                TextRange::from(0..2),
+                TextRange::from(5..6),
+                TextRange::from(6..7)
+            ]
+        );
+        let (text, invalid) = decode_utf8("caf\u{e9}".as_bytes().to_vec());
+        assert_eq!(text, "caf\u{e9}");
+        assert!(invalid.is_empty());
+    }
 
     #[test]
     fn line_column_ascii_and_unicode() {

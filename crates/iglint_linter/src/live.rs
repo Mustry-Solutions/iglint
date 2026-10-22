@@ -124,9 +124,10 @@ impl LiveWorkspace {
             let doc = &r.manifest.doc;
             table.insert(
                 r.manifest.file,
-                SourceFile::new(
+                SourceFile::decoded(
                     ws.file(r.manifest.file).path.clone(),
                     Arc::clone(doc.shared_text()),
+                    r.manifest.invalid_utf8.clone(),
                 ),
             );
         }
@@ -134,9 +135,10 @@ impl LiveWorkspace {
             let doc = &p.manifest.doc;
             table.insert(
                 p.manifest.file,
-                SourceFile::new(
+                SourceFile::decoded(
                     ws.file(p.manifest.file).path.clone(),
                     Arc::clone(doc.shared_text()),
+                    p.manifest.invalid_utf8.clone(),
                 ),
             );
         }
@@ -144,15 +146,16 @@ impl LiveWorkspace {
             let doc = &c.manifest.doc;
             table.insert(
                 c.manifest.file,
-                SourceFile::new(
+                SourceFile::decoded(
                     ws.file(c.manifest.file).path.clone(),
                     Arc::clone(doc.shared_text()),
+                    c.manifest.invalid_utf8.clone(),
                 ),
             );
         }
         type Loaded = (
             ResourceSummary,
-            Vec<(FileId, Arc<str>)>,
+            Vec<(FileId, Arc<str>, Vec<TextRange>)>,
             Vec<(FileId, String)>,
         );
         let loaded: Vec<Loaded> = ws
@@ -163,7 +166,7 @@ impl LiveWorkspace {
                 let texts = loaded
                     .files
                     .iter()
-                    .filter_map(|f| shared_text(f).map(|t| (f.file, t)))
+                    .filter_map(|f| shared_text(f).map(|t| (f.file, t, f.invalid_utf8.clone())))
                     .collect();
                 let errors = loaded
                     .files
@@ -176,8 +179,11 @@ impl LiveWorkspace {
         let mut summaries = Vec::with_capacity(loaded.len());
         for (summary, texts, errors) in loaded {
             summaries.push(summary);
-            for (file, text) in texts {
-                table.insert(file, SourceFile::new(ws.file(file).path.clone(), text));
+            for (file, text, invalid) in texts {
+                table.insert(
+                    file,
+                    SourceFile::decoded(ws.file(file).path.clone(), text, invalid),
+                );
             }
             read_errors.extend(errors);
         }
@@ -243,7 +249,9 @@ impl LiveWorkspace {
         if let Some(text) = self.standalone.get(&path) {
             return Some(SourceFile::new(path, Arc::clone(text)));
         }
-        read_text(&path).ok().map(|t| SourceFile::new(path, t))
+        read_text(&path)
+            .ok()
+            .map(|(t, invalid)| SourceFile::decoded(path, t, invalid))
     }
 
     /// Whether the file is a manifest (`resource.json`, `project.json`,
@@ -277,11 +285,11 @@ impl LiveWorkspace {
             return Dependents::None;
         }
         let text = match text {
-            Some(text) => Ok(text),
+            Some(text) => Ok((text, Vec::new())),
             None => read_text(&path),
         };
         match text {
-            Ok(text) => {
+            Ok((text, invalid)) => {
                 if self
                     .table
                     .get(file)
@@ -290,7 +298,8 @@ impl LiveWorkspace {
                     return Dependents::None;
                 }
                 self.read_errors.remove(&file);
-                self.table.insert(file, SourceFile::new(path, text));
+                self.table
+                    .insert(file, SourceFile::decoded(path, text, invalid));
             }
             Err(error) => {
                 self.read_errors.insert(file, error);
@@ -402,10 +411,13 @@ impl LiveWorkspace {
             .par_iter()
             .map(|path| {
                 let text = match self.standalone.get(*path) {
-                    Some(text) => Ok(Arc::clone(text)),
+                    Some(text) => Ok((Arc::clone(text), Vec::new())),
                     None => read_text(path),
                 };
-                (*path, text.map(|t| self.analyze_standalone(index, path, t)))
+                (
+                    *path,
+                    text.map(|(t, invalid)| self.analyze_standalone(index, path, t, invalid)),
+                )
             })
             .collect();
 
@@ -531,6 +543,11 @@ impl LiveWorkspace {
                     text: if json.is_some() { None } else { text },
                     json,
                     error,
+                    invalid_utf8: self
+                        .table
+                        .get(f.id)
+                        .map(|s| s.invalid_utf8().to_vec())
+                        .unwrap_or_default(),
                 }
             })
             .collect();
@@ -630,6 +647,7 @@ impl LiveWorkspace {
         index: &ProjectIndex<'_>,
         path: &Path,
         text: Arc<str>,
+        invalid_utf8: Vec<TextRange>,
     ) -> Vec<Diagnostic> {
         let settings = self.settings.for_file(path);
         let set = self.sets.get(self.rules, &settings);
@@ -639,7 +657,10 @@ impl LiveWorkspace {
         }
         let file = FileId(self.ws.files.len() as u32);
         let mut table = FileTable::with_len(0);
-        table.insert(file, SourceFile::new(path, Arc::clone(&text)));
+        table.insert(
+            file,
+            SourceFile::decoded(path, Arc::clone(&text), invalid_utf8),
+        );
         let doc = is_json(path).then(|| JsonDocument::parse(Arc::clone(&text)));
         let (data, errors) = standalone_model(path, file, doc.as_ref(), &text);
         let cache = UnitCache::default();
@@ -695,7 +716,7 @@ impl LiveWorkspace {
                         .filter(|d| d.file.path() == path && settings.is_enabled(d.rule))
                         .collect()
                 }
-                None => self.analyze_standalone(&index, &path, text),
+                None => self.analyze_standalone(&index, &path, text, Vec::new()),
             }
         };
         let result = fix_file(

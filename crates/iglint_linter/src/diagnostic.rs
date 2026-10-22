@@ -64,18 +64,47 @@ struct SourceFileInner {
     /// Path as given or discovered, used for display.
     path: PathBuf,
     text: Arc<str>,
+    /// Invalid UTF-8 sequences of the file on disk; `text` has
+    /// [`iglint_text::INVALID_UTF8_SUBSTITUTE`] there.
+    invalid_utf8: Box<[TextRange]>,
     line_index: std::sync::OnceLock<LineIndex>,
 }
 
 impl SourceFile {
     pub fn new(path: impl Into<PathBuf>, text: impl Into<Arc<str>>) -> Self {
+        Self::decoded(path, text, Vec::new())
+    }
+
+    /// A file read with [`iglint_text::decode_utf8`]: `invalid_utf8` are the
+    /// ranges of its invalid UTF-8 sequences.
+    pub fn decoded(
+        path: impl Into<PathBuf>,
+        text: impl Into<Arc<str>>,
+        invalid_utf8: Vec<TextRange>,
+    ) -> Self {
         SourceFile {
             inner: Arc::new(SourceFileInner {
                 path: path.into(),
                 text: text.into(),
+                invalid_utf8: invalid_utf8.into_boxed_slice(),
                 line_index: std::sync::OnceLock::new(),
             }),
         }
+    }
+
+    /// Ranges of the invalid UTF-8 sequences of the file on disk. Findings
+    /// that touch them are dropped (`VIEW007` reports them) and the file
+    /// gets no fixes: writing the text back would change those bytes.
+    pub fn invalid_utf8(&self) -> &[TextRange] {
+        &self.inner.invalid_utf8
+    }
+
+    /// Whether `range` touches an invalid UTF-8 sequence.
+    pub fn touches_invalid_utf8(&self, range: TextRange) -> bool {
+        self.inner
+            .invalid_utf8
+            .iter()
+            .any(|bad| range.start() < bad.end() && bad.start() <= range.end())
     }
 
     pub fn path(&self) -> &Path {

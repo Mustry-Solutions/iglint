@@ -16,6 +16,9 @@ from 0.1.0 on.
   ign-lint's.
 - `All checks passed!` (and `iglint ign-lint`'s "No style inconsistencies
   found!") is no longer printed when the run had errors.
+- Files that are not valid UTF-8 are linted instead of failing the run: the
+  new rule `VIEW007 invalid-utf8` reports the invalid bytes (Ignition
+  replaces them with U+FFFD), and such files get no fixes.
 
 ## [0.1.0]
 

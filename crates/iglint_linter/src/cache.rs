@@ -166,6 +166,11 @@ impl Cache {
         hasher.write(format!("{settings:?}").as_bytes());
         hasher.write(&(file.text().len() as u64).to_le_bytes());
         hasher.write(file.text().as_bytes());
+        // The text has a substitute where the file is not UTF-8.
+        for bad in file.invalid_utf8() {
+            hasher.write(&bad.start().to_u32().to_le_bytes());
+            hasher.write(&bad.end().to_u32().to_le_bytes());
+        }
         format!("{:016x}", hasher.finish())
     }
 
