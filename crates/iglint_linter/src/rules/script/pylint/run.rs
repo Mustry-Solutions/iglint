@@ -141,9 +141,9 @@ impl Drop for TempDir {
     }
 }
 
-/// Scripts per pylint process below which another process does not pay
-/// for its start-up (about 0.2 s of importing pylint and astroid).
-const MIN_SCRIPTS_PER_PROCESS: usize = 24;
+/// Scripts per worker below which another worker does not pay for its
+/// set-up (each builds its own linter).
+const MIN_SCRIPTS_PER_PROCESS: usize = 8;
 
 /// Splits the scripts into at most `processes` shards of similar size
 /// (longest first onto the lightest shard). Deterministic.

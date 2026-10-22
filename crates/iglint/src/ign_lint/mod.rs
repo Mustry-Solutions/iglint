@@ -242,7 +242,9 @@ struct Prepared {
 }
 
 enum FileState {
-    Ready(Box<(Flat, ViewModel)>),
+    /// Valid; the flattened map and node model only when an option shows
+    /// them (statistics, debug output, timing report).
+    Ready(Option<Box<(Flat, ViewModel)>>),
     /// `{}`, `[]` or another falsy JSON document.
     Empty,
     /// Not readable or not JSON: `ERROR: ...` message.
@@ -471,11 +473,20 @@ fn run_inner(
         None => None,
     };
 
-    // Read, parse and model every file.
-    let prepared: Vec<Prepared> = selected
-        .into_iter()
-        .map(|display| prepare(cwd, display))
-        .collect();
+    // Read, parse (and model, when shown) every file, in parallel.
+    let need_model = debug_types.is_some()
+        || options.verbose
+        || options.stats_only
+        || options.analyze_rules
+        || options.debug_output.is_some()
+        || options.timing_output.is_some();
+    let prepared: Vec<Prepared> = {
+        use rayon::prelude::*;
+        selected
+            .into_par_iter()
+            .map(|display| prepare(cwd, display, need_model))
+            .collect()
+    };
 
     // Lint.
     let fix_mode = if options.fix_dry_run || !options.fix_mode() || rules.is_none() {
@@ -533,7 +544,7 @@ fn run_inner(
     let mut failed = false;
     for mut file in prepared {
         writeln!(out, "\n📄 Evaluating file:\n    {}", file.display)?;
-        let (flat, model) = match &file.state {
+        let parsed = match &file.state {
             FileState::Invalid(message) => {
                 writeln!(
                     io.stderr,
@@ -553,7 +564,7 @@ fn run_inner(
                 });
                 continue;
             }
-            FileState::Ready(parsed) => (&parsed.0, &parsed.1),
+            FileState::Ready(parsed) => parsed.as_deref(),
         };
         if let Some(message) = engine_errors.get(file.absolute.as_path()) {
             writeln!(
@@ -565,19 +576,21 @@ fn run_inner(
             continue;
         }
         totals.files += 1;
-        if let Some(types) = &debug_types {
-            print_debug_nodes(out, model, types)?;
-        }
-        if options.verbose || options.stats_only {
-            print_statistics(out, &file.display, model, rules.as_ref())?;
-        }
-        if options.analyze_rules
-            && let Some(rules) = &rules
-        {
-            print_rule_analysis(out, model, rules)?;
-        }
-        if let Some(dir) = &options.debug_output {
-            write_debug_output(out, cwd, dir, &file.display, flat, model, rules.as_ref())?;
+        if let Some((flat, model)) = parsed {
+            if let Some(types) = &debug_types {
+                print_debug_nodes(out, model, types)?;
+            }
+            if options.verbose || options.stats_only {
+                print_statistics(out, &file.display, model, rules.as_ref())?;
+            }
+            if options.analyze_rules
+                && let Some(rules) = &rules
+            {
+                print_rule_analysis(out, model, rules)?;
+            }
+            if let Some(dir) = &options.debug_output {
+                write_debug_output(out, cwd, dir, &file.display, flat, model, rules.as_ref())?;
+            }
         }
         if options.stats_only {
             reports.push(FileReport {
@@ -714,7 +727,7 @@ fn python_truthy(value: &Value) -> bool {
     }
 }
 
-fn prepare(cwd: &Path, display: String) -> Prepared {
+fn prepare(cwd: &Path, display: String, need_model: bool) -> Prepared {
     let absolute = absolute(&cwd.join(&display));
     let mut timing = FileTiming::default();
     let read_start = Instant::now();
@@ -727,13 +740,14 @@ fn prepare(cwd: &Path, display: String) -> Prepared {
             match serde_json::from_str::<Value>(&text) {
                 Err(error) => FileState::Invalid(error.to_string()),
                 Ok(value) if !python_truthy(&value) => FileState::Empty,
+                Ok(_) if !need_model => FileState::Ready(None),
                 Ok(value) => {
                     let flat = model::flatten(&value);
                     timing.flatten = flatten_start.elapsed();
                     let model_start = Instant::now();
                     let model = ViewModel::build(&flat);
                     timing.model = model_start.elapsed();
-                    FileState::Ready(Box::new((flat, model)))
+                    FileState::Ready(Some(Box::new((flat, model))))
                 }
             }
         }

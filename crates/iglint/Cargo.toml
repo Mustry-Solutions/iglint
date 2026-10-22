@@ -24,6 +24,7 @@ iglint_linter.workspace = true
 iglint_server.workspace = true
 iglint_text.workspace = true
 anyhow.workspace = true
+rayon.workspace = true
 clap.workspace = true
 glob.workspace = true
 serde.workspace = true
