@@ -323,29 +323,18 @@ pub fn timing_text(files: &[FileReport], wall: Duration, now: SystemTime) -> Str
     s
 }
 
-/// `YYYY-MM-DD HH:MM:SS` in UTC.
+/// `YYYY-MM-DD HH:MM:SS` in the local time zone, like ign-lint's
+/// `datetime.now().strftime("%Y-%m-%d %H:%M:%S")`.
 pub fn timestamp(now: SystemTime) -> String {
-    let secs = now
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or_default() as i64;
-    let (days, rem) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
-    // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    format!(
-        "{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02}",
-        rem / 3600,
-        rem % 3600 / 60,
-        rem % 60
-    )
+    timestamp_in(now, &jiff::tz::TimeZone::system())
+}
+
+fn timestamp_in(now: SystemTime, zone: &jiff::tz::TimeZone) -> String {
+    let instant = jiff::Timestamp::try_from(now).unwrap_or(jiff::Timestamp::UNIX_EPOCH);
+    instant
+        .to_zoned(zone.clone())
+        .strftime("%Y-%m-%d %H:%M:%S")
+        .to_string()
 }
 
 /// Reports younger than this belong to a parallel batch of the same run.
@@ -468,9 +457,22 @@ mod tests {
 
     #[test]
     fn timestamps() {
+        use jiff::tz::{Offset, TimeZone};
         let t = SystemTime::UNIX_EPOCH + Duration::from_secs(1_761_000_000);
-        assert_eq!(timestamp(t), "2025-10-20 22:40:00");
-        assert_eq!(timestamp(SystemTime::UNIX_EPOCH), "1970-01-01 00:00:00");
+        assert_eq!(timestamp_in(t, &TimeZone::UTC), "2025-10-20 22:40:00");
+        assert_eq!(
+            timestamp_in(SystemTime::UNIX_EPOCH, &TimeZone::UTC),
+            "1970-01-01 00:00:00"
+        );
+        // Local time, not UTC: Brussels is UTC+2 in October 2025 (summer
+        // time) and UTC+1 in January.
+        let brussels = TimeZone::fixed(Offset::constant(2));
+        assert_eq!(timestamp_in(t, &brussels), "2025-10-21 00:40:00");
+        if let Ok(zone) = TimeZone::get("Europe/Brussels") {
+            assert_eq!(timestamp_in(t, &zone), "2025-10-21 00:40:00");
+            let winter = SystemTime::UNIX_EPOCH + Duration::from_secs(1_768_000_000);
+            assert_eq!(timestamp_in(winter, &zone), "2026-01-10 00:06:40");
+        }
     }
 
     #[test]

@@ -484,6 +484,14 @@ module, a gateway message handler and a `compileFunction` call [gw]:
   separately for scripts whose source starts with one. Plain `compile()` of
   a byte string accepts BOMs and declarations; only the unicode path
   Ignition uses rejects them.
+* **Invalid UTF-8.** Resource bytes are decoded as UTF-8 with malformed
+  input replaced, never rejected: `ModuleLibrary.deserializeScript` turns
+  a library `code.py` containing the Latin-1 byte `0xE9` into
+  `u'caf\ufffd'` (one U+FFFD per maximal invalid sequence, as Java's
+  decoders do), and the module compiles and runs with the replacement
+  character in its strings [jar]. A coding declaration does not help (see
+  above). iglint reads files the same way (offsets kept, see
+  `iglint_text::decode_utf8`) and reports the sequences with `VIEW007`.
 * **No compiler flags.** `print` is a statement, `1/2 == 0`, `'x'` is a
   `str` (code object `co_flags` without future flags) in library modules,
   event scripts and WebDev handlers alike.

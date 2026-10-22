@@ -56,6 +56,14 @@ impl Fixture {
         self
     }
 
+    /// Writes a file with arbitrary bytes.
+    pub fn bytes(self, rel: &str, bytes: &[u8]) -> Self {
+        let path = self.path(rel);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+        std::fs::write(&path, bytes).expect("write");
+        self
+    }
+
     /// Writes a resource directory `dir` (relative to the root) with its
     /// data files and a `resource.json` listing them.
     pub fn resource(self, dir: &str, files: &[(&str, &str)]) -> Self {

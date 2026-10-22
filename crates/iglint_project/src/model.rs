@@ -30,6 +30,8 @@ pub struct LoadedFile {
     pub json: Option<JsonDocument>,
     /// Why the file could not be read.
     pub error: Option<String>,
+    /// Invalid UTF-8 sequences in the file (see [`read_text`]).
+    pub invalid_utf8: Vec<TextRange>,
 }
 
 impl LoadedFile {
@@ -68,9 +70,9 @@ impl Workspace {
             .data_files(id)
             .filter(|f| f.kind.is_text())
             .map(|f| {
-                let (text, error) = match read_text(&f.path) {
-                    Ok(t) => (Some(t), None),
-                    Err(e) => (None, Some(e)),
+                let (text, error, invalid_utf8) = match read_text(&f.path) {
+                    Ok((t, invalid)) => (Some(t), None, invalid),
+                    Err(e) => (None, Some(e), Vec::new()),
                 };
                 let json = match (&text, f.kind.is_json()) {
                     (Some(t), true) => Some(JsonDocument::parse(t.clone())),
@@ -82,6 +84,7 @@ impl Workspace {
                     text: if json.is_some() { None } else { text },
                     json,
                     error,
+                    invalid_utf8,
                 }
             })
             .collect();

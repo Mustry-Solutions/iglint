@@ -148,6 +148,18 @@ fn default_command_reports_findings() {
 }
 
 #[test]
+fn errors_rule_out_all_checks_passed() {
+    let dir = project();
+    let missing = run(dir.path(), &["check", "missing.py"]);
+    assert_eq!(missing.status, ExitStatus::Error);
+    assert_eq!(
+        missing.stdout,
+        "No findings, but the check is incomplete: 1 error.\n"
+    );
+    assert!(missing.stderr.contains("missing.py"), "{}", missing.stderr);
+}
+
+#[test]
 fn exit_status_threshold() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "project.json", "{}\n");

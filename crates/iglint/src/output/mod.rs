@@ -61,6 +61,9 @@ pub struct Report<'a> {
     pub fix_mode: FixMode,
     pub unsafe_fixes: bool,
     pub files_checked: usize,
+    /// Errors that stopped part of the run (unreadable files, invalid
+    /// options); printed separately, but they rule out "All checks passed!".
+    pub errors: usize,
 }
 
 impl Report<'_> {
@@ -160,6 +163,13 @@ pub fn render_summary(report: &Report<'_>, fixed: usize, out: &mut dyn Write) ->
         writeln!(out, "Fixed {}.", plural(fixed, "issue", "issues"))?;
     }
     if report.diagnostics.is_empty() {
+        if report.errors > 0 {
+            return writeln!(
+                out,
+                "No findings, but the check is incomplete: {}.",
+                plural(report.errors, "error", "errors")
+            );
+        }
         return writeln!(out, "{}", style.green("All checks passed!"));
     }
     let count = |severity| {

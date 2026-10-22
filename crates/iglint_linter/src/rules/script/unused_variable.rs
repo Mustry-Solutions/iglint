@@ -9,6 +9,7 @@ use crate::diagnostic::{Applicability, Severity};
 use crate::options::OptionReader;
 use crate::registry::{Category, FixAvailability, OptionMeta, OptionType, RuleMeta};
 use crate::rule::{Hook, ParsedOptions, Phase, RuleImpl, ScriptRule, ScriptUnit};
+use crate::rules::script::except_tuple::misread_handler_names;
 use crate::rules::script::{
     StatementEdit, containing_body, delete_statement, report, semantic, source, statement_fix,
 };
@@ -36,7 +37,9 @@ Not reported:
 * names matching the dummy pattern: `_`, starting with `_`, `dummy`,
   `ignored_...`, `unused_...` (option `dummy-pattern`);
 * functions that read their locals dynamically (`locals()`, `vars()`,
-  `eval`, `exec`), for example `"%(name)s" % locals()`.
+  `eval`, `exec`), for example `"%(name)s" % locals()`;
+* the exception class in `except ValueError, TypeError:`, which `SCR115`
+  reports.
 
 ## Why is this bad?
 
@@ -130,6 +133,7 @@ impl ScriptRule for UnusedVariable {
                 _ => {}
             }
         }
+        let misread = misread_handler_names(unit, model);
         let mut found: Vec<Finding> = Vec::new();
         for (scope_id, scope) in model.scopes() {
             if scope.kind != ScopeKind::Function || scope.reads_locals || scope.is_dynamic() {
@@ -146,6 +150,7 @@ impl ScriptRule for UnusedVariable {
                 let bindings: Vec<_> = ids.iter().map(|id| model.binding(*id)).collect();
                 if bindings.iter().any(|b| {
                     b.is_used()
+                        || misread.contains(&b.range)
                         || b.unpacked
                         || !matches!(
                             b.kind,

@@ -2,6 +2,7 @@
 //! `config-mode.json`.
 
 use iglint_json::Value;
+use iglint_text::TextRange;
 
 use crate::document::JsonDocument;
 use crate::ids::FileId;
@@ -76,6 +77,9 @@ pub struct Manifest {
     pub unary: bool,
     pub doc: JsonDocument,
     pub info: ManifestInfo,
+    /// Invalid UTF-8 sequences in the file (see
+    /// [`crate::workspace::read_text`]).
+    pub invalid_utf8: Vec<TextRange>,
 }
 
 impl Manifest {
@@ -86,6 +90,7 @@ impl Manifest {
             unary,
             doc,
             info,
+            invalid_utf8: Vec::new(),
         }
     }
 
@@ -144,6 +149,9 @@ pub struct ContainerManifest {
     pub enabled: Option<bool>,
     /// `inheritable`; absent means `false`.
     pub inheritable: bool,
+    /// Invalid UTF-8 sequences in the file (see
+    /// [`crate::workspace::read_text`]).
+    pub invalid_utf8: Vec<TextRange>,
 }
 
 impl ContainerManifest {
@@ -171,6 +179,7 @@ impl ContainerManifest {
             parent,
             enabled,
             inheritable,
+            invalid_utf8: Vec::new(),
         }
     }
 }

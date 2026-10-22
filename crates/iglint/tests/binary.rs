@@ -30,6 +30,33 @@ fn clean_project_exits_0() {
 }
 
 #[test]
+fn files_that_are_not_utf8_are_findings_not_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let module = dir.path().join("p/ignition/script-python/m");
+    std::fs::create_dir_all(&module).unwrap();
+    std::fs::write(
+        dir.path().join("p/project.json"),
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        module.join("resource.json"),
+        r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+    )
+    .unwrap();
+    std::fs::write(module.join("code.py"), b"x = \"caf\xe9\"\n").unwrap();
+    iglint(dir.path())
+        .args(["--no-cache", "--output-format", "concise"])
+        .assert()
+        .code(1)
+        .stderr("")
+        .stdout(predicate::str::contains(
+            "p/ignition/script-python/m/code.py:1:9: VIEW007 [error] File is not valid UTF-8",
+        ))
+        .stdout(predicate::str::contains("All checks passed").not());
+}
+
+#[test]
 fn usage_and_configuration_errors_exit_2() {
     let dir = tempfile::tempdir().unwrap();
     iglint(dir.path())

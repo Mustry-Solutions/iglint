@@ -41,6 +41,7 @@ All nine ign-lint rules have an equivalent. ign-lint option names are mapped
 | VIEW004 | unknown-component-prop | W | no | - | | Top-level `props` key not in the component schema (only for schemas that do not allow additional properties). |
 | VIEW005 | invalid-position-key | W | yes | - | | `position` key not valid for the parent container type. |
 | VIEW006 | excessive-context-data | W | yes | - | ExcessiveContextDataRule | Oversized arrays, breadth, depth, size or strings in view-level `custom`. Same thresholds and options. |
+| VIEW007 | invalid-utf8 | E | yes | - | | Resource file is not valid UTF-8; Ignition replaces the invalid bytes with U+FFFD. The rest of the file still lints; no fixes in it. |
 | VIEW008 | empty-script | E | yes | - | | Script action, transform, change script, handler or method with an empty or whitespace-only body: Ignition fails to compile it. |
 | VIEW009 | disabled-change-script | I | yes | - | | `onChange.enabled: false` with code (dead code). |
 | VIEW010 | unknown-action-type | E | yes | - | | Event action `type` not one Ignition knows. |

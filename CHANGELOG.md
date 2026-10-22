@@ -25,7 +25,6 @@ from 0.1.0 on.
   `%SRCROOT%`.
 - Azure Pipelines messages no longer show `%3B`/`%5D`: only `%`, `\r` and
   `\n` are escaped in the message, `;` and `]` only in properties.
-
 - Fixes that delete statements (`SCR102`, `SCR103`) no longer empty a block
   when several of them remove every statement of it: the last one becomes
   `pass`.
@@ -40,6 +39,18 @@ from 0.1.0 on.
   the other qualified `exec` forms that write the module or the function's
   locals), by `setattr(sys.modules[__name__], ...)`,
   `sys.modules[__name__].x = ...` or by writes to the builtins.
+- `SCR108` compares keys with Python 2.7 equality: `True` and `1`, `0j` and
+  `0`, equal tuples, `1e16` and `10000000000000000` are duplicates.
+- `except ValueError, TypeError:` is reported once, by `SCR115`; `SCR103`
+  and `SCR117` no longer report the same name.
+- `iglint ign-lint`: the timestamps of the `--timing-output` report and of
+  the aggregated `--results-output` summary are in local time, like
+  ign-lint's.
+- `All checks passed!` (and `iglint ign-lint`'s "No style inconsistencies
+  found!") is no longer printed when the run had errors.
+- Files that are not valid UTF-8 are linted instead of failing the run: the
+  new rule `VIEW007 invalid-utf8` reports the invalid bytes (Ignition
+  replaces them with U+FFFD), and such files get no fixes.
 
 ## [0.1.0]
 

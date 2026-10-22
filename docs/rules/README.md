@@ -2,7 +2,7 @@
 
 # Rules
 
-iglint has 106 rules. Rules with *yes* in the Default column run without configuration; enable the others with `select` or `extend-select` (see the [configuration](../../README.md#configuration)). Fix: *always* or *sometimes* means `iglint check --fix` can repair findings of the rule (unsafe fixes also need `--unsafe-fixes`).
+iglint has 107 rules. Rules with *yes* in the Default column run without configuration; enable the others with `select` or `extend-select` (see the [configuration](../../README.md#configuration)). Fix: *always* or *sometimes* means `iglint check --fix` can repair findings of the rule (unsafe fixes also need `--unsafe-fixes`).
 
 `iglint rule <CODE>` prints the same documentation in the terminal.
 
@@ -16,6 +16,7 @@ iglint has 106 rules. Rules with *yes* in the Default column run without configu
 | [VIEW004](VIEW004.md) | `unknown-component-prop` | Top-level `props` key is not in the component's schema | warning |  |  |
 | [VIEW005](VIEW005.md) | `invalid-position-key` | `position` key not valid for the parent container | warning | yes |  |
 | [VIEW006](VIEW006.md) | `excessive-context-data` | Oversized data stored in view-level custom properties | warning | yes |  |
+| [VIEW007](VIEW007.md) | `invalid-utf8` | File is not valid UTF-8 | error | yes |  |
 | [VIEW008](VIEW008.md) | `empty-script` | Perspective script with an empty body | error | yes |  |
 | [VIEW009](VIEW009.md) | `disabled-change-script` | Property change script is disabled but has code | info | yes |  |
 | [VIEW010](VIEW010.md) | `unknown-action-type` | Event action `type` is not one Ignition knows | error | yes |  |

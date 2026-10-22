@@ -9,6 +9,7 @@ use crate::diagnostic::Severity;
 use crate::options::OptionReader;
 use crate::registry::{Category, OptionMeta, OptionType, RuleMeta};
 use crate::rule::{Hook, ParsedOptions, Phase, RuleImpl, ScriptRule, ScriptUnit};
+use crate::rules::script::except_tuple::misread_handler_names;
 use crate::rules::script::{report, semantic};
 
 pub static META: RuleMeta = RuleMeta {
@@ -24,7 +25,9 @@ Reports assignments, parameters, loop variables, functions, classes and
 imports whose name is a Jython builtin (`id`, `type`, `input`, `file`,
 `max`, ...) or Ignition's `system`, once per name and scope. Class
 attributes and methods are not reported: methods do not see the class
-body, so they do not hide the builtin anywhere else.
+body, so they do not hide the builtin anywhere else. Neither is the
+exception class in `except ValueError, TypeError:`, which `SCR115`
+reports.
 
 ## Why is this bad?
 
@@ -93,6 +96,7 @@ impl ScriptRule for RedefinedBuiltin {
             return;
         };
         let allowed = &cx.options::<Options>().allowed;
+        let misread = misread_handler_names(unit, model);
         let mut seen = FxHashSet::default();
         let mut found: Vec<(TextRange, String)> = Vec::new();
         let mut bindings: Vec<_> = model.bindings().collect();
@@ -102,6 +106,7 @@ impl ScriptRule for RedefinedBuiltin {
                 || matches!(b.kind, BindingKind::Global | BindingKind::FutureImport)
                 || model.scope(b.scope).kind == ScopeKind::Class
                 || allowed.iter().any(|a| a == b.name)
+                || misread.contains(&b.range)
             {
                 continue;
             }

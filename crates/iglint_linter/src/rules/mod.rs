@@ -127,6 +127,7 @@ rules![
     view::unknown_component_prop,
     view::invalid_position_key,
     view::excessive_context_data,
+    view::invalid_utf8,
     view::empty_script,
     view::disabled_change_script,
     view::unknown_action_type,

@@ -10,6 +10,7 @@ pub mod fragile_component_reference;
 pub mod handler_never_receives;
 pub mod invalid_json;
 pub mod invalid_position_key;
+pub mod invalid_utf8;
 pub mod output_param_never_written;
 pub mod param_without_direction;
 pub mod property_access;

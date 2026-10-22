@@ -661,7 +661,11 @@ fn run_inner(
         });
     }
     if totals.warnings + totals.errors == 0 {
-        writeln!(out, "  ✅ No style inconsistencies found!")?;
+        // ign-lint stops at the first file it cannot read, so it never
+        // claims success after an error; neither do we.
+        if !failed {
+            writeln!(out, "  ✅ No style inconsistencies found!")?;
+        }
     } else {
         if totals.warnings > 0 {
             writeln!(out, "  ⚠️  Total warnings: {}", totals.warnings)?;
