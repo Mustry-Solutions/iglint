@@ -47,7 +47,10 @@ if event.source.props.text == "Start":
 
 ## Fix
 
-Replaces `is` with `==` and `is not` with `!=`. Safe.
+Replaces `is` with `==` and `is not` with `!=`. Unsafe: the result
+changes whenever identity and equality differ, which is the bug being
+fixed (in Jython `int('1000') is 1000` is `False`, `==` gives `True`),
+and `==` calls the operand's `__eq__` (Java `equals`).
 
 ## pylint
 
@@ -139,7 +142,7 @@ impl ScriptRule for LiteralIdentity {
                     cx,
                     unit,
                     format!("Replace `{op}` with `{replacement}`"),
-                    Applicability::Safe,
+                    Applicability::Unsafe,
                     vec![(r, replacement.to_owned())],
                 )
             });
@@ -166,14 +169,14 @@ mod tests {
         );
         assert_eq!(flagged(&d), ["x is 'a'", "1 is not y"]);
         let f = library("m", "if (x) is ('a'):\n    pass\nz = y is  not  -1\n");
-        let fixed = f.fixed(&[("SCR110", "")], false, &library_path(&f, "m"));
+        let fixed = f.fixed(&[("SCR110", "")], true, &library_path(&f, "m"));
         assert_eq!(fixed, "if (x) == ('a'):\n    pass\nz = y !=  -1\n");
     }
 
     #[test]
     fn fix_inside_view_json() {
         let f = view(ViewScript::Transform, "\treturn value is 'on'");
-        let fixed = f.fixed(&[("SCR110", "")], false, &view_path(&f));
+        let fixed = f.fixed(&[("SCR110", "")], true, &view_path(&f));
         assert!(
             fixed.contains("\"code\": \"\\treturn value \\u003d\\u003d \\u0027on\\u0027\""),
             "{fixed}"

@@ -52,7 +52,9 @@ return total
 ## Fix
 
 Removes the unused codes, or the whole comment when none of its codes is
-used (the whole line when the comment is alone on it). Safe.
+used (the whole line when the comment is alone on it). Safe, except when
+the whole comment would go and it holds more than the suppression (a
+reason, a `# pylint:` directive, a `coding:` declaration): then unsafe.
 "#,
     ..RuleMeta::DEFAULT
 };
@@ -166,12 +168,23 @@ pub(crate) fn report_unused(
         } else {
             rewrite_selectors(source, s.comment, &s.selectors, &unused)
         };
+        // A comment is safe to delete when it holds nothing but the
+        // suppression: other text (a reason, a `# pylint:` directive) and a
+        // coding declaration are not iglint's to remove.
+        let comment = s.comment.slice(source);
+        let applicability = if all_unused
+            && (!directive_rest(comment).trim().is_empty() || is_coding_declaration(comment))
+        {
+            Applicability::Unsafe
+        } else {
+            Applicability::Safe
+        };
         let fix = edit.and_then(|e| {
             fix(
                 cx,
                 unit,
                 "Remove the unused suppression",
-                Applicability::Safe,
+                applicability,
                 vec![e],
             )
         });
@@ -179,6 +192,31 @@ pub(crate) fn report_unused(
             let _ = report(cx, unit, s.comment, message).fix_opt(fix.clone());
         }
     }
+}
+
+/// The text of a suppression comment after its directive
+/// (`# iglint: ignore[X]  reason` gives `  reason`).
+fn directive_rest(comment: &str) -> &str {
+    let Some(at) = comment.find("ignore") else {
+        return comment;
+    };
+    let rest = &comment[at..];
+    let rest = rest
+        .strip_prefix("ignore-file")
+        .or_else(|| rest.strip_prefix("ignore"))
+        .unwrap_or(rest);
+    match rest.trim_start().strip_prefix('[') {
+        Some(list) => list.find(']').map_or("", |end| &list[end + 1..]),
+        None => rest,
+    }
+}
+
+/// Whether a comment matches PEP 263's `coding[:=]` (only meaningful on
+/// the first two lines, but never worth deleting).
+fn is_coding_declaration(comment: &str) -> bool {
+    comment
+        .match_indices("coding")
+        .any(|(i, m)| comment[i + m.len()..].starts_with([':', '=']))
 }
 
 /// Deletes a comment and the whitespace before it, or its whole line when
@@ -281,5 +319,26 @@ mod tests {
         assert_eq!(messages(&d), ["Unused suppression of `SCR101`"]);
         let fixed = f.fixed(&[("SCR101", ""), ("SCR123", "")], false, &view_path(&f));
         assert!(fixed.contains("\\ty \\u003d 1\""), "{fixed}");
+    }
+
+    #[test]
+    fn comments_with_other_text_have_unsafe_fixes() {
+        use crate::diagnostic::Applicability::{Safe, Unsafe};
+        for (comment, expected) in [
+            ("# iglint: ignore[SCR101]", Safe),
+            ("# iglint: ignore[SCR101]   ", Safe),
+            ("# iglint: ignore[SCR101] legacy API", Unsafe),
+            ("# iglint: ignore[SCR101]  # pylint: disable=W0611", Unsafe),
+            ("# iglint: ignore[SCR101] -*- coding: latin-1 -*-", Unsafe),
+        ] {
+            let f = library("m", &format!("x = 1  {comment}\n"));
+            let d = f.lint(&["SCR123", "SCR101"]);
+            let found: Vec<_> = d
+                .iter()
+                .filter(|d| d.rule.code() == "SCR123")
+                .map(|d| d.fix.as_ref().map(|f| f.applicability))
+                .collect();
+            assert_eq!(found, [Some(expected)], "{comment}");
+        }
     }
 }
