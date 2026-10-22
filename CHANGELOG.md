@@ -36,6 +36,26 @@ from 0.1.0 on.
 
 ### Fixed
 
+- Safe fixes no longer change behaviour (audit in
+  `docs/internal/fix-safety.md`): `SCR102` leaves imports in class bodies
+  alone and its fix is safe only for imports without side effects (JDK
+  classes, verified standard modules); `SCR115` resolves the handler name
+  like Python and its fix is unsafe; `NAME001` renames are unsafe when a
+  view script hands a component to code outside the view; `SCR110`,
+  `VIEW012`, and `VIEW013` with a stored value, have unsafe fixes; `SCR123`
+  is unsafe when the comment holds more than the suppression.
+- `SCR103`'s fix removes the whole assignment when the value calls nothing,
+  instead of leaving a pointless statement.
+- `SCR112` follows Jython's format grammar: one length modifier at most
+  (`%lls` fails), `*` values of `%%` are consumed, huge `str.format`
+  indexes are keywords (no overflow), signed indexes, `Missing ']'` and
+  recursion errors.
+- `SCR108` folds `True`, `False` and `None` only where they are builtins.
+- `SCR900` passes every argument of the `pylint` command to pylint, also
+  when forking (quoted words are supported), and `category-mapping` wins
+  over the rule severity for WebDev scripts too.
+- `SCR204` names documented replacements Ignition does not name itself
+  (`system.tag.readBlocking` for `system.tag.read`, ...).
 - `iglint ign-lint` prints ign-lint node paths for every finding,
   including BIND005 findings in query binding parameters and other binding
   expressions.
