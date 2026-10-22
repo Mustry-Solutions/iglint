@@ -172,12 +172,12 @@ Jython builtins).
 
 | Code | Name | Sev | Def | Fix | Summary |
 |---|---|---|---|---|---|
-| SEC001 | sql-string-building | W | yes | - | SQL passed to `system.db.runQuery`/`runUpdateQuery`/`runScalarQuery` built with `%`, `+`, `format` from non-literals. |
-| SEC002 | hardcoded-credential | W | yes | - | Literal password/token in scripts, HTTP bindings or connection calls. |
-| SEC003 | eval-exec | W | yes | - | `eval`/`exec`/`execfile`/`compile` on non-literal input. |
-| SEC004 | insecure-url | I | yes | - | `http://` URLs in HTTP bindings or `system.net` calls (except localhost). |
+| SEC001 | sql-string-building | W | yes | - | SQL text passed to `system.db.runQuery`/`runUpdateQuery`/`runScalarQuery` (and the query text of `runPrepQuery`/`runPrepUpdate`/`runScalarPrepQuery`) built with `%`, `+`, `format` from non-literals; follows aliases and plain assignments. |
+| SEC002 | hardcoded-credential | W | yes | - | Literal password/token/secret/API key in scripts (credential-named names, attributes, dict keys, keyword args, `password` parameters of `system.*` calls), HTTP bindings (auth, `Authorization` headers) and connection calls; placeholders and field names skipped. |
+| SEC003 | eval-exec | W | yes | - | Builtin `eval`/`exec`/`execfile`/`compile` (not shadowed) on non-literal input. |
+| SEC004 | insecure-url | I | yes | - | Literal `http://` URLs in HTTP bindings, `system.net` calls and `system.net.httpClient()` methods (except localhost, 127.0.0.0/8, ::1). |
 | SEC005 | querystring-parameter | W | yes | - | Named query `QueryString` parameter (injection risk). |
-| SEC006 | os-command | W | yes | - | `os.system`, `subprocess`, `Runtime.exec`, `ProcessBuilder`. |
+| SEC006 | os-command | W | yes | - | `os.system`/`popen`/`exec*`/`spawn*`, `commands`, `subprocess`, `Runtime.exec`, `ProcessBuilder`, resolved through imports and aliases. |
 
 ## A11Y
 

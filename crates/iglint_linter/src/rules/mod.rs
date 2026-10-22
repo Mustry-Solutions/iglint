@@ -16,6 +16,7 @@ pub mod name;
 pub mod perf;
 pub mod refs;
 pub mod script;
+pub mod sec;
 pub mod style;
 pub mod tag;
 #[cfg(test)]
@@ -90,6 +91,12 @@ rules![
     script::global_at_module_level,
     script::print_statement,
     script::unused_suppression,
+    sec::sql_string_building,
+    sec::hardcoded_credential,
+    sec::eval_exec,
+    sec::insecure_url,
+    sec::querystring_parameter,
+    sec::os_command,
     style::unknown_style_class,
     style::unused_style_class,
     style::empty_style_class,
