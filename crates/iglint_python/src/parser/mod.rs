@@ -33,10 +33,21 @@ pub(crate) struct Failure;
 
 pub(crate) type PResult<T> = Result<T, Failure>;
 
-/// How deeply expressions may nest (parentheses, unary operators, ...).
-/// Jython itself fails with a Java `StackOverflowError` on deep nesting; the
-/// limit keeps this parser within the stack of a worker thread.
-const MAX_NESTING: u32 = 100;
+/// How deeply expressions may nest (parentheses, brackets, calls,
+/// `lambda`, `**`, conditional expressions). Jython parses them by
+/// recursion and fails with a Java `StackOverflowError` on a gateway thread
+/// (1 MiB stack) at a lower depth on every construct (measured: brackets
+/// about 200 to 300 levels, `lambda` about 470, `**` about 1,950).
+const MAX_NESTING: u32 = 2_000;
+
+/// Nesting levels parsed on one stack: every this many levels the parse
+/// continues on a helper thread with a fresh stack, so that the caller's
+/// stack only needs room for the first levels.
+const NESTING_PER_STACK: u32 = 64;
+
+/// Stack reserved per nesting level on a helper thread. Generous so that
+/// unoptimised builds fit too; only touched pages are committed.
+const STACK_PER_LEVEL: usize = 64 * 1024;
 
 /// ANTLR's `CommonTokenStream` over the indentation filter: a buffer that is
 /// filled lazily, and that fetches the next token as soon as one is
@@ -124,6 +135,11 @@ pub(crate) struct Parser<'src> {
     regions: u32,
     /// Current expression nesting (see [`MAX_NESTING`]).
     depth: u32,
+    /// Depth in the tree of the statements being parsed (1 at module
+    /// level; see [`crate::MAX_DEPTH`]).
+    stmt_depth: usize,
+    /// A statement was dropped for being too deep (reported once).
+    too_deep: bool,
     /// Errors held back while speculating (dropped if the speculation
     /// fails) or inside a region.
     deferred: Vec<ParseError>,
@@ -143,6 +159,8 @@ impl<'src> Parser<'src> {
             speculating: 0,
             regions: 0,
             depth: 0,
+            stmt_depth: 1,
+            too_deep: false,
             deferred: Vec::new(),
         };
         parser.check_source(options);
@@ -416,7 +434,10 @@ impl<'src> Parser<'src> {
 
     /// Runs a parse function one nesting level deeper, failing when the
     /// expression is nested too deeply.
-    fn nested<T>(&mut self, parse: impl FnOnce(&mut Self) -> PResult<T>) -> PResult<T> {
+    fn nested<T: Send>(
+        &mut self,
+        parse: impl FnOnce(&mut Self) -> PResult<T> + Send,
+    ) -> PResult<T> {
         if self.depth >= MAX_NESTING {
             let token = self.lt1();
             if self.speculating == 0 {
@@ -430,9 +451,48 @@ impl<'src> Parser<'src> {
             return Err(Failure);
         }
         self.depth += 1;
-        let result = parse(self);
+        let result = if self.depth.is_multiple_of(NESTING_PER_STACK) {
+            self.on_fresh_stack(parse)
+        } else {
+            parse(self)
+        };
         self.depth -= 1;
         result
+    }
+
+    /// Runs `parse` on a helper thread with room for the next
+    /// [`NESTING_PER_STACK`] nesting levels.
+    #[cold]
+    #[inline(never)]
+    fn on_fresh_stack<T: Send>(
+        &mut self,
+        parse: impl FnOnce(&mut Self) -> PResult<T> + Send,
+    ) -> PResult<T> {
+        let size = NESTING_PER_STACK as usize * STACK_PER_LEVEL;
+        let joined = std::thread::scope(|scope| {
+            std::thread::Builder::new()
+                .name("iglint-parse".to_owned())
+                .stack_size(size)
+                .spawn_scoped(scope, || parse(self))
+                .map(|handle| handle.join())
+        });
+        match joined {
+            Ok(Ok(result)) => result,
+            Ok(Err(panic)) => std::panic::resume_unwind(panic),
+            // No thread: give up on this expression.
+            Err(_) => {
+                let token = self.lt1();
+                if self.speculating == 0 {
+                    self.record(ParseError::new(
+                        ParseErrorKind::InternalError,
+                        "expression nested too deeply",
+                        token.range,
+                        token.anchor,
+                    ));
+                }
+                Err(Failure)
+            }
+        }
     }
 
     // -- Recovery -----------------------------------------------------------

@@ -4,6 +4,11 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
+    // Deep syntax trees need deep stacks (see `iglint_linter::stack`).
+    iglint_linter::stack::run_with_stack(run)
+}
+
+fn run() -> ExitCode {
     let args: Vec<std::ffi::OsString> = std::env::args_os().collect();
     let environment = iglint::Environment::from_process();
     // Unlocked handles: `iglint server` reads and writes the standard

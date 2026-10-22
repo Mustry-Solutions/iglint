@@ -41,14 +41,37 @@
 //!
 //! # Deliberate differences
 //!
-//! * Expressions nested more than 100 levels deep are rejected; Jython's
-//!   limit depends on the JVM stack.
+//! * Depth limits replace Jython's `StackOverflowError`, whose threshold
+//!   depends on the JVM stack. Ignition compiles scripts on gateway
+//!   threads with the default 1 MiB stack, where Jython fails before both
+//!   limits on every construct (measured with the oracle), so only code that
+//!   Ignition cannot run is rejected:
+//!   * expressions nested more than 2,000 levels (brackets, calls,
+//!     `lambda`, `**`, conditional expressions; Jython's parser stops at
+//!     about 200 to 1,950 levels depending on the construct) are an
+//!     `InternalError` "expression nested too deeply";
+//!   * a statement whose tree is deeper than [`MAX_DEPTH`] (16,384) nodes,
+//!     through long left-associative chains (`a.b.c...`, `x[0][0]...`,
+//!     `1 + 1 + ...`), prefix operators or `elif` clauses (Jython fails
+//!     to compile from about 1,000 calls, 2,000 `elif` clauses, 6,000
+//!     binary operations or 13,000 attributes), is an `InternalError`
+//!     "expression nested too deeply" (or "statements nested too deeply")
+//!     and is left out of the tree, like any statement with a syntax
+//!     error. Only the first such statement is reported.
+//!
+//!   These chains are parsed with loops, nesting beyond 64 levels
+//!   continues on helper threads with fresh stacks, and [`Expr`] and
+//!   [`Stmt`] are dropped without recursion, so parsing works on any
+//!   thread. Code that walks a tree recursively needs about
+//!   [`MAX_DEPTH`] levels of stack: the linter runs on threads with large
+//!   stacks.
 //! * After the first error, recovery may differ from what Jython would do
 //!   (Jython stops there).
 
 pub mod anchor;
 pub mod ast;
 mod charsets;
+mod deep;
 pub mod dump;
 pub mod error;
 mod indentation;
@@ -64,6 +87,7 @@ pub mod visitor;
 
 pub use anchor::{Anchor, AnchorKind, JythonLocation, Locator};
 pub use ast::{Expr, Module, Stmt};
+pub use deep::{MAX_DEPTH, body_depth};
 pub use error::{DropReason, DroppedText, ParseError, ParseErrorKind};
 pub use literal::SourceEncoding;
 pub use token::{Token, TokenKind};

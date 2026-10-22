@@ -401,7 +401,7 @@ pub fn check(settings: &ProjectSettings, paths: &[PathBuf], options: &CheckOptio
 
 fn in_pool<T: Send>(threads: Option<usize>, run: impl FnOnce() -> T + Send) -> T {
     match threads {
-        Some(threads) => match rayon::ThreadPoolBuilder::new().num_threads(threads).build() {
+        Some(threads) => match crate::stack::pool_builder().num_threads(threads).build() {
             Ok(pool) => pool.install(run),
             Err(_) => run(),
         },

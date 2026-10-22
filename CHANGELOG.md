@@ -56,6 +56,18 @@ from 0.1.0 on.
   over the rule severity for WebDev scripts too.
 - `SCR204` names documented replacements Ignition does not name itself
   (`system.tag.readBlocking` for `system.tag.read`, ...).
+- Deeply nested or very long scripts no longer abort the run with a stack
+  overflow (`elif` chains, `a.b.c...`, `x[0][0]...`, `1 + 1 + ...`, prefix
+  operators, in modules and in view scripts, also through the language
+  server). Long chains are parsed with loops and freed without recursion,
+  and linting runs on threads with 256 MiB stacks (reserved, not
+  committed). A statement deeper than 16,384 tree levels is reported as
+  SCR001 "expression nested too deeply" (Ignition's Jython fails much
+  earlier on such code). Expressions may now nest 2,000 levels instead of
+  100, which is more than Jython accepts on a gateway thread.
+- The text output no longer slows down quadratically with many findings
+  on one very long line (a script in a view is one JSON line): 100,000
+  findings took 74 s, now 0.3 s.
 - `iglint ign-lint` prints ign-lint node paths for every finding,
   including BIND005 findings in query binding parameters and other binding
   expressions.

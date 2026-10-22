@@ -1,6 +1,6 @@
 //! Statements, function parameters and the module level.
 
-use iglint_text::{Ranged, TextRange};
+use iglint_text::{Ranged, TextRange, TextSize};
 
 use super::expression::{Operand, starts_test_loosely};
 use super::target::{apply_context, check_assign, check_aug_assign, check_delete};
@@ -13,7 +13,7 @@ use crate::ast::{
     StmtGlobal, StmtIf, StmtImport, StmtImportFrom, StmtPass, StmtPrint, StmtRaise, StmtReturn,
     StmtTryExcept, StmtTryFinally, StmtWhile, StmtWith,
 };
-use crate::error::ParseError;
+use crate::error::{ParseError, ParseErrorKind};
 use crate::token::{Token, TokenKind};
 
 /// Tokens that start a simple statement (Jython's prediction set).
@@ -162,7 +162,7 @@ impl Parser<'_> {
         let kind = self.kind();
         if starts_compound_statement(kind) {
             let statement = self.compound_statement()?;
-            body.push(statement);
+            self.push_unless_too_deep(body, statement);
             Ok(())
         } else if starts_simple_statement(kind) {
             self.simple_statement(body)
@@ -171,11 +171,38 @@ impl Parser<'_> {
         }
     }
 
+    /// Adds a parsed statement to `body`, or drops it (reporting the first
+    /// one) when its tree is deeper than [`crate::MAX_DEPTH`].
+    fn push_unless_too_deep(&mut self, body: &mut Vec<Stmt>, statement: Stmt) {
+        let (depth, deepest) = statement_depth(&statement);
+        if self.stmt_depth + depth <= crate::MAX_DEPTH {
+            body.push(statement);
+            return;
+        }
+        if !self.too_deep {
+            self.too_deep = true;
+            let (range, anchor) = match deepest {
+                Some(expr) => (expr.range(), expr.anchor()),
+                None => (statement.range(), statement.anchor()),
+            };
+            self.report(ParseError::new(
+                ParseErrorKind::InternalError,
+                if deepest.is_some() {
+                    "expression nested too deeply"
+                } else {
+                    "statements nested too deeply"
+                },
+                range,
+                anchor,
+            ));
+        }
+    }
+
     /// `simple_stmt: small_stmt (';' small_stmt)* [';'] NEWLINE`
     fn simple_statement(&mut self, body: &mut Vec<Stmt>) -> PResult<()> {
         loop {
             let statement = self.small_statement()?;
-            body.push(statement);
+            self.push_unless_too_deep(body, statement);
             if self.at(TokenKind::Semi) && starts_simple_statement(self.peek_kind(2)) {
                 self.bump();
                 continue;
@@ -194,9 +221,11 @@ impl Parser<'_> {
         let kind = self.kind();
         if starts_simple_statement(kind) {
             self.suites.push(from_finally);
+            self.stmt_depth += 1;
             if self.simple_statement(&mut body).is_err() {
                 self.recover_to_line_end();
             }
+            self.stmt_depth -= 1;
             self.suites.pop();
             return Ok(body);
         }
@@ -211,7 +240,9 @@ impl Parser<'_> {
         }
         self.bump();
         self.suites.push(from_finally);
+        self.stmt_depth += 1;
         self.statements(&mut body, true);
+        self.stmt_depth -= 1;
         self.suites.pop();
         if self.at(TokenKind::Dedent) {
             self.bump();
@@ -730,7 +761,49 @@ impl Parser<'_> {
         let token = self.bump();
         let test = self.test()?.expr;
         let body = self.clause_body(false)?;
-        let orelse = self.elif_or_else()?;
+        // `elif` clauses are collected in a loop (chains can be long) and
+        // nested afterwards. The body of the n-th clause is n statements
+        // deeper.
+        let outer = self.stmt_depth;
+        let mut clauses: Vec<(TextSize, Anchor, Expr, Vec<Stmt>)> = Vec::new();
+        let mut orelse = Vec::new();
+        let result = loop {
+            match self.kind() {
+                TokenKind::Else => {
+                    self.bump();
+                    match self.clause_body(false) {
+                        Ok(body) => orelse = body,
+                        Err(failure) => break Err(failure),
+                    }
+                    break Ok(());
+                }
+                TokenKind::Elif => {
+                    let elif = self.bump();
+                    self.stmt_depth = outer + clauses.len() + 1;
+                    let clause = self.test().and_then(|test| {
+                        let body = self.clause_body(false)?;
+                        Ok((elif.range.start(), test.first, test.expr, body))
+                    });
+                    match clause {
+                        Ok(clause) => clauses.push(clause),
+                        Err(failure) => break Err(failure),
+                    }
+                }
+                _ => break Ok(()),
+            }
+        };
+        self.stmt_depth = outer;
+        result?;
+        let end = self.previous_end;
+        for (start, anchor, test, body) in clauses.into_iter().rev() {
+            orelse = vec![Stmt::If(StmtIf {
+                range: TextRange::new(start.min(end), end),
+                anchor,
+                test: Box::new(test),
+                body,
+                orelse,
+            })];
+        }
         Ok(Stmt::If(StmtIf {
             range: self.range_from(token.range.start()),
             anchor: token.anchor,
@@ -738,29 +811,6 @@ impl Parser<'_> {
             body,
             orelse,
         }))
-    }
-
-    fn elif_or_else(&mut self) -> PResult<Vec<Stmt>> {
-        match self.kind() {
-            TokenKind::Else => {
-                self.bump();
-                self.clause_body(false)
-            }
-            TokenKind::Elif => {
-                let elif = self.bump();
-                let test = self.test()?;
-                let body = self.clause_body(false)?;
-                let orelse = self.elif_or_else()?;
-                Ok(vec![Stmt::If(StmtIf {
-                    range: self.range_from(elif.range.start()),
-                    anchor: test.first,
-                    test: Box::new(test.expr),
-                    body,
-                    orelse,
-                })])
-            }
-            _ => Ok(Vec::new()),
-        }
     }
 
     fn while_statement(&mut self) -> PResult<Stmt> {
@@ -1068,9 +1118,10 @@ impl Parser<'_> {
         if self.eat(TokenKind::Lpar).is_some() {
             if self.starts_test() {
                 // Jython unpacks any tuple, even a parenthesized one.
-                match self.testlist()?.expr {
-                    Expr::Tuple(tuple) => bases = tuple.elts,
-                    base => bases.push(base),
+                let mut base = self.testlist()?.expr;
+                match &mut base {
+                    Expr::Tuple(tuple) => bases = std::mem::take(&mut tuple.elts),
+                    _ => bases.push(base),
                 }
             }
             self.expect(TokenKind::Rpar)?;
@@ -1223,4 +1274,26 @@ impl Parser<'_> {
         };
         Ok(parameter)
     }
+}
+
+/// How many levels the tree of `stmt` reaches below the statement, without
+/// nested blocks (they are checked when they are parsed) but with the `If`
+/// nodes of its `elif` clauses, and the deepest expression.
+fn statement_depth(stmt: &Stmt) -> (usize, Option<&Expr>) {
+    let (mut depth, mut deepest) = crate::deep::own_depth(stmt);
+    let mut clause = stmt;
+    let mut level = 0;
+    while let Stmt::If(StmtIf { orelse, .. }) = clause {
+        let [next @ Stmt::If(_)] = orelse.as_slice() else {
+            break;
+        };
+        level += 1;
+        clause = next;
+        let (own, node) = crate::deep::own_depth(clause);
+        if level + own > depth {
+            depth = level + own;
+            deepest = node;
+        }
+    }
+    (depth, deepest)
 }

@@ -113,3 +113,69 @@ fn deep_nesting_does_not_overflow_the_stack() {
     source.push_str("pass\n");
     exercise(&source);
 }
+
+fn messages(source: &str) -> Vec<String> {
+    let parsed = iglint_python::parse_module(source);
+    parsed.errors.iter().map(|e| e.message.clone()).collect()
+}
+
+#[test]
+fn trees_may_be_as_deep_as_max_depth() {
+    use iglint_python::{MAX_DEPTH, body_depth};
+    // Assign > UnaryOp * n > Name.
+    let n = MAX_DEPTH - 2;
+    let parsed = iglint_python::parse_module(&format!("x = {}a\n", "-".repeat(n)));
+    assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+    assert_eq!(body_depth(&parsed.module.body), MAX_DEPTH);
+    let parsed = iglint_python::parse_module(&format!("x = {}a\ny = 1\n", "-".repeat(n + 1)));
+    let errors: Vec<&str> = parsed.errors.iter().map(|e| e.message.as_str()).collect();
+    assert_eq!(errors, ["expression nested too deeply"]);
+    // The statement is left out, the rest is kept.
+    assert_eq!(parsed.module.body.len(), 1);
+    let elifs = |n: usize| "if a: pass\n".to_owned() + &"elif a: pass\n".repeat(n) + "z = 1\n";
+    // If * (n + 1) > Pass.
+    let parsed = iglint_python::parse_module(&elifs(MAX_DEPTH - 2));
+    assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+    assert_eq!(body_depth(&parsed.module.body), MAX_DEPTH);
+    assert_eq!(
+        messages(&elifs(MAX_DEPTH)),
+        ["statements nested too deeply"]
+    );
+}
+
+#[test]
+fn chains_beyond_the_limit_are_errors_not_crashes() {
+    for source in [
+        "if a: pass\n".to_owned() + &"elif a: pass\n".repeat(30_000),
+        format!("x = a{}\n", "[0]".repeat(50_000)),
+        format!("x = a{}\n", ".b".repeat(100_000)),
+        format!("x = a{}\n", "()".repeat(50_000)),
+        format!("x = {}1\n", "-".repeat(100_000)),
+        format!("x = {}1\n", "not ".repeat(100_000)),
+        format!("x = {}\n", vec!["1"; 200_000].join("+")),
+        format!("x = ({})\n", vec!["1"; 200_000].join("+\n")),
+        // A syntax error after a long chain: the partial tree is dropped.
+        format!("x = {} +\n", vec!["1"; 200_000].join("+")),
+    ] {
+        let errors = messages(&source);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+    }
+}
+
+#[test]
+fn expressions_nest_as_deep_as_jython_allows() {
+    // Jython fails beyond about 1,950 levels on every construct.
+    let parens = |n: usize| format!("x = {}1{}\n", "(".repeat(n), ")".repeat(n));
+    assert!(messages(&parens(1_999)).is_empty());
+    assert_eq!(messages(&parens(2_000)), ["expression nested too deeply"]);
+    assert!(messages(&format!("x = {}1\n", "lambda: ".repeat(1_990))).is_empty());
+    assert!(messages(&format!("x = {}\n", vec!["a"; 1_990].join("**"))).is_empty());
+    assert!(
+        messages(&format!(
+            "x = {}1{}\n",
+            "f(".repeat(1_990),
+            ")".repeat(1_990)
+        ))
+        .is_empty()
+    );
+}
