@@ -282,13 +282,25 @@ pub(crate) fn analyze_with(
         Some(out)
     };
 
+    let project_names: Vec<&str> = ws.projects.iter().map(|p| p.name.as_str()).collect();
     let phase_a: Vec<(ResourceSummary, Option<UnitResult>)> = models
         .par_iter()
         .map(|model| {
             let mut summary = summarize(model);
             let rid = model.resource.id;
             if facts.provides_references() {
-                add_script_references(&model.data, &caches[rid.index()], &mut summary);
+                let project =
+                    project_of(model.resource.container).map(|p| ws.project(p).name.as_str());
+                let module = match &model.data {
+                    ModelData::Library(l) => Some(l.module_path.as_str()),
+                    _ => None,
+                };
+                let ctx = crate::script_facts::FactsContext {
+                    project,
+                    projects: &project_names,
+                    module,
+                };
+                add_script_references(&model.data, &caches[rid.index()], &ctx, &mut summary);
             }
             if !linted[rid.index()] {
                 return (summary, None);
@@ -682,7 +694,12 @@ pub(crate) fn run_phase(
 
 /// Feeds the literal references of a resource's scripts into its summary
 /// (see [`crate::script_facts`]).
-fn add_script_references(data: &ModelData<'_>, cache: &UnitCache, summary: &mut ResourceSummary) {
+fn add_script_references(
+    data: &ModelData<'_>,
+    cache: &UnitCache,
+    ctx: &crate::script_facts::FactsContext<'_>,
+    summary: &mut ResourceSummary,
+) {
     let scripts = data.scripts();
     if scripts.is_empty() {
         return;
@@ -691,7 +708,7 @@ fn add_script_references(data: &ModelData<'_>, cache: &UnitCache, summary: &mut 
     let parsed = cache.parsed_scripts(data);
     for (index, ((file, script), parsed)) in scripts.into_iter().zip(parsed).enumerate() {
         let unit = ScriptUnit::new(file, script, parsed, index);
-        facts.references(&unit, &mut summary.references);
+        facts.summarize(&unit, ctx, summary);
     }
 }
 

@@ -1,6 +1,7 @@
 //! REF013 unused-named-query.
 
 use iglint_project::model::ModelData;
+use iglint_project::summary::covered_by_prefix;
 
 use super::unused_view::report_unused;
 use crate::checker::Checker;
@@ -18,18 +19,21 @@ pub static META: RuleMeta = RuleMeta {
     explanation: r#"## What it does
 
 Reports named queries that no query binding in the project (or in a
-project inheriting from it) uses, and (once the script layer reports them)
-no `system.db.runNamedQuery` call with a literal path.
+project inheriting from it) uses, and no script call
+(`system.db.runNamedQuery`, `execQuery`, ...) with a literal path.
 
 ## Why is this bad?
 
 Unused queries are dead code that still has to be kept in sync with the
 database schema.
 
-This rule is not in the default set: named queries are also run with
-paths built at run time, from other projects through the gateway, and from
-scripts the script layer cannot resolve. Queries of inheritable projects
-are not reported.
+Paths built at run time count by their literal prefix (`'Reports/' +
+name` uses every query under `Reports/`). Queries of inheritable projects,
+and of projects with resources whose scripts are not analysed (reports,
+alarm pipelines, SFC charts, Vision windows), are not reported.
+
+This rule is not in the default set: named queries are also run from
+other projects through the gateway.
 
 ## Example
 
@@ -57,6 +61,14 @@ impl ResourceRule for UnusedNamedQuery {
         let Some(resource) = cx.resource() else {
             return;
         };
+        if let Some((index, project)) = cx.project_index()
+            && (covered_by_prefix(
+                &index.dynamic_references(project).named_queries,
+                &resource.path,
+            ) || super::has_unmodelled_scripts(cx.workspace(), project))
+        {
+            return;
+        }
         report_unused(cx, resource.manifest.file, "Named query");
     }
 }
@@ -74,6 +86,23 @@ mod tests {
         assert_eq!(
             messages(&d).into_iter().map(|m| m.1).collect::<Vec<_>>(),
             vec!["Named query `Unused` is not referenced anywhere".to_owned()]
+        );
+    }
+
+    #[test]
+    fn script_and_dynamic_references() {
+        use crate::rules::script::testing::{ViewScript, view};
+        let f = view(
+            ViewScript::Action,
+            "\tsystem.db.runNamedQuery('Used/A', {})\n\tsystem.db.runNamedQuery('Dyn/' + name)",
+        );
+        let f = with_query(f, "Used/A", &[]);
+        let f = with_query(f, "Dyn/B", &[]);
+        let f = with_query(f, "Unused/C", &[]);
+        let d = f.lint(&["REF013"]);
+        assert_eq!(
+            messages(&d).into_iter().map(|m| m.1).collect::<Vec<_>>(),
+            vec!["Named query `Unused/C` is not referenced anywhere".to_owned()]
         );
     }
 }

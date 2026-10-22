@@ -8,8 +8,8 @@ use crate::kinds::{EventScriptKind, MODULE_IGNITION, MODULE_PERSPECTIVE, Resourc
 use crate::library::{LibraryLookup, LibraryTree, ModuleSymbols};
 use crate::perspective::match_page_url;
 use crate::summary::{
-    Facts, MessageTarget, NamedQueryFacts, ResourceSummary, SessionFacts, StyleClassFacts,
-    TagFacts, ViewFacts,
+    DynamicReferences, Facts, MessageTarget, NamedQueryFacts, ResourceSummary, SessionFacts,
+    StyleClassFacts, TagFacts, ViewFacts,
 };
 use crate::tags::TagType;
 use crate::view::SESSION_PROPS;
@@ -63,6 +63,19 @@ pub enum HandlerSite {
     Session(ResourceId),
     /// A gateway message handler resource.
     Gateway(ResourceId),
+    /// A Vision client message handler resource.
+    Client(ResourceId),
+}
+
+/// One literal message send, as the handlers see it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SentMessage {
+    /// `system.perspective.sendMessage` (component handlers) rather than
+    /// `system.util.sendMessage`/`sendRequest` (gateway, session and client
+    /// handlers).
+    pub perspective: bool,
+    /// Top-level payload keys when the payload is a dict literal.
+    pub payload_keys: Option<Vec<String>>,
 }
 
 /// A page matched by URL.
@@ -88,6 +101,14 @@ struct ProjectData {
     css_unknown: bool,
     /// Message types sent with a target in this project.
     sent: FxHashMap<String, u32>,
+    /// The literal sends of each message type that target this project.
+    sends: FxHashMap<String, Vec<SentMessage>>,
+    /// References computed at run time by resources this project sees
+    /// (and by gateway resources, which may run with any project).
+    dynamic: DynamicReferences,
+    /// Library modules whose every top-level name may be used (a module
+    /// used as a value, `from m import *`).
+    escaped_modules: FxHashSet<ResourceId>,
     complete: bool,
     inheritable: bool,
     descendants: Vec<ProjectId>,
@@ -220,6 +241,12 @@ impl<'w> ProjectIndex<'w> {
                             .or_default()
                             .push(HandlerSite::Gateway(rid));
                     }
+                    ResourceKind::EventScript(EventScriptKind::ClientMessage) => {
+                        data.handlers
+                            .entry(r.path.to_string())
+                            .or_default()
+                            .push(HandlerSite::Client(rid));
+                    }
                     ResourceKind::PageConfig => data.page_config = Some(rid),
                     ResourceKind::Stylesheet => match self.facts(rid) {
                         Some(Facts::Css(c)) => data.css_classes.extend(c.classes.iter().cloned()),
@@ -327,10 +354,25 @@ impl<'w> ProjectIndex<'w> {
         let ws = self.ws;
         let mut usage: FxHashMap<ResourceId, u32> = FxHashMap::default();
         let mut symbol_usage: FxHashMap<(ResourceId, String), u32> = FxHashMap::default();
-        let mut sent: Vec<FxHashMap<String, u32>> = vec![FxHashMap::default(); ws.projects.len()];
+        let n = ws.projects.len();
+        let mut sent: Vec<FxHashMap<String, u32>> = vec![FxHashMap::default(); n];
+        let mut sends: Vec<FxHashMap<String, Vec<SentMessage>>> = vec![FxHashMap::default(); n];
+        let mut dynamic: Vec<DynamicReferences> = vec![DynamicReferences::default(); n];
+        let mut escaped: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
+        // Resources of gateway collections (tag event scripts) run with the
+        // gateway scripting project, which the workspace does not name:
+        // their references count for every project.
+        let gateway: Vec<ResourceId> = ws
+            .resources
+            .iter()
+            .filter(|r| matches!(r.container, Container::Collection(_)))
+            .map(|r| r.id)
+            .collect();
         for p in &ws.projects {
             let pid = p.id;
-            for rid in ws.effective_resources(Container::Project(pid)) {
+            let mut seen = ws.effective_resources(Container::Project(pid));
+            seen.extend(gateway.iter().copied());
+            for rid in seen {
                 let Some(summary) = self.summaries[rid.index()].as_ref() else {
                     continue;
                 };
@@ -366,27 +408,72 @@ impl<'w> ProjectIndex<'w> {
                         _ => {}
                     }
                 }
+                for name in &refs.dynamic.library {
+                    let library = &self.projects[pid.index()].library;
+                    let prefix = match self.resolve_library(pid, name) {
+                        LibraryLookup::Module { resource, .. } => {
+                            escaped[pid.index()].insert(resource);
+                            continue;
+                        }
+                        LibraryLookup::Package { dotted } => format!("{dotted}."),
+                        _ if name.is_empty() => String::new(),
+                        _ => continue,
+                    };
+                    for (dotted, resource) in library.modules() {
+                        if dotted.starts_with(&prefix) {
+                            escaped[pid.index()].insert(resource);
+                        }
+                    }
+                }
+                dynamic[pid.index()].extend(&refs.dynamic);
                 for m in &refs.messages {
-                    let target_project = match &m.target {
-                        MessageTarget::Perspective { .. } => Some(pid),
+                    let (target_project, perspective) = match &m.target {
+                        MessageTarget::Perspective { .. } => (Some(pid), true),
                         MessageTarget::Gateway {
                             project: Some(name),
-                        } => ws.projects.iter().find(|q| &q.name == name).map(|q| q.id),
-                        MessageTarget::Gateway { project: None } => None,
+                        } => (
+                            ws.projects.iter().find(|q| &q.name == name).map(|q| q.id),
+                            false,
+                        ),
+                        MessageTarget::Gateway { project: None } => (None, false),
                     };
-                    match target_project {
-                        Some(t) => *sent[t.index()].entry(m.message_type.clone()).or_default() += 1,
-                        None => {
-                            for s in sent.iter_mut() {
-                                *s.entry(m.message_type.clone()).or_default() += 1;
-                            }
+                    let sent_message = SentMessage {
+                        perspective,
+                        payload_keys: m.payload_keys.clone(),
+                    };
+                    let targets: Vec<usize> = match target_project {
+                        Some(t) => vec![t.index()],
+                        None => (0..n).collect(),
+                    };
+                    for t in targets {
+                        *sent[t].entry(m.message_type.clone()).or_default() += 1;
+                        let list = sends[t].entry(m.message_type.clone()).or_default();
+                        if !list.contains(&sent_message) {
+                            list.push(sent_message.clone());
                         }
                     }
                 }
             }
         }
-        for (p, s) in self.projects.iter_mut().zip(sent) {
+        // Gateway message sends with a non-literal or unknown target project
+        // reach every project.
+        let shared: Vec<(Option<String>, String)> = dynamic
+            .iter()
+            .flat_map(|d| d.gateway_messages.iter().cloned())
+            .collect();
+        for (i, (p, s)) in self.projects.iter_mut().zip(sent).enumerate() {
             p.sent = s;
+            p.sends = std::mem::take(&mut sends[i]);
+            let mut d = std::mem::take(&mut dynamic[i]);
+            for (target, prefix) in &shared {
+                let applies = target.as_ref().is_none_or(|t| *t == ws.projects[i].name);
+                let entry = (target.clone(), prefix.clone());
+                if applies && !d.gateway_messages.contains(&entry) {
+                    d.gateway_messages.push(entry);
+                }
+            }
+            p.dynamic = d;
+            p.escaped_modules = std::mem::take(&mut escaped[i]);
         }
         self.usage = usage;
         self.symbol_usage = symbol_usage;
@@ -620,6 +707,28 @@ impl<'w> ProjectIndex<'w> {
             .handlers
             .iter()
             .map(|(k, v)| (k.as_str(), v.as_slice()))
+    }
+
+    /// The literal sends of a message type that target a project.
+    pub fn message_sends(&self, project: ProjectId, message_type: &str) -> &[SentMessage] {
+        self.projects[project.index()]
+            .sends
+            .get(message_type)
+            .map_or(&[], Vec::as_slice)
+    }
+
+    /// References computed at run time by the resources a project sees
+    /// (including gateway resources).
+    pub fn dynamic_references(&self, project: ProjectId) -> &DynamicReferences {
+        &self.projects[project.index()].dynamic
+    }
+
+    /// Whether every top-level name of a library module may be used by
+    /// `project` (the module is used as a value or star-imported).
+    pub fn module_escapes(&self, project: ProjectId, module: ResourceId) -> bool {
+        self.projects[project.index()]
+            .escaped_modules
+            .contains(&module)
     }
 
     /// How many literal sends of a message type target a project.

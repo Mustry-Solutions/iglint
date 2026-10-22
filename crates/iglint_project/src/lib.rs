@@ -64,7 +64,7 @@ use rayon::prelude::*;
 pub use document::JsonDocument;
 pub use expression::{EmbeddedExpression, ExpressionKind};
 pub use ids::*;
-pub use index::{HandlerSite, Lookup, PageMatch, ProjectIndex};
+pub use index::{HandlerSite, Lookup, PageMatch, ProjectIndex, SentMessage};
 pub use kinds::{EventScriptKind, FileKind, HttpMethod, ResourceKind, RunScope};
 pub use library::{LibraryLookup, LibraryTree, ModuleSymbols};
 pub use model::{LoadedFile, LoadedResource, ModelData, ResourceModel, build_model};

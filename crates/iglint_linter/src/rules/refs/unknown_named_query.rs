@@ -8,7 +8,9 @@ use super::case_insensitive_match;
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
 use crate::registry::{Category, RuleMeta};
-use crate::rule::{BindingRule, Hook, Phase, RuleImpl};
+use crate::rule::{BindingRule, Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
+use crate::script_facts::api::ApiTarget;
+use crate::script_facts::calls::string_values;
 
 pub static META: RuleMeta = RuleMeta {
     code: "REF004",
@@ -21,8 +23,15 @@ pub static META: RuleMeta = RuleMeta {
 
 Checks the `queryPath` of every query binding (views and session
 properties) against the named queries the project sees, including
-inherited ones. Literal paths passed to `system.db.runNamedQuery` in
-scripts are checked too, as soon as the script layer reports them.
+inherited ones. Scripts are checked too: literal paths passed to
+`system.db.runNamedQuery`, `runSFNamedQuery`, `clearNamedQueryCache`,
+`execQuery` and `execUpdate` (through aliases and local names holding a
+literal). The project-scoped forms (`runNamedQuery(project, path, ...)`,
+`project=` keywords) are checked against the named project when it is in
+the workspace (`system.util.getProjectName()` is the script's project). A
+call `runNamedQuery(a, b)` whose second argument is neither a string nor a
+dict is read as `(path, parameters)` only when `a` cannot be a project
+name (it contains `/`).
 
 ## Why is this bad?
 
@@ -51,7 +60,10 @@ Use instead:
 pub static RULE: RuleImpl = RuleImpl {
     meta: &META,
     phase: Phase::Project,
-    hooks: &[Hook::Binding(&UnknownNamedQuery)],
+    hooks: &[
+        Hook::Binding(&UnknownNamedQuery),
+        Hook::Script(&UnknownNamedQuery),
+    ],
     options: None,
 };
 
@@ -75,15 +87,55 @@ impl BindingRule for UnknownNamedQuery {
         if !matches!(index.named_query(project, value), Lookup::Missing) {
             return;
         }
-        let mut message = format!("Named query `{value}` does not exist");
-        if let Some(similar) =
-            case_insensitive_match(cx.workspace(), project, ResourceKind::NamedQuery, value)
-        {
-            message.push_str(&format!(" (did you mean `{similar}`?)"));
-        }
+        let message = missing_message(cx, project, value);
         let file = cx.primary_file();
         cx.report_in(file, path.range(), message)
             .node_path(&binding.node_path);
+    }
+}
+
+fn missing_message(
+    cx: &Checker<'_, '_>,
+    project: iglint_project::ProjectId,
+    value: &str,
+) -> String {
+    let mut message = format!("Named query `{value}` does not exist");
+    if let Some(similar) =
+        case_insensitive_match(cx.workspace(), project, ResourceKind::NamedQuery, value)
+    {
+        message.push_str(&format!(" (did you mean `{similar}`?)"));
+    }
+    message
+}
+
+impl ScriptRule for UnknownNamedQuery {
+    fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
+        let Some((model, targets)) = super::script_calls::api_targets(cx, unit) else {
+            return;
+        };
+        let Some(index) = cx.index() else {
+            return;
+        };
+        for (_, target) in targets {
+            let ApiTarget::NamedQuery(call) = target else {
+                continue;
+            };
+            let Some((project, path)) =
+                super::script_calls::named_query_lookup(cx, model, index, &call)
+            else {
+                continue;
+            };
+            for literal in string_values(model, path).unwrap_or_default() {
+                let value = literal.value.as_str();
+                if value.trim().is_empty() || value.contains('{') {
+                    continue;
+                }
+                if matches!(index.named_query(project, value), Lookup::Missing) {
+                    let message = missing_message(cx, project, value);
+                    crate::rules::script::report(cx, unit, literal.range, message);
+                }
+            }
+        }
     }
 }
 
@@ -153,5 +205,24 @@ pub(crate) mod tests {
                 .message
                 .contains("did you mean `Machines/ByLine`")
         );
+    }
+
+    #[test]
+    fn script_call_sites() {
+        use crate::rules::script::testing::{ViewScript, decoded_flagged, view};
+        let body = "\tsystem.db.runNamedQuery('Machines/Gone', {})\n\tsystem.db.runNamedQuery('Machines/ByLine', {})\n\tsystem.db.runNamedQuery(system.util.getProjectName(), 'Machines/Gone2', {})\n\tsystem.db.runNamedQuery('elsewhere', 'Machines/Gone3', {})\n\tsystem.db.runNamedQuery('Machines/Gone4', params)\n\tsystem.db.runNamedQuery('p', params)\n\tsystem.db.runNamedQuery('Top', params)\n\tsystem.db.execQuery(path='Machines/Gone5')\n\tq = system.db.runNamedQuery\n\tq(path='machines/byline')";
+        let f = with_query(view(ViewScript::Action, body), "Machines/ByLine", &[]);
+        let d = f.lint(&["REF004"]);
+        assert_eq!(
+            decoded_flagged(&d),
+            vec![
+                "'Machines/Gone'",
+                "'Machines/Gone2'",
+                "'Machines/Gone4'",
+                "'Machines/Gone5'",
+                "'machines/byline'"
+            ]
+        );
+        assert!(d[4].message.contains("did you mean `Machines/ByLine`"));
     }
 }

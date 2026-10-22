@@ -41,9 +41,9 @@ use rustc_hash::FxHashMap;
 
 use super::{AccessTarget, PropertyAccess, ScriptFacts};
 use crate::rule::ScriptUnit;
-use iglint_project::summary::References;
+use iglint_project::summary::ResourceSummary;
 
-/// Script facts from the syntax tree: property accesses only.
+/// Script facts from the syntax tree and the semantic model.
 pub struct AstScriptFacts;
 
 impl ScriptFacts for AstScriptFacts {
@@ -52,10 +52,37 @@ impl ScriptFacts for AstScriptFacts {
     }
 
     fn provides_references(&self) -> bool {
-        false
+        true
     }
 
-    fn references(&self, _unit: &ScriptUnit<'_, '_>, _refs: &mut References) {}
+    fn summarize(
+        &self,
+        unit: &ScriptUnit<'_, '_>,
+        ctx: &super::FactsContext<'_>,
+        summary: &mut ResourceSummary,
+    ) {
+        let library = unit.script.kind == iglint_project::ScriptKind::LibraryModule;
+        if !unit.parsed.errors.is_empty() {
+            // The script does not compile and never runs; a module that
+            // does not compile has unknown symbols.
+            return;
+        }
+        let mut injected: Vec<&str> = unit.script.implicit_globals().collect();
+        if library {
+            injected.push("__package__");
+        }
+        let model = iglint_python_semantic::SemanticModel::build(
+            &unit.parsed.module,
+            &iglint_python_semantic::SemanticOptions {
+                injected,
+                unknown_globals: false,
+            },
+        );
+        super::refs::collect(&model, ctx, &mut summary.references);
+        if library {
+            summary.set_module_symbols(super::symbols::module_symbols(&model));
+        }
+    }
 
     fn property_accesses(
         &self,

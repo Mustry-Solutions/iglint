@@ -17,23 +17,28 @@
 //!
 //! [`ScriptFacts`] is the interface; [`provider`] returns the
 //! implementation in use, [`AstScriptFacts`]: property accesses are found
-//! on the Jython syntax tree (see [`mod@access`]), and cross-resource
-//! references are not provided yet (`provides_references` is false; the
-//! script layer adds them). [`NoScriptFacts`] reports nothing and is
+//! on the Jython syntax tree (see [`mod@access`]), cross-resource
+//! references and library symbols with the semantic model (see
+//! [`mod@refs`] and [`mod@symbols`]). [`NoScriptFacts`] reports nothing and is
 //! honest about it through [`ScriptFacts::complete`]: rules that depend on
 //! script facts then treat every script as possibly reading everything.
 
 use iglint_project::ComponentId;
 use iglint_project::EmbeddedScript;
-use iglint_project::summary::References;
+use iglint_project::summary::ResourceSummary;
 use iglint_project::view::{PropCategory, View};
 use iglint_text::TextRange;
 
 use crate::rule::ScriptUnit;
 
 pub mod access;
+pub mod api;
+pub mod calls;
+pub mod refs;
+pub mod symbols;
 
 pub use access::AstScriptFacts;
+pub use refs::FactsContext;
 
 /// Whose property a script accesses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -74,10 +79,16 @@ pub trait ScriptFacts: Sync {
     /// the driver does not parse context-only scripts for it.
     fn provides_references(&self) -> bool;
 
-    /// Adds the literal cross-resource references of one script to its
-    /// resource's references (views, named queries, library names, message
-    /// sends, pages).
-    fn references(&self, unit: &ScriptUnit<'_, '_>, refs: &mut References);
+    /// Adds the cross-resource references of one script to its resource's
+    /// summary (views, named queries, library names, message sends, pages,
+    /// dynamic references) and, for library modules, the module's
+    /// top-level symbols.
+    fn summarize(
+        &self,
+        unit: &ScriptUnit<'_, '_>,
+        ctx: &FactsContext<'_>,
+        summary: &mut ResourceSummary,
+    );
 
     /// The property reads and writes of one script of `view`. Lookups of
     /// components that cannot be resolved statically are reported as
@@ -104,7 +115,13 @@ impl ScriptFacts for NoScriptFacts {
         false
     }
 
-    fn references(&self, _unit: &ScriptUnit<'_, '_>, _refs: &mut References) {}
+    fn summarize(
+        &self,
+        _unit: &ScriptUnit<'_, '_>,
+        _ctx: &FactsContext<'_>,
+        _summary: &mut ResourceSummary,
+    ) {
+    }
 
     fn property_accesses(
         &self,
@@ -115,9 +132,7 @@ impl ScriptFacts for NoScriptFacts {
     }
 }
 
-/// The script facts implementation the driver uses. Property accesses come
-/// from [`AstScriptFacts`]; the script layer adds cross-resource
-/// references (it may wrap or replace this provider).
+/// The script facts implementation the driver uses.
 pub fn provider() -> &'static dyn ScriptFacts {
     &AstScriptFacts
 }

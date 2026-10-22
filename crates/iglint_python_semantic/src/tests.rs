@@ -454,3 +454,54 @@ fn deep_and_wide_code_is_linear() {
     let _ = SemanticModel::build(&parsed.module, &SemanticOptions::default());
     assert!(start.elapsed().as_secs() < 5);
 }
+
+#[test]
+fn qualified_names_of_unbound_globals() {
+    use crate::UnboundNames;
+    let src =
+        "from x import *\ndef f():\n    core.util.go()\ncore.util.go()\nlocal = 1\nlocal.attr\n";
+    let parsed = parse(src);
+    let model = SemanticModel::build(&parsed.module, &SemanticOptions::default());
+    let exprs: Vec<&Expr> = parsed
+        .module
+        .body
+        .iter()
+        .filter_map(|s| match s {
+            Stmt::Expr(e) => Some(&*e.value),
+            _ => None,
+        })
+        .collect();
+    // The star import makes `core` dynamic.
+    let Expr::Call(c) = exprs[0] else { panic!() };
+    assert_eq!(model.callee(c), None);
+    assert_eq!(
+        model.qualified_name_with(&c.func, UnboundNames::AsGlobal),
+        None
+    );
+    assert_eq!(
+        model
+            .qualified_name_with(&c.func, UnboundNames::AsGlobalEvenIfDynamic)
+            .as_deref(),
+        Some("core.util.go")
+    );
+    // Bound names keep their normal resolution.
+    assert_eq!(
+        model.qualified_name_with(exprs[1], UnboundNames::AsGlobal),
+        None
+    );
+    let src = "def f():\n    core.util.go()\n";
+    let parsed = parse(src);
+    let model = SemanticModel::build(&parsed.module, &SemanticOptions::default());
+    let Stmt::FunctionDef(f) = &parsed.module.body[0] else {
+        panic!()
+    };
+    let Stmt::Expr(e) = &f.body[0] else { panic!() };
+    let Expr::Call(c) = &*e.value else { panic!() };
+    assert_eq!(model.callee(c), None);
+    assert_eq!(
+        model
+            .qualified_name_with(&c.func, UnboundNames::AsGlobal)
+            .as_deref(),
+        Some("core.util.go")
+    );
+}
