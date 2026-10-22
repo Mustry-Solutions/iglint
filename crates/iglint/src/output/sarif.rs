@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::io::{self, Write};
+use std::path::Path;
 
 use iglint_linter::registry::RuleCode;
 use iglint_linter::{Diagnostic, Severity};
@@ -38,25 +39,22 @@ fn rule_descriptor(rule: RuleCode) -> Value {
 
 fn fixes(report: &Report<'_>, diagnostic: &Diagnostic) -> Option<Value> {
     let fix = diagnostic.fix.as_ref()?;
-    let mut by_file: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+    let mut by_file: BTreeMap<&Path, Vec<Value>> = BTreeMap::new();
     for edit in &fix.edits {
         let range = edit.edit.range;
-        by_file
-            .entry(report.display_path(&edit.path))
-            .or_default()
-            .push(json!({
-                "deletedRegion": {
-                    "byteOffset": range.start().to_u32(),
-                    "byteLength": range.len().to_u32(),
-                },
-                "insertedContent": { "text": edit.edit.content },
-            }));
+        by_file.entry(edit.path.as_path()).or_default().push(json!({
+            "deletedRegion": {
+                "byteOffset": range.start().to_u32(),
+                "byteLength": range.len().to_u32(),
+            },
+            "insertedContent": { "text": edit.edit.content },
+        }));
     }
     let changes: Vec<Value> = by_file
         .into_iter()
-        .map(|(uri, replacements)| {
+        .map(|(path, replacements)| {
             json!({
-                "artifactLocation": { "uri": uri, "uriBaseId": "%SRCROOT%" },
+                "artifactLocation": artifact_location(report, path),
                 "replacements": replacements,
             })
         })
@@ -86,10 +84,7 @@ pub(super) fn sarif(report: &Report<'_>, out: &mut dyn Write) -> io::Result<()> 
                 "message": { "text": diagnostic.message },
                 "locations": [{
                     "physicalLocation": {
-                        "artifactLocation": {
-                            "uri": report.display_path(diagnostic.file.path()),
-                            "uriBaseId": "%SRCROOT%",
-                        },
+                        "artifactLocation": artifact_location(report, diagnostic.file.path()),
                         "region": {
                             "startLine": start.line,
                             "startColumn": start.column,
@@ -116,10 +111,7 @@ pub(super) fn sarif(report: &Report<'_>, out: &mut dyn Write) -> io::Result<()> 
                             "id": id,
                             "message": { "text": label.message },
                             "physicalLocation": {
-                                "artifactLocation": {
-                                    "uri": report.display_path(label.file.path()),
-                                    "uriBaseId": "%SRCROOT%",
-                                },
+                                "artifactLocation": artifact_location(report, label.file.path()),
                                 "region": {
                                     "startLine": start.line,
                                     "startColumn": start.column,
@@ -161,22 +153,83 @@ pub(super) fn sarif(report: &Report<'_>, out: &mut dyn Write) -> io::Result<()> 
 
 /// `file:///...` URI of a directory, with a trailing slash as SARIF requires
 /// for base URIs.
-fn file_uri(dir: &std::path::Path) -> String {
-    let path = super::display_path(dir, std::path::Path::new(""));
-    let mut uri = String::from("file://");
-    if !path.starts_with('/') {
-        uri.push('/');
-    }
-    for byte in path.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' | b':' => {
-                uri.push(byte as char)
-            }
-            other => uri.push_str(&format!("%{other:02X}")),
-        }
-    }
+fn file_uri(dir: &Path) -> String {
+    let mut uri = absolute_file_uri(dir);
     if !uri.ends_with('/') {
         uri.push('/');
     }
     uri
+}
+
+/// `file:///...` URI of an absolute path.
+fn absolute_file_uri(path: &Path) -> String {
+    let path = super::display_path(path, Path::new(""));
+    let mut uri = String::from("file://");
+    if !path.starts_with('/') {
+        uri.push('/');
+    }
+    for (i, segment) in path.split('/').enumerate() {
+        if i > 0 {
+            uri.push('/');
+        }
+        // A Windows drive (`C:`) keeps its colon.
+        let drive = i <= 1
+            && segment.len() == 2
+            && segment.as_bytes()[0].is_ascii_alphabetic()
+            && segment.as_bytes()[1] == b':';
+        if drive {
+            uri.push_str(segment);
+        } else {
+            uri.push_str(&encode_segment(segment));
+        }
+    }
+    uri
+}
+
+/// RFC 3986 percent-encoding of one path segment: everything but the
+/// unreserved characters.
+fn encode_segment(segment: &str) -> String {
+    let mut out = String::with_capacity(segment.len());
+    for byte in segment.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                out.push(byte as char)
+            }
+            other => out.push_str(&format!("%{other:02X}")),
+        }
+    }
+    out
+}
+
+/// The `artifactLocation` of a file: a percent-encoded URI relative to
+/// `%SRCROOT%` (the working directory) for files below it, else an
+/// absolute `file:` URI.
+pub(super) fn artifact_location(report: &Report<'_>, path: &Path) -> Value {
+    match path.strip_prefix(report.cwd) {
+        Ok(relative) => {
+            let relative = iglint_linter::discovery::slash_path(relative);
+            let uri: Vec<String> = relative.split('/').map(encode_segment).collect();
+            json!({ "uri": uri.join("/"), "uriBaseId": "%SRCROOT%" })
+        }
+        Err(_) => json!({ "uri": absolute_file_uri(path) }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uris_are_percent_encoded() {
+        assert_eq!(
+            encode_segment("project#1 with space"),
+            "project%231%20with%20space"
+        );
+        assert_eq!(encode_segment("é:%?"), "%C3%A9%3A%25%3F");
+        assert_eq!(
+            absolute_file_uri(Path::new("/a b/c#d")),
+            "file:///a%20b/c%23d"
+        );
+        assert_eq!(file_uri(Path::new("/x y")), "file:///x%20y/");
+    }
 }

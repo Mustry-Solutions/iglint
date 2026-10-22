@@ -6,5 +6,5 @@ expression: "output(OutputFormat::Azure, & diagnostics(), false)"
 ##vso[task.logissue type=warning;sourcepath=projects/p/ignition/script-python/a/code.py;linenumber=2;columnnumber=2;code=TST002]Variable `x` is unused
 ##vso[task.logissue type=error;sourcepath=projects/p/ignition/script-python/a/code.py;linenumber=3;columnnumber=9;code=TST001]Undefined name `y`
 ##vso[task.logissue type=error;sourcepath=projects/p/views/Main/view.json;linenumber=3;columnnumber=5;code=TST001]Custom property `unused` is never read
-##vso[task.logissue type=warning;sourcepath=projects/p/views/Main/view.json;linenumber=4;columnnumber=5;code=TST002]Name "naïve" <is> not camelCase%3B 100%AZP25 sure, [really%5D%3B a%5Db%0Asecond line
+##vso[task.logissue type=warning;sourcepath=projects/p/views/Main/view.json;linenumber=4;columnnumber=5;code=TST002]Name "naïve" <is> not camelCase; 100%AZP25 sure, [really]; a]b%0Asecond line
 ##vso[task.logissue type=warning;sourcepath=projects/p/views/Main/view.json;linenumber=6;columnnumber=3;code=TST003]Root is nested

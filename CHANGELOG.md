@@ -19,6 +19,12 @@ from 0.1.0 on.
   (`Pylint - Convention (C):`) like ign-lint.
 - pylint messages that a native rule also reports (same place and name)
   are shown once.
+- SARIF artifact URIs are percent-encoded (RFC 3986, per path segment) in
+  results, related locations and fixes; files outside the working
+  directory get absolute `file:` URIs instead of a path relative to
+  `%SRCROOT%`.
+- Azure Pipelines messages no longer show `%3B`/`%5D`: only `%`, `\r` and
+  `\n` are escaped in the message, `;` and `]` only in properties.
 
 - Fixes that delete statements (`SCR102`, `SCR103`) no longer empty a block
   when several of them remove every statement of it: the last one becomes

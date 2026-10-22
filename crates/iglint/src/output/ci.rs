@@ -42,13 +42,20 @@ pub(super) fn github(report: &Report<'_>, out: &mut dyn Write) -> io::Result<()>
     Ok(())
 }
 
-/// Escapes text in an Azure Pipelines logging command.
-fn azure_escape(text: &str) -> String {
+/// Escapes the message of an Azure Pipelines logging command: the agent
+/// unescapes `%AZP25` (`%`), `%0D` and `%0A` in it (and `%3B`, `%5D`,
+/// which an escaped `%` can no longer form). `;` and `]` need no escaping
+/// after the closing `]` of the properties.
+fn azure_data(text: &str) -> String {
     text.replace('%', "%AZP25")
         .replace('\r', "%0D")
         .replace('\n', "%0A")
-        .replace(';', "%3B")
-        .replace(']', "%5D")
+}
+
+/// Escapes a property value of an Azure Pipelines logging command: also
+/// `;` (separates properties) and `]` (ends them).
+fn azure_property(text: &str) -> String {
+    azure_data(text).replace(';', "%3B").replace(']', "%5D")
 }
 
 pub(super) fn azure(report: &Report<'_>, out: &mut dyn Write) -> io::Result<()> {
@@ -61,12 +68,29 @@ pub(super) fn azure(report: &Report<'_>, out: &mut dyn Write) -> io::Result<()> 
         writeln!(
             out,
             "##vso[task.logissue type={kind};sourcepath={};linenumber={};columnnumber={};code={}]{}",
-            azure_escape(&report.display_path(diagnostic.file.path())),
+            azure_property(&report.display_path(diagnostic.file.path())),
             start.line,
             start.column,
-            azure_escape(diagnostic.rule.code()),
-            azure_escape(&diagnostic.message)
+            azure_property(diagnostic.rule.code()),
+            azure_data(&diagnostic.message)
         )?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn github_escaping() {
+        assert_eq!(github_data("a%b\r\nc:d,e"), "a%25b%0D%0Ac:d,e");
+        assert_eq!(github_property("p%1:2,3\n"), "p%251%3A2%2C3%0A");
+    }
+
+    #[test]
+    fn azure_escaping() {
+        assert_eq!(azure_data("a;b]c%0A\r\n"), "a;b]c%AZP250A%0D%0A");
+        assert_eq!(azure_property("x;y]z%\n"), "x%3By%5Dz%AZP25%0A");
+    }
 }
