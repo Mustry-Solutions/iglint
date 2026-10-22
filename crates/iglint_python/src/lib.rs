@@ -41,9 +41,6 @@
 //!
 //! # Deliberate differences
 //!
-//! * `\N{...}` escapes resolve against a table of about 2500 common names;
-//!   other names are kept as written, where Jython would resolve them or
-//!   reject them.
 //! * Expressions nested more than 100 levels deep are rejected; Jython's
 //!   limit depends on the JVM stack.
 //! * After the first error, recovery may differ from what Jython would do

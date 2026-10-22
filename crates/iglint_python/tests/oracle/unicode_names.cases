@@ -1,0 +1,149 @@
+### name ascii
+x = u'\N{LATIN CAPITAL LETTER A}'
+### name bullet
+x = u'\N{BULLET}'
+### name lowercase
+x = u'\N{bullet}'
+### name mixed case
+x = u'\N{Latin Small Letter Sharp S}'
+### name control
+x = u'\N{NULL}\N{FORM FEED (FF)}\N{CHARACTER TABULATION}'
+### name hyphenated
+x = u'\N{SINGLE LOW-9 QUOTATION MARK}\N{GREATER-THAN SIGN}'
+### name leading hyphen word
+x = u'\N{TIBETAN MARK GTER YIG MGO -UM RNAM BCAD MA}'
+### name greek and cyrillic
+x = u'\N{GREEK SMALL LETTER ALPHA}\N{CYRILLIC CAPITAL LETTER ZHE}'
+### name hebrew and arabic
+x = u'\N{HEBREW LETTER ALEF}\N{ARABIC LETTER BEH}'
+### name devanagari
+x = u'\N{DEVANAGARI LETTER KA}'
+### name thai
+x = u'\N{THAI CHARACTER KO KAI}'
+### name hangul jamo
+x = u'\N{HANGUL CHOSEONG KIYEOK}'
+### name yi syllable
+x = u'\N{YI SYLLABLE IT}'
+### name cjk radical
+x = u'\N{CJK RADICAL REPEAT}'
+### name halfwidth
+x = u'\N{HALFWIDTH KATAKANA LETTER A}'
+### name astral emoji
+x = u'\N{PILE OF POO}'
+### name astral musical
+x = u'\N{BYZANTINE MUSICAL SYMBOL FHTORA SKLIRON CHROMA VASIS}'
+### name astral math
+x = u'\N{MATHEMATICAL BOLD CAPITAL A}'
+### name unicode 8
+x = u'\N{CHEESE WEDGE}'
+### name unicode 9
+x = u'\N{FACE PALM}'
+### name unicode 9 adlam
+x = u'\N{ADLAM CAPITAL LETTER ALIF}'
+### name unicode 10 unknown
+x = u'\N{BRAIN}'
+### name unicode 11 unknown
+x = u'\N{FACE WITH PARTY HORN AND PARTY HAT}'
+### name trailing space
+x = u'\N{BULLET }'
+### name leading space
+x = u'\N{ BULLET}'
+### name double space
+x = u'\N{BLACK  STAR}'
+### name triple space
+x = u'\N{BLACK   STAR}'
+### name trailing space after letter
+x = u'\N{LATIN SMALL LETTER A }'
+### name unknown
+x = u'\N{THIS IS NOT A UNICODE NAME}'
+### name unknown short
+x = u'\N{X}'
+### name empty
+x = u'\N{}'
+### name unknown character
+x = u'\N{BULLET!}'
+### name non ascii
+x = u'\N{BULLÉT}'
+### name without brace
+x = u'\N'
+### name unterminated
+x = u'\N{BULLET'
+### name long
+x = u'\N{AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}'
+### name many short words
+x = u'\N{A A A A A A A A A A A A A A A A A A A A}'
+### name alias
+x = u'\N{LATIN CAPITAL LETTER GHA}'
+### name alias byte order mark
+x = u'\N{BYTE ORDER MARK}'
+### name unicode 1 name
+x = u'\N{LINE FEED}'
+### name cjk unified
+x = u'\N{CJK UNIFIED IDEOGRAPH-4E00}'
+### name hangul syllable
+x = u'\N{HANGUL SYLLABLE GA}'
+### name cjk compatibility
+x = u'\N{CJK COMPATIBILITY IDEOGRAPH-F900}'
+### name cjk compatibility any code point
+x = u'\N{CJK COMPATIBILITY IDEOGRAPH-41}'
+### name cjk compatibility plus sign
+x = u'\N{CJK COMPATIBILITY IDEOGRAPH-+1F4A9}'
+### name cjk compatibility minus zero
+x = u'\N{CJK COMPATIBILITY IDEOGRAPH--0}'
+### name cjk compatibility negative
+x = u'\N{CJK COMPATIBILITY IDEOGRAPH--1}'
+### name cjk compatibility surrogate
+x = u'\N{CJK COMPATIBILITY IDEOGRAPH-D800}'
+### name cjk compatibility too large
+x = u'\N{CJK COMPATIBILITY IDEOGRAPH-110000}'
+### name cjk compatibility empty
+x = u'\N{CJK COMPATIBILITY IDEOGRAPH-}'
+### name cjk compatibility fullwidth digits
+x = u'\N{CJK COMPATIBILITY IDEOGRAPH-ＦＡ０１}'
+### name cjk compatibility thai digits
+x = u'\N{CJK COMPATIBILITY IDEOGRAPH-๔๑}'
+### name cjk compatibility leading zeros
+x = u'\N{CJK COMPATIBILITY IDEOGRAPH-00000000000000000000000000000000000000000000000000041}'
+### name cjk compatibility too many zeros
+x = u'\N{CJK COMPATIBILITY IDEOGRAPH-0000000000000000000000000000000000000000000000000000000000041}'
+### name cjk compatibility lowercase
+x = u'\N{cjk compatibility ideograph-f900}'
+### name in byte string
+x = '\N{BULLET}'
+### name unknown in byte string
+x = '\N{THIS IS NOT A UNICODE NAME}'
+### name in raw unicode string
+x = ur'\N{BULLET}'
+### name unknown in raw unicode string
+x = ur'\N{THIS IS NOT A UNICODE NAME}'
+### name in raw string
+x = r'\N{THIS IS NOT A UNICODE NAME}'
+### name in bytes literal
+x = b'\N{THIS IS NOT A UNICODE NAME}'
+### name under unicode_literals
+from __future__ import unicode_literals
+x = '\N{PILE OF POO}'
+### name unknown under unicode_literals
+from __future__ import unicode_literals
+x = '\N{THIS IS NOT A UNICODE NAME}'
+### name bytes under unicode_literals
+from __future__ import unicode_literals
+x = b'\N{THIS IS NOT A UNICODE NAME}'
+### name raw under unicode_literals
+from __future__ import unicode_literals
+x = r'\N{THIS IS NOT A UNICODE NAME}'
+### name concatenated with byte string
+x = '\N{BULLET}' u'\N{BULLET}'
+### name unknown in concatenation
+x = '\N{BULLET}' u'\N{NOT A NAME}'
+### name in triple quoted
+x = u'''a
+\N{BULLET}
+b'''
+### name escaped backslash
+x = u'\\N{NOT A NAME}'
+### name dict keys equal
+d = {u'\N{PILE OF POO}': 1, u'\U0001f4a9': 2}
+### name unknown on later line
+x = 1
+y = u'\N{NOT A NAME}'

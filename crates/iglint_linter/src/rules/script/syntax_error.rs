@@ -139,6 +139,14 @@ mod tests {
     }
 
     #[test]
+    fn unknown_character_names() {
+        let d = lint_module("SCR001", "x = u'\\N{THIS IS NOT A UNICODE NAME}'\n");
+        assert_eq!(d.len(), 1);
+        assert!(d[0].message.contains("character name"), "{}", d[0].message);
+        assert!(lint_module("SCR001", "x = u'\\N{PILE OF POO}' + '\\N{NOT A NAME}'\n").is_empty());
+    }
+
+    #[test]
     fn python3_syntax_gets_a_hint() {
         let d = lint_module("SCR001", "def f():\n    nonlocal x\n");
         assert_eq!(lines(&d), [(2, "x".to_owned())]);
