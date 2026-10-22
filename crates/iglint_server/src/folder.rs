@@ -10,7 +10,12 @@ use iglint_linter::rules::REGISTRY;
 use iglint_linter::settings::ProjectSettings;
 
 /// Configuration file names whose change reloads the folder.
-pub const CONFIG_NAMES: [&str; 4] = ["iglint.toml", ".iglint.toml", "pyproject.toml", "rule_config.json"];
+pub const CONFIG_NAMES: [&str; 4] = [
+    "iglint.toml",
+    ".iglint.toml",
+    "pyproject.toml",
+    "rule_config.json",
+];
 
 pub struct Folder {
     pub root: PathBuf,
@@ -72,15 +77,16 @@ impl Folder {
                 None,
             ),
         };
-        let baseline = baseline_path
-            .filter(|p| p.is_file())
-            .and_then(|p| match Baseline::load(&p) {
-                Ok(b) => Some(b),
-                Err(error) => {
-                    notices.push(format!("cannot read baseline {}: {error}", p.display()));
-                    None
-                }
-            });
+        let baseline =
+            baseline_path
+                .filter(|p| p.is_file())
+                .and_then(|p| match Baseline::load(&p) {
+                    Ok(b) => Some(b),
+                    Err(error) => {
+                        notices.push(format!("cannot read baseline {}: {error}", p.display()));
+                        None
+                    }
+                });
         let mut roots: Vec<PathBuf> = settings
             .projects
             .iter()
@@ -117,10 +123,7 @@ impl Folder {
             return true;
         }
         let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        CONFIG_NAMES.contains(&name)
-            && path
-                .parent()
-                .is_some_and(|dir| self.root.starts_with(dir))
+        CONFIG_NAMES.contains(&name) && path.parent().is_some_and(|dir| self.root.starts_with(dir))
     }
 
     /// Removes findings covered by the baseline.

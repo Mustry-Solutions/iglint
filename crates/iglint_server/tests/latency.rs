@@ -90,7 +90,13 @@ fn stats(mut samples: Vec<Duration>) -> Stats {
 
 /// Opens `path`, then types `rounds` characters at `position` and measures
 /// each change until its diagnostics arrive.
-fn measure(client: &mut Client, path: &Path, text: &str, at: Position, rounds: usize) -> Vec<Duration> {
+fn measure(
+    client: &mut Client,
+    path: &Path,
+    text: &str,
+    at: Position,
+    rounds: usize,
+) -> Vec<Duration> {
     let uri = client.open(path, text);
     client.diagnostics(&uri, Some(1));
     let mut samples = Vec::new();
@@ -107,8 +113,10 @@ fn measure(client: &mut Client, path: &Path, text: &str, at: Position, rounds: u
                 text: "x".to_owned(),
             }],
         );
-        client.diagnostics(&uri, Some(version));
+        let published = client.diagnostics(&uri, Some(version));
         samples.push(start.elapsed());
+        // The edit keeps the file valid: the measurement is of a full check.
+        assert!(!codes(&published).contains(&"VIEW001".to_owned()));
         client.drain();
     }
     samples
@@ -130,7 +138,7 @@ fn large_view_latency() {
         .unwrap();
     let at = Position::new(line as u32, column as u32);
 
-    for debounce in [0u64, 15] {
+    for debounce in [0u64, 10] {
         let mut client = Client::start(Some(&root), json!({"debounceMs": debounce}));
         let samples = measure(&mut client, &path, &text, at, 15);
         let s = stats(samples);
@@ -142,7 +150,11 @@ fn large_view_latency() {
             s.max.as_secs_f64() * 1000.0,
         );
         if !cfg!(debug_assertions) && debounce == 0 {
-            assert!(s.median < Duration::from_millis(50), "median {:?}", s.median);
+            assert!(
+                s.median < Duration::from_millis(50),
+                "median {:?}",
+                s.median
+            );
         }
         client.shutdown();
     }
@@ -177,7 +189,10 @@ fn private_corpus_latency() {
     let mut client = Client::start(Some(&corpus), json!({"debounceMs": 0}));
     // The initialize handshake returns before the folder is loaded; the
     // first request is answered after it.
-    client.request_raw("workspace/executeCommand", json!({"command": "iglint.ruleDocs", "arguments": ["VIEW001"]}));
+    client.request_raw(
+        "workspace/executeCommand",
+        json!({"command": "iglint.ruleDocs", "arguments": ["VIEW001"]}),
+    );
     let load = start.elapsed();
     println!(
         "corpus: {} views, {} MiB of views, workspace load {:.0} ms",
@@ -192,12 +207,17 @@ fn private_corpus_latency() {
         let Some((line, column)) = text.lines().enumerate().find_map(|(n, l)| {
             let t = l.trim_end();
             let t = t.trim_end_matches(',');
-            (t.ends_with('"') && t.len() > 1)
-                .then(|| (n, t[..t.len() - 1].encode_utf16().count()))
+            (t.ends_with('"') && t.len() > 1).then(|| (n, t[..t.len() - 1].encode_utf16().count()))
         }) else {
             continue;
         };
-        let samples = measure(&mut client, path, &text, Position::new(line as u32, column as u32), 10);
+        let samples = measure(
+            &mut client,
+            path,
+            &text,
+            Position::new(line as u32, column as u32),
+            10,
+        );
         let s = stats(samples.clone());
         println!(
             "view of {} KiB: median {:.1} ms, p95 {:.1} ms",

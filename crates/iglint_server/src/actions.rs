@@ -25,9 +25,8 @@ impl Server {
         let only = params.context.only.as_deref();
         let wants = |kind: &str| {
             only.is_none_or(|o| {
-                o.iter().any(|k| {
-                    kind == k.as_str() || kind.starts_with(&format!("{}.", k.as_str()))
-                })
+                o.iter()
+                    .any(|k| kind == k.as_str() || kind.starts_with(&format!("{}.", k.as_str())))
             })
         };
         let mut actions = Vec::new();
@@ -199,7 +198,10 @@ impl Server {
             if !seen.contains(&d.rule) {
                 seen.push(d.rule);
                 section.push_str("\n\n");
-                section.push_str(&rule_docs(d.rule, &self.options.rule_docs_url(d.rule.code(), d.rule.name())));
+                section.push_str(&rule_docs(
+                    d.rule,
+                    &self.options.rule_docs_url(d.rule.code(), d.rule.name()),
+                ));
             }
             sections.push(section);
         }

@@ -45,7 +45,7 @@ impl Default for ServerOptions {
         ServerOptions {
             run: RunTrigger::OnType,
             scope: Scope::Open,
-            debounce_ms: 15,
+            debounce_ms: 10,
             unsafe_fixes: false,
             rule_docs_url:
                 "https://github.com/Mustry-Solutions/iglint/blob/main/docs/rules/{code}.md"
@@ -63,8 +63,8 @@ impl ServerOptions {
         let Some(object) = value.as_object() else {
             return self.clone();
         };
-        let mut current = serde_json::to_value(SerializedOptions::from(self))
-            .unwrap_or(serde_json::Value::Null);
+        let mut current =
+            serde_json::to_value(SerializedOptions::from(self)).unwrap_or(serde_json::Value::Null);
         if let Some(target) = current.as_object_mut() {
             for (key, value) in object {
                 if target.contains_key(key) && !value.is_null() {
@@ -122,7 +122,8 @@ mod tests {
 
     #[test]
     fn reads_nested_and_flat_settings() {
-        let o = ServerOptions::default().updated(&json!({"iglint": {"run": "onSave", "debounceMs": 5}}));
+        let o = ServerOptions::default()
+            .updated(&json!({"iglint": {"run": "onSave", "debounceMs": 5}}));
         assert_eq!(o.run, RunTrigger::OnSave);
         assert_eq!(o.debounce_ms, 5);
         let o = o.updated(&json!({"scope": "workspace", "unknown": 1}));
@@ -135,12 +136,19 @@ mod tests {
         let o = ServerOptions::default().updated(&json!({"run": "sometimes", "debounceMs": 7}));
         assert_eq!(o.run, RunTrigger::OnType);
         assert_eq!(o.debounce_ms, 7);
-        assert_eq!(ServerOptions::default().updated(&json!(null)), ServerOptions::default());
+        assert_eq!(
+            ServerOptions::default().updated(&json!(null)),
+            ServerOptions::default()
+        );
     }
 
     #[test]
     fn docs_url_template() {
-        let o = ServerOptions::default().updated(&json!({"ruleDocsUrl": "https://x/{name}#{code}"}));
-        assert_eq!(o.rule_docs_url("VIEW001", "invalid-json"), "https://x/invalid-json#VIEW001");
+        let o =
+            ServerOptions::default().updated(&json!({"ruleDocsUrl": "https://x/{name}#{code}"}));
+        assert_eq!(
+            o.rule_docs_url("VIEW001", "invalid-json"),
+            "https://x/invalid-json#VIEW001"
+        );
     }
 }

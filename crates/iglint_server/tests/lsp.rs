@@ -89,8 +89,14 @@ fn publishes_diagnostics_with_lsp_details() {
     let line = text.lines().nth(line_no).unwrap();
     let at = line.rfind('\u{1F600}').unwrap();
     let utf16 = |s: &str| s.encode_utf16().count() as u32;
-    assert_eq!(d.range.start, Position::new(line_no as u32, utf16(&line[..at])));
-    assert_eq!(d.range.end, Position::new(line_no as u32, utf16(&line[..at]) + 2));
+    assert_eq!(
+        d.range.start,
+        Position::new(line_no as u32, utf16(&line[..at]))
+    );
+    assert_eq!(
+        d.range.end,
+        Position::new(line_no as u32, utf16(&line[..at]) + 2)
+    );
     client.shutdown();
 }
 
@@ -119,7 +125,10 @@ fn incremental_changes_and_dependent_files() {
         .into_iter()
         .rev()
         .map(|(line, col)| TextDocumentContentChangeEvent {
-            range: Some(Range::new(Position::new(line, col), Position::new(line, col + 5))),
+            range: Some(Range::new(
+                Position::new(line, col),
+                Position::new(line, col + 5),
+            )),
             range_length: None,
             text: "rate".to_owned(),
         })
@@ -127,10 +136,16 @@ fn incremental_changes_and_dependent_files() {
     assert_eq!(changes.len(), 3);
     client.change(&popup_uri, 2, changes);
     let popup_after = client.diagnostics(&popup_uri, Some(2));
-    assert!(!codes(&popup_after).contains(&"BIND005".to_owned()), "{popup_after:#?}");
+    assert!(
+        !codes(&popup_after).contains(&"BIND005".to_owned()),
+        "{popup_after:#?}"
+    );
     // The caller passes `speed`, which the popup no longer declares.
     let caller_after = client.diagnostics(&caller_uri, Some(1));
-    assert!(codes(&caller_after).contains(&"REF007".to_owned()), "{caller_after:#?}");
+    assert!(
+        codes(&caller_after).contains(&"REF007".to_owned()),
+        "{caller_after:#?}"
+    );
 
     // Closing the popup goes back to the disk text, which declares `speed`.
     client.notify(
@@ -172,7 +187,10 @@ fn quick_fixes_fix_all_and_hover() {
     assert_eq!(quick.is_preferred, Some(true));
     let edits = &quick.edit.as_ref().unwrap().changes.as_ref().unwrap()[&uri];
     let fixed = apply(&text, edits);
-    assert!(!fixed.contains("unusedA") && fixed.contains("unusedB"), "{fixed}");
+    assert!(
+        !fixed.contains("unusedA") && fixed.contains("unusedB"),
+        "{fixed}"
+    );
     serde_json::from_str::<serde_json::Value>(&fixed).unwrap();
 
     // Fix all, as a source action resolved lazily.
@@ -183,13 +201,19 @@ fn quick_fixes_fix_all_and_hover() {
         Some(vec![CodeActionKind::SOURCE_FIX_ALL]),
     );
     assert_eq!(actions.len(), 1, "{actions:#?}");
-    assert_eq!(actions[0].kind.as_ref().unwrap().as_str(), "source.fixAll.iglint");
+    assert_eq!(
+        actions[0].kind.as_ref().unwrap().as_str(),
+        "source.fixAll.iglint"
+    );
     assert!(actions[0].edit.is_none());
     let resolved = client.request::<CodeActionResolveRequest>(actions[0].clone());
     let edits = &resolved.edit.unwrap().changes.unwrap()[&uri];
     assert_eq!(edits.len(), 1);
     let fixed = apply(&text, edits);
-    assert!(!fixed.contains("unusedA") && !fixed.contains("unusedB"), "{fixed}");
+    assert!(
+        !fixed.contains("unusedA") && !fixed.contains("unusedB"),
+        "{fixed}"
+    );
 
     // Hover on the finding shows the rule.
     let hover = client
@@ -204,7 +228,11 @@ fn quick_fixes_fix_all_and_hover() {
     let HoverContents::Markup(markup) = hover.contents else {
         panic!("markdown expected");
     };
-    assert!(markup.value.contains("**VIEW015** `unused-custom-property`"));
+    assert!(
+        markup
+            .value
+            .contains("**VIEW015** `unused-custom-property`")
+    );
     assert!(markup.value.contains("## What it does"));
 
     // Nothing to hover outside findings.
@@ -228,7 +256,10 @@ fn quick_fixes_fix_all_and_hover() {
         Message::Request(r) if r.method == ApplyWorkspaceEdit::METHOD => Some(r.params.clone()),
         _ => None,
     });
-    assert!(edit["edit"]["changes"].get(uri.as_str()).is_some(), "{edit}");
+    assert!(
+        edit["edit"]["changes"].get(uri.as_str()).is_some(),
+        "{edit}"
+    );
 
     // Rule docs.
     let docs = client.request::<ExecuteCommand>(ExecuteCommandParams {
@@ -236,7 +267,12 @@ fn quick_fixes_fix_all_and_hover() {
         arguments: vec![json!("unused-custom-property")],
         work_done_progress_params: Default::default(),
     });
-    assert!(docs.unwrap().as_str().unwrap().starts_with("# VIEW015 unused-custom-property"));
+    assert!(
+        docs.unwrap()
+            .as_str()
+            .unwrap()
+            .starts_with("# VIEW015 unused-custom-property")
+    );
     client.shutdown();
 }
 
@@ -250,7 +286,8 @@ fn fix_all_without_resolve_support_is_eager() {
         json!({"debounceMs": 0}),
         lsp_types::ClientCapabilities::default(),
     );
-    let text = popup_view("speed").replace("\"params\": {", "\"custom\": {\"x\": 1},\n  \"params\": {");
+    let text =
+        popup_view("speed").replace("\"params\": {", "\"custom\": {\"x\": 1},\n  \"params\": {");
     let uri = client.open(&popup, &text);
     client.diagnostics(&uri, Some(1));
     let actions = code_actions(
@@ -262,7 +299,11 @@ fn fix_all_without_resolve_support_is_eager() {
     assert_eq!(actions.len(), 1);
     assert!(actions[0].edit.is_some());
     // Quick fixes are not source actions.
-    assert!(actions.iter().all(|a| a.kind != Some(CodeActionKind::QUICKFIX)));
+    assert!(
+        actions
+            .iter()
+            .all(|a| a.kind != Some(CodeActionKind::QUICKFIX))
+    );
     client.shutdown();
 }
 
@@ -320,7 +361,10 @@ fn invalid_configuration_falls_back_to_defaults() {
         Message::Notification(n) if n.method == "window/showMessage" => Some(n.params.clone()),
         _ => None,
     });
-    assert!(shown["message"].as_str().unwrap().contains("configuration"), "{shown}");
+    assert!(
+        shown["message"].as_str().unwrap().contains("configuration"),
+        "{shown}"
+    );
     let uri = client.open(&popup, "{\"root\": ");
     assert!(codes(&client.diagnostics(&uri, Some(1))).contains(&"VIEW001".to_owned()));
     client.shutdown();
@@ -356,10 +400,16 @@ fn files_outside_folders_and_standalone_files() {
     let loose = write(&root, "loose/view.json", "[1 2]");
     // No workspace folder at all.
     let mut client = Client::start(None, json!({"debounceMs": 0}));
-    let uri = client.open(&popup, &popup_view("speed").replace("view.params.speed", "view.params.nope"));
+    let uri = client.open(
+        &popup,
+        &popup_view("speed").replace("view.params.speed", "view.params.nope"),
+    );
     assert!(codes(&client.diagnostics(&uri, Some(1))).contains(&"BIND005".to_owned()));
     let loose_uri = client.open(&loose, "[1 2]");
-    assert_eq!(codes(&client.diagnostics(&loose_uri, Some(1))), vec!["VIEW001"]);
+    assert_eq!(
+        codes(&client.diagnostics(&loose_uri, Some(1))),
+        vec!["VIEW001"]
+    );
     // Not an iglint file: ignored.
     let css = write(&root, "loose/style.css", "a {}");
     client.open(&css, "a {}");
@@ -385,8 +435,7 @@ fn survives_malformed_input() {
     let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
     let uri = client.open(&popup, "");
     client.diagnostics(&uri, Some(1));
-    let base = popup_view("speed")
-        + "\u{0}\u{FEFF}\u{1F600}\"\\u12\"\\\"\"\"\"\"\"  \t \u{2028}";
+    let base = popup_view("speed") + "\u{0}\u{FEFF}\u{1F600}\"\\u12\"\\\"\"\"\"\"\"  \t \u{2028}";
     let mut version = 1;
     // Every prefix of a view (in steps) and some garbage.
     let mut texts: Vec<String> = (0..base.len())
@@ -456,8 +505,53 @@ fn on_save_mode_waits_for_save() {
     assert!(codes(&after).contains(&"REF001".to_owned()));
     // The only diagnostics for version 2 came after the save.
     assert!(client.inbox.iter().all(|m| match m {
-        Message::Notification(n) => n.params.get("version") != Some(&json!(2)) || n.method != "textDocument/publishDiagnostics",
+        Message::Notification(n) =>
+            n.params.get("version") != Some(&json!(2))
+                || n.method != "textDocument/publishDiagnostics",
         _ => true,
     }));
+    client.shutdown();
+}
+
+#[test]
+fn script_findings_can_be_suppressed() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    let (popup, _) = demo_project(&root);
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let text = popup_view("speed").replace(
+        r#""meta": {"name": "Label"},"#,
+        r#""meta": {"name": "Label"}, "events": {"dom": {"onClick": {"type": "script", "scope": "G", "config": {"script": "\timport os\n\tsystem.perspective.print(1)"}}}},"#,
+    );
+    let uri = client.open(&popup, &text);
+    let published = client.diagnostics(&uri, Some(1));
+    let d = published
+        .diagnostics
+        .iter()
+        .find(|d| d.code == Some(lsp_types::NumberOrString::String("SCR102".into())))
+        .unwrap_or_else(|| panic!("{published:#?}"))
+        .clone();
+    assert_eq!(d.tags, Some(vec![DiagnosticTag::UNNECESSARY]));
+    let actions = code_actions(
+        &mut client,
+        &uri,
+        d.range,
+        Some(vec![CodeActionKind::QUICKFIX]),
+    );
+    let suppress = actions
+        .iter()
+        .find(|a| a.title == "SCR102: suppress on this line")
+        .unwrap_or_else(|| panic!("{actions:#?}"));
+    let fixed = apply(
+        &text,
+        &suppress.edit.as_ref().unwrap().changes.as_ref().unwrap()[&uri],
+    );
+    assert!(
+        fixed.contains(r#"\timport os  # iglint: ignore[SCR102]\n"#),
+        "{fixed}"
+    );
+    client.replace_all(&uri, 2, &fixed);
+    let after = client.diagnostics(&uri, Some(2));
+    assert!(!codes(&after).contains(&"SCR102".to_owned()), "{after:#?}");
     client.shutdown();
 }

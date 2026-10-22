@@ -34,7 +34,11 @@ impl Client {
         Client::start_with(root, init, client_capabilities())
     }
 
-    pub fn start_with(root: Option<&Path>, init: Value, capabilities: ClientCapabilities) -> Client {
+    pub fn start_with(
+        root: Option<&Path>,
+        init: Value,
+        capabilities: ClientCapabilities,
+    ) -> Client {
         let (server, client) = Connection::memory();
         let handle = std::thread::spawn(move || iglint_server::run_connection(server));
         let mut c = Client {
@@ -83,7 +87,11 @@ impl Client {
                 .recv_deadline(deadline)
                 .unwrap_or_else(|_| panic!("no response to {method}"));
             match message {
-                Message::Response(Response { id: rid, result, error }) if rid == id => {
+                Message::Response(Response {
+                    id: rid,
+                    result,
+                    error,
+                }) if rid == id => {
                     if let Some(error) = error {
                         panic!("{method} failed: {error:?}");
                     }
@@ -158,7 +166,12 @@ impl Client {
         uri
     }
 
-    pub fn change(&mut self, uri: &Url, version: i32, changes: Vec<TextDocumentContentChangeEvent>) {
+    pub fn change(
+        &mut self,
+        uri: &Url,
+        version: i32,
+        changes: Vec<TextDocumentContentChangeEvent>,
+    ) {
         self.notify(
             DidChangeTextDocument::METHOD,
             serde_json::to_value(DidChangeTextDocumentParams {
@@ -224,9 +237,17 @@ pub const MANIFEST: &str = r#"{"scope": "G", "version": 1, "restricted": false, 
 /// A project with views `Popup` (one input parameter) and `Caller` (embeds
 /// `Popup`, passing `speed`).
 pub fn demo_project(dir: &Path) -> (PathBuf, PathBuf) {
-    write(dir, "projects/demo/project.json", r#"{"title": "demo", "enabled": true}"#);
+    write(
+        dir,
+        "projects/demo/project.json",
+        r#"{"title": "demo", "enabled": true}"#,
+    );
     write(dir, &format!("{VIEWS}/Popup/resource.json"), MANIFEST);
-    let popup = write(dir, &format!("{VIEWS}/Popup/view.json"), &popup_view("speed"));
+    let popup = write(
+        dir,
+        &format!("{VIEWS}/Popup/view.json"),
+        &popup_view("speed"),
+    );
     write(dir, &format!("{VIEWS}/Caller/resource.json"), MANIFEST);
     let caller = write(dir, &format!("{VIEWS}/Caller/view.json"), CALLER);
     (popup, caller)

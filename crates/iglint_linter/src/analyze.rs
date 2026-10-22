@@ -643,46 +643,57 @@ pub(crate) fn run_phase(
             .then(|| crate::rules::script::unused_suppression::slot(set))
             .flatten();
         let parsed = unit.cache.parsed_scripts(unit.data);
-        for (position, ((file, script), parsed)) in
-            unit.data.scripts().into_iter().zip(parsed).enumerate()
-        {
-            let start = out.len();
-            let script_unit = ScriptUnit::new(file, script, parsed, position);
-            for (slot, rule) in &hooks.script {
-                let mut cx = Checker::new(unit, index, &set.active[*slot], out);
-                rule.check_script(&mut cx, &script_unit);
-            }
-            if out.len() > start || unused_slot.is_some() {
-                let mut cache = unit
-                    .cache
-                    .suppressions
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner());
-                let suppressions = cache
-                    .entry(position)
-                    .or_insert_with(|| Suppressions::of(script));
-                if !suppressions.is_empty() {
-                    let mut found = out.split_off(start);
-                    suppressions.apply(&mut found);
-                    out.extend(found);
-                    if let Some(slot) = unused_slot {
-                        let mut cx = Checker::new(unit, index, &set.active[slot], out);
-                        crate::rules::script::unused_suppression::report_unused(
-                            &mut cx,
-                            &script_unit,
-                            suppressions,
-                            set,
-                        );
+        // Scripts are independent: check them in parallel (a large view has
+        // hundreds) and keep their findings in script order.
+        let found: Vec<Vec<Diagnostic>> = unit
+            .data
+            .scripts()
+            .into_par_iter()
+            .zip(parsed.par_iter())
+            .enumerate()
+            .map(|(position, ((file, script), parsed))| {
+                let mut out = Vec::new();
+                let script_unit = ScriptUnit::new(file, script, parsed, position);
+                for (slot, rule) in &hooks.script {
+                    let mut cx = Checker::new(unit, index, &set.active[*slot], &mut out);
+                    rule.check_script(&mut cx, &script_unit);
+                }
+                if !out.is_empty() || unused_slot.is_some() {
+                    let mut cache = unit
+                        .cache
+                        .suppressions
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
+                    let suppressions = cache
+                        .entry(position)
+                        .or_insert_with(|| Suppressions::of(script));
+                    if !suppressions.is_empty() {
+                        suppressions.apply(&mut out);
+                        if let Some(slot) = unused_slot {
+                            let mut cx = Checker::new(unit, index, &set.active[slot], &mut out);
+                            crate::rules::script::unused_suppression::report_unused(
+                                &mut cx,
+                                &script_unit,
+                                suppressions,
+                                set,
+                            );
+                        }
                     }
                 }
-            }
-        }
+                out
+            })
+            .collect();
+        out.extend(found.into_iter().flatten());
     }
 }
 
 /// Feeds the literal references of a resource's scripts into its summary
 /// (see [`crate::script_facts`]).
-pub(crate) fn add_script_references(data: &ModelData<'_>, cache: &UnitCache, summary: &mut ResourceSummary) {
+pub(crate) fn add_script_references(
+    data: &ModelData<'_>,
+    cache: &UnitCache,
+    summary: &mut ResourceSummary,
+) {
     let scripts = data.scripts();
     if scripts.is_empty() {
         return;
@@ -736,7 +747,11 @@ pub(crate) fn is_json(path: &Path) -> bool {
 }
 
 /// Loads a resource, replacing files whose text is given in `overrides`.
-pub(crate) fn load(ws: &Workspace, id: ResourceId, overrides: &FxHashMap<FileId, Arc<str>>) -> LoadedResource {
+pub(crate) fn load(
+    ws: &Workspace,
+    id: ResourceId,
+    overrides: &FxHashMap<FileId, Arc<str>>,
+) -> LoadedResource {
     let mut loaded = ws.load_resource(id);
     if !overrides.is_empty() {
         for f in &mut loaded.files {

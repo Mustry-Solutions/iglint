@@ -628,7 +628,6 @@ dependencies = [
  "crossbeam-channel",
  "iglint_config",
  "iglint_linter",
- "iglint_project",
  "iglint_text",
  "lsp-server",
  "lsp-types",

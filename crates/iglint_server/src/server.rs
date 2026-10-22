@@ -175,8 +175,7 @@ impl Server {
                 Message::Request(request) => {
                     let id = request.id.clone();
                     let method = request.method.clone();
-                    let outcome =
-                        catch_unwind(AssertUnwindSafe(|| self.handle_request(request)));
+                    let outcome = catch_unwind(AssertUnwindSafe(|| self.handle_request(request)));
                     let response = match outcome {
                         Ok(response) => response,
                         Err(panic) => {
@@ -206,7 +205,10 @@ impl Server {
     fn guarded(&mut self, what: &str, f: impl FnOnce(&mut Server)) {
         if let Err(panic) = catch_unwind(AssertUnwindSafe(|| f(self))) {
             let message = panic_message(&panic);
-            self.log(MessageType::ERROR, format!("iglint: {what} failed: {message}"));
+            self.log(
+                MessageType::ERROR,
+                format!("iglint: {what} failed: {message}"),
+            );
         }
     }
 
@@ -389,7 +391,9 @@ impl Server {
                 .filter(|i| self.folders[*i].owns(&path))
                 .collect();
             let structural = change.typ != FileChangeType::CHANGED
-                || owners.iter().any(|i| self.folders[*i].live.is_manifest(&path));
+                || owners
+                    .iter()
+                    .any(|i| self.folders[*i].live.is_manifest(&path));
             if structural {
                 reload.extend(owners);
             } else if !self.documents.values().any(|d| d.path == path) {
@@ -594,6 +598,7 @@ impl Server {
         if dirty.is_empty() {
             return;
         }
+        // The edited documents first, then what depends on them.
         let mut checks: FxHashMap<usize, BTreeSet<PathBuf>> = FxHashMap::default();
         for uri in dirty {
             let Some(doc) = self.documents.get_mut(&uri) else {
@@ -603,9 +608,18 @@ impl Server {
             let path = doc.path.clone();
             let text: Arc<str> = Arc::from(doc.text.as_str());
             let i = self.folder_for(&path);
-            let dependents = self.folders[i].live.set_text(&path, Some(text));
-            let check = checks.entry(i).or_default();
-            check.insert(path);
+            let start = Instant::now();
+            let (result, dependents) = self.folders[i].live.update(&path, text);
+            let elapsed = start.elapsed();
+            self.publish_result(i, result);
+            self.log(
+                MessageType::LOG,
+                format!(
+                    "iglint: checked {} in {:.1} ms",
+                    path.display(),
+                    elapsed.as_secs_f64() * 1000.0
+                ),
+            );
             let mut extra = BTreeSet::new();
             self.add_dependents(i, dependents, &mut extra);
             checks.entry(i).or_default().extend(extra);
@@ -642,14 +656,7 @@ impl Server {
         let elapsed = start.elapsed();
         let count = results.len();
         for result in results {
-            if let Some(error) = &result.error {
-                self.log(
-                    MessageType::WARNING,
-                    format!("iglint: {}: {error}", result.path.display()),
-                );
-            }
-            let diagnostics = self.folders[i].filter_baseline(result.diagnostics);
-            self.publish(&result.path, diagnostics);
+            self.publish_result(i, result);
         }
         self.log(
             MessageType::LOG,
@@ -658,6 +665,17 @@ impl Server {
                 elapsed.as_secs_f64() * 1000.0
             ),
         );
+    }
+
+    fn publish_result(&mut self, i: usize, result: iglint_linter::live::FileDiagnostics) {
+        if let Some(error) = &result.error {
+            self.log(
+                MessageType::WARNING,
+                format!("iglint: {}: {error}", result.path.display()),
+            );
+        }
+        let diagnostics = self.folders[i].filter_baseline(result.diagnostics);
+        self.publish(&result.path, diagnostics);
     }
 
     fn publish(&mut self, path: &Path, diagnostics: Vec<Diagnostic>) {

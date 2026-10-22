@@ -33,8 +33,8 @@ pub enum Command {
     /// Write a baseline of the current findings, so that only new findings
     /// fail (same as `check --update-baseline`).
     Baseline(Box<CheckArgs>),
-    /// Run the language server.
-    #[command(hide = true)]
+    /// Run the language server (LSP over standard input and output), for
+    /// editor integrations.
     Server,
     /// Run with the command-line interface of ign-lint 0.6.4.
     #[command(name = "ign-lint", disable_help_flag = true)]

@@ -62,7 +62,11 @@ fn same_findings_as_a_full_check() {
     for name in ["basic", "edge"] {
         let root = absolute(&fixture(name));
         let settings = all_rules(&root);
-        let full = check(&settings, &[root.clone()], &CheckOptions::default());
+        let full = check(
+            &settings,
+            std::slice::from_ref(&root),
+            &CheckOptions::default(),
+        );
         let mut expected: Vec<Finding> = full.diagnostics.iter().map(|d| key(d, &root)).collect();
         expected.sort();
 
@@ -114,10 +118,18 @@ const CALLER: &str = r#"{
 }"#;
 
 fn project(dir: &Path) -> (PathBuf, PathBuf) {
-    write(dir, "projects/p/project.json", r#"{"title": "p", "enabled": true}"#);
+    write(
+        dir,
+        "projects/p/project.json",
+        r#"{"title": "p", "enabled": true}"#,
+    );
     let manifest = r#"{"scope": "G", "version": 1, "restricted": false, "overridable": true, "files": ["view.json"], "attributes": {}}"#;
     write(dir, &format!("{VIEWS}/Popup/resource.json"), manifest);
-    let popup = write(dir, &format!("{VIEWS}/Popup/view.json"), &view_with_param("speed"));
+    let popup = write(
+        dir,
+        &format!("{VIEWS}/Popup/view.json"),
+        &view_with_param("speed"),
+    );
     write(dir, &format!("{VIEWS}/Caller/resource.json"), manifest);
     let caller = write(dir, &format!("{VIEWS}/Caller/view.json"), CALLER);
     (absolute(&popup), absolute(&caller))
@@ -141,12 +153,21 @@ fn edits_report_their_dependents() {
 
     // Renaming the popup's parameter changes the caller's findings.
     let dependents = live.set_text(&popup, Some(Arc::from(view_with_param("rate"))));
-    assert_eq!(dependents, Dependents::Files(vec![caller.parent().unwrap().join("resource.json"), caller.clone()]));
+    assert_eq!(
+        dependents,
+        Dependents::Files(vec![
+            caller.parent().unwrap().join("resource.json"),
+            caller.clone()
+        ])
+    );
     assert!(codes(&mut live, &caller).contains(&"REF007"));
 
     // An edit that keeps the summary affects nobody else.
     let same = view_with_param("rate").replace("\"root\"}", "\"root\"} ");
-    assert_eq!(live.set_text(&popup, Some(Arc::from(same))), Dependents::None);
+    assert_eq!(
+        live.set_text(&popup, Some(Arc::from(same))),
+        Dependents::None
+    );
 
     // The caller stops referencing the popup: the popup's usage changes.
     let detached = CALLER.replace("\"Popup\"", "\"Elsewhere\"");
@@ -174,9 +195,14 @@ fn fix_all_applies_fixes_without_touching_the_workspace() {
   "root": {"type": "ia.container.flex", "meta": {"name": "root"}}
 }"#;
     live.set_text(&popup, Some(Arc::from(text)));
-    let found = live.check(std::slice::from_ref(&popup)).remove(0).diagnostics;
+    let found = live
+        .check(std::slice::from_ref(&popup))
+        .remove(0)
+        .diagnostics;
     assert!(
-        found.iter().any(|d| d.rule.code() == "VIEW015" && d.fix.is_some()),
+        found
+            .iter()
+            .any(|d| d.rule.code() == "VIEW015" && d.fix.is_some()),
         "{found:#?}"
     );
     let fixed = live.fix_all(&popup, false).expect("fixes apply");
@@ -185,6 +211,41 @@ fn fix_all_applies_fixes_without_touching_the_workspace() {
     // The workspace still has the editor text.
     assert_eq!(live.source(&popup).unwrap().text(), text);
     live.set_text(&popup, Some(Arc::from(fixed.fixed)));
-    let after = live.check(std::slice::from_ref(&popup)).remove(0).diagnostics;
+    let after = live
+        .check(std::slice::from_ref(&popup))
+        .remove(0)
+        .diagnostics;
     assert!(!after.iter().any(|d| d.message.contains("unusedCounter")));
+}
+
+#[test]
+fn update_matches_set_text_and_check() {
+    let root = absolute(&fixture("basic"));
+    let settings = all_rules(&root);
+    let mut a = LiveWorkspace::new(settings.clone(), vec![root.clone()]);
+    let mut b = LiveWorkspace::new(settings, vec![root.clone()]);
+    for path in a.lintable_files() {
+        let text = std::fs::read_to_string(&path).unwrap();
+        // Truncated text exercises the error paths too.
+        let half = (0..=text.len() / 2)
+            .rev()
+            .find(|i| text.is_char_boundary(*i))
+            .unwrap_or(0);
+        for text in [text.clone(), text[..half].to_owned()] {
+            let (found, dependents) = a.update(&path, Arc::from(text.as_str()));
+            let expected_dependents = b.set_text(&path, Some(Arc::from(text.as_str())));
+            let expected = b.check(std::slice::from_ref(&path)).remove(0);
+            assert_eq!(dependents, expected_dependents, "{}", path.display());
+            let keys = |d: &[iglint_linter::Diagnostic]| -> Vec<Finding> {
+                d.iter().map(|d| key(d, &root)).collect()
+            };
+            assert_eq!(
+                keys(&found.diagnostics),
+                keys(&expected.diagnostics),
+                "{}",
+                path.display()
+            );
+            assert_eq!(found.error, expected.error);
+        }
+    }
 }

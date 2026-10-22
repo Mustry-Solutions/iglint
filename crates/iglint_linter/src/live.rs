@@ -22,7 +22,7 @@ use iglint_project::model::{LoadedFile, LoadedResource, ModelData};
 use iglint_project::summary::Facts;
 use iglint_project::{
     Container, FileId, JsonDocument, LibraryLookup, ProjectId, ResourceId, ResourceKind,
-    ResourceSummary, Workspace, build_model, summarize,
+    ResourceModel, ResourceSummary, Workspace, build_model, summarize,
 };
 use iglint_text::{TextEdit, TextRange, TextSize};
 use rayon::prelude::*;
@@ -124,24 +124,37 @@ impl LiveWorkspace {
             let doc = &r.manifest.doc;
             table.insert(
                 r.manifest.file,
-                SourceFile::new(ws.file(r.manifest.file).path.clone(), Arc::clone(doc.shared_text())),
+                SourceFile::new(
+                    ws.file(r.manifest.file).path.clone(),
+                    Arc::clone(doc.shared_text()),
+                ),
             );
         }
         for p in &ws.projects {
             let doc = &p.manifest.doc;
             table.insert(
                 p.manifest.file,
-                SourceFile::new(ws.file(p.manifest.file).path.clone(), Arc::clone(doc.shared_text())),
+                SourceFile::new(
+                    ws.file(p.manifest.file).path.clone(),
+                    Arc::clone(doc.shared_text()),
+                ),
             );
         }
         for c in &ws.collections {
             let doc = &c.manifest.doc;
             table.insert(
                 c.manifest.file,
-                SourceFile::new(ws.file(c.manifest.file).path.clone(), Arc::clone(doc.shared_text())),
+                SourceFile::new(
+                    ws.file(c.manifest.file).path.clone(),
+                    Arc::clone(doc.shared_text()),
+                ),
             );
         }
-        type Loaded = (ResourceSummary, Vec<(FileId, Arc<str>)>, Vec<(FileId, String)>);
+        type Loaded = (
+            ResourceSummary,
+            Vec<(FileId, Arc<str>)>,
+            Vec<(FileId, String)>,
+        );
         let loaded: Vec<Loaded> = ws
             .resources
             .par_iter()
@@ -302,6 +315,46 @@ impl LiveWorkspace {
         dependents
     }
 
+    /// [`LiveWorkspace::set_text`] and [`LiveWorkspace::check`] of `path`
+    /// in one step, modelling the edited resource once. Returns the findings
+    /// of `path` and the other files whose findings may have changed.
+    pub fn update(&mut self, path: &Path, text: Arc<str>) -> (FileDiagnostics, Dependents) {
+        let path = absolute(path);
+        let resource = self
+            .by_path
+            .get(&path)
+            .filter(|f| !is_manifest_kind(self.ws.file(**f).kind))
+            .and_then(|f| self.ws.file(*f).resource.map(|r| (*f, r)));
+        let Some((file, rid)) = resource.filter(|_| !self.is_skipped(&path)) else {
+            let dependents = self.set_text(&path, Some(text));
+            let found = self.check(std::slice::from_ref(&path)).remove(0);
+            return (found, dependents);
+        };
+        self.read_errors.remove(&file);
+        self.table.insert(file, SourceFile::new(path.clone(), text));
+        let loaded = self.load_current(rid);
+        let model = build_model(&self.ws, &loaded);
+        let cache = UnitCache::default();
+        let new = summary_of_model(&model, &cache);
+        let old = std::mem::replace(&mut self.summaries[rid.index()], new);
+        let changed = old != self.summaries[rid.index()];
+        let summaries = std::mem::take(&mut self.summaries);
+        let index = ProjectIndex::build(&self.ws, summaries);
+        let dependents = if changed {
+            dependents(&self.ws, &index, rid, &old)
+        } else {
+            Dependents::None
+        };
+        let found = self.run_resource(&index, &self.table, &model, &cache);
+        let result = self
+            .distribute(std::slice::from_ref(&path), found, FxHashMap::default())
+            .remove(0);
+        self.summaries = index.into_summaries();
+        drop(model);
+        drop_in_background(loaded);
+        (result, dependents)
+    }
+
     /// Findings of `paths`, in the order given.
     pub fn check(&mut self, paths: &[PathBuf]) -> Vec<FileDiagnostics> {
         let summaries = std::mem::take(&mut self.summaries);
@@ -345,7 +398,7 @@ impl LiveWorkspace {
         for p in projects {
             found.extend(self.analyze_project(index, p));
         }
-        let mut standalone_found: FxHashMap<&Path, Result<Vec<Diagnostic>, String>> = standalone
+        let standalone_found: FxHashMap<&Path, Result<Vec<Diagnostic>, String>> = standalone
             .par_iter()
             .map(|path| {
                 let text = match self.standalone.get(*path) {
@@ -356,9 +409,23 @@ impl LiveWorkspace {
             })
             .collect();
 
+        self.distribute(&paths, found, standalone_found)
+    }
+
+    /// Gives each of `paths` its findings, with the file's settings applied
+    /// (rules switched off for the file, configured severities).
+    fn distribute(
+        &self,
+        paths: &[PathBuf],
+        found: Vec<Diagnostic>,
+        mut standalone_found: FxHashMap<&Path, Result<Vec<Diagnostic>, String>>,
+    ) -> Vec<FileDiagnostics> {
         let mut by_file: FxHashMap<PathBuf, Vec<Diagnostic>> = FxHashMap::default();
         for d in found {
-            by_file.entry(d.file.path().to_path_buf()).or_default().push(d);
+            by_file
+                .entry(d.file.path().to_path_buf())
+                .or_default()
+                .push(d);
         }
         paths
             .iter()
@@ -480,13 +547,11 @@ impl LiveWorkspace {
         table: &FileTable,
         rid: ResourceId,
     ) -> Vec<Diagnostic> {
-        let mut out = Vec::new();
         let Some(settings) = self.unit_settings(rid) else {
-            return out;
+            return Vec::new();
         };
-        let set = self.sets.get(self.rules, &settings);
-        if set.is_empty() {
-            return out;
+        if self.sets.get(self.rules, &settings).is_empty() {
+            return Vec::new();
         }
         let mut loaded = self.load_current(rid);
         for f in &mut loaded.files {
@@ -497,17 +562,35 @@ impl LiveWorkspace {
             }
         }
         let model = build_model(&self.ws, &loaded);
-        let cache = UnitCache::default();
+        self.run_resource(index, table, &model, &UnitCache::default())
+    }
+
+    /// Both phases on the model of a resource.
+    fn run_resource(
+        &self,
+        index: &ProjectIndex<'_>,
+        table: &FileTable,
+        model: &ResourceModel<'_>,
+        cache: &UnitCache,
+    ) -> Vec<Diagnostic> {
+        let mut out = Vec::new();
+        let Some(settings) = self.unit_settings(model.resource.id) else {
+            return out;
+        };
+        let set = self.sets.get(self.rules, &settings);
+        if set.is_empty() {
+            return out;
+        }
         let unit = Unit {
             ws: &self.ws,
             resource: Some(model.resource),
             project: project_of(model.resource.container),
             data: &model.data,
             errors: &model.errors,
-            primary: primary_file(&model),
+            primary: primary_file(model),
             files: table,
             strict: settings.strict,
-            cache: &cache,
+            cache,
         };
         run_phase(&unit, None, &set, &set.local, &mut out);
         run_phase(&unit, Some(index), &set, &set.project, &mut out);
@@ -626,7 +709,7 @@ impl LiveWorkspace {
         self.summaries = index.into_summaries();
         let (summary, _) = result.ok()?;
         let summary = summary?;
-        summary.changed().then(|| FixAll {
+        summary.changed().then_some(FixAll {
             applied: summary.applied.len(),
             fixed: summary.fixed,
         })
@@ -713,10 +796,7 @@ fn suppression_insert(source: &str, offset: TextSize, code: &str) -> Option<(Tex
                     let close = text.find(']')?;
                     (c.start().to_usize() + close, format!(", {code}"))
                 }
-                _ => (
-                    c.start().to_usize(),
-                    format!("# iglint: ignore[{code}]  "),
-                ),
+                _ => (c.start().to_usize(), format!("# iglint: ignore[{code}]  ")),
             }
         }
         None => {
@@ -756,12 +836,25 @@ fn project_of(container: Container) -> Option<ProjectId> {
 
 /// Models and summarises a loaded resource the way phase A does.
 fn summary_of(ws: &Workspace, loaded: &LoadedResource) -> ResourceSummary {
-    let model = build_model(ws, loaded);
-    let mut summary = summarize(&model);
+    summary_of_model(&build_model(ws, loaded), &UnitCache::default())
+}
+
+fn summary_of_model(model: &ResourceModel<'_>, cache: &UnitCache) -> ResourceSummary {
+    let mut summary = summarize(model);
     if crate::script_facts::provider().provides_references() {
-        add_script_references(&model.data, &UnitCache::default(), &mut summary);
+        add_script_references(&model.data, cache, &mut summary);
     }
     summary
+}
+
+/// Freeing the parse trees of a large resource takes milliseconds; do it
+/// off the latency path.
+fn drop_in_background(loaded: LoadedResource) {
+    let spawned = std::thread::Builder::new()
+        .name("iglint-drop".to_owned())
+        .spawn(move || drop(loaded));
+    // Without a thread, `loaded` was dropped with the closure here.
+    let _ = spawned;
 }
 
 /// Resources whose findings may change because the summary of `changed`
@@ -930,8 +1023,11 @@ mod tests {
         let views = root.join("projects/p/com.inductiveautomation.perspective/views/V");
         std::fs::create_dir_all(&views).unwrap();
         std::fs::write(root.join("projects/p/project.json"), r#"{"title": "p"}"#).unwrap();
-        std::fs::write(views.join("resource.json"), r#"{"scope": "G", "files": ["view.json"]}"#)
-            .unwrap();
+        std::fs::write(
+            views.join("resource.json"),
+            r#"{"scope": "G", "files": ["view.json"]}"#,
+        )
+        .unwrap();
         let view = views.join("view.json");
         let text = r#"{"root": {"type": "ia.container.flex", "meta": {"name": "root"},
  "events": {"dom": {"onClick": {"type": "script", "config": {"script": "\tx = 1\n\ty = bad\t# note"}}}}}}"#;
@@ -953,15 +1049,25 @@ mod tests {
             ..ProjectSettings::default()
         };
         let mut live = LiveWorkspace::with_rules(TEST_RULES, settings, vec![root.clone()]);
-        let found = live.check(std::slice::from_ref(&view)).remove(0).diagnostics;
+        let found = live
+            .check(std::slice::from_ref(&view))
+            .remove(0)
+            .diagnostics;
         assert_eq!(found.len(), 1, "{found:#?}");
         assert_eq!(found[0].range.slice(text), "bad");
         assert!(live.suppressible(found[0].rule));
         let edit = live.suppression_edit(&found[0]).expect("an edit");
         let new = iglint_text::apply_edits(text, &[edit.edit]).unwrap();
-        assert!(new.contains(r#"\ty = bad\t# iglint: ignore[SCR900]  # note"}"#), "{new}");
+        assert!(
+            new.contains(r#"\ty = bad\t# iglint: ignore[SCR900]  # note"}"#),
+            "{new}"
+        );
         live.set_text(&view, Some(Arc::from(new)));
-        assert!(live.check(std::slice::from_ref(&view))[0].diagnostics.is_empty());
+        assert!(
+            live.check(std::slice::from_ref(&view))[0]
+                .diagnostics
+                .is_empty()
+        );
     }
 
     fn insert(source: &str, at: usize, code: &str) -> Option<String> {

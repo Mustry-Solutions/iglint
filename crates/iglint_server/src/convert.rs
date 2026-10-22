@@ -193,7 +193,14 @@ mod tests {
             }
         );
         assert_eq!(
-            offset(&index, text, Position { line: 1, character: 2 }),
+            offset(
+                &index,
+                text,
+                Position {
+                    line: 1,
+                    character: 2
+                }
+            ),
             TextSize::new(6)
         );
     }
@@ -223,9 +230,21 @@ mod tests {
 
     #[test]
     fn minimal_edits() {
-        assert_eq!(minimal_edit("abcdef", "abXdef"), (TextRange::from(2..3), "X".to_owned()));
-        assert_eq!(minimal_edit("aaa", "aa"), (TextRange::from(2..3), String::new()));
-        assert_eq!(minimal_edit("same", "same"), (TextRange::from(4..4), String::new()));
-        assert_eq!(minimal_edit("\u{e9}\u{e8}", "\u{e9}\u{ea}"), (TextRange::from(2..4), "\u{ea}".to_owned()));
+        assert_eq!(
+            minimal_edit("abcdef", "abXdef"),
+            (TextRange::from(2..3), "X".to_owned())
+        );
+        assert_eq!(
+            minimal_edit("aaa", "aa"),
+            (TextRange::from(2..3), String::new())
+        );
+        assert_eq!(
+            minimal_edit("same", "same"),
+            (TextRange::from(4..4), String::new())
+        );
+        assert_eq!(
+            minimal_edit("\u{e9}\u{e8}", "\u{e9}\u{ea}"),
+            (TextRange::from(2..4), "\u{ea}".to_owned())
+        );
     }
 }
