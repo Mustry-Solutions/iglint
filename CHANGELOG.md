@@ -7,6 +7,12 @@ from 0.1.0 on.
 
 ## [Unreleased]
 
+### Fixed
+
+- `\N{...}` escapes in unicode literals resolve every name IA's Jython
+  2.7.3 accepts (its Unicode 9.0 table, with its lookup quirks); unknown
+  names are reported as SCR001, as Jython rejects them.
+
 ## [0.1.0]
 
 First public release.

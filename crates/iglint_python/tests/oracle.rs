@@ -53,15 +53,6 @@ fn parse_records(text: &str) -> Vec<(String, Record)> {
     records
 }
 
-/// The one deliberate difference from Jython: iglint resolves `\N{...}`
-/// escapes with a partial table of Unicode names and keeps unknown names as
-/// written, while Jython rejects names missing from its full table (it fails
-/// with an internal error, reported at line 0, column 0).
-fn is_known_divergence(source: &[u8], expected: &Record) -> bool {
-    *expected == (Record::Error { line: 0, column: 0 })
-        && source.windows(3).any(|window| window == b"\\N{")
-}
-
 /// Compares one source with Jython's record; returns a description of the
 /// difference, if any.
 fn compare(source: &[u8], expected: &Record) -> Option<String> {
@@ -69,7 +60,7 @@ fn compare(source: &[u8], expected: &Record) -> Option<String> {
     let actual = parse_records(&format!("### x\n{ours}"))
         .pop()
         .map(|(_, record)| record)?;
-    if &actual == expected || is_known_divergence(source, expected) {
+    if &actual == expected {
         return None;
     }
     Some(match (expected, &actual) {
