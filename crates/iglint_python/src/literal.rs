@@ -12,6 +12,8 @@ pub(crate) enum LiteralError {
     EmptyInteger,
     /// A malformed or out-of-range escape sequence.
     InvalidEscape,
+    /// A `\N{...}` escape naming no character that Jython knows.
+    UnknownCharacterName,
     /// An octal escape above `\377` in a byte string.
     ByteOutOfRange,
     /// A unicode string with an unpaired surrogate.
@@ -23,6 +25,9 @@ impl LiteralError {
         match self {
             LiteralError::EmptyInteger => "integer literal without digits",
             LiteralError::InvalidEscape => "invalid escape sequence in string literal",
+            LiteralError::UnknownCharacterName => {
+                "unknown Unicode character name in \\N{...} escape"
+            }
             LiteralError::ByteOutOfRange => "octal escape above \\377 in byte string",
             LiteralError::UnpairedSurrogate => "unpaired surrogate in unicode string",
         }
@@ -412,28 +417,23 @@ fn decode_escapes(input: &[u16], unicode: bool, out: &mut Vec<u16>) -> Result<()
                 if input.get(s) != Some(&u16::from(b'{')) {
                     return Err(LiteralError::InvalidEscape);
                 }
+                // Like Jython, look for the closing brace only as far as the
+                // longest name.
                 let name_start = s + 1;
-                let Some(length) = input[name_start..]
-                    .iter()
-                    .position(|&unit| unit == u16::from(b'}'))
-                else {
-                    return Err(LiteralError::InvalidEscape);
-                };
-                let name = String::from_utf16_lossy(&input[name_start..name_start + length]);
-                match crate::unicode_names::lookup(&name) {
-                    Some(c) => {
-                        s = name_start + length + 1;
-                        push_scalar(c as u32, out)?;
-                    }
-                    None if crate::unicode_names::is_complete() => {
-                        return Err(LiteralError::InvalidEscape);
-                    }
-                    None => {
-                        // Not in our table: keep the escape as written.
-                        out.push(u16::from(b'\\'));
-                        out.push(u16::from(b'N'));
-                    }
+                let mut close = name_start;
+                while close < end
+                    && input[close] != u16::from(b'}')
+                    && close - name_start < crate::unicode_names::MAX_LENGTH
+                {
+                    close += 1;
                 }
+                if input.get(close) != Some(&u16::from(b'}')) {
+                    return Err(LiteralError::InvalidEscape);
+                }
+                let value = crate::unicode_names::lookup(&input[name_start..close])
+                    .ok_or(LiteralError::UnknownCharacterName)?;
+                push_scalar(value, out).map_err(|_| LiteralError::UnknownCharacterName)?;
+                s = close + 1;
             }
             _ => {
                 out.push(u16::from(b'\\'));

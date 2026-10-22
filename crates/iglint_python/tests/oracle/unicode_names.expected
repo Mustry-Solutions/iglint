@@ -1,0 +1,257 @@
+### name ascii
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'A'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'A', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name bullet
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u2022'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u2022', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name lowercase
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u2022'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u2022', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name mixed case
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\xdf'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\xdf', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name control
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\x00\\x0c\\t'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\x00\\x0c\\t', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name hyphenated
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u201a>'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u201a>', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name leading hyphen word
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u0f02'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u0f02', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name greek and cyrillic
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u03b1\\u0416'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u03b1\\u0416', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name hebrew and arabic
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u05d0\\u0628'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u05d0\\u0628', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name devanagari
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u0915'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u0915', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name thai
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u0e01'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u0e01', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name hangul jamo
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u1100'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u1100', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name yi syllable
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\ua000'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\ua000', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name cjk radical
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u2e80'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u2e80', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name halfwidth
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\uff71'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\uff71', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name astral emoji
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\U0001f4a9'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\U0001f4a9', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name astral musical
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\U0001d0c5'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\U0001d0c5', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name astral math
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\U0001d400'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\U0001d400', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name unicode 8
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\U0001f9c0'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\U0001f9c0', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name unicode 9
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\U0001f926'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\U0001f926', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name unicode 9 adlam
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\U0001e900'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\U0001e900', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name unicode 10 unknown
+error 0 0
+internal error: UnicodeDecodeError
+### name unicode 11 unknown
+error 0 0
+internal error: UnicodeDecodeError
+### name trailing space
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u2022'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u2022', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name leading space
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u2022'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u2022', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name double space
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\u2605'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\u2605', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name triple space
+error 0 0
+internal error: UnicodeDecodeError
+### name trailing space after letter
+error 0 0
+internal error: UnicodeDecodeError
+### name unknown
+error 0 0
+internal error: UnicodeDecodeError
+### name unknown short
+error 0 0
+internal error: UnicodeDecodeError
+### name empty
+error 0 0
+internal error: UnicodeDecodeError
+### name unknown character
+error 0 0
+internal error: UnicodeDecodeError
+### name non ascii
+error 0 0
+internal error: UnicodeDecodeError
+### name without brace
+error 0 0
+internal error: UnicodeDecodeError
+### name unterminated
+error 0 0
+internal error: UnicodeDecodeError
+### name long
+error 0 0
+internal error: UnicodeDecodeError
+### name many short words
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### name alias
+error 0 0
+internal error: UnicodeDecodeError
+### name alias byte order mark
+error 0 0
+internal error: UnicodeDecodeError
+### name unicode 1 name
+error 0 0
+internal error: UnicodeDecodeError
+### name cjk unified
+error 0 0
+internal error: UnicodeDecodeError
+### name hangul syllable
+error 0 0
+internal error: UnicodeDecodeError
+### name cjk compatibility
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\uf900'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\uf900', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name cjk compatibility any code point
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'A'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'A', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name cjk compatibility plus sign
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\U0001f4a9'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\U0001f4a9', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name cjk compatibility minus zero
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\x00'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\x00', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name cjk compatibility negative
+error 0 0
+internal error: UnicodeDecodeError
+### name cjk compatibility surrogate
+error 0 0
+internal error: UnicodeDecodeError
+### name cjk compatibility too large
+error 0 0
+internal error: UnicodeDecodeError
+### name cjk compatibility empty
+error 0 0
+internal error: UnicodeDecodeError
+### name cjk compatibility fullwidth digits
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\ufa01'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\ufa01', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name cjk compatibility thai digits
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'A'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'A', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name cjk compatibility leading zeros
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'A'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'A', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name cjk compatibility too many zeros
+error 0 0
+internal error: UnicodeDecodeError
+### name cjk compatibility lowercase
+error 0 0
+internal error: UnicodeDecodeError
+### name in byte string
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='\\\\N{BULLET}'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='\\\\N{BULLET}', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name unknown in byte string
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='\\\\N{THIS IS NOT A UNICODE NAME}'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='\\\\N{THIS IS NOT A UNICODE NAME}', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name in raw unicode string
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\\\N{BULLET}'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\\\N{BULLET}', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name unknown in raw unicode string
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\\\N{THIS IS NOT A UNICODE NAME}'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\\\N{THIS IS NOT A UNICODE NAME}', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name in raw string
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='\\\\N{THIS IS NOT A UNICODE NAME}'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='\\\\N{THIS IS NOT A UNICODE NAME}', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name in bytes literal
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='\\\\N{THIS IS NOT A UNICODE NAME}'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s='\\\\N{THIS IS NOT A UNICODE NAME}', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name under unicode_literals
+ok
+Module(body=[ImportFrom(module='__future__', names=[alias(name='unicode_literals', asname=None)], level=0), Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\U0001f4a9'))])
+Module(body=[ImportFrom(module='__future__', names=[alias(name='unicode_literals', asname=None)], level=0, lineno=1, col_offset=0), Assign(targets=[Name(id='x', ctx=Store(), lineno=2, col_offset=0)], value=Str(s=u'\\U0001f4a9', lineno=2, col_offset=4), lineno=2, col_offset=0)])
+### name unknown under unicode_literals
+error 0 0
+internal error: UnicodeDecodeError
+### name bytes under unicode_literals
+ok
+Module(body=[ImportFrom(module='__future__', names=[alias(name='unicode_literals', asname=None)], level=0), Assign(targets=[Name(id='x', ctx=Store())], value=Str(s='\\\\N{THIS IS NOT A UNICODE NAME}'))])
+Module(body=[ImportFrom(module='__future__', names=[alias(name='unicode_literals', asname=None)], level=0, lineno=1, col_offset=0), Assign(targets=[Name(id='x', ctx=Store(), lineno=2, col_offset=0)], value=Str(s='\\\\N{THIS IS NOT A UNICODE NAME}', lineno=2, col_offset=4), lineno=2, col_offset=0)])
+### name raw under unicode_literals
+ok
+Module(body=[ImportFrom(module='__future__', names=[alias(name='unicode_literals', asname=None)], level=0), Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\\\N{THIS IS NOT A UNICODE NAME}'))])
+Module(body=[ImportFrom(module='__future__', names=[alias(name='unicode_literals', asname=None)], level=0, lineno=1, col_offset=0), Assign(targets=[Name(id='x', ctx=Store(), lineno=2, col_offset=0)], value=Str(s=u'\\\\N{THIS IS NOT A UNICODE NAME}', lineno=2, col_offset=4), lineno=2, col_offset=0)])
+### name concatenated with byte string
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\\\N{BULLET}\\u2022'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\\\N{BULLET}\\u2022', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name unknown in concatenation
+error 0 0
+internal error: UnicodeDecodeError
+### name in triple quoted
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'a\\n\\u2022\\nb'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'a\\n\\u2022\\nb', lineno=3, col_offset=-1), lineno=1, col_offset=0)])
+### name escaped backslash
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Str(s=u'\\\\N{NOT A NAME}'))])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Str(s=u'\\\\N{NOT A NAME}', lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name dict keys equal
+ok
+Module(body=[Assign(targets=[Name(id='d', ctx=Store())], value=Dict(keys=[Str(s=u'\\U0001f4a9'), Str(s=u'\\U0001f4a9')], values=[Num(n=1), Num(n=2)]))])
+Module(body=[Assign(targets=[Name(id='d', ctx=Store(), lineno=1, col_offset=0)], value=Dict(keys=[Str(s=u'\\U0001f4a9', lineno=1, col_offset=5), Str(s=u'\\U0001f4a9', lineno=1, col_offset=28)], values=[Num(n=1, lineno=1, col_offset=25), Num(n=2, lineno=1, col_offset=43)], lineno=1, col_offset=4), lineno=1, col_offset=0)])
+### name unknown on later line
+error 0 0
+internal error: UnicodeDecodeError

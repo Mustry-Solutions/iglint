@@ -330,6 +330,15 @@ mod tests {
     }
 
     #[test]
+    fn named_escapes_are_resolved() {
+        let d = lint_module(
+            "SCR108",
+            "d = {u'\\N{PILE OF POO}': 1, u'\\U0001f4a9': 2}\n",
+        );
+        assert_eq!(flagged(&d), ["u'\\U0001f4a9'"]);
+    }
+
+    #[test]
     fn distinct_keys_are_fine() {
         assert!(
             lint_module(
