@@ -155,6 +155,8 @@ pub struct ProjectIndex<'w> {
     has_databases: bool,
     usage: FxHashMap<ResourceId, u32>,
     symbol_usage: FxHashMap<(ResourceId, String), u32>,
+    /// Like `symbol_usage`, counting only references from other resources.
+    external_symbol_usage: FxHashMap<(ResourceId, String), u32>,
 }
 
 /// Lowercases ASCII and non-ASCII letters (tag paths are case-insensitive).
@@ -188,6 +190,7 @@ impl<'w> ProjectIndex<'w> {
             has_databases: false,
             usage: FxHashMap::default(),
             symbol_usage: FxHashMap::default(),
+            external_symbol_usage: FxHashMap::default(),
         };
         index.build_projects();
         index.build_gateway();
@@ -354,6 +357,7 @@ impl<'w> ProjectIndex<'w> {
         let ws = self.ws;
         let mut usage: FxHashMap<ResourceId, u32> = FxHashMap::default();
         let mut symbol_usage: FxHashMap<(ResourceId, String), u32> = FxHashMap::default();
+        let mut external_symbol_usage: FxHashMap<(ResourceId, String), u32> = FxHashMap::default();
         let n = ws.projects.len();
         let mut sent: Vec<FxHashMap<String, u32>> = vec![FxHashMap::default(); n];
         let mut sends: Vec<FxHashMap<String, Vec<SentMessage>>> = vec![FxHashMap::default(); n];
@@ -401,6 +405,11 @@ impl<'w> ProjectIndex<'w> {
                             *symbol_usage
                                 .entry((resource, symbol.name.clone()))
                                 .or_default() += 1;
+                            if resource != rid {
+                                *external_symbol_usage
+                                    .entry((resource, symbol.name.clone()))
+                                    .or_default() += 1;
+                            }
                         }
                         LibraryLookup::Module { resource, .. } => {
                             *usage.entry(resource).or_default() += 1;
@@ -477,6 +486,7 @@ impl<'w> ProjectIndex<'w> {
         }
         self.usage = usage;
         self.symbol_usage = symbol_usage;
+        self.external_symbol_usage = external_symbol_usage;
     }
 
     // ---- generic access ----
@@ -510,6 +520,15 @@ impl<'w> ProjectIndex<'w> {
     }
 
     /// How many literal references point at a library symbol.
+    /// How many references from other resources resolve to the top-level
+    /// `name` of library `module`.
+    pub fn external_symbol_usage_count(&self, module: ResourceId, name: &str) -> u32 {
+        self.external_symbol_usage
+            .get(&(module, name.to_owned()))
+            .copied()
+            .unwrap_or(0)
+    }
+
     pub fn symbol_usage_count(&self, module: ResourceId, name: &str) -> u32 {
         self.symbol_usage
             .get(&(module, name.to_owned()))

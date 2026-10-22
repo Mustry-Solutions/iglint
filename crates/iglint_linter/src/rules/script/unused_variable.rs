@@ -9,7 +9,9 @@ use crate::diagnostic::{Applicability, Severity};
 use crate::options::OptionReader;
 use crate::registry::{Category, FixAvailability, OptionMeta, OptionType, RuleMeta};
 use crate::rule::{Hook, ParsedOptions, Phase, RuleImpl, ScriptRule, ScriptUnit};
-use crate::rules::script::{containing_body, delete_statement, fix, report, semantic, source};
+use crate::rules::script::{
+    StatementEdit, containing_body, delete_statement, report, semantic, source, statement_fix,
+};
 
 pub static META: RuleMeta = RuleMeta {
     code: "SCR103",
@@ -105,7 +107,7 @@ fn parse_options(reader: &OptionReader<'_>) -> Result<ParsedOptions, String> {
 struct UnusedVariable;
 
 /// Where, message, and the edit of the fix.
-type Finding = (TextRange, String, Option<(TextRange, String)>);
+type Finding = (TextRange, String, Option<StatementEdit>);
 
 impl ScriptRule for UnusedVariable {
     fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
@@ -171,13 +173,7 @@ impl ScriptRule for UnusedVariable {
         found.sort_by_key(|f| f.0.start());
         for (range, message, edit) in found {
             let fix = edit.and_then(|e| {
-                fix(
-                    cx,
-                    unit,
-                    "Remove the assignment",
-                    Applicability::Unsafe,
-                    vec![e],
-                )
+                statement_fix(cx, unit, "Remove the assignment", Applicability::Unsafe, e)
             });
             let _ = report(cx, unit, range, message).fix_opt(fix);
         }
@@ -189,7 +185,7 @@ fn removal(
     model: &iglint_python_semantic::SemanticModel<'_>,
     text: &str,
     stmt: &Stmt,
-) -> Option<(TextRange, String)> {
+) -> Option<StatementEdit> {
     let Stmt::Assign(a) = stmt else { return None };
     let [Expr::Name(target)] = a.targets.as_slice() else {
         return None;
@@ -208,7 +204,7 @@ fn removal(
     if paren {
         return None;
     }
-    Some((prefix, String::new()))
+    Some(StatementEdit::replace(prefix, String::new()))
 }
 
 fn is_pure(e: &Expr) -> bool {
@@ -297,6 +293,22 @@ mod tests {
         let fixed = f.fixed(&[("SCR103", "")], true, &library_path(&f, "m"));
         assert_eq!(fixed, "def f():\n    g()\n    return 0\n");
         let f = view(ViewScript::Action, "\tx \u{3d} 'a'");
+        let fixed = f.fixed(&[("SCR103", "")], true, &view_path(&f));
+        assert!(fixed.contains(r#""script": "\tpass""#), "{fixed}");
+    }
+
+    #[test]
+    fn removing_every_assignment_of_a_suite_leaves_pass() {
+        let f = library(
+            "m",
+            "def f(c):\n    if c:\n        x = 1\n        y = 2\n    else:\n        z = 3\n    a = 1\n    b = 2\n",
+        );
+        let fixed = f.fixed(&[("SCR103", "")], true, &library_path(&f, "m"));
+        assert_eq!(
+            fixed,
+            "def f(c):\n    if c:\n        pass\n    else:\n        pass\n"
+        );
+        let f = view(ViewScript::Action, "\tx \u{3d} 'a'\n\ty \u{3d} 'b'");
         let fixed = f.fixed(&[("SCR103", "")], true, &view_path(&f));
         assert!(fixed.contains(r#""script": "\tpass""#), "{fixed}");
     }

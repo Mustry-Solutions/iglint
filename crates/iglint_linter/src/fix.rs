@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use iglint_text::{TextEdit, TextRange, TextSize, apply_edits};
+use rustc_hash::FxHashMap;
 
 use crate::diagnostic::{Applicability, Diagnostic};
 use crate::engine::{AppliedFix, SkippedFix};
@@ -31,10 +32,21 @@ impl LineEnding {
     }
 }
 
+/// The result of one fix pass.
+pub(crate) struct Pass {
+    /// The text after the pass.
+    pub text: String,
+    /// The edits applied (ranges in the text before the pass).
+    pub edits: Vec<TextEdit>,
+    /// The applied fixes, in order, each with its own edits.
+    pub fixes: Vec<(AppliedFix, Vec<TextEdit>)>,
+    /// For each of `fixes`: the rule and message of its finding.
+    pub diagnostics: Vec<(crate::registry::RuleCode, String)>,
+}
+
 /// One fix pass over `text`: takes the fixes `wanted` accepts, in position
-/// order, skipping any that overlap an earlier accepted fix. Returns the new
-/// text and the edits applied (ranges in `text`), or `None` if nothing was
-/// applied.
+/// order, skipping any that overlap an earlier accepted fix. `None` if
+/// nothing was applied.
 pub(crate) fn apply_pass(
     path: &Path,
     text: &str,
@@ -42,7 +54,7 @@ pub(crate) fn apply_pass(
     wanted: &dyn Fn(&Diagnostic) -> Result<(), String>,
     applied: &mut Vec<AppliedFix>,
     skipped: &mut Vec<SkippedFix>,
-) -> Option<(String, Vec<TextEdit>)> {
+) -> Option<Pass> {
     let line_ending = LineEnding::detect(text);
     let mut candidates: Vec<(&Diagnostic, Vec<TextEdit>)> = Vec::new();
     for diagnostic in diagnostics {
@@ -53,6 +65,7 @@ pub(crate) fn apply_pass(
             rule: diagnostic.rule,
             message: fix.message.clone(),
             reason,
+            harmful: false,
         };
         if let Err(reason) = wanted(diagnostic) {
             skipped.push(skip(reason));
@@ -84,26 +97,43 @@ pub(crate) fn apply_pass(
             .then_with(|| a.0.rule.cmp(&b.0.rule))
     });
     let mut accepted: Vec<TextEdit> = Vec::new();
+    // Statements deleted per suite in this pass.
+    let mut deleted: FxHashMap<u32, u32> = FxHashMap::default();
+    let mut fixes = Vec::new();
+    let mut fixed_diagnostics = Vec::new();
     let mut any = false;
     for (diagnostic, edits) in candidates {
         let fix = diagnostic.fix.as_ref().expect("candidate has a fix");
         let mut trial = accepted.clone();
         trial.extend(edits.iter().cloned());
         // Identical fixes (the same edit reported twice) apply once.
+        let applied_fix = AppliedFix {
+            rule: diagnostic.rule,
+            message: fix.message.clone(),
+        };
         if edits.iter().all(|e| accepted.contains(e)) && !edits.is_empty() {
-            applied.push(AppliedFix {
-                rule: diagnostic.rule,
-                message: fix.message.clone(),
-            });
+            applied.push(applied_fix.clone());
+            fixes.push((applied_fix, edits));
+            fixed_diagnostics.push((diagnostic.rule, diagnostic.message.clone()));
+            continue;
+        }
+        // Each deletion decided alone that its suite keeps other statements;
+        // the last statement of a suite waits for the next pass, which
+        // replaces it with `pass`.
+        if let Some(guard) = fix.suite
+            && deleted.get(&guard.key).copied().unwrap_or(0) + 1 >= guard.statements
+        {
             continue;
         }
         if apply_edits(text, &trial).is_ok() && overlap_free(&trial) {
+            if let Some(guard) = fix.suite {
+                *deleted.entry(guard.key).or_default() += 1;
+            }
             accepted = trial;
             any = true;
-            applied.push(AppliedFix {
-                rule: diagnostic.rule,
-                message: fix.message.clone(),
-            });
+            applied.push(applied_fix.clone());
+            fixes.push((applied_fix, edits));
+            fixed_diagnostics.push((diagnostic.rule, diagnostic.message.clone()));
         }
         // Overlapping fixes are retried in the next pass, after the text
         // has been re-analysed.
@@ -112,7 +142,12 @@ pub(crate) fn apply_pass(
         return None;
     }
     let fixed = apply_edits(text, &accepted).ok()?;
-    Some((fixed, accepted))
+    Some(Pass {
+        text: fixed,
+        edits: accepted,
+        fixes,
+        diagnostics: fixed_diagnostics,
+    })
 }
 
 /// Where `range` of the text before `edits` (non-overlapping, ranges in the

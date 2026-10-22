@@ -124,14 +124,35 @@ pub struct Fix {
     pub message: String,
     pub applicability: Applicability,
     pub edits: Vec<FileEdit>,
+    /// Set when the fix deletes a statement of a suite (a block of
+    /// statements): fixes with the same guard never delete all statements
+    /// of the suite in one pass.
+    pub suite: Option<SuiteGuard>,
+}
+
+/// The suite a statement-deleting fix removes a statement from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SuiteGuard {
+    /// Identifies the suite within the file (the file offset of its first
+    /// statement).
+    pub key: u32,
+    /// The number of statements in the suite.
+    pub statements: u32,
 }
 
 impl Fix {
+    /// Marks the fix as deleting a statement of the suite `guard`.
+    pub fn deleting_from(mut self, guard: SuiteGuard) -> Self {
+        self.suite = Some(guard);
+        self
+    }
+
     pub fn safe(message: impl Into<String>, edits: Vec<FileEdit>) -> Self {
         Fix {
             message: message.into(),
             applicability: Applicability::Safe,
             edits,
+            suite: None,
         }
     }
 
@@ -140,6 +161,7 @@ impl Fix {
             message: message.into(),
             applicability: Applicability::Unsafe,
             edits,
+            suite: None,
         }
     }
 
@@ -148,6 +170,7 @@ impl Fix {
             message: message.into(),
             applicability: Applicability::DisplayOnly,
             edits,
+            suite: None,
         }
     }
 }

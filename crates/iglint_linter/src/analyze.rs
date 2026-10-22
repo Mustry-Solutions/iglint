@@ -46,7 +46,9 @@ use crate::cache::Cache;
 use crate::checker::{Checker, FileTable, Unit, UnitCache};
 use crate::diagnostic::{Diagnostic, SourceFile};
 use crate::discovery::{FileKind, absolute};
-use crate::engine::{CheckOptions, CheckedFile, FileError, Outcome, fix_file};
+use crate::engine::{
+    CheckOptions, CheckedFile, FileError, Outcome, Reanalysis, fix_file, health_settings,
+};
 use crate::registry::RuleCode;
 use crate::rule::{PhaseHooks, RuleImpl, RuleSet, RuleSetCache, ScriptUnit};
 use crate::rules::script::pylint;
@@ -628,8 +630,12 @@ pub(crate) fn analyze_with(
                     .cloned()
                     .collect::<Vec<_>>(),
             );
-            let reanalyze = |text: &str, edits: &[TextEdit]| -> Vec<Diagnostic> {
+            let reanalyze = |text: &str, edits: &[TextEdit], what: Reanalysis| -> Vec<Diagnostic> {
                 let text: Arc<str> = Arc::from(text);
+                let settings = match what {
+                    Reanalysis::Lint => &target.settings,
+                    Reanalysis::Health => health_settings(),
+                };
                 let mut out = match (file_of_target.get(&t), standalone_by_target.get(&t)) {
                     (Some(f), _) => reanalyze_resource(
                         rules,
@@ -638,14 +644,24 @@ pub(crate) fn analyze_with(
                         &target_of,
                         &targets,
                         &overrides,
+                        settings,
                         *f,
                         Arc::clone(&text),
                     ),
-                    (None, Some(s)) => {
-                        reanalyze_standalone(rules, &ws, &index, target, s.file, Arc::clone(&text))
-                    }
+                    (None, Some(s)) => reanalyze_standalone(
+                        rules,
+                        &ws,
+                        &index,
+                        target,
+                        settings,
+                        s.file,
+                        Arc::clone(&text),
+                    ),
                     _ => Vec::new(),
                 };
+                if what == Reanalysis::Health {
+                    return out;
+                }
                 let mut carried = carried.borrow_mut();
                 if !carried.is_empty() {
                     let file = SourceFile::new(target.path.clone(), text);
@@ -1070,6 +1086,7 @@ fn reanalyze_resource(
     target_of: &[Option<usize>],
     targets: &[Target],
     overrides: &FxHashMap<FileId, Arc<str>>,
+    settings: &LinterSettings,
     file: FileId,
     text: Arc<str>,
 ) -> Vec<Diagnostic> {
@@ -1083,7 +1100,7 @@ fn reanalyze_resource(
         file,
         SourceFile::new(target.path.clone(), Arc::clone(&text)),
     );
-    let set = RuleSet::build(rules, &target.settings);
+    let set = RuleSet::build(rules, settings);
     let mut out = Vec::new();
     let Some(rid) = entry.resource else {
         return out;
@@ -1117,7 +1134,7 @@ fn reanalyze_resource(
     };
     run_phase(&unit, None, &set, &set.local, &mut out);
     run_phase(&unit, Some(index), &set, &set.project, &mut out);
-    out.retain(|d| d.file.path() == target.path && target.settings.is_enabled(d.rule));
+    out.retain(|d| d.file.path() == target.path && settings.is_enabled(d.rule));
     out
 }
 
@@ -1126,6 +1143,7 @@ fn reanalyze_standalone(
     ws: &Workspace,
     index: &ProjectIndex<'_>,
     target: &Target,
+    settings: &LinterSettings,
     file: FileId,
     text: Arc<str>,
 ) -> Vec<Diagnostic> {
@@ -1136,7 +1154,7 @@ fn reanalyze_standalone(
     );
     let doc = is_json(&target.path).then(|| JsonDocument::parse(Arc::clone(&text)));
     let (data, errors) = standalone_model(&target.path, file, doc.as_ref(), &text);
-    let set = RuleSet::build(rules, &target.settings);
+    let set = RuleSet::build(rules, settings);
     let cache = UnitCache::default();
     let unit = Unit {
         ws,

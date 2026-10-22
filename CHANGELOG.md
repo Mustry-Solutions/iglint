@@ -7,6 +7,19 @@ from 0.1.0 on.
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixes that delete statements (`SCR102`, `SCR103`) no longer empty a block
+  when several of them remove every statement of it: the last one becomes
+  `pass`.
+- Fixing never makes a file worse: when the fixes of a pass make a script
+  or expression stop parsing or compiling, empty a Perspective script or
+  break the JSON, they are applied one at a time and the offending ones are
+  dropped and reported (`warning: ...: fix not applied`).
+- `SCR102` no longer reports top-level imports of library modules that other
+  resources use as `pkg.mod.name`, and its fix is unsafe when such uses
+  cannot be ruled out.
+
 ## [0.1.0]
 
 First public release.

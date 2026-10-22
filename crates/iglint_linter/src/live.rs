@@ -35,7 +35,7 @@ use crate::analyze::{
 use crate::checker::{Checker, FileTable, Unit, UnitCache};
 use crate::diagnostic::{Diagnostic, FileEdit, SourceFile};
 use crate::discovery::{self, absolute};
-use crate::engine::{CheckOptions, FixMode, fix_file};
+use crate::engine::{CheckOptions, FixMode, Reanalysis, fix_file, health_settings};
 use crate::rule::{RuleImpl, RuleSetCache};
 use crate::settings::{LinterSettings, ProjectSettings};
 use crate::suppression;
@@ -345,7 +345,7 @@ impl LiveWorkspace {
         } else {
             Dependents::None
         };
-        let found = self.run_resource(&index, &self.table, &model, &cache);
+        let found = self.run_resource(&index, &self.table, &model, &cache, None);
         let result = self
             .distribute(std::slice::from_ref(&path), found, FxHashMap::default())
             .remove(0);
@@ -393,7 +393,7 @@ impl LiveWorkspace {
 
         let mut found: Vec<Diagnostic> = resources
             .par_iter()
-            .flat_map_iter(|r| self.analyze_resource(index, &self.table, *r))
+            .flat_map_iter(|r| self.analyze_resource(index, &self.table, *r, None))
             .collect();
         for p in projects {
             found.extend(self.analyze_project(index, p));
@@ -405,7 +405,10 @@ impl LiveWorkspace {
                     Some(text) => Ok(Arc::clone(text)),
                     None => read_text(path),
                 };
-                (*path, text.map(|t| self.analyze_standalone(index, path, t)))
+                (
+                    *path,
+                    text.map(|t| self.analyze_standalone(index, path, t, None)),
+                )
             })
             .collect();
 
@@ -541,13 +544,16 @@ impl LiveWorkspace {
     }
 
     /// Both phases on one resource.
+    /// Both phases on one resource, with the configured settings or
+    /// `settings`.
     fn analyze_resource(
         &self,
         index: &ProjectIndex<'_>,
         table: &FileTable,
         rid: ResourceId,
+        settings: Option<&Arc<LinterSettings>>,
     ) -> Vec<Diagnostic> {
-        let Some(settings) = self.unit_settings(rid) else {
+        let Some(settings) = settings.cloned().or_else(|| self.unit_settings(rid)) else {
             return Vec::new();
         };
         if self.sets.get(self.rules, &settings).is_empty() {
@@ -562,7 +568,7 @@ impl LiveWorkspace {
             }
         }
         let model = build_model(&self.ws, &loaded);
-        self.run_resource(index, table, &model, &UnitCache::default())
+        self.run_resource(index, table, &model, &UnitCache::default(), Some(&settings))
     }
 
     /// Both phases on the model of a resource.
@@ -572,9 +578,13 @@ impl LiveWorkspace {
         table: &FileTable,
         model: &ResourceModel<'_>,
         cache: &UnitCache,
+        settings: Option<&Arc<LinterSettings>>,
     ) -> Vec<Diagnostic> {
         let mut out = Vec::new();
-        let Some(settings) = self.unit_settings(model.resource.id) else {
+        let Some(settings) = settings
+            .cloned()
+            .or_else(|| self.unit_settings(model.resource.id))
+        else {
             return out;
         };
         let set = self.sets.get(self.rules, &settings);
@@ -630,8 +640,11 @@ impl LiveWorkspace {
         index: &ProjectIndex<'_>,
         path: &Path,
         text: Arc<str>,
+        settings: Option<&Arc<LinterSettings>>,
     ) -> Vec<Diagnostic> {
-        let settings = self.settings.for_file(path);
+        let settings = settings
+            .cloned()
+            .unwrap_or_else(|| self.settings.for_file(path));
         let set = self.sets.get(self.rules, &settings);
         let mut out = Vec::new();
         if set.is_empty() {
@@ -680,24 +693,28 @@ impl LiveWorkspace {
             stdin: Some((path.clone(), String::new())),
             ..CheckOptions::default()
         };
-        let reanalyze = |text: &str, _edits: &[iglint_text::TextEdit]| -> Vec<Diagnostic> {
-            let text: Arc<str> = Arc::from(text);
-            match self.by_path.get(&path) {
-                Some(f) => {
-                    let Some(rid) = self.ws.file(*f).resource else {
-                        return Vec::new();
-                    };
-                    let mut table = self.table.clone();
-                    table.insert(*f, SourceFile::new(path.clone(), text));
-                    let settings = self.settings.for_file(&path);
-                    self.analyze_resource(&index, &table, rid)
-                        .into_iter()
-                        .filter(|d| d.file.path() == path && settings.is_enabled(d.rule))
-                        .collect()
+        let reanalyze =
+            |text: &str, _edits: &[iglint_text::TextEdit], what: Reanalysis| -> Vec<Diagnostic> {
+                let text: Arc<str> = Arc::from(text);
+                let forced = (what == Reanalysis::Health).then(health_settings);
+                match self.by_path.get(&path) {
+                    Some(f) => {
+                        let Some(rid) = self.ws.file(*f).resource else {
+                            return Vec::new();
+                        };
+                        let mut table = self.table.clone();
+                        table.insert(*f, SourceFile::new(path.clone(), text));
+                        let settings = forced
+                            .cloned()
+                            .unwrap_or_else(|| self.settings.for_file(&path));
+                        self.analyze_resource(&index, &table, rid, forced)
+                            .into_iter()
+                            .filter(|d| d.file.path() == path && settings.is_enabled(d.rule))
+                            .collect()
+                    }
+                    None => self.analyze_standalone(&index, &path, text, forced),
                 }
-                None => self.analyze_standalone(&index, &path, text),
-            }
-        };
+            };
         let result = fix_file(
             &self.settings,
             &options,

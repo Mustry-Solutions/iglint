@@ -398,6 +398,18 @@ pub fn run(
         for notice in &result.notices {
             err!(io, "warning: {notice}");
         }
+        for summary in &result.fixed {
+            for fix in summary.skipped.iter().filter(|f| f.harmful) {
+                err!(
+                    io,
+                    "warning: {}: fix not applied: {} ({}): {}",
+                    output::display_path(&summary.path, cwd),
+                    fix.message,
+                    fix.rule.code(),
+                    fix.reason
+                );
+            }
+        }
     }
     if !args.silent {
         for error in &result.errors {

@@ -418,3 +418,113 @@ fn cache_serves_unchanged_files() {
     assert!(!fourth.files[0].cached);
     assert!(fourth.diagnostics.is_empty());
 }
+
+/// An analyzer whose fixes can break the file: `fine` is fixed to `FINE`,
+/// `breakme` to `BROKEN`, and `half` to `HALF`; the health rules (SCR001)
+/// report `BROKEN`, and `HALF` twice on one line.
+fn breaking_analyzer() -> iglint_linter::engine::Analyzer {
+    use iglint_linter::diagnostic::{Diagnostic, FileEdit, Fix, Severity};
+    use iglint_text::{TextEdit, TextRange, TextSize};
+    Arc::new(|file, _kind, settings: &LinterSettings| {
+        let syntax = RuleCode::new(&iglint_linter::rules::script::syntax_error::META);
+        let fixable = RuleCode::new(&testing::UNUSED_VARIABLE);
+        let text = file.text();
+        let mut out = Vec::new();
+        if settings.is_enabled(syntax) {
+            for line in text.lines() {
+                if line.contains("BROKEN") || line.matches("HALF").count() > 1 {
+                    out.push(Diagnostic::new(
+                        syntax,
+                        Severity::Error,
+                        "SyntaxError: broken".to_owned(),
+                        file.clone(),
+                        TextRange::default(),
+                    ));
+                }
+            }
+        }
+        if settings.is_enabled(fixable) {
+            for (word, replacement) in [("fine", "FINE"), ("breakme", "BROKEN"), ("half", "HALF")] {
+                for (offset, _) in text.match_indices(word) {
+                    let range = TextRange::at(TextSize::from(offset), TextSize::of(word));
+                    let mut d = Diagnostic::new(
+                        fixable,
+                        Severity::Warning,
+                        format!("`{word}`"),
+                        file.clone(),
+                        range,
+                    );
+                    d.fix = Some(Fix::safe(
+                        format!("Replace `{word}`"),
+                        vec![FileEdit {
+                            path: file.path().to_path_buf(),
+                            edit: TextEdit::replace(range, replacement),
+                        }],
+                    ));
+                    out.push(d);
+                }
+            }
+        }
+        out
+    })
+}
+
+#[test]
+fn fixes_that_break_the_file_are_dropped() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let text = "fine breakme fine\nhalf half\nhalf\n";
+    let file = write(root, "a.py", text);
+    let options = CheckOptions {
+        fix_mode: FixMode::Safe,
+        analyzer: Some(breaking_analyzer()),
+        ..CheckOptions::default()
+    };
+    let result = check(&settings(root), std::slice::from_ref(&file), &options);
+    // Each `half` alone is fine, both on one line are not: the first is
+    // kept, the second dropped.
+    assert_eq!(
+        std::fs::read_to_string(&file).unwrap(),
+        "FINE breakme FINE\nHALF half\nHALF\n"
+    );
+    let summary = &result.fixed[0];
+    assert!(summary.written);
+    assert_eq!(summary.applied.len(), 4);
+    let harmful: Vec<_> = summary
+        .skipped
+        .iter()
+        .filter(|s| s.harmful)
+        .map(|s| (s.message.as_str(), s.reason.as_str()))
+        .collect();
+    assert_eq!(
+        harmful,
+        [
+            (
+                "Replace `breakme`",
+                "the fix makes the file worse (SCR001: SyntaxError: broken)"
+            ),
+            (
+                "Replace `half`",
+                "the fix makes the file worse (SCR001: SyntaxError: broken)"
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_file_is_never_written_worse() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let file = write(root, "a.py", "breakme\n");
+    let options = CheckOptions {
+        fix_mode: FixMode::Safe,
+        analyzer: Some(breaking_analyzer()),
+        ..CheckOptions::default()
+    };
+    let result = check(&settings(root), std::slice::from_ref(&file), &options);
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "breakme\n");
+    let summary = &result.fixed[0];
+    assert!(!summary.written);
+    assert!(summary.applied.is_empty());
+    assert!(summary.skipped.iter().any(|s| s.harmful));
+}

@@ -20,7 +20,7 @@ use iglint_text::{TextEdit, TextRange, TextSize};
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::{
-    Applicability, Diagnostic, FileEdit, Fix, Fnv64, Label, Severity, SourceFile,
+    Applicability, Diagnostic, FileEdit, Fix, Fnv64, Label, Severity, SourceFile, SuiteGuard,
 };
 use crate::discovery::FileKind;
 use crate::settings::{LinterSettings, ProjectSettings};
@@ -111,6 +111,8 @@ struct CachedFix {
     message: String,
     applicability: String,
     edits: Vec<(u32, u32, String)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    suite: Option<(u32, u32)>,
 }
 
 pub(crate) struct Cache {
@@ -274,6 +276,7 @@ fn store(d: &Diagnostic, file: &SourceFile) -> Option<CachedDiagnostic> {
                         (start, end, e.edit.content.clone())
                     })
                     .collect(),
+                suite: fix.suite.map(|g| (g.key, g.statements)),
             })
         }
     };
@@ -346,6 +349,9 @@ fn restore(
                 _ => Applicability::DisplayOnly,
             },
             edits,
+            suite: fix
+                .suite
+                .map(|(key, statements)| SuiteGuard { key, statements }),
         });
     }
     Some(diagnostic)
