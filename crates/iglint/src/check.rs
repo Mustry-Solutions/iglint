@@ -250,6 +250,8 @@ pub fn run(
         threads: args.threads,
         cache_dir,
         stdin: stdin.clone(),
+        // The process exits after the report.
+        release_memory: false,
         ..CheckOptions::default()
     };
     if let Some(analyzer) = &environment.analyzer {

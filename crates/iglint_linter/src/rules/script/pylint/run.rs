@@ -1,10 +1,12 @@
-//! Running pylint once over many scripts and mapping its messages back.
+//! Running pylint over many scripts and mapping its messages back.
 //!
 //! Every script's `source` is written to `iglint_<n>.py` in a fresh
-//! temporary directory (removed afterwards, also on failure), pylint runs
-//! there over `.` with `--recursive=y` (one argument however many scripts
-//! there are), and its JSON report is parsed. Scripts stored in JSON strings
-//! get a final newline when they lack one: they are not files, so
+//! temporary directory (removed afterwards, also on failure). The scripts
+//! are split into shards of similar size, one subdirectory each, and one
+//! pylint process per shard runs over its directory with `--recursive=y`
+//! and `--jobs=1`, all at the same time. Their JSON reports are parsed and
+//! merged; file names carry the script index. Scripts stored in JSON
+//! strings get a final newline when they lack one: they are not files, so
 //! `missing-final-newline` does not apply to them.
 //!
 //! pylint reports 1-based lines and 0-based columns. Columns of messages
@@ -38,6 +40,14 @@ pub(crate) struct Config {
 }
 
 impl Config {
+    /// Number of pylint processes: `jobs`, or one per CPU when it is 0.
+    pub(crate) fn processes(&self) -> usize {
+        match self.jobs {
+            0 => std::thread::available_parallelism().map_or(1, usize::from),
+            n => n as usize,
+        }
+    }
+
     /// The configuration of `options` for a project rooted at `root`, and a
     /// notice when the configured `pylintrc` does not exist.
     pub(crate) fn new(options: &super::PylintOptions, root: &Path) -> (Config, Option<String>) {
@@ -131,6 +141,36 @@ impl Drop for TempDir {
     }
 }
 
+/// Scripts per pylint process below which another process does not pay
+/// for its start-up (about 0.2 s of importing pylint and astroid).
+const MIN_SCRIPTS_PER_PROCESS: usize = 24;
+
+/// Splits the scripts into at most `processes` shards of similar size
+/// (longest first onto the lightest shard). Deterministic.
+fn shards(scripts: &[Script<'_>], processes: usize) -> Vec<Vec<usize>> {
+    let count = processes
+        .min(scripts.len().div_ceil(MIN_SCRIPTS_PER_PROCESS))
+        .max(1);
+    let mut order: Vec<usize> = (0..scripts.len()).collect();
+    order.sort_by_key(|&i| (std::cmp::Reverse(scripts[i].source.len()), i));
+    let mut shards: Vec<(usize, Vec<usize>)> = vec![(0, Vec::new()); count];
+    for i in order {
+        // Per-file overhead counts too, not only the text.
+        let weight = scripts[i].source.len() + 2_000;
+        let lightest = (0..count).min_by_key(|&k| (shards[k].0, k)).unwrap_or(0);
+        shards[lightest].0 += weight;
+        shards[lightest].1.push(i);
+    }
+    shards
+        .into_iter()
+        .map(|(_, mut members)| {
+            members.sort_unstable();
+            members
+        })
+        .filter(|m| !m.is_empty())
+        .collect()
+}
+
 fn file_name(index: usize) -> String {
     format!("iglint_{index}.py")
 }
@@ -142,7 +182,6 @@ pub(crate) fn run(config: &Config, scripts: &[Script<'_>]) -> Outcome {
         outcome.messages = Some(Vec::new());
         return outcome;
     }
-    let shown = config.command.join(" ");
     let fail = |outcome: &mut Outcome, why: String| {
         outcome.notices.push(format!(
             "SCR900: {why}; pylint findings are missing from this run"
@@ -172,17 +211,46 @@ pub(crate) fn run(config: &Config, scripts: &[Script<'_>]) -> Outcome {
             path
         }
     };
+    // Shards: one worker process lints each share of the scripts. Every
+    // script is a module of its own, so the split does not change findings.
+    // The forking driver needs a Python interpreter and `fork`; otherwise
+    // the pylint command runs over all scripts in one directory.
+    let python = if cfg!(unix) {
+        interpreter(config)
+    } else {
+        None
+    };
+    let shards = if python.is_some() {
+        shards(scripts, config.processes())
+    } else {
+        vec![(0..scripts.len()).collect()]
+    };
+    let shard_dir = |k: usize| -> PathBuf {
+        if python.is_some() {
+            dir.0.join(format!("s{k}"))
+        } else {
+            dir.0.clone()
+        }
+    };
     let written: Result<(), std::io::Error> =
-        scripts.par_iter().enumerate().try_for_each(|(i, s)| {
-            let path = dir.0.join(file_name(i));
-            if s.embedded && !s.source.ends_with(['\n', '\r']) {
-                let mut text = String::with_capacity(s.source.len() + 1);
-                text.push_str(s.source);
-                text.push('\n');
-                std::fs::write(path, text)
-            } else {
-                std::fs::write(path, s.source)
+        shards.par_iter().enumerate().try_for_each(|(k, members)| {
+            let shard_dir = shard_dir(k);
+            if python.is_some() {
+                std::fs::create_dir(&shard_dir)?;
             }
+            for &i in members {
+                let s = &scripts[i];
+                let path = shard_dir.join(file_name(i));
+                if s.embedded && !s.source.ends_with(['\n', '\r']) {
+                    let mut text = String::with_capacity(s.source.len() + 1);
+                    text.push_str(s.source);
+                    text.push('\n');
+                    std::fs::write(path, text)?;
+                } else {
+                    std::fs::write(path, s.source)?;
+                }
+            }
+            Ok(())
         });
     if let Err(error) = written {
         fail(
@@ -191,6 +259,168 @@ pub(crate) fn run(config: &Config, scripts: &[Script<'_>]) -> Outcome {
         );
         return outcome;
     }
+    let shard_dirs: Vec<String> = (0..shards.len()).map(|k| format!("s{k}")).collect();
+    let raw = match run_forking(python.as_deref(), &dir.0, &rcfile, &shard_dirs) {
+        Some(Ok(raw)) => raw,
+        Some(Err(why)) => {
+            fail(&mut outcome, why);
+            return outcome;
+        }
+        None => match run_cli(config, &dir.0, &rcfile, config.processes()) {
+            Ok(raw) => raw,
+            Err(why) => {
+                fail(&mut outcome, why);
+                return outcome;
+            }
+        },
+    };
+    let (messages, notices) = map_messages(&raw, scripts);
+    outcome.notices.extend(notices);
+    outcome.messages = Some(messages);
+    outcome
+}
+
+/// Runs pylint in-process in one Python interpreter that imports pylint
+/// once and forks one worker per shard directory (POSIX only). Workers
+/// inherit the imported modules instead of importing them again, which
+/// roughly halves the time of pylint's own `--jobs`. Each worker writes its
+/// JSON report next to its directory.
+const FORKING_DRIVER: &str = r#"
+import io, json, os, sys
+try:
+    from pylint.lint import Run
+    from pylint.reporters import JSONReporter
+except BaseException as e:
+    sys.stderr.write("iglint driver: cannot import pylint: %s\n" % e)
+    sys.exit(3)
+if not hasattr(os, "fork"):
+    sys.exit(3)
+rc, dirs = sys.argv[1], sys.argv[2:]
+root = os.getcwd()
+children = []
+for d in dirs:
+    pid = os.fork()
+    if pid == 0:
+        status = 0
+        try:
+            os.chdir(os.path.join(root, d))
+            out = io.StringIO()
+            Run(["--rcfile=" + rc, "--score=no", "--persistent=no", "--recursive=y", "--jobs=1", "."],
+                reporter=JSONReporter(out), exit=False)
+            with open(os.path.join(root, d + ".json"), "w") as f:
+                f.write(out.getvalue() or "[]")
+        except BaseException as e:
+            sys.stderr.write("iglint driver: %s: %r\n" % (d, e))
+            status = 1
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(status)
+    children.append(pid)
+failed = 0
+for pid in children:
+    _, code = os.waitpid(pid, 0)
+    failed |= code != 0
+sys.exit(1 if failed else 0)
+"#;
+
+/// The Python interpreter behind the configured pylint command: the
+/// program of `python -m pylint`, or the `#!` interpreter of a `pylint`
+/// script found on `PATH`.
+fn interpreter(config: &Config) -> Option<Vec<String>> {
+    let command = &config.command;
+    if let Some(m) = command.iter().position(|a| a == "-m") {
+        return (command.get(m + 1).map(String::as_str) == Some("pylint"))
+            .then(|| command[..m].to_vec());
+    }
+    if command.len() != 1 {
+        return None;
+    }
+    let program = Path::new(&command[0]);
+    let path = if program.components().count() > 1 {
+        program.to_path_buf()
+    } else {
+        std::env::split_paths(&std::env::var_os("PATH")?)
+            .map(|dir| dir.join(program))
+            .find(|p| p.is_file())?
+    };
+    let head = std::fs::read(&path).ok()?;
+    let first = head.split(|b| *b == b'\n').next()?;
+    let line = std::str::from_utf8(first).ok()?.strip_prefix("#!")?.trim();
+    let mut parts = line.split_whitespace();
+    let interpreter = parts.next()?;
+    // `#!/usr/bin/env python3`
+    let interpreter = if interpreter.ends_with("/env") {
+        parts.next()?
+    } else {
+        interpreter
+    };
+    let name = Path::new(interpreter).file_name()?.to_str()?;
+    name.starts_with("python")
+        .then(|| vec![interpreter.to_owned()])
+}
+
+/// `None` when the forking driver is not available here (not POSIX, no
+/// Python interpreter found, or pylint not importable by it); the caller
+/// then runs the pylint command.
+fn run_forking(
+    python: Option<&[String]>,
+    dir: &Path,
+    rcfile: &Path,
+    shards: &[String],
+) -> Option<Result<Vec<RawMessage>, String>> {
+    let python = python?;
+    let output = Command::new(&python[0])
+        .args(&python[1..])
+        .arg("-c")
+        .arg(FORKING_DRIVER)
+        .arg(rcfile)
+        .args(shards)
+        .current_dir(dir)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    match output.status.code() {
+        Some(0) => {}
+        Some(3) => return None,
+        code => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let detail: Vec<&str> = stderr
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .take(5)
+                .collect();
+            let status = code.map_or_else(|| "a signal".to_owned(), |c| format!("status {c}"));
+            return Some(Err(format!(
+                "pylint failed (exit {status}){}{}",
+                if detail.is_empty() { "" } else { ": " },
+                detail.join(" | ")
+            )));
+        }
+    }
+    let mut raw = Vec::new();
+    for shard in shards {
+        let text = match std::fs::read_to_string(dir.join(format!("{shard}.json"))) {
+            Ok(text) => text,
+            Err(error) => return Some(Err(format!("pylint wrote no report ({error})"))),
+        };
+        match parse_report(&text) {
+            Ok(found) => raw.extend(found),
+            Err(error) => return Some(Err(format!("unreadable pylint report ({error})"))),
+        }
+    }
+    Some(Ok(raw))
+}
+
+/// Runs the pylint command over the whole directory with pylint's own
+/// `--jobs`.
+fn run_cli(
+    config: &Config,
+    dir: &Path,
+    rcfile: &Path,
+    processes: usize,
+) -> Result<Vec<RawMessage>, String> {
+    let shown = config.command.join(" ");
     let output = Command::new(&config.command[0])
         .args(&config.command[1..])
         .arg("--output-format=json")
@@ -198,37 +428,26 @@ pub(crate) fn run(config: &Config, scripts: &[Script<'_>]) -> Outcome {
         .arg("--persistent=no")
         .arg("--recursive=y")
         .arg(format!("--rcfile={}", rcfile.display()))
-        .arg(format!("--jobs={}", config.jobs))
+        .arg(format!("--jobs={processes}"))
         .arg(".")
-        .current_dir(&dir.0)
+        .current_dir(dir)
         .stdin(std::process::Stdio::null())
         .output();
     let output = match output {
         Ok(output) => output,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            fail(
-                &mut outcome,
-                format!(
-                    "`{shown}` was not found. Install pylint (`pip install pylint`) or set the command with `[rules.SCR900] pylint = \"python3 -m pylint\"`"
-                ),
-            );
-            return outcome;
+            return Err(format!(
+                "`{shown}` was not found. Install pylint (`pip install pylint`) or set the command with `[rules.SCR900] pylint = \"python3 -m pylint\"`"
+            ));
         }
-        Err(error) => {
-            fail(
-                &mut outcome,
-                format!("`{shown}` could not be started ({error})"),
-            );
-            return outcome;
-        }
+        Err(error) => return Err(format!("`{shown}` could not be started ({error})")),
     };
     let stdout = String::from_utf8_lossy(&output.stdout);
     let code = output.status.code();
     // Exit status bit 32 is a usage error (bad option or configuration).
     let usage_error = code.is_some_and(|c| c & 32 != 0);
-    let parsed = parse_report(&stdout).ok();
-    let raw = match parsed {
-        Some(raw) if !usage_error => raw,
+    match parse_report(&stdout) {
+        Ok(raw) if !usage_error => Ok(raw),
         _ => {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let detail: Vec<&str> = stderr
@@ -239,21 +458,13 @@ pub(crate) fn run(config: &Config, scripts: &[Script<'_>]) -> Outcome {
                 .take(5)
                 .collect();
             let status = code.map_or_else(|| "a signal".to_owned(), |c| format!("status {c}"));
-            fail(
-                &mut outcome,
-                format!(
-                    "`{shown}` failed (exit {status}){}{}",
-                    if detail.is_empty() { "" } else { ": " },
-                    detail.join(" | ")
-                ),
-            );
-            return outcome;
+            Err(format!(
+                "`{shown}` failed (exit {status}){}{}",
+                if detail.is_empty() { "" } else { ": " },
+                detail.join(" | ")
+            ))
         }
-    };
-    let (messages, notices) = map_messages(&raw, scripts);
-    outcome.notices.extend(notices);
-    outcome.messages = Some(messages);
-    outcome
+    }
 }
 
 /// One entry of pylint's JSON report.

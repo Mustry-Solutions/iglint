@@ -611,6 +611,8 @@ fn real_pylint() {
             "{name}: {found:?}"
         );
     }
+    #[cfg(unix)]
+    driver_and_command_agree(&pylint);
     // No temporary directory is left behind.
     let leftovers = std::fs::read_dir(std::env::temp_dir())
         .unwrap()
@@ -622,6 +624,46 @@ fn real_pylint() {
         })
         .count();
     assert_eq!(leftovers, 0);
+}
+
+/// The forking driver (used for a `pylint` script or `python -m pylint`)
+/// and the plain pylint command (`env pylint`, run with pylint's own
+/// `--jobs`) find the same messages, with any number of processes. Part
+/// of [`real_pylint`], which checks for leftover temporary directories.
+#[cfg(unix)]
+fn driver_and_command_agree(pylint: &str) {
+    let mut f = with_library(
+        view(
+            ViewScript::Action,
+            "\tif self.props.text == None:\n\t\tx = undefined_a",
+        ),
+        "util",
+        "import os\n\ndef f():\n\treturn xrange(3)\n",
+    );
+    for i in 0..60 {
+        f = with_library(
+            f,
+            &format!("m{i}"),
+            &format!("def g{i}(a):\n\tif a == None:\n\t\treturn b{i}\n"),
+        );
+    }
+    let messages = |command: &str, jobs: u32| -> Vec<String> {
+        let options = format!("pylint = \"{command}\"\njobs = {jobs}");
+        let result = f.run(&[("SCR900", &options)], FixMode::None);
+        assert!(result.notices.is_empty(), "{:?}", result.notices);
+        let mut out: Vec<String> = result
+            .diagnostics
+            .iter()
+            .map(|d| format!("{} {:?} {}", d.file.path().display(), d.range, d.message))
+            .collect();
+        out.sort();
+        out
+    };
+    let reference = messages(&format!("env {pylint}"), 1);
+    assert!(reference.len() > 60, "{reference:?}");
+    for jobs in [1, 3, 0] {
+        assert_eq!(messages(pylint, jobs), reference, "jobs = {jobs}");
+    }
 }
 
 #[test]

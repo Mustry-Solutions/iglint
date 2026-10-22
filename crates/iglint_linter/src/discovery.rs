@@ -15,8 +15,9 @@
 //! own rules ([`FileKind::discovered_by_walk`]), so a standalone `view.json`
 //! is still found by a walk.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::settings::ProjectSettings;
 
@@ -189,12 +190,13 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
             .or_insert_with(|| has_manifest(dir))
     };
     let mut trees = IgnitionTrees::default();
+    let skip = Arc::new(Skip::new(settings));
     for path in paths {
         if path.is_file() {
             if !seen.insert(path.clone()) {
                 continue;
             }
-            if let Some(reason) = skip_reason(settings, path) {
+            if let Some(reason) = skip.reason(path) {
                 discovery.skipped.push((path.clone(), reason));
                 continue;
             }
@@ -223,11 +225,11 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
             .require_git(false)
             .sort_by_file_name(|a, b| a.cmp(b));
         // Prune excluded directories early instead of filtering their files.
-        let exclude_settings = settings.clone();
+        let dir_skip = Arc::clone(&skip);
         builder.filter_entry(move |entry| {
             entry.depth() == 0
                 || !entry.file_type().is_some_and(|t| t.is_dir())
-                || !exclude_settings.is_excluded(entry.path())
+                || !dir_skip.is_excluded(entry.path())
         });
         for entry in builder.build() {
             let entry = match entry {
@@ -253,7 +255,7 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
             if !seen.insert(file.clone()) {
                 continue;
             }
-            match skip_reason(settings, &file) {
+            match skip.reason(&file) {
                 Some(reason) => discovery.skipped.push((file, reason)),
                 None => discovery.files.push((file, kind)),
             }
@@ -266,25 +268,79 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
 
 /// Why `file` is not linted (excluded or whitelisted), if it is not.
 pub fn skip_reason(settings: &ProjectSettings, file: &Path) -> Option<SkipReason> {
-    let relative = settings.relative_path(file);
-    if settings
-        .exclude
-        .iter()
-        .any(|p| crate::settings::glob_matches(p, &relative))
-    {
-        return Some(SkipReason::Excluded);
+    Skip::new(settings).reason(file)
+}
+
+/// `exclude` and whitelist checks with the whitelist resolved once, so that
+/// a walk costs one hash lookup per file instead of normalising every
+/// whitelist entry for every file. Same results as
+/// [`ProjectSettings::is_excluded`] and [`skip_reason`].
+struct Skip {
+    root: PathBuf,
+    exclude: Vec<String>,
+    cwd: PathBuf,
+    /// Whitelist entries as given.
+    listed: HashSet<PathBuf>,
+    /// Whitelist entries relative to the root, `/`-separated.
+    listed_relative: HashSet<String>,
+    /// Whitelist entries made absolute.
+    listed_absolute: HashSet<PathBuf>,
+}
+
+impl Skip {
+    fn new(settings: &ProjectSettings) -> Skip {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        Skip {
+            root: settings.root.clone(),
+            exclude: settings.exclude.clone(),
+            listed: settings.whitelist.iter().cloned().collect(),
+            listed_relative: settings
+                .whitelist
+                .iter()
+                .map(|w| settings.relative_path(w))
+                .collect(),
+            listed_absolute: settings
+                .whitelist
+                .iter()
+                .map(|w| absolute_from(&cwd, w))
+                .collect(),
+            cwd,
+        }
     }
-    if !settings.whitelist.is_empty() {
-        let absolute = absolute(file);
-        if settings
-            .whitelist
+
+    fn relative(&self, file: &Path) -> String {
+        slash_path(file.strip_prefix(&self.root).unwrap_or(file))
+    }
+
+    fn excluded_by_glob(&self, relative: &str) -> bool {
+        self.exclude
             .iter()
-            .any(|w| absolute == crate::discovery::absolute(w))
+            .any(|p| crate::settings::glob_matches(p, relative))
+    }
+
+    fn is_excluded(&self, file: &Path) -> bool {
+        if self.exclude.is_empty() && self.listed.is_empty() {
+            return false;
+        }
+        let relative = self.relative(file);
+        self.excluded_by_glob(&relative)
+            || self.listed.contains(file)
+            || self.listed_relative.contains(&relative)
+    }
+
+    fn reason(&self, file: &Path) -> Option<SkipReason> {
+        if !self.exclude.is_empty() && self.excluded_by_glob(&self.relative(file)) {
+            return Some(SkipReason::Excluded);
+        }
+        if !self.listed_absolute.is_empty()
+            && self
+                .listed_absolute
+                .contains(&absolute_from(&self.cwd, file))
         {
             return Some(SkipReason::Whitelisted);
         }
+        None
     }
-    None
 }
 
 /// `path` with `/` between components on every platform: `a/b/c.py`,
@@ -312,10 +368,18 @@ pub fn slash_path(path: &Path) -> String {
 /// Absolute, lexically normalised form of `path` (no symlink resolution, so
 /// it works for paths that do not exist yet).
 pub fn absolute(path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        return absolute_from(Path::new(""), path);
+    }
+    absolute_from(&std::env::current_dir().unwrap_or_default(), path)
+}
+
+/// [`absolute`] with the current directory given.
+fn absolute_from(cwd: &Path, path: &Path) -> PathBuf {
     let joined = if path.is_absolute() {
         path.to_path_buf()
     } else {
-        std::env::current_dir().unwrap_or_default().join(path)
+        cwd.join(path)
     };
     let mut out = PathBuf::new();
     for component in joined.components() {

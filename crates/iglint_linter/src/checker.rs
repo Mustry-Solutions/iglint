@@ -64,6 +64,8 @@ pub struct UnitCache {
     /// Messages of `SCR900 pylint` for the unit's scripts, set by the
     /// driver before the project phase when pylint ran for the unit.
     pub(crate) pylint: OnceLock<crate::rules::script::pylint::UnitMessages>,
+    /// Detected formatting of each JSON file that a fix was built for.
+    editors: std::sync::Mutex<rustc_hash::FxHashMap<FileId, JsonEditor<'static>>>,
 }
 
 impl UnitCache {
@@ -307,7 +309,16 @@ impl<'c, 'a> Checker<'c, 'a> {
     /// JSON file of the run and `root` is its parse tree.
     pub fn json_editor(&self, file: FileId, root: &Value<'_>) -> Option<JsonEditor<'a>> {
         let source = self.unit.files.get(file)?;
-        Some(JsonEditor::new(source.text(), root))
+        let mut editors = self
+            .unit
+            .cache
+            .editors
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let style = editors
+            .entry(file)
+            .or_insert_with(|| JsonEditor::new(source.text(), root).detach());
+        Some(style.attach(source.text()))
     }
 
     /// Turns text edits of `file` into fix edits.

@@ -104,8 +104,12 @@ Comparison 'self.props.text == None' should be 'self.props.text is None' (single
   `unused-argument`, `missing-docstring`, `redefined-outer-name` and
   `function-redefined` as ign-lint's combined file did. A missing file
   falls back to the bundled configuration with a warning.
-* `jobs`: pylint's `--jobs`; `0` runs one pylint worker per CPU, `1`
-  lints in a single process.
+* `jobs`: number of pylint processes that run at the same time, each on
+  a share of the scripts (with pylint's `--jobs=1`); `0` (the default)
+  starts one per CPU, `1` lints in a single process. Fewer processes are
+  started when there are few scripts, because each costs about 0.2 s of
+  start-up. Scripts are independent modules, so the findings do not
+  depend on `jobs`.
 * `category-mapping`: severity per pylint message category letter (`F`,
   `E`, `W`, `C`, `R`, `I`). It replaces the default
   (`F` and `E` errors, `W`, `C` and `R` warnings); categories it leaves
@@ -134,7 +138,7 @@ pylint's version: run with `--no-cache` after upgrading pylint.
             name: "jobs",
             ty: OptionType::Integer,
             default: "0",
-            description: "pylint `--jobs`: 0 is one worker per CPU.",
+            description: "Number of parallel pylint processes: 0 is one per CPU.",
         },
         OptionMeta {
             name: "category-mapping",

@@ -87,6 +87,33 @@ impl<'s> JsonEditor<'s> {
         editor
     }
 
+    /// The detected style without the source text, to cache it and
+    /// [`attach`](Self::attach) it to the same document again later.
+    /// Detection walks the whole document; reuse saves that per edit.
+    pub fn detach(&self) -> JsonEditor<'static> {
+        JsonEditor {
+            source: "",
+            indent_unit: self.indent_unit.clone(),
+            key_separator: self.key_separator.clone(),
+            escape_style: self.escape_style,
+            multiline: self.multiline,
+            newline: self.newline,
+        }
+    }
+
+    /// This style for `source`, which must be the document it was detected
+    /// on.
+    pub fn attach<'t>(&self, source: &'t str) -> JsonEditor<'t> {
+        JsonEditor {
+            source,
+            indent_unit: self.indent_unit.clone(),
+            key_separator: self.key_separator.clone(),
+            escape_style: self.escape_style,
+            multiline: self.multiline,
+            newline: self.newline,
+        }
+    }
+
     /// Overrides the escape style used for new strings and keys.
     pub fn with_escape_style(mut self, style: EscapeStyle) -> Self {
         self.escape_style = style;

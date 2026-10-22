@@ -294,53 +294,110 @@ pub(crate) fn analyze_with(
         Some(out)
     };
 
-    let phase_a: Vec<(ResourceSummary, Option<UnitResult>)> = models
-        .par_iter()
-        .map(|model| {
-            let rid = model.resource.id;
-            let summary = summarize_with_scripts(&ws, model, &caches[rid.index()]);
-            if !linted[rid.index()] {
-                return (summary, None);
-            }
-            if let Some(diagnostics) = cached_unit(rid) {
-                return (
+    // Cached results first: they decide which units pylint has to lint.
+    let precached: Vec<Option<Vec<Diagnostic>>> = if context.is_some() {
+        models
+            .par_iter()
+            .map(|model| {
+                let rid = model.resource.id;
+                if linted[rid.index()] {
+                    cached_unit(rid)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    } else {
+        (0..models.len()).map(|_| None).collect()
+    };
+
+    // pylint (SCR900) runs in its own processes while the local rules run:
+    // it is by far the slowest part when enabled.
+    let mut batch: Vec<BatchUnit<'_, '_>> = Vec::new();
+    for (i, model) in models.iter().enumerate() {
+        if !linted[i] || precached[i].is_some() {
+            continue;
+        }
+        let Some((_, s)) = unit_settings(model.resource.id) else {
+            continue;
+        };
+        let set = sets.get(rules, &s);
+        if pylint::options_in(&set).is_none() {
+            continue;
+        }
+        let scripts = model
+            .data
+            .scripts()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(position, (file, script))| {
+                let t = target_of.get(file.index()).copied().flatten()?;
+                Some((position, t, script))
+            })
+            .collect();
+        batch.push(BatchUnit {
+            set,
+            cache: &caches[i],
+            scripts,
+        });
+    }
+
+    let run_phase_a = || -> Vec<(ResourceSummary, Option<UnitResult>)> {
+        models
+            .par_iter()
+            .zip(precached.into_par_iter())
+            .map(|(model, precached)| {
+                let rid = model.resource.id;
+                let summary = summarize_with_scripts(&ws, model, &caches[rid.index()]);
+                if !linted[rid.index()] {
+                    return (summary, None);
+                }
+                if let Some(diagnostics) = precached {
+                    return (
+                        summary,
+                        Some(UnitResult {
+                            diagnostics,
+                            time: Duration::ZERO,
+                            cached: true,
+                        }),
+                    );
+                }
+                let start = Instant::now();
+                let mut diagnostics = Vec::new();
+                if let Some((_, s)) = unit_settings(rid) {
+                    let set = sets.get(rules, &s);
+                    if !set.is_empty() {
+                        let unit = Unit {
+                            ws: &ws,
+                            resource: Some(model.resource),
+                            project: project_of(model.resource.container),
+                            data: &model.data,
+                            errors: &model.errors,
+                            primary: primary_file(model),
+                            files: &table,
+                            strict: strict_of(&s),
+                            cache: &caches[rid.index()],
+                        };
+                        run_phase(&unit, None, &set, &set.local, &mut diagnostics);
+                    }
+                }
+                (
                     summary,
                     Some(UnitResult {
                         diagnostics,
-                        time: Duration::ZERO,
-                        cached: true,
+                        time: start.elapsed(),
+                        cached: false,
                     }),
-                );
-            }
-            let start = Instant::now();
-            let mut diagnostics = Vec::new();
-            if let Some((_, s)) = unit_settings(rid) {
-                let set = sets.get(rules, &s);
-                if !set.is_empty() {
-                    let unit = Unit {
-                        ws: &ws,
-                        resource: Some(model.resource),
-                        project: project_of(model.resource.container),
-                        data: &model.data,
-                        errors: &model.errors,
-                        primary: primary_file(model),
-                        files: &table,
-                        strict: strict_of(&s),
-                        cache: &caches[rid.index()],
-                    };
-                    run_phase(&unit, None, &set, &set.local, &mut diagnostics);
-                }
-            }
-            (
-                summary,
-                Some(UnitResult {
-                    diagnostics,
-                    time: start.elapsed(),
-                    cached: false,
-                }),
-            )
-        })
-        .collect();
+                )
+            })
+            .collect()
+    };
+    let ((pylint_failed, notices), phase_a) = if batch.is_empty() {
+        ((FxHashSet::default(), Vec::new()), run_phase_a())
+    } else {
+        rayon::join(|| pylint_batch(&batch, &settings.root), run_phase_a)
+    };
+    drop(batch);
     let (summaries, mut unit_results): (Vec<ResourceSummary>, Vec<Option<UnitResult>>) =
         phase_a.into_iter().unzip();
 
@@ -372,35 +429,8 @@ pub(crate) fn analyze_with(
         })
         .collect();
 
-    // pylint, once for every linted unit that enables SCR900.
+    // pylint for standalone files (outside any resource).
     let mut batch: Vec<BatchUnit<'_, '_>> = Vec::new();
-    for (i, model) in models.iter().enumerate() {
-        if !unit_results[i].as_ref().is_some_and(|u| !u.cached) {
-            continue;
-        }
-        let Some((_, s)) = unit_settings(model.resource.id) else {
-            continue;
-        };
-        let set = sets.get(rules, &s);
-        if pylint::options_in(&set).is_none() {
-            continue;
-        }
-        let scripts = model
-            .data
-            .scripts()
-            .into_iter()
-            .enumerate()
-            .filter_map(|(position, (file, script))| {
-                let t = target_of.get(file.index()).copied().flatten()?;
-                Some((position, t, script))
-            })
-            .collect();
-        batch.push(BatchUnit {
-            set,
-            cache: &caches[i],
-            scripts,
-        });
-    }
     for (s, (data, _, cache)) in standalone_docs.iter().zip(&standalone_models) {
         let set = sets.get(rules, &targets[s.target].settings);
         if pylint::options_in(&set).is_none() {
@@ -418,7 +448,16 @@ pub(crate) fn analyze_with(
             scripts,
         });
     }
-    let (pylint_failed, notices) = pylint_batch(&batch, &settings.root);
+    let (mut pylint_failed, mut notices) = (pylint_failed, notices);
+    if !batch.is_empty() {
+        let (failed, more) = pylint_batch(&batch, &settings.root);
+        pylint_failed.extend(failed);
+        for n in more {
+            if !notices.contains(&n) {
+                notices.push(n);
+            }
+        }
+    }
     drop(batch);
 
     // Phase B.
@@ -684,6 +723,18 @@ pub(crate) fn analyze_with(
             })
         })
         .collect();
+    if !options.release_memory {
+        // Freeing every parse tree and model node takes a noticeable share
+        // of a short run; a process that exits next does not need it.
+        std::mem::forget(standalone_models);
+        std::mem::forget(standalone_docs);
+        std::mem::forget(caches);
+        std::mem::forget(index);
+        std::mem::forget(models);
+        std::mem::forget(loaded);
+        std::mem::forget(table);
+        std::mem::forget(ws);
+    }
     Analysis {
         outcomes,
         errors,

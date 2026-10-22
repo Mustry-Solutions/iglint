@@ -495,6 +495,8 @@ fn run_inner(
             let mut check_options = CheckOptions {
                 fix_mode,
                 fix_rules: rules.fix_rules.clone(),
+                // The process exits after the report.
+                release_memory: false,
                 ..CheckOptions::default()
             };
             if let Some(analyzer) = &environment.analyzer {

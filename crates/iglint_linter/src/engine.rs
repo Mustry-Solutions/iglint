@@ -72,6 +72,11 @@ pub struct CheckOptions {
     pub stdin: Option<(PathBuf, String)>,
     /// Replaces the project pipeline with a per-file analyzer (tests).
     pub analyzer: Option<Analyzer>,
+    /// Free the parse trees and models at the end of the run. A process
+    /// that exits right after the run sets this to `false`: the operating
+    /// system reclaims the memory at once, while freeing millions of nodes
+    /// one by one takes a noticeable share of a run.
+    pub release_memory: bool,
 }
 
 impl Default for CheckOptions {
@@ -84,6 +89,7 @@ impl Default for CheckOptions {
             cache_dir: None,
             stdin: None,
             analyzer: None,
+            release_memory: true,
         }
     }
 }
