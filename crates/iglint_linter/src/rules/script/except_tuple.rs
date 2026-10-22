@@ -1,6 +1,6 @@
 //! SCR115 except-tuple-without-parentheses.
 
-use iglint_python::ast::{Expr, ExprName, Stmt};
+use iglint_python::ast::{ExceptHandler, Expr, ExprName, Stmt};
 use iglint_python_semantic::{BindingKind, SemanticModel};
 use iglint_text::{Ranged, TextRange};
 use rustc_hash::FxHashSet;
@@ -22,8 +22,12 @@ pub static META: RuleMeta = RuleMeta {
     explanation: r#"## What it does
 
 Reports `except ValueError, TypeError:` where the name after the comma is
-an exception class: a builtin exception, or a name the module imports or
-defines as a class.
+an exception class: a builtin exception, a class the script defines, or a
+capitalized name it imports with `from m import Name`. The name is looked
+up like Python does (the handler's function, enclosing functions, the
+module, the builtins), ignoring the handler itself. A module
+(`except ValueError, sys:` after `import sys`), any other variable, and a
+name the handler body reads are variables, as written.
 
 ## Why is this bad?
 
@@ -55,8 +59,10 @@ name of such a handler: this rule explains the mistake.
 
 ## Fix
 
-Adds the parentheses. Safe: the result is what the code says it means. No
-fix when a comment sits between the two names.
+Adds the parentheses. Unsafe: the fixed handler catches a second
+exception class and no longer rebinds the name, so the program behaves
+differently (that is the point, but iglint cannot prove the author meant
+the class). No fix when a comment sits between the two names.
 "#,
     ..RuleMeta::DEFAULT
 };
@@ -70,10 +76,16 @@ pub static RULE: RuleImpl = RuleImpl {
 
 struct ExceptTuple;
 
-/// The handlers `except A, B:` of a script where `B` is an exception class
-/// (a builtin exception, or a name the module imports or defines as a
-/// class): the type expression and the name. `SCR103` and `SCR117` stay
+/// The handlers `except A, B:` of a script where `B` names an exception
+/// class: the type expression and the name. `SCR103` and `SCR117` stay
 /// silent about these names; this rule explains them.
+///
+/// `B` names a class when, ignoring the handler itself, it resolves (in
+/// the handler's scope, then the enclosing functions, the module and the
+/// builtins) only to `class B` statements, to `from m import B` with a
+/// capitalized name, or to a builtin exception. A name that is a module
+/// (`import sys`), any other variable, or that the handler body reads
+/// (`except ValueError, err: return str(err)`) is a variable.
 pub(crate) fn misread_handlers<'s>(
     unit: &ScriptUnit<'s, '_>,
     model: &SemanticModel<'_>,
@@ -86,22 +98,66 @@ pub(crate) fn misread_handlers<'s>(
                 continue;
             };
             let Expr::Name(n) = &**name else { continue };
-            let builtin_exception = iglint_stubs::jython_builtins()
-                .iter()
-                .any(|b| b.name == &*n.id && b.kind == iglint_stubs::BuiltinKind::Exception);
-            let class_like = model.bindings().any(|(_, b)| {
-                b.name == &*n.id
-                    && matches!(
-                        b.kind,
-                        BindingKind::Import | BindingKind::FromImport | BindingKind::ClassDef
-                    )
-            });
-            if builtin_exception || class_like {
+            if names_exception_class(model, h, n) {
                 found.push((&**ty, n));
             }
         }
     });
     found
+}
+
+fn names_exception_class(model: &SemanticModel<'_>, h: &ExceptHandler, n: &ExprName) -> bool {
+    let Some(handler_binding) = model
+        .bindings()
+        .find(|(_, b)| b.kind == BindingKind::ExceptVar && b.range == n.range)
+        .map(|(_, b)| b)
+    else {
+        return false;
+    };
+    // The body reads the caught exception under that name.
+    let body = match (h.body.first(), h.body.last()) {
+        (Some(first), Some(last)) => first.range().cover(last.range()),
+        _ => return false,
+    };
+    if handler_binding
+        .references
+        .iter()
+        .any(|r| body.contains_range(model.reference(*r).range))
+    {
+        return false;
+    }
+    let mut scope = Some(handler_binding.scope);
+    while let Some(id) = scope {
+        if model.is_dynamic_chain(id) {
+            return false;
+        }
+        let others: Vec<_> = model
+            .scope(id)
+            .bindings_of(&n.id)
+            .iter()
+            .map(|b| model.binding(*b))
+            .filter(|b| b.kind != BindingKind::ExceptVar)
+            .collect();
+        if !others.is_empty() {
+            return others.iter().all(|b| match b.kind {
+                BindingKind::ClassDef => true,
+                BindingKind::FromImport => b.alias.is_some_and(|a| {
+                    a.name
+                        .as_str()
+                        .starts_with(|c: char| c.is_ascii_uppercase())
+                }),
+                _ => false,
+            });
+        }
+        // Other handlers binding the same name: still a variable there.
+        if id != handler_binding.scope && !model.scope(id).bindings_of(&n.id).is_empty() {
+            return false;
+        }
+        scope = model.enclosing_lookup_scope(id);
+    }
+    iglint_stubs::jython_builtins()
+        .iter()
+        .any(|b| b.name == &*n.id && b.kind == iglint_stubs::BuiltinKind::Exception)
 }
 
 /// The name ranges of [`misread_handlers`].
@@ -135,7 +191,7 @@ impl ScriptRule for ExceptTuple {
                         cx,
                         unit,
                         "Add parentheses",
-                        Applicability::Safe,
+                        Applicability::Unsafe,
                         vec![(whole, replacement)],
                     )
                 })
@@ -160,7 +216,7 @@ mod tests {
         );
         let d = f.lint(&["SCR115"]);
         assert_eq!(flagged(&d), ["TypeError"]);
-        let fixed = f.fixed(&[("SCR115", "")], false, &library_path(&f, "m"));
+        let fixed = f.fixed(&[("SCR115", "")], true, &library_path(&f, "m"));
         assert_eq!(
             fixed,
             "try:\n    f()\nexcept (ValueError, TypeError):\n    pass\n"
@@ -193,7 +249,7 @@ mod tests {
             ViewScript::Action,
             "\ttry:\n\t\tf()\n\texcept KeyError, IndexError:\n\t\tpass",
         );
-        let fixed = f.fixed(&[("SCR115", "")], false, &view_path(&f));
+        let fixed = f.fixed(&[("SCR115", "")], true, &view_path(&f));
         assert!(
             fixed.contains(r"\texcept (KeyError, IndexError):"),
             "{fixed}"
@@ -220,5 +276,48 @@ mod tests {
         assert!(lint_module("SCR117", source).is_empty());
         let module = "try:\n    g()\nexcept ValueError, IOError:\n    pass\nlist = 1\n";
         assert_eq!(flagged(&lint_module("SCR117", module)), ["list"]);
+    }
+
+    /// Jython prints `bad` for this program; with parentheses it would
+    /// print `<module 'sys'>`. `sys` is a variable here.
+    #[test]
+    fn modules_and_read_names_are_variables() {
+        let code = "import sys\n\ndef f():\n    try:\n        raise ValueError('bad')\n    except ValueError, sys:\n        return str(sys)\n\nprint f()\n";
+        assert!(lint_module("SCR115", code).is_empty());
+        // Read in the handler body: a variable even with a builtin's name.
+        assert!(
+            lint_module(
+                "SCR115",
+                "try:\n    f()\nexcept ValueError, TypeError:\n    print TypeError\n"
+            )
+            .is_empty()
+        );
+        // A lowercase imported name, a rebound builtin, a dynamic scope.
+        for code in [
+            "from m import err\ntry:\n    f()\nexcept ValueError, err:\n    pass\n",
+            "TypeError = 1\ntry:\n    f()\nexcept ValueError, TypeError:\n    pass\n",
+            "from m import *\ntry:\n    f()\nexcept ValueError, TypeError:\n    pass\n",
+            "def g(TypeError):\n    try:\n        f()\n    except ValueError, TypeError:\n        pass\n",
+        ] {
+            assert!(lint_module("SCR115", code).is_empty(), "{code}");
+        }
+        // Classes defined in the module, and capitalized from-imports.
+        let d = lint_module(
+            "SCR115",
+            "class Oops(Exception):\n    pass\ndef g():\n    try:\n        f()\n    except ValueError, Oops:\n        pass\n",
+        );
+        assert_eq!(flagged(&d), ["Oops"]);
+    }
+
+    #[test]
+    fn fix_is_unsafe() {
+        let d = lint_module(
+            "SCR115",
+            "try:\n    f()\nexcept ValueError, TypeError:\n    pass\n",
+        );
+        assert_eq!(
+            d[0].fix.as_ref().map(|f| f.applicability),
+            Some(crate::Applicability::Unsafe)
+        );
     }
 }
