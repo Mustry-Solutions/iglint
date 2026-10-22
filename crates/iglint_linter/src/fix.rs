@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use iglint_text::{TextEdit, apply_edits};
+use iglint_text::{TextEdit, TextRange, TextSize, apply_edits};
 
 use crate::diagnostic::{Applicability, Diagnostic};
 use crate::engine::{AppliedFix, SkippedFix};
@@ -33,7 +33,8 @@ impl LineEnding {
 
 /// One fix pass over `text`: takes the fixes `wanted` accepts, in position
 /// order, skipping any that overlap an earlier accepted fix. Returns the new
-/// text, or `None` if nothing was applied.
+/// text and the edits applied (ranges in `text`), or `None` if nothing was
+/// applied.
 pub(crate) fn apply_pass(
     path: &Path,
     text: &str,
@@ -41,7 +42,7 @@ pub(crate) fn apply_pass(
     wanted: &dyn Fn(&Diagnostic) -> Result<(), String>,
     applied: &mut Vec<AppliedFix>,
     skipped: &mut Vec<SkippedFix>,
-) -> Option<String> {
+) -> Option<(String, Vec<TextEdit>)> {
     let line_ending = LineEnding::detect(text);
     let mut candidates: Vec<(&Diagnostic, Vec<TextEdit>)> = Vec::new();
     for diagnostic in diagnostics {
@@ -110,7 +111,33 @@ pub(crate) fn apply_pass(
     if !any {
         return None;
     }
-    apply_edits(text, &accepted).ok()
+    let fixed = apply_edits(text, &accepted).ok()?;
+    Some((fixed, accepted))
+}
+
+/// Where `range` of the text before `edits` (non-overlapping, ranges in the
+/// old text) lies after them, or `None` when an edit touches it.
+pub(crate) fn shift_range(range: TextRange, edits: &[TextEdit]) -> Option<TextRange> {
+    let mut delta: i64 = 0;
+    for edit in edits {
+        let e = edit.range;
+        let touches = if range.is_empty() {
+            e.start() < range.start() && range.start() < e.end()
+        } else if e.is_empty() {
+            range.start() < e.start() && e.start() < range.end()
+        } else {
+            e.start() < range.end() && range.start() < e.end()
+        };
+        if touches {
+            return None;
+        }
+        if e.end() <= range.start() {
+            delta += edit.content.len() as i64 - i64::from(e.len().to_u32());
+        }
+    }
+    let start = i64::from(range.start().to_u32()) + delta;
+    let start = u32::try_from(start).ok()?;
+    Some(TextRange::at(TextSize::new(start), range.len()))
 }
 
 /// `apply_edits` accepts two insertions at the same offset; for edits from
@@ -136,6 +163,25 @@ pub(crate) fn applicability_allowed(applicability: Applicability, unsafe_fixes: 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shifts_ranges_through_edits() {
+        let r = |a: u32, b: u32| TextRange::new(TextSize::new(a), TextSize::new(b));
+        let edits = vec![
+            TextEdit::replace(r(0, 2), "abcd"),
+            TextEdit::replace(r(20, 25), ""),
+        ];
+        assert_eq!(shift_range(r(5, 8), &edits), Some(r(7, 10)));
+        assert_eq!(shift_range(r(30, 30), &edits), Some(r(27, 27)));
+        assert_eq!(shift_range(r(1, 4), &edits), None);
+        assert_eq!(shift_range(r(22, 22), &edits), None);
+        assert_eq!(shift_range(r(20, 20), &edits), Some(r(22, 22)));
+        // An insertion at the start moves the range; at its end it does not.
+        let insert = vec![TextEdit::replace(r(5, 5), "xy")];
+        assert_eq!(shift_range(r(5, 8), &insert), Some(r(7, 10)));
+        assert_eq!(shift_range(r(2, 5), &insert), Some(r(2, 5)));
+        assert_eq!(shift_range(r(4, 6), &insert), None);
+    }
 
     #[test]
     fn line_endings() {

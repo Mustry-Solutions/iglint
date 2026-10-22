@@ -72,7 +72,7 @@ extend-select = ["SCR101"]
     )
     .unwrap();
     // SCR101 is more specific than the SCR1 ignore; SCR102 is not.
-    assert_eq!(enabled(&config), ["NAME002", "SCR101"]);
+    assert_eq!(enabled(&config), ["NAME002", "SCR101", "SCR900"]);
 
     let config = load_toml(
         r#"extend-select = ["ALL"]
@@ -80,7 +80,10 @@ ignore = ["NAME", "unused-variable"]
 "#,
     )
     .unwrap();
-    assert_eq!(enabled(&config), ["BIND001", "REF001", "SCR101", "VIEW001"]);
+    assert_eq!(
+        enabled(&config),
+        ["BIND001", "REF001", "SCR101", "SCR900", "VIEW001"]
+    );
 }
 
 #[test]
@@ -392,7 +395,7 @@ fn extend_inherits_and_detects_cycles() {
         "extend = \"../base.toml\"\nextend-select = [\"VIEW001\"]\nextend-exclude = [\"tmp\"]\n[rules.SCR102]\nignore-names = [\"b\"]\n",
     );
     let config = load(&options(&root.join("project")), &REGISTRY).unwrap();
-    assert_eq!(enabled(&config), ["SCR101", "SCR102", "VIEW001"]);
+    assert_eq!(enabled(&config), ["SCR101", "SCR102", "SCR900", "VIEW001"]);
     assert_eq!(config.settings.exclude, ["build", "tmp"]);
     // Paths are relative to the file that sets them.
     assert_eq!(config.baseline, Some(root.join("base-baseline.json")));
@@ -439,7 +442,7 @@ fn command_line_overrides_come_last() {
         ..CliOverrides::default()
     };
     let config = load(&opts, &REGISTRY).unwrap();
-    assert_eq!(enabled(&config), ["REF001", "SCR101"]);
+    assert_eq!(enabled(&config), ["REF001", "SCR101", "SCR900"]);
     assert!(config.settings.base.strict);
 
     opts.cli.ignore = vec!["SCR10O".into()];
@@ -472,10 +475,13 @@ fn legacy_rule_config_is_detected_with_its_whitelist() {
         config.source,
         ConfigSource::IgnLint(root.join("rule_config.json"))
     );
-    // Defaults, plus ign-lint's PollingIntervalRule, minus the disabled rule.
+    // Defaults, plus ign-lint's PollingIntervalRule and PylintScriptRule,
+    // minus the disabled rule.
     assert_eq!(
         enabled(&config),
-        ["BIND001", "NAME001", "NAME002", "SCR101", "SCR102"]
+        [
+            "BIND001", "NAME001", "NAME002", "SCR101", "SCR102", "SCR900"
+        ]
     );
     let polling = config
         .settings
@@ -541,8 +547,9 @@ fn every_ign_lint_fixture_variant_loads() {
             CompatMode::IgnLintOnly,
         );
         // ign-lint runs every rule that is not disabled; their iglint
-        // equivalents in the test registry are BIND001, NAME001, NAME002 and
-        // VIEW001.
+        // equivalents in the test registry are BIND001, NAME001, NAME002,
+        // VIEW001 and, for PylintScriptRule, SCR900 and the default SCR
+        // rules.
         let codes: Vec<_> = resolved
             .settings
             .base
@@ -552,7 +559,9 @@ fn every_ign_lint_fixture_variant_loads() {
             .collect();
         assert_eq!(
             codes,
-            ["BIND001", "NAME001", "NAME002", "VIEW001"],
+            [
+                "BIND001", "NAME001", "NAME002", "SCR101", "SCR102", "SCR900", "VIEW001"
+            ],
             "variant {name}"
         );
     }
@@ -650,7 +659,7 @@ fn migration_keeps_comments_and_behaviour() {
 # Keep in sync with CI.
 
 # ign-lint runs every rule that is not disabled.
-extend-select = ["BIND001", "NAME002"]
+extend-select = ["BIND001", "NAME002", "SCR900"]
 
 [rules.NAME001]
 # component-name: Component name does not follow the convention, from ign-lint NamePatternRule.
@@ -674,8 +683,10 @@ convention = "PascalCase"
 # polling-interval: now() polls too often, from ign-lint PollingIntervalRule.
 minimum-interval = 5000
 
-# PylintScriptRule: iglint has no equivalent rule yet; not migrated.
-# debug = true
+[rules.SCR900]
+# pylint: Message reported by pylint, from ign-lint PylintScriptRule.
+severity = "error"
+# ign-lint kwarg without iglint equivalent: debug = true
 
 [rules.VIEW001]
 # unused-custom-property: Custom property is never referenced, from ign-lint UnusedCustomPropertiesRule.
@@ -692,7 +703,7 @@ enabled = false
     assert!(
         migration
             .summary
-            .contains(&"PylintScriptRule: no iglint equivalent, not migrated".to_owned())
+            .contains(&"PylintScriptRule -> SCR101, SCR102, SCR900".to_owned())
     );
     assert!(
         migration
@@ -736,4 +747,116 @@ fn migrated_configurations_reproduce_ign_lint_settings() {
             "variant {name}"
         );
     }
+}
+
+#[test]
+fn pylint_script_rule_maps_to_pylint_and_the_native_script_rules() {
+    let parse =
+        |text: &str| compat::parse_rule_config(Path::new("rule_config.json"), text).unwrap();
+    let config = parse(
+        r#"{"PerspectiveScriptPylintRule": {"kwargs": {
+            "pylintrc": "rc/.pylintrc", "category_mapping": {"E": "warning", "C": "info"},
+            "debug": true, "batch_mode": true, "debug_dir": "d", "severity": "warning"}}}"#,
+    );
+    assert!(config.messages.is_empty(), "{:?}", config.messages);
+    let resolved =
+        compat::to_settings(&config, &REGISTRY, Path::new("/r"), CompatMode::IgnLintOnly);
+    let codes: Vec<&str> = resolved.rule_map["PerspectiveScriptPylintRule"]
+        .iter()
+        .map(|r| r.code())
+        .collect();
+    assert_eq!(codes, ["SCR101", "SCR102", "SCR900"]);
+    let rules = &resolved.settings.base.rules;
+    let pylint = &rules[&rule(&testing::PYLINT)];
+    assert_eq!(pylint.severity, Severity::Warning);
+    assert_eq!(
+        pylint.options["pylintrc"],
+        OptionValue::String("rc/.pylintrc".into())
+    );
+    let OptionValue::Table(mapping) = &pylint.options["category-mapping"] else {
+        panic!("category-mapping is a table");
+    };
+    assert_eq!(mapping["C"], OptionValue::String("info".into()));
+    // The native rules take no kwargs; `category_mapping` maps their
+    // severity like their pylint counterparts' (`E` for errors).
+    let undefined = &rules[&rule(&testing::UNDEFINED_NAME)];
+    assert_eq!(undefined.severity, Severity::Warning);
+    assert!(undefined.options.is_empty());
+    assert_eq!(
+        rules[&rule(&testing::UNUSED_VARIABLE)].severity,
+        Severity::Warning
+    );
+    let mut notices = resolved.notices.clone();
+    notices.sort();
+    assert_eq!(
+        notices,
+        [
+            "PerspectiveScriptPylintRule: kwarg `batch_mode` has no iglint equivalent and is ignored",
+            "PerspectiveScriptPylintRule: kwarg `debug_dir` has no iglint equivalent and is ignored",
+            "PerspectiveScriptPylintRule: kwarg `debug` has no iglint equivalent and is ignored",
+        ]
+    );
+
+    // With defaults (ign-lint runs it), `iglint ign-lint` runs SCR900 with
+    // ign-lint's rule severity and the native rules with their own.
+    let resolved = compat::to_settings(
+        &parse("{}"),
+        &REGISTRY,
+        Path::new("/r"),
+        CompatMode::IgnLintOnly,
+    );
+    let rules = &resolved.settings.base.rules;
+    assert_eq!(rules[&rule(&testing::PYLINT)].severity, Severity::Error);
+    assert_eq!(
+        rules[&rule(&testing::UNDEFINED_NAME)].severity,
+        Severity::Error
+    );
+
+    // Disabling it in a legacy configuration used by `iglint check` turns
+    // off pylint and the native script rules it stands for.
+    let disabled = parse(r#"{"PylintScriptRule": {"enabled": false}}"#);
+    for mode in [CompatMode::IgnLintOnly, CompatMode::ExtendDefaults] {
+        let resolved = compat::to_settings(&disabled, &REGISTRY, Path::new("/r"), mode);
+        let codes: Vec<&str> = resolved
+            .settings
+            .base
+            .rules
+            .keys()
+            .map(|r| r.code())
+            .collect();
+        assert!(
+            codes.iter().all(|c| !c.starts_with("SCR")),
+            "{mode:?}: {codes:?}"
+        );
+    }
+    let resolved = compat::to_settings(
+        &parse("{}"),
+        &REGISTRY,
+        Path::new("/r"),
+        CompatMode::ExtendDefaults,
+    );
+    let codes: Vec<&str> = resolved
+        .settings
+        .base
+        .rules
+        .keys()
+        .map(|r| r.code())
+        .collect();
+    assert!(
+        codes.contains(&"SCR900") && codes.contains(&"SCR101"),
+        "{codes:?}"
+    );
+
+    // The migration disables the native rules explicitly.
+    let migration = migrate::migrate(&disabled, Path::new("/repo/rule_config.json"), &REGISTRY);
+    assert!(
+        migration.toml.contains("[rules.SCR101]\n# undefined-name: Name is not defined, from ign-lint PylintScriptRule.\nenabled = false\n"),
+        "{}",
+        migration.toml
+    );
+    assert!(
+        migration
+            .summary
+            .contains(&"PylintScriptRule: disabled (SCR101, SCR102, SCR900)".to_owned())
+    );
 }

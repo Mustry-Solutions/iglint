@@ -504,6 +504,9 @@ fn run_inner(
         }
         None => CheckResult::default(),
     };
+    for notice in &result.notices {
+        writeln!(out, "⚠️  {notice}")?;
+    }
     let mut by_file: HashMap<PathBuf, Vec<&Diagnostic>> = HashMap::new();
     for diagnostic in &result.diagnostics {
         by_file

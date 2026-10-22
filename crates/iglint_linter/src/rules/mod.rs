@@ -85,6 +85,7 @@ rules![
     script::global_at_module_level,
     script::print_statement,
     script::unused_suppression,
+    script::pylint,
     style::unknown_style_class,
     style::unused_style_class,
     style::empty_style_class,

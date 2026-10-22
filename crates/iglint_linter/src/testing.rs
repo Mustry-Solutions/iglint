@@ -15,6 +15,9 @@
 //! | `NAME002` property-name | `bad_prop` | info | none |
 //! | `BIND001` polling-interval | `now(1)` | error | none |
 //! | `REF001` missing-view | `missing/view` | error | none |
+//!
+//! `SCR900` pylint (ign-lint `PylintScriptRule`, off by default) never
+//! reports; it is there for configuration tests.
 
 use std::sync::Arc;
 
@@ -171,6 +174,36 @@ pub static MISSING_VIEW: RuleMeta = RuleMeta {
     ..RuleMeta::DEFAULT
 };
 
+pub static PYLINT: RuleMeta = RuleMeta {
+    code: "SCR900",
+    name: "pylint",
+    category: Category::Script,
+    default_severity: Severity::Warning,
+    default_enabled: false,
+    summary: "Message reported by pylint",
+    explanation: "## What it does\n\nRuns pylint.\n",
+    options: &[
+        OptionMeta {
+            name: "pylintrc",
+            ty: OptionType::String,
+            default: "none",
+            description: "pylint configuration file.",
+        },
+        OptionMeta {
+            name: "category-mapping",
+            ty: OptionType::Table,
+            default: "{}",
+            description: "Severity per category.",
+        },
+    ],
+    ign_lint_names: &["PylintScriptRule", "PerspectiveScriptPylintRule"],
+    ign_lint_option_map: &[
+        ("pylintrc", "pylintrc"),
+        ("category_mapping", "category-mapping"),
+    ],
+    ..RuleMeta::DEFAULT
+};
+
 pub static RULES: &[&RuleMeta] = &[
     &POLLING_INTERVAL,
     &COMPONENT_NAME,
@@ -178,6 +211,7 @@ pub static RULES: &[&RuleMeta] = &[
     &MISSING_VIEW,
     &UNDEFINED_NAME,
     &UNUSED_VARIABLE,
+    &PYLINT,
     &UNUSED_CUSTOM_PROPERTY,
 ];
 

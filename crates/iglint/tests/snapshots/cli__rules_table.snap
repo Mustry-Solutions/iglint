@@ -9,4 +9,5 @@ NAME002  property-name           info           no       Property name does not 
 REF001   missing-view            error          no       Referenced view does not exist
 SCR101   undefined-name          error          yes      Name is not defined
 SCR102   unused-variable         warning   [*]  yes      Local variable is never used
+SCR900   pylint                  warning        no       Message reported by pylint
 VIEW001  unused-custom-property  warning   [*]  yes      Custom property is never referenced

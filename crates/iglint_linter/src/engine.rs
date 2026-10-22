@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use iglint_text::TextEdit;
 use rayon::prelude::*;
 
 use crate::cache::Cache;
@@ -178,6 +179,9 @@ pub struct CheckResult {
     pub skipped: Vec<(PathBuf, SkipReason)>,
     pub fixed: Vec<FixSummary>,
     pub errors: Vec<FileError>,
+    /// Warnings about the run that do not fail it, for example that pylint
+    /// (`SCR900`) could not run.
+    pub notices: Vec<String>,
     pub timings: Timings,
     /// With [`CheckOptions::stdin`] and a fix mode: the fixed text.
     pub stdin_output: Option<String>,
@@ -267,6 +271,7 @@ pub fn check(settings: &ProjectSettings, paths: &[PathBuf], options: &CheckOptio
             let run = || crate::analyze::analyze(settings, paths, targets, options, cache.as_ref());
             let analysis = in_pool(options.threads, run);
             result.errors.extend(analysis.errors);
+            result.notices.extend(analysis.notices);
             analysis.outcomes
         }
     };
@@ -373,7 +378,7 @@ fn lint_one(
         (Some(c), false) => c.entry(path, kind, &file_settings, &source, 0, &diagnostics),
         _ => None,
     };
-    let reanalyze = |text: &str| {
+    let reanalyze = |text: &str, _edits: &[TextEdit]| {
         let fixed_source = SourceFile::new(path, text);
         analyzer(&fixed_source, kind, &file_settings)
     };
@@ -395,7 +400,8 @@ fn lint_one(
 }
 
 /// Applies fixes to one file in passes, re-analysing after each pass with
-/// `reanalyze`, and writes the result when the fix mode says so. Returns
+/// `reanalyze` (given the new text and the edits of the pass, in the
+/// previous text's coordinates), and writes the result when the fix mode says so. Returns
 /// the summary (in fix mode) and the remaining findings.
 pub(crate) fn fix_file(
     settings: &ProjectSettings,
@@ -403,7 +409,7 @@ pub(crate) fn fix_file(
     path: &Path,
     text: &Arc<str>,
     mut diagnostics: Vec<Diagnostic>,
-    reanalyze: &dyn Fn(&str) -> Vec<Diagnostic>,
+    reanalyze: &dyn Fn(&str, &[TextEdit]) -> Vec<Diagnostic>,
 ) -> Result<(Option<FixSummary>, Vec<Diagnostic>), FileError> {
     if !options.fix_mode.is_fixing() {
         return Ok((None, diagnostics));
@@ -434,7 +440,7 @@ pub(crate) fn fix_file(
     let mut skipped = Vec::new();
     for pass in 0..options.max_fix_passes.max(1) {
         let mut pass_skipped = Vec::new();
-        let Some(next) = fix::apply_pass(
+        let Some((next, edits)) = fix::apply_pass(
             path,
             &current,
             &diagnostics,
@@ -446,7 +452,7 @@ pub(crate) fn fix_file(
             break;
         };
         current = next;
-        diagnostics = reanalyze(&current);
+        diagnostics = reanalyze(&current, &edits);
         if pass + 1 == options.max_fix_passes.max(1) {
             skipped = pass_skipped;
         }
