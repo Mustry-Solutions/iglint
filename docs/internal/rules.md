@@ -116,21 +116,21 @@ Jython builtins).
 
 | Code | Name | Sev | Def | Fix | Summary |
 |---|---|---|---|---|---|
-| SCR201 | unknown-system-function | E | yes | - | `system.x.y` does not exist in Ignition 8.3 (any scope). |
-| SCR202 | system-function-arity | E | yes | - | Wrong positional count for every overload. |
-| SCR203 | unknown-system-keyword | E | yes | - | Keyword argument the function does not accept. |
-| SCR204 | deprecated-system-function | W | yes | - | Deprecated function, with replacement when known. |
-| SCR205 | wrong-scope-system-function | E | yes | - | Function not available in the scope where the script runs (e.g. `system.perspective.*` in a gateway timer, `system.gui.*` in Perspective). |
-| SCR206 | legacy-script-prefix | E | yes | U | `project.`, `shared.` or `app.` prefixes do not exist in 8.3. |
+| SCR201 | unknown-system-function | E | yes | - | `system.x.y` (or `fpmi.x.y`, through aliases) does not exist in Ignition 8.3 (any scope). Third-party modules add packages and members, so by default only near misses of a known member are reported (with a suggestion); `strict` reports every unknown member of a known package; option `allow` (wildcards) lists module additions. |
+| SCR202 | system-function-arity | E | yes | - | Arguments match no overload in the script's scope (count, missing measured-required parameter, duplicate). Skips `*args`/`**kwargs`, unchecked and array-ending Java overloads; library modules only when the call fails in every scope. |
+| SCR203 | unknown-system-keyword | E | yes | - | Keyword argument the function does not accept (unknown name, or keywords to a plain Java function). Same exclusions as SCR202. |
+| SCR204 | deprecated-system-function | W | yes | - | Deprecated function in the script's scope (library modules: in every scope), with replacement when known. |
+| SCR205 | wrong-scope-system-function | E | yes | - | Member not available in the scope where the script runs (`system.gui.*` in Perspective, gateway-only functions in Vision Client scripts), and `system.perspective.*` functions with a `sessionId` parameter called without it in gateway events, WebDev and tag scripts (no current session). Library modules are not reported. |
+| SCR206 | legacy-script-prefix | E | yes | U | `project.`, `shared.` or `app.` prefixes (unbound) do not exist in 8.3. Fix removes the prefix when the next name is a top-level library package of the project. |
 
 ### Ignition script context
 
 | Code | Name | Sev | Def | Fix | Summary |
 |---|---|---|---|---|---|
-| SCR301 | invalid-event-script-header | E | yes | U | Gateway/session/WebDev `.py` whose first line is not the canonical header (Ignition drops/rewraps it). |
-| SCR302 | sleep-in-event-script | W | yes | - | `time.sleep`/`Thread.sleep` in UI event, change script or transform (blocks the session thread). |
-| SCR303 | module-level-side-effect | W | yes | - | Library module runs `system.*` calls or I/O at import time. |
-| SCR304 | shadowed-library-package | E | yes | - | Library folder with its own `code.py` hides its sub-modules. |
+| SCR301 | invalid-event-script-header | E | yes | U | Gateway/session/WebDev `.py` whose first line is not the canonical header (Ignition drops/rewraps it): other parameters, one-line body, wrapped header, top-level code without header. Whitespace, trailing comments and defaults on the canonical parameters are not reported; indented header-less (legacy body) files compile and are not reported. |
+| SCR302 | sleep-in-event-script | W | yes | - | `time.sleep`/`Thread.sleep` directly in a Perspective event action, transform, change script, message handler or extension function (not in nested defs/lambdas; custom methods excluded: callers may run them in the background). |
+| SCR303 | module-level-side-effect | W | yes | - | Project library module runs `system.*` functions, `open`/`file`/`execfile` or sleeps at import time (module level, class bodies, decorators, defaults; not under `if __name__ == '__main__':`). Documented allowlist of benign calls. |
+| SCR304 | shadowed-library-package | E | yes | - | Library folder with its own `code.py` hides its sub-modules (with inheritance); reported on that `code.py`. |
 | SCR305 | unresolved-component-reference | E | yes | - | `self.getSibling('X')`, `self.getChild('X')`, `self.parent.getChild(...)` with literal names that do not exist. |
 | SCR306 | message-handler-payload-misuse | W | no | - | Handler reads payload keys no sender sends (strict). |
 
