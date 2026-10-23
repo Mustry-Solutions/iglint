@@ -21,8 +21,10 @@ pub static META: RuleMeta = RuleMeta {
 
 Reports expression statements that do nothing: a name, an attribute access
 (`self.refreshBinding` without parentheses), a comparison (`x == 1` meant
-as `x = 1`), arithmetic, a literal. Expressions that call something or
-`yield` anywhere are not reported.
+as `x = 1`), arithmetic, a literal. Expressions that call something
+(also with backticks, which call `repr`), `yield` or contain a list
+comprehension (its variables stay bound after it in Python 2) anywhere are
+not reported.
 
 Inside a `try` body, a lone name, attribute or subscript is not reported:
 `payload["key"]` there checks that the key exists.
@@ -93,10 +95,16 @@ fn parse_options(reader: &OptionReader<'_>) -> Result<ParsedOptions, String> {
 
 struct PointlessStatement;
 
-/// Whether evaluating the expression may have an effect.
+/// Whether evaluating the expression may have an effect, judged by its
+/// syntax: it calls something (a call, or backticks, which call `repr`),
+/// yields, or binds names (a list comprehension's variables stay bound
+/// after it in Python 2). Operators, comparisons, `in`, `%` formatting and
+/// attribute and subscript reads count as having no effect, although on
+/// arbitrary objects they can run code (special methods, properties, Java
+/// getters) or raise.
 pub(crate) fn has_effect(e: &Expr) -> bool {
     match e {
-        Expr::Call(_) | Expr::Yield(_) => true,
+        Expr::Call(_) | Expr::Yield(_) | Expr::Repr(_) | Expr::ListComp(_) => true,
         Expr::Lambda(_) => false,
         other => {
             let mut effect = false;
@@ -111,7 +119,7 @@ struct EffectFinder<'f>(&'f mut bool);
 impl<'a> iglint_python::visitor::Visitor<'a> for EffectFinder<'_> {
     fn visit_expr(&mut self, expr: &'a Expr) {
         match expr {
-            Expr::Call(_) | Expr::Yield(_) => *self.0 = true,
+            Expr::Call(_) | Expr::Yield(_) | Expr::Repr(_) | Expr::ListComp(_) => *self.0 = true,
             Expr::Lambda(_) => {}
             other => iglint_python::visitor::walk_expr(self, other),
         }
@@ -235,7 +243,7 @@ mod tests {
 
     #[test]
     fn reports_pointless_statements() {
-        let code = "\"\"\"doc\"\"\"\ndef f(self):\n    \"\"\"doc\"\"\"\n    self.refresh\n    x == 1\n    x\n    1 + 2\n    'comment'\n    f()\n    [g(y) for y in z]\n    yield 1\n";
+        let code = "\"\"\"doc\"\"\"\ndef f(self):\n    \"\"\"doc\"\"\"\n    self.refresh\n    x == 1\n    x\n    1 + 2\n    'comment'\n    f()\n    [g(y) for y in z]\n    [y for y in z]\n    `x`\n    yield 1\n";
         let d = lint_module("SCR114", code);
         assert_eq!(
             flagged(&d),

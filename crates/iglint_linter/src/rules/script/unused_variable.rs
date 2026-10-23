@@ -72,12 +72,16 @@ def runAction(self, event):
 ## Fix
 
 For `x = value` with a single target: removes the statement when `value`
-calls nothing (literals, names, attribute and subscript reads, operators),
-otherwise removes only `x = ` and keeps the expression, so that its calls
-still run (a call is never a pointless statement for `SCR114`). Unsafe:
-the value may still be wanted under another name, and a removed read can
-have effects in Python (`value["pages"]` raises `KeyError` when the key is
-missing; a property, `__getattr__` or a Java getter runs code).
+calls nothing and binds nothing (literals, names, attribute and subscript
+reads, operators, comparisons), otherwise removes only `x = ` and keeps
+the expression, so that its calls still run and the variables of a list
+comprehension stay bound (Python 2 leaks them: `x = [i for i in y]`
+followed by `return i`). Backticks call `repr`. What is kept is never a
+pointless statement for `SCR114`. Unsafe: the value may still be wanted
+under another name, and a removed read or operator can have effects in
+Python (`value["pages"]` raises `KeyError` when the key is missing; a
+property, `__getattr__`, a Java getter, `__eq__`, `__contains__` or the
+`__str__` that `%` formatting calls runs code).
 
 ## pylint
 
@@ -310,6 +314,24 @@ mod tests {
         let f = view(ViewScript::Action, "\tx \u{3d} 'a'\n\ty \u{3d} 'b'");
         let fixed = f.fixed(&[("SCR103", "")], true, &view_path(&f));
         assert!(fixed.contains(r#""script": "\tpass""#), "{fixed}");
+    }
+
+    /// List comprehension variables stay bound after the comprehension
+    /// (Python 2), and backticks call `repr`: the fix keeps the value.
+    /// Jython: `f([1, 2])` returns 2 before and after the fix, and raises
+    /// `NameError` if the statement is removed.
+    #[test]
+    fn fix_keeps_values_that_bind_or_call() {
+        let f = library(
+            "m",
+            "def f(y):\n    x = [i for i in y]\n    return i\ndef g(o):\n    r = `o`\n    s = ([j for j in o], 1)\n    return 0\n",
+        );
+        let fixed = f.fixed(&[("SCR103", "")], true, &library_path(&f, "m"));
+        assert_eq!(
+            fixed,
+            "def f(y):\n    [i for i in y]\n    return i\ndef g(o):\n    `o`\n    ([j for j in o], 1)\n    return 0\n"
+        );
+        assert!(library("m", &fixed).lint(&["SCR114"]).is_empty());
     }
 
     /// The fix never leaves a pointless statement behind (`SCR114`).

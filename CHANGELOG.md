@@ -77,6 +77,11 @@ from 0.1.0 on.
   another resource star-imports (`from pkg.mod import *` binds it there):
   every name not starting with `_`, or only the names of `__all__` when
   the module assigns it unconditionally, counts as used.
+- `SCR103`'s fix keeps the value of a list comprehension (removes only
+  `x = `): Python 2 leaks its variables, so removing the statement broke
+  code that read them later. Backticks count as a call of `repr`, for
+  `SCR103` and `SCR114` (which no longer reports backtick or list
+  comprehension statements).
 - `SCR112` treats a `.format` field too large for a Java `int`
   (`{2147483648}`, also `{2147483648.x}` and in nested specs) as the
   keyword it is in Jython: no finding when `**kwargs` may supply it.

@@ -39,7 +39,7 @@ code before and after the edit.
 | `VIEW013` | Set `persistent: false` (and remove the stored value) | No stored value: the property starts out absent either way | Unsafe when a stored value is removed: scripts and expressions that run before the binding delivers (query bindings are asynchronous) see a different value |
 | `VIEW015` | Remove an unused custom property and its `propConfig` entries | Nothing reads or writes the property: resolved reads and writes cover expressions, bindings (bidirectional ones write) and scripts, including the library functions scripts hand `self` to (followed through their bodies; anything that cannot be followed counts as reading and writing everything: a value stored where it outlives the call (a `global`, a module or class attribute, a default argument, a container the function does not own), returned, yielded, raised, passed to unknown code, captured by a nested function or lambda, or reachable through a stack frame (`sys._getframe()`, `inspect`, `f_locals`), and a function that may be replaced at run time: by its module through `exec`, `eval`, `execfile`, `globals()`, `sys.modules`, `func_code`, a later definition or star import, or by any script through a store, `setattr`, `__dict__`, or the module escaping as a value); properties with a binding or change script are never reported, so nothing that runs is removed | Unsafe when a script, a library function it calls or a bidirectional binding writes the property: the write recreates it at run time without the `access` and `persistent` settings of the removed `propConfig` entry |
 | `SCR102` | Remove unused import names or statements | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); a top-level library import is provably unused by other resources; and every removed import is effect-free: `java.*` / `javax.*`, or a plain `import x` / non-package `from x import y` of a standard module on the verified list, with no project library package of that name | Unsafe (project library modules, third-party and non-JDK Java packages, `socket`, `logging`, dotted imports, relative imports, unknown project) |
-| `SCR103` | Remove `x = value`, or only `x = ` when the value makes a call | Never | Unsafe: the value may be wanted under another name, and a removed attribute or subscript read can raise or run a getter. The statement is removed only when the value calls nothing, so no pointless statement (`SCR114`) is left |
+| `SCR103` | Remove `x = value`, or only `x = ` when the value calls or binds something | Never | Unsafe: the value may be wanted under another name, and a removed attribute or subscript read, operator, comparison, `in` or `%` formatting can raise or run code (getters, special methods). The statement is removed only when the value calls nothing (no call, no backticks, which call `repr`, no `yield`) and binds nothing (no list comprehension, whose variables Python 2 leaks), so no pointless statement (`SCR114`) is left |
 | `SCR110` | `is` to `==`, `is not` to `!=` | Never: the result changes whenever identity and equality differ (`int('1000') is 1000` is `False` in Jython), and `==` calls `__eq__` / Java `equals` | Unsafe |
 | `SCR115` | `except A, B:` to `except (A, B):` | Never: the handler then catches `B` and no longer rebinds the name | Unsafe. The finding itself requires `B` to resolve (ignoring the handler) to a class statement, a capitalized `from` import or a builtin exception, and the handler body not to read it |
 | `SCR123` | Remove unused suppression codes or the whole comment | Only codes are removed (the rest of the comment stays), or the comment holds nothing but the suppression. Comments do not run | Unsafe when the whole comment would go and it also holds a reason, a `# pylint:` directive or a `coding:` declaration |
@@ -53,6 +53,16 @@ applicability: unsafe code actions are titled `(unsafe)`, and the
 fix-all action applies unsafe fixes only when configured to.
 
 ## Decisions
+
+* **What "calls nothing" means.** `SCR103` and `SCR114` share one
+  syntactic predicate (`has_effect` in `pointless_statement.rs`): an
+  expression has an effect when it contains a call, backticks (they call
+  `repr`), `yield` or a list comprehension (it binds its variables in the
+  enclosing scope). Operators, comparisons, `in`, `%` formatting and
+  attribute and subscript reads count as effect-free even though, on
+  arbitrary objects, they run special methods, properties or Java getters
+  and can raise: treating them as calls would make every expression
+  effectful. That is why the `SCR103` fix that removes them is unsafe.
 
 * **Import side effects.** Removing an import is safe only for the JDK and
   for standard library modules verified on Jython not to start threads,
