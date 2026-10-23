@@ -199,8 +199,8 @@ regenerating.
   is flagged). So `Thread.currentThread()` and reading a stack trace, both
   common in Ignition, stay plain.
 
-  The precision cost is measured on the private corpus (2026-10-23
-  revision): the extended list (145 names, 43 before) appears as an
+  The precision cost is measured on the private corpus (its revision of
+  2026-10-21, measured on 2026-10-23; the numbers depend on the revision): the extended list (145 names, 43 before) appears as an
   attribute or a string literal segment in 168 of 1,491 scripts (45
   before), mostly through `type` and `module` in string literals; findings
   drop by 42 (VIEW015 179 to 151, SCR103 34 to 27, REF012 19 to 15, SCR102

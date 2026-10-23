@@ -1556,6 +1556,9 @@ Reproduced against 0.6.4. "Probe" refers to
 
 ## 14. Private corpus run (aggregates)
 
+The numbers in this section depend on the project's revision: they were
+last measured on 2026-10-23, on the revision of 2026-10-21.
+
 A private Ignition 8.3 project with **287 views** was linted with ign-lint
 0.6.4 exactly as that project's CI does:
 `ign-lint --config rule_config.json --whitelist {whitelist} --ignore-warnings --files "projects/**/view.json" --results-output {file outside the repo}`,
@@ -1593,10 +1596,10 @@ R 50; top codes C0103 709, W1405 454, E0602 293, W0311 136, C0301 57,
 C0415 42, C0121 40, R1705 38, W1401 36, C0104 28, W0702 25, C0200 21,
 W0612 13, C0207 10, W0622 7, E0001 1.
 
-Timing (all 287 views, one process): 31.2 s total, 108.6 ms per view;
-PylintScriptRule 26.9 s (86 %), NamePatternRule 1.07 s,
-UnusedCustomPropertiesRule 0.94 s, model building 1.86 s, every other rule
-under 50 ms in total.
+Timing (all 287 views, one process, `--timing-output`): 28.3 s total,
+98.7 ms per view; PylintScriptRule 24.5 s (87 %), NamePatternRule 0.92 s,
+UnusedCustomPropertiesRule 0.88 s, model building 1.67 s, the other rules
+104 ms together.
 
 ## 15. Appendix: pylint messages enabled by the bundled rcfile
 

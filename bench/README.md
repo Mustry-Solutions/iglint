@@ -204,7 +204,9 @@ CPU in most columns. Everything else is above 10x on every corpus, and the
 speedup grows with the corpus.
 
 On a private production project (287 views, its CI command with its own
-`rule_config.json` and whitelist; aggregates only), same run: ign-lint
+`rule_config.json` and whitelist; aggregates only; measured on an earlier
+revision of the project, so the numbers depend on that revision), same
+run: ign-lint
 `jobs=1` 6.28 s, batch mode 2.08 s (broken output), without pylint
 1.94 s; `iglint ign-lint` with pylint 416 ms (**15x**; 1.56 s on one CPU,
 4.0x), without pylint 50 ms (**39x**; 167 ms on one CPU, 12x);
@@ -243,8 +245,11 @@ shipped 23.1 s, `jobs=1` 6.32 s; `iglint ign-lint` 1.00 s (**23x**);
 migrated `iglint check` with its baseline 1.41 s (**16x**); native
 `iglint check` 267 ms (86x). On 1 CPU: 25.2 s, 6.26 s, 1.61 s (16x),
 2.35 s (**11x**), 377 ms (67x). With all 16 CPUs the migrated gate takes
-611 ms (36x). The migrated baseline holds 6,352 findings (13,732 before
-the scope fix).
+611 ms (36x). The migrated baseline then held 6,352 findings (13,732
+before the scope fix); on the revision of 2026-10-21 it holds 2,259 (two
+whitelist entries no longer exist). The timings in this section were
+measured on an earlier revision of the private project; they depend on
+the revision and the machine.
 
 ## Profile
 
@@ -336,10 +341,14 @@ private project with its own configuration (pylint included):
 | small | 24 | 7 | 0 | 0 |
 | medium | 218 | 108 | 0 | 0 |
 | large | 2,247 | 1,146 | 0 | 0 |
-| private project (aggregates) | 1,482 | 4,048 ² | 0 | 0 |
+| private project (aggregates) ³ | 1,527 | 3,936 ² | 0 | 0 |
 
-² Including 3,072 pylint findings, which are compared by message code
+² Including 3,017 pylint findings, which are compared by message code
 instead (below).
+
+³ Numbers from the private project depend on its revision. These were
+measured on 2026-10-23, on the revision of 2026-10-21, with ign-lint 0.6.4
+(0.6.3 gives the same numbers).
 
 Every expected difference has a category in
 `docs/compat/ign-lint-differences.md`. The ones found with this tool and
@@ -353,12 +362,14 @@ analysis treats the call as reading every property it could reach, rounds
 4 and 5). The last class covers the private project's `custom`/`params`
 differences; re-running with it gives 0 unexplained.
 
-Pylint on the private project, by message code: 1,152 messages on both
+Pylint on the private project, by message code: 1,056 messages on both
 sides. ign-lint-only are `E0602` undefined names that iglint provides
-(`system`, library packages: 279) and messages caused by ign-lint's
-combined file (`C0103` module-level names 343, `W1405` quote consistency
-across scripts 201). iglint-only are 32 `W0311` (indentation; ign-lint
-re-indents scripts), 14 `C0103`, 9 `W1405` and 3 others. With an explicit
+(`system`, library packages: 293), messages caused by ign-lint's combined
+file (`C0103` module-level names 343, `W1405` quote consistency across
+scripts 201), and `W0702` 25, `W0612` 4 and `W0101` 3, which iglint
+reports through its native rules (`SCR106`, `SCR103`, `SCR105`) instead.
+iglint-only are 32 `W0311` (indentation; ign-lint re-indents scripts), 14
+`C0103`, 9 `W1405` and 1 other. With an explicit
 `pylintrc`, iglint applies the disables of ign-lint's combined-file header
 (SCR900 option `disable`), so equal configurations give the same messages.
 
