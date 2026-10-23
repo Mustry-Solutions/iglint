@@ -117,6 +117,7 @@ use iglint_python::ast::{
     CmpOp, Expr, ExprCall, ExprContext, Slice, Stmt, StmtFunctionDef, UnaryOp,
 };
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
+use iglint_python_semantic::SemanticModel;
 use iglint_python_semantic::dynamic::reads_frames;
 use iglint_text::TextRange;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -184,7 +185,7 @@ impl ScriptFacts for AstScriptFacts {
             // unused-property findings do not depend on a script the user
             // has to fix anyway (SCR001 reports it).
             let start = out.len();
-            let mut a = Analysis::new(view, this, &[], out);
+            let mut a = Analysis::new(None, view, this, &[], out);
             a.everything(anchor);
             for access in &mut a.out[start..] {
                 access.write = false;
@@ -192,12 +193,17 @@ impl ScriptFacts for AstScriptFacts {
             return;
         }
         let body = &unit.parsed.module.body;
+        // Resolve names through their real Python 2.7 scope, so a name
+        // bound only in a nested function or class cannot hide a library
+        // reference. Injected library packages are not needed here (they
+        // are never a local), so the script's own implicit globals suffice.
+        let model = script_model(unit);
         let mut found = Vec::new();
         if let Some(range) = reads_frames(body) {
-            let mut a = Analysis::new(view, this, &[], &mut found);
+            let mut a = Analysis::new(model.as_ref(), view, this, &[], &mut found);
             a.everything(range);
         } else {
-            let mut a = Analysis::new(view, this, body, &mut found);
+            let mut a = Analysis::new(model.as_ref(), view, this, body, &mut found);
             a.visit_module(&unit.parsed.module);
         }
         for mut access in found {
@@ -378,37 +384,51 @@ fn rw(ctx: ExprContext) -> (bool, bool) {
 /// Names the analysis treats as a call or use of a dotted name that may be
 /// a library name (see "Frames and builtins").
 struct Names {
-    /// Every name bound in the code (assignments, imports, `def`, loop
-    /// targets, parameters, ...).
+    /// Extra names the caller declares bound (a library function's
+    /// parameters), used as a fallback when no semantic model resolves an
+    /// occurrence.
     bound: FxHashSet<String>,
     /// Names bound by imports, with the dotted names they may stand for.
     imports: FxHashMap<String, Vec<String>>,
+    /// Range starts of `Load` names that the semantic model resolves to a
+    /// real binding visible at the use site (a local, a closure variable,
+    /// a module-level name or a builtin): such a name is not a library
+    /// name, even when another, shadowing name of the same spelling is
+    /// bound in a nested scope. Empty when no model is available.
+    bound_heads: FxHashSet<u32>,
 }
 
 impl Names {
-    fn new(body: &[Stmt], extra: impl IntoIterator<Item = String>) -> Names {
-        let mut bound = bound_names(body);
-        bound.extend(extra);
+    fn new(
+        model: Option<&SemanticModel<'_>>,
+        body: &[Stmt],
+        extra: impl IntoIterator<Item = String>,
+    ) -> Names {
         Names {
-            bound,
+            bound: extra.into_iter().collect(),
             imports: import_names(body),
+            bound_heads: model
+                .map(|m| bound_head_ranges(m, body))
+                .unwrap_or_default(),
         }
     }
 
     /// The dotted names `e` may stand for when it is a chain of
-    /// attributes on a name that may be a library name.
+    /// attributes on a name that may be a library name. The head is a
+    /// library name unless the semantic model resolves it to a binding
+    /// visible in its own scope ([`Names::bound_heads`]): a name bound only
+    /// in a nested function, class or comprehension does not make it one.
     fn library_names(&self, e: &Expr, followed: &dyn Fn(&str) -> bool) -> Vec<String> {
-        let Some(dotted) = dotted_name(e) else {
+        let Some(head) = dotted_head(e) else {
             return Vec::new();
         };
-        let (head, rest) = match dotted.split_once('.') {
-            Some((h, r)) => (h, Some(r)),
-            None => (dotted.as_str(), None),
-        };
-        if followed(head) {
+        let dotted = dotted_name(e).expect("a dotted head implies a dotted name");
+        let rest = dotted.split_once('.').map(|(_, r)| r);
+        let name = &*head.id;
+        if followed(name) {
             return Vec::new();
         }
-        if let Some(targets) = self.imports.get(head) {
+        if let Some(targets) = self.imports.get(name) {
             return targets
                 .iter()
                 .map(|t| match rest {
@@ -417,10 +437,84 @@ impl Names {
                 })
                 .collect();
         }
-        if self.bound.contains(head) || is_known_global(head) {
+        if self.bound_heads.contains(&head.range.start().to_u32())
+            || self.bound.contains(name)
+            || is_known_global(name)
+        {
             return Vec::new();
         }
         vec![dotted]
+    }
+}
+
+/// Range starts of every `Load` name the model resolves to a binding of
+/// the occurrence's own scope: a local, a closure variable (a name of an
+/// enclosing function) or a builtin. Module-level names (`Global`) are
+/// left in as library-name candidates, so a library module's own
+/// functions and imports are still followed and resolved through the
+/// project index; injected names (the project's library packages) and
+/// unresolved or dynamic names stay candidates too. The point is that a
+/// name bound only in a *nested* function, class or comprehension no
+/// longer hides a free reference of the same spelling in the outer scope.
+fn bound_head_ranges(model: &SemanticModel<'_>, body: &[Stmt]) -> FxHashSet<u32> {
+    use iglint_python_semantic::Resolution;
+    struct Heads<'m, 'a> {
+        model: &'m SemanticModel<'a>,
+        out: FxHashSet<u32>,
+    }
+    impl<'e> Visitor<'e> for Heads<'_, '_> {
+        fn visit_expr(&mut self, expr: &'e Expr) {
+            if let Expr::Name(n) = expr
+                && n.ctx == ExprContext::Load
+                && let Some(r) = self.model.reference_at(n.range)
+                && matches!(
+                    r.resolution,
+                    Resolution::Local | Resolution::Free(_) | Resolution::Builtin
+                )
+            {
+                self.out.insert(n.range.start().to_u32());
+            }
+            walk_expr(self, expr);
+        }
+    }
+    let mut v = Heads {
+        model,
+        out: FxHashSet::default(),
+    };
+    for stmt in body {
+        v.visit_stmt(stmt);
+    }
+    v.out
+}
+
+/// A semantic model of a parsed script, for resolving names through their
+/// scope. The project's library packages are not injected: they are never
+/// a local binding, so they resolve as library names whether injected or
+/// not.
+fn script_model<'s>(unit: &ScriptUnit<'s, '_>) -> Option<SemanticModel<'s>> {
+    if !unit.parsed.is_valid() {
+        return None;
+    }
+    let mut injected: Vec<&str> = unit.script.implicit_globals().collect();
+    if unit.script.kind == iglint_project::ScriptKind::LibraryModule {
+        injected.push("__package__");
+    }
+    Some(SemanticModel::build(
+        &unit.parsed.module,
+        &iglint_python_semantic::SemanticOptions {
+            injected,
+            unknown_globals: false,
+        },
+    ))
+}
+
+/// The leftmost `Load` name of a `Load` attribute chain (`a` in
+/// `a.b.c`), if `e` is one.
+fn dotted_head(e: &Expr) -> Option<&iglint_python::ast::ExprName> {
+    match e {
+        Expr::Name(n) if n.ctx == ExprContext::Load => Some(n),
+        Expr::Attribute(a) if a.ctx == ExprContext::Load => dotted_head(&a.value),
+        _ => None,
     }
 }
 
@@ -443,6 +537,7 @@ struct Analysis<'v, 'a, 'o> {
 
 impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
     fn new(
+        model: Option<&SemanticModel<'_>>,
         view: &'v View<'a>,
         this: Val,
         body: &[Stmt],
@@ -452,7 +547,7 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
             view,
             this,
             aliases: FxHashMap::default(),
-            names: Names::new(body, []),
+            names: Names::new(model, body, []),
             out,
         };
         a.collect_aliases(body);
@@ -1158,7 +1253,7 @@ pub fn follow_call<'i>(
     resolve: &dyn Fn(&str, Option<CalleeContext>, bool) -> Callee<'i>,
 ) -> Vec<PropertyAccess> {
     let mut out = Vec::new();
-    let mut a = Analysis::new(view, Val::Object(AccessTarget::View), &[], &mut out);
+    let mut a = Analysis::new(None, view, Val::Object(AccessTarget::View), &[], &mut out);
     follow(
         &mut a,
         &call.callee,
@@ -1466,7 +1561,7 @@ fn bound_names(body: &[Stmt]) -> FxHashSet<String> {
 /// be a library name, as [`Analysis::check_callee`] sees them: rules
 /// whose fixes depend on names read by name check these through the
 /// project index (a library variable may hold `eval` or `locals`).
-pub fn library_names_used(body: &[Stmt]) -> Vec<String> {
+pub fn library_names_used(model: &SemanticModel<'_>, body: &[Stmt]) -> Vec<String> {
     struct Used<'n> {
         names: &'n Names,
         out: Vec<String>,
@@ -1485,7 +1580,7 @@ pub fn library_names_used(body: &[Stmt]) -> Vec<String> {
             walk_expr(self, expr);
         }
     }
-    let names = Names::new(body, []);
+    let names = Names::new(Some(model), body, []);
     let mut v = Used {
         names: &names,
         out: Vec::new(),
@@ -1499,8 +1594,10 @@ pub fn library_names_used(body: &[Stmt]) -> Vec<String> {
 // ---- library functions ----
 
 /// What `f` does with each of its positional parameters, when they hold a
-/// Perspective object (see [`ParamUse`]).
-pub fn param_uses(f: &StmtFunctionDef) -> Vec<ParamUse> {
+/// Perspective object (see [`ParamUse`]). `model` is the semantic model of
+/// the module `f` belongs to, used to resolve the names `f` uses through
+/// their scope.
+pub fn param_uses(model: &SemanticModel<'_>, f: &StmtFunctionDef) -> Vec<ParamUse> {
     let names: Vec<Option<String>> = f
         .args
         .args
@@ -1534,7 +1631,7 @@ pub fn param_uses(f: &StmtFunctionDef) -> Vec<ParamUse> {
     let mut w = ParamWalker {
         params: FxHashMap::default(),
         aliases: FxHashMap::default(),
-        names: Names::new(&f.body, arguments.0),
+        names: Names::new(Some(model), &f.body, arguments.0),
         uses: names.iter().map(|_| ParamUse::Paths(Vec::new())).collect(),
     };
     let rebound = bound_names(&f.body);
@@ -1956,7 +2053,7 @@ pub fn unresolved_lookups(unit: &ScriptUnit<'_, '_>, view: &View<'_>) -> Vec<Unr
         return Vec::new();
     }
     let mut sink = Vec::new();
-    let a = Analysis::new(view, this, &unit.parsed.module.body, &mut sink);
+    let a = Analysis::new(None, view, this, &unit.parsed.module.body, &mut sink);
     let mut out = Vec::new();
     crate::rules::script::walk_exprs(&unit.parsed.module.body, &mut |e| {
         let Expr::Call(c) = e else { return };

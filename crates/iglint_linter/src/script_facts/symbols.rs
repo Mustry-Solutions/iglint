@@ -73,7 +73,7 @@ pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols 
                 BindingKind::FunctionDef => match first.stmt {
                     Some(Stmt::FunctionDef(f)) if f.decorator_list.is_empty() => {
                         let mut signature = signature(&f.args);
-                        signature.uses = super::access::param_uses(f);
+                        signature.uses = super::access::param_uses(model, f);
                         SymbolKind::Function(signature)
                     }
                     _ => SymbolKind::Variable,

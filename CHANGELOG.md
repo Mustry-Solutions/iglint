@@ -96,6 +96,15 @@ from 0.1.0 on.
 - SCR112 reports `%c` with a string literal that is not one character
   (`'%c' % 'ab'`) and checks format strings concatenated with `+`
   (`('%s' + '%s') % (1,)`).
+- Library-name detection in script accesses now resolves every name
+  through its real Python 2.7 scope (the semantic model), so a name bound
+  only in a nested function, class or comprehension no longer hides a
+  library reference of the same spelling in the enclosing scope. Before,
+  `def f():` with a nested `def dummy(lib): pass` made `lib.util.ev(...)`
+  invisible, so SCR102 removed an import and VIEW015 removed a property
+  that the call reached. Module-level names, imports and injected library
+  packages stay library-name candidates, so the module's own functions are
+  still followed.
 - The rule catalogue (`docs/internal/rules.md`) Fix column is kept in
   step with the registry by a test: `SCR110`, `SCR115`, `VIEW012` and
   `VIEW013` were labelled wrongly (safe or none) although their fixes are

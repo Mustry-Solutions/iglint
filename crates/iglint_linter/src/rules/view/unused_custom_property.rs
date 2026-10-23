@@ -545,18 +545,24 @@ fn fix(
 /// or calls or uses a library name that is not a plain function, class
 /// or literal constant (it may hold `eval` or `locals`), checked through
 /// the project index; without the index, any such name counts.
-pub(crate) fn may_read_frames(cx: &Checker<'_, '_>, body: &[iglint_python::ast::Stmt]) -> bool {
+pub(crate) fn may_read_frames(
+    cx: &Checker<'_, '_>,
+    model: &iglint_python_semantic::SemanticModel<'_>,
+    body: &[iglint_python::ast::Stmt],
+) -> bool {
     iglint_python_semantic::dynamic::reads_frames(body).is_some()
-        || library_names_may_read_frames(cx, body)
+        || library_names_may_read_frames(cx, model, body)
 }
 
 /// Whether `body` calls or uses a library name that is not a plain
-/// function, class or literal constant (see [`may_read_frames`]).
+/// function, class or literal constant (see [`may_read_frames`]). `model`
+/// resolves the names `body` uses through their scope.
 pub(crate) fn library_names_may_read_frames(
     cx: &Checker<'_, '_>,
+    model: &iglint_python_semantic::SemanticModel<'_>,
     body: &[iglint_python::ast::Stmt],
 ) -> bool {
-    let names = crate::script_facts::access::library_names_used(body);
+    let names = crate::script_facts::access::library_names_used(model, body);
     if names.is_empty() {
         return false;
     }
@@ -1305,6 +1311,9 @@ mod tests {
             "\\tf = getattr(lib.util, n)\\n\\tf(s)",
             "\\tlib.util.HANDLERS['x'](s)",
             "\\tfactory()(s)",
+            // A nested function's parameter must not hide the outer
+            // `lib.util.ev` reference (reviewer repro R5-G1).
+            "\\tdef inner(lib):\\n\\t\\tpass\\n\\tlib.util.ev('self.view.custom.a')",
         ] {
             let d = with_library(script, &[("lib/util", util)]);
             assert!(

@@ -183,11 +183,13 @@ pub(crate) fn report_unused(
         let applicability = if (all_unused
             && (!directive_rest(comment).trim().is_empty() || is_coding_declaration(comment)))
             || (removes_line
-                && unit.parsed.is_valid()
-                && crate::rules::view::unused_custom_property::may_read_frames(
-                    cx,
-                    &unit.parsed.module.body,
-                )) {
+                && crate::rules::script::semantic(cx, unit).is_some_and(|model| {
+                    crate::rules::view::unused_custom_property::may_read_frames(
+                        cx,
+                        model,
+                        &unit.parsed.module.body,
+                    )
+                })) {
             Applicability::Unsafe
         } else {
             Applicability::Safe

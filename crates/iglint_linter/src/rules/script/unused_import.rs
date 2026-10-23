@@ -400,6 +400,7 @@ impl ScriptRule for UnusedImport {
                 && !*frames.get_or_insert_with(|| {
                     crate::rules::view::unused_custom_property::library_names_may_read_frames(
                         cx,
+                        model,
                         &unit.parsed.module.body,
                     )
                 }) {
@@ -614,6 +615,26 @@ mod tests {
             let f = library("m", &format!("import json\n{frame}"));
             assert!(f.lint(&["SCR102"]).is_empty(), "{frame}");
         }
+    }
+
+    /// A name bound only in a nested scope must not hide a library
+    /// reference in the enclosing scope: `lib.util.ev` is still seen even
+    /// though a nested `dummy(lib)` binds `lib`, so the module may read
+    /// `os` out of the frame and the import removal is unsafe. (Reviewer
+    /// repro R5-G1.)
+    #[test]
+    fn nested_scope_does_not_hide_a_library_reference() {
+        let code = "def f():\n    import os\n    def dummy(lib):\n        pass\n    return lib.util.ev(\"os.name\")\n";
+        let f = with_library(library("demo/code", code), "lib/util", "ev = eval\n");
+        let d = f.lint(&["SCR102"]);
+        let os = d
+            .iter()
+            .find(|d| d.message.contains('`') && d.message.contains("os"))
+            .unwrap_or_else(|| panic!("no os finding: {d:?}"));
+        assert_eq!(
+            os.fix.as_ref().unwrap().applicability,
+            crate::Applicability::Unsafe
+        );
     }
 
     #[test]
