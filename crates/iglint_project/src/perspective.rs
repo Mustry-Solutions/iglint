@@ -66,6 +66,8 @@ pub(crate) fn build_style_class<'a>(
             range: root.range,
             message: "style class is not a JSON object".into(),
             node_path: String::new(),
+            hides_code: false,
+            file: None,
         });
     }
     let base = root.get("base");
@@ -87,6 +89,8 @@ pub(crate) fn build_style_class<'a>(
                         range: v.range,
                         message: "`variants` is not an array".into(),
                         node_path: String::new(),
+                        hides_code: false,
+                        file: None,
                     });
                 }
                 Vec::new()
@@ -198,6 +202,8 @@ pub(crate) fn build_page_config<'a>(file: FileId, root: &'a Value<'a>) -> PageCo
                 range: p.range,
                 message: "`pages` is not an object".into(),
                 node_path: String::new(),
+                hides_code: false,
+                file: None,
             }),
         }
     }

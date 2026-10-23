@@ -229,7 +229,7 @@ impl<'a> TagBuilder<'a> {
         self.folder.files.push((file, listed));
         let Some(list) = root.as_array() else {
             let base = self.folder.base_path();
-            self.problem(root.range, "tag file is not a JSON array", &base);
+            self.skipped(root, "tag file is not a JSON array", &base);
             return;
         };
         let base = self.folder.folder;
@@ -243,6 +243,20 @@ impl<'a> TagBuilder<'a> {
             range,
             message: message.to_owned(),
             node_path: node_path.to_owned(),
+            hides_code: false,
+            file: self.folder.files.last().map(|(f, _)| *f),
+        });
+    }
+
+    /// A problem with `value`, which the model skips with any tag event
+    /// scripts or expressions in it.
+    fn skipped(&mut self, value: &Value<'_>, message: &str, node_path: &str) {
+        self.folder.problems.push(ModelProblem {
+            range: value.range,
+            message: message.to_owned(),
+            node_path: node_path.to_owned(),
+            hides_code: crate::view::contains_string(value),
+            file: self.folder.files.last().map(|(f, _)| *f),
         });
     }
 
@@ -277,7 +291,7 @@ impl<'a> TagBuilder<'a> {
         in_definition: bool,
     ) {
         if value.as_object().is_none() {
-            self.problem(value.range, "tag is not a JSON object", parent_path);
+            self.skipped(value, "tag is not a JSON object", parent_path);
             return;
         }
         let id = TagId::from_index(self.folder.tags.len());
@@ -544,7 +558,7 @@ impl<'a> TagBuilder<'a> {
                 }
                 None => {
                     if !children.is_null() {
-                        self.problem(children.range, "`tags` is not an array", &full_path);
+                        self.skipped(children, "`tags` is not an array", &full_path);
                     }
                 }
             }

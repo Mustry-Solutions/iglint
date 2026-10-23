@@ -365,7 +365,10 @@ pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
     let mut references = References::default();
     let mut valid = true;
     let facts = match &model.data {
-        ModelData::View { view, .. } => Facts::View(view_facts(view, &mut references)),
+        ModelData::View { view, file } => {
+            hidden_code(&view.problems, *file, &mut references);
+            Facts::View(view_facts(view, &mut references))
+        }
         ModelData::StyleClass(s) => Facts::StyleClass(StyleClassFacts {
             empty: s.is_empty(),
         }),
@@ -408,11 +411,17 @@ pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
             }
             Facts::PageConfig(facts)
         }
-        ModelData::SessionProps { props, .. } => {
+        ModelData::SessionProps { props, file } => {
+            hidden_code(&props.problems, *file, &mut references);
             Facts::SessionProps(session_facts(props, &mut references))
         }
         ModelData::Library(_) => Facts::Library(LibraryFacts::default()),
-        ModelData::Tags(t) => Facts::Tags(tag_facts(t, &mut references)),
+        ModelData::Tags(t) => {
+            if let Some((file, _)) = t.files.first() {
+                hidden_code(&t.problems, *file, &mut references);
+            }
+            Facts::Tags(tag_facts(t, &mut references))
+        }
         ModelData::Stylesheet { text, .. } => Facts::Css(CssFacts {
             classes: crate::perspective::css_classes(text),
         }),
@@ -532,6 +541,22 @@ fn binding_refs(bindings: &[crate::view::Binding<'_>], refs: &mut References) {
                 }
             }
             _ => {}
+        }
+    }
+}
+
+/// Structural problems that skip a place for scripts holding strings
+/// ([`crate::view::ModelProblem::hides_code`]): the code there is not
+/// read, so it is unknown code for the closed world.
+fn hidden_code(problems: &[crate::view::ModelProblem], file: FileId, refs: &mut References) {
+    for p in problems.iter().filter(|p| p.hides_code) {
+        refs.unknown_code = true;
+        if refs.unknown_site.is_none() {
+            refs.unknown_site = Some(UnknownSite {
+                file: p.file.unwrap_or(file),
+                range: p.range,
+                what: p.message.clone(),
+            });
         }
     }
 }

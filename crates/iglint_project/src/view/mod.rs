@@ -29,6 +29,25 @@ pub struct ModelProblem {
     pub range: TextRange,
     pub message: String,
     pub node_path: String,
+    /// The skipped part may hold code iglint therefore does not read (it
+    /// is a place for scripts, such as `events`, `scripts`, `propConfig`
+    /// or a component, and it contains a string): such code is unknown
+    /// code for the closed world.
+    pub hides_code: bool,
+    /// The file of `range` when the model spans several files (tag
+    /// folders); `None`: the model's own file.
+    pub file: Option<crate::ids::FileId>,
+}
+
+/// Whether `value` is or contains a JSON string.
+pub(crate) fn contains_string(value: &iglint_json::Value<'_>) -> bool {
+    use iglint_json::ValueKind;
+    match &value.kind {
+        ValueKind::String(_) => true,
+        ValueKind::Array(items) => items.iter().any(contains_string),
+        ValueKind::Object(o) => o.iter().any(|m| contains_string(&m.value)),
+        _ => false,
+    }
 }
 
 /// A parsed `view.json`.

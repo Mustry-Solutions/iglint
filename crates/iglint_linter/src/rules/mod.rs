@@ -142,6 +142,7 @@ rules![
     view::fragile_component_reference,
     view::output_param_never_written,
     view::dom_and_action_click,
+    view::invalid_view_structure,
 ];
 
 pub static REGISTRY: Registry = Registry::new(ALL);

@@ -54,6 +54,7 @@ All nine ign-lint rules have an equivalent. ign-lint option names are mapped
 | VIEW018 | fragile-component-reference | W | no | - | BadComponentReferenceRule | `getSibling`/`getParent`/`getChild`/`.parent`/`.children`, `../` relative paths. Style rule, opt-in. Parsed, not substring matched. |
 | VIEW019 | output-param-never-written | I | no | - | | `output` param never assigned. |
 | VIEW020 | dom-and-action-click | W | yes | - | | Button has both `dom.onClick` and `component.onActionPerformed` scripts (double firing). |
+| VIEW021 | invalid-view-structure | E | yes | - | | A part of a view (or of the session properties) that iglint reads has the wrong JSON type: `root` or a child that is not an object, `children` not an array, `events`, `scripts`, `propConfig` not objects, a script or name that is not a string. Reported once at the offending value. A broken part that may hold scripts is unknown code for the closed world. |
 
 ## NAME: naming
 

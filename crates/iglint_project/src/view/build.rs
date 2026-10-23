@@ -39,7 +39,7 @@ pub fn build_view<'a>(root: &'a Value<'a>) -> View<'a> {
         problems: Vec::new(),
     };
     if root.as_object().is_none() {
-        b.problem(root.range, "view.json is not a JSON object", "view");
+        b.skipped(root, "view.json is not a JSON object", "view");
     } else {
         view.params = b.object_member(root, "params", "view");
         view.custom = b.object_member(root, "custom", "view");
@@ -70,7 +70,7 @@ pub fn build_view<'a>(root: &'a Value<'a>) -> View<'a> {
                     "root".to_owned(),
                 );
             }
-            Some(r) => b.problem(r.range, "`root` is not a component object", "view"),
+            Some(r) => b.skipped(r, "`root` is not a component object", "view"),
             None => {}
         }
     }
@@ -97,7 +97,7 @@ pub(crate) fn build_session_props<'a>(root: &'a Value<'a>) -> SessionProps<'a> {
     let mut props = None;
     let mut prop_config = None;
     if root.as_object().is_none() {
-        b.problem(root.range, "props.json is not a JSON object", "session");
+        b.skipped(root, "props.json is not a JSON object", "session");
     } else {
         custom = b.object_member(root, "custom", "session");
         props = b.object_member(root, "props", "session");
@@ -171,7 +171,40 @@ impl<'a> Builder<'a> {
             range,
             message: message.into(),
             node_path: node_path.to_owned(),
+            hides_code: false,
+            file: None,
         });
+    }
+
+    /// A problem with `value`, a place for scripts that the model skips:
+    /// any code in it is not read.
+    fn skipped(&mut self, value: &Value<'_>, message: impl Into<String>, node_path: &str) {
+        self.problems.push(ModelProblem {
+            range: value.range,
+            message: message.into(),
+            node_path: node_path.to_owned(),
+            hides_code: super::contains_string(value),
+            file: None,
+        });
+    }
+
+    /// `obj[key]` when it is an array; reports other types (`None` for a
+    /// missing or null member).
+    fn array_member(
+        &mut self,
+        obj: &'a Value<'a>,
+        key: &str,
+        path: &str,
+    ) -> Option<&'a iglint_json::Array<'a>> {
+        let v = obj.get(key)?;
+        match &v.kind {
+            ValueKind::Array(list) => Some(list),
+            ValueKind::Null => None,
+            _ => {
+                self.skipped(v, format!("`{key}` is not an array"), path);
+                None
+            }
+        }
     }
 
     /// `obj[key]` when it is an object; reports other types.
@@ -185,6 +218,9 @@ impl<'a> Builder<'a> {
         if v.as_object().is_some() {
             Some(v)
         } else if v.is_null() {
+            None
+        } else if matches!(key, "propConfig" | "events" | "scripts") {
+            self.skipped(v, format!("`{key}` is not an object"), path);
             None
         } else {
             self.problem(v.range, format!("`{key}` is not an object"), path);
@@ -268,8 +304,9 @@ impl<'a> Builder<'a> {
         let member = container.as_object()?.member(key)?;
         let Some(body) = member.value.as_json_string() else {
             if !member.value.is_null() {
-                self.problem(
-                    member.value.range,
+                // Gson reads a one-element array as its element.
+                self.skipped(
+                    &member.value,
                     format!("`{key}` is not a string"),
                     &node_path,
                 );
@@ -314,11 +351,7 @@ impl<'a> Builder<'a> {
             let ign = ign_key(&base_ign, key.value());
             if m.value.as_object().is_none() {
                 if !m.value.is_null() {
-                    self.problem(
-                        m.value.range,
-                        "propConfig entry is not an object",
-                        &node_path,
-                    );
+                    self.skipped(&m.value, "propConfig entry is not an object", &node_path);
                 }
                 continue;
             }
@@ -345,7 +378,7 @@ impl<'a> Builder<'a> {
                     pc.binding =
                         Some(self.binding(owner, id, key.value(), binding, &node_path, &ign));
                 } else if !binding.is_null() {
-                    self.problem(binding.range, "`binding` is not an object", &node_path);
+                    self.skipped(binding, "`binding` is not an object", &node_path);
                 }
             }
             if let Some(on_change) = entry.get("onChange") {
@@ -367,7 +400,7 @@ impl<'a> Builder<'a> {
                         script,
                     });
                 } else if !on_change.is_null() {
-                    self.problem(on_change.range, "`onChange` is not an object", &node_path);
+                    self.skipped(on_change, "`onChange` is not an object", &node_path);
                 }
             }
             self.prop_configs.push(pc);
@@ -392,7 +425,7 @@ impl<'a> Builder<'a> {
             && c.as_object().is_none()
             && !c.is_null()
         {
-            self.problem(c.range, "binding `config` is not an object", &node_path);
+            self.skipped(c, "binding `config` is not an object", &node_path);
         }
         // Reserve the slot so expressions can point at it.
         self.bindings.push(Binding {
@@ -942,7 +975,7 @@ impl<'a> Builder<'a> {
             let group = key_str(g);
             let Some(handlers) = g.value.as_object() else {
                 if !g.value.is_null() {
-                    self.problem(g.value.range, "event group is not an object", owner_path);
+                    self.skipped(&g.value, "event group is not an object", owner_path);
                 }
                 continue;
             };
@@ -970,7 +1003,7 @@ impl<'a> Builder<'a> {
                         handler.is_list = true;
                         for (i, a) in list.iter().enumerate() {
                             if a.as_object().is_none() {
-                                self.problem(a.range, "event action is not an object", &node_path);
+                                self.skipped(a, "event action is not an object", &node_path);
                                 continue;
                             }
                             let action = self.action(
@@ -984,8 +1017,8 @@ impl<'a> Builder<'a> {
                         }
                     }
                     ValueKind::Null => {}
-                    _ => self.problem(
-                        h.value.range,
+                    _ => self.skipped(
+                        &h.value,
                         "event is not an action or a list of actions",
                         &node_path,
                     ),
@@ -1005,6 +1038,12 @@ impl<'a> Builder<'a> {
     ) -> Action<'a> {
         let type_value = json_str(value.get("type"));
         let config = value.get("config").filter(|c| c.as_object().is_some());
+        if let Some(c) = value.get("config")
+            && c.as_object().is_none()
+            && !c.is_null()
+        {
+            self.skipped(c, "action `config` is not an object", &node_path);
+        }
         let enabled = value.get("enabled").and_then(Value::as_bool);
         let cfg = |key: &str| config.and_then(|c| c.get(key));
         let non_empty = |v: Option<&'a Value<'a>>| json_str(v).filter(|s| !s.value().is_empty());
@@ -1215,7 +1254,7 @@ impl<'a> Builder<'a> {
                     let mut ids = Vec::with_capacity(list.len());
                     for (i, child) in list.iter().enumerate() {
                         if child.as_object().is_none() {
-                            self.problem(child.range, "child component is not an object", &path);
+                            self.skipped(child, "child component is not an object", &path);
                             continue;
                         }
                         let cid = self.component(
@@ -1232,7 +1271,7 @@ impl<'a> Builder<'a> {
                     self.components[id.index()].children = ids;
                 }
                 ValueKind::Null => {}
-                _ => self.problem(children.range, "`children` is not an array", &path),
+                _ => self.skipped(children, "`children` is not an array", &path),
             }
         }
         id
@@ -1249,9 +1288,19 @@ impl<'a> Builder<'a> {
         let Some(scripts) = scripts else { return };
         let scripts_ign = ign_key(ign, "scripts");
         let scope = RunScope::PerspectiveComponent;
-        if let Some(list) = scripts.get("messageHandlers").and_then(Value::as_array) {
+        if let Some(list) = self.array_member(scripts, "messageHandlers", path) {
             let base = ign_key(&scripts_ign, "messageHandlers");
             for (i, h) in list.iter().enumerate() {
+                if h.as_object().is_none() {
+                    self.skipped(h, "message handler is not an object", path);
+                    continue;
+                }
+                if let Some(t) = h.get("messageType")
+                    && t.as_json_string().is_none()
+                    && !t.is_null()
+                {
+                    self.problem(t.range, "`messageType` is not a string", path);
+                }
                 let message_type = json_str(h.get("messageType"));
                 let node_path = at(
                     path,
@@ -1283,10 +1332,20 @@ impl<'a> Builder<'a> {
                 });
             }
         }
-        if let Some(list) = scripts.get("customMethods").and_then(Value::as_array) {
+        if let Some(list) = self.array_member(scripts, "customMethods", path) {
             let base = ign_key(&scripts_ign, "customMethods");
             for (i, m) in list.iter().enumerate() {
+                if m.as_object().is_none() {
+                    self.skipped(m, "custom method is not an object", path);
+                    continue;
+                }
                 let name = json_str(m.get("name"));
+                if let Some(p) = m.get("params")
+                    && p.as_array().is_none()
+                    && !p.is_null()
+                {
+                    self.problem(p.range, "custom method `params` is not an array", path);
+                }
                 let params: Vec<&'a JsonString<'a>> = m
                     .get("params")
                     .and_then(Value::as_array)
@@ -1301,6 +1360,13 @@ impl<'a> Builder<'a> {
                 if let (Some(n), Some(member)) =
                     (name, m.as_object().and_then(|o| o.member("script")))
                 {
+                    if member.value.as_json_string().is_none() && !member.value.is_null() {
+                        self.skipped(
+                            &member.value,
+                            "custom method `script` is not a string",
+                            path,
+                        );
+                    }
                     if let Some(body) = member.value.as_json_string() {
                         let mut all: Vec<Cow<'a, str>> = vec![Cow::Borrowed("self")];
                         all.extend(params.iter().map(|p| {
@@ -1330,7 +1396,13 @@ impl<'a> Builder<'a> {
                         ));
                     }
                 } else if name.is_none() {
-                    self.problem(m.range, "custom method has no `name`", path);
+                    // Its script, if any, is not read.
+                    match m.get("name") {
+                        Some(n) if !n.is_null() => {
+                            self.skipped(m, "custom method `name` is not a string", path);
+                        }
+                        _ => self.skipped(m, "custom method has no `name`", path),
+                    }
                 }
                 self.custom_methods.push(CustomMethod {
                     owner,
@@ -1344,11 +1416,30 @@ impl<'a> Builder<'a> {
                 });
             }
         }
-        if let Some(list) = scripts.get("extensionFunctions").and_then(Value::as_array) {
+        if let Some(list) = self.array_member(scripts, "extensionFunctions", path) {
             let base = ign_key(&scripts_ign, "extensionFunctions");
             let component_type = type_id.and_then(iglint_stubs::component_type);
             for (i, f) in list.iter().enumerate() {
+                if f.as_object().is_none() {
+                    self.skipped(f, "extension function is not an object", path);
+                    continue;
+                }
                 let name = json_str(f.get("name"));
+                let script_value = f.get("script").filter(|v| !v.is_null());
+                match (f.get("name").filter(|n| !n.is_null()), name) {
+                    (Some(_), None) => {
+                        self.skipped(f, "extension function `name` is not a string", path);
+                    }
+                    (None, _) if script_value.is_some() => {
+                        self.skipped(f, "extension function has no `name`", path);
+                    }
+                    _ => {}
+                }
+                if let Some(v) = script_value
+                    && v.as_json_string().is_none()
+                {
+                    self.skipped(v, "extension function `script` is not a string", path);
+                }
                 let enabled = f.get("enabled").and_then(Value::as_bool);
                 let node_path = at(
                     path,

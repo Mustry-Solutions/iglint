@@ -2,7 +2,7 @@
 
 # Rules
 
-iglint has 108 rules. Rules with *yes* in the Default column run without configuration; enable the others with `select` or `extend-select` (see the [configuration](../../README.md#configuration)). Fix: *always* or *sometimes* means `iglint check --fix` can repair findings of the rule (unsafe fixes also need `--unsafe-fixes`).
+iglint has 109 rules. Rules with *yes* in the Default column run without configuration; enable the others with `select` or `extend-select` (see the [configuration](../../README.md#configuration)). Fix: *always* or *sometimes* means `iglint check --fix` can repair findings of the rule (unsafe fixes also need `--unsafe-fixes`).
 
 `iglint rule <CODE>` prints the same documentation in the terminal.
 
@@ -29,6 +29,7 @@ iglint has 108 rules. Rules with *yes* in the Default column run without configu
 | [VIEW018](VIEW018.md) | `fragile-component-reference` | Script or binding navigates the component tree | warning |  |  |
 | [VIEW019](VIEW019.md) | `output-param-never-written` | Output parameter is never written | info |  |  |
 | [VIEW020](VIEW020.md) | `dom-and-action-click` | Button has both `dom.onClick` and `component.onActionPerformed` actions | warning | yes |  |
+| [VIEW021](VIEW021.md) | `invalid-view-structure` | A part of a view or of the session properties has the wrong JSON type | error | yes |  |
 
 ## Naming (`NAME`)
 

@@ -38,7 +38,16 @@ resource:
   collection that is not inside any resource directory, and a Python file
   in a resource directory that is not the resource's script (a
   `helper.py` next to a library `code.py`). They are linted on their own,
-  like files outside a project.
+  like files outside a project;
+* a resource manifest or data file (`resource.json`, `tags.json`,
+  `config.json`, ...) that is not inside any project (`project.json`) or
+  gateway configuration collection (`config-mode.json`), such as
+  `config/resources/core/...` without `core/config-mode.json`. Verified on
+  Ignition 8.3.3: the gateway does not load a collection directory without
+  `config-mode.json` (its tags do not exist), and a `core` directory
+  without one keeps the gateway from starting (`Unable to create 'core'
+  resource collection`). iglint does not read such files either: their
+  tag event scripts and expressions are not analysed.
 
 ## Why is this bad?
 
@@ -168,6 +177,28 @@ fn report_outside_resource(cx: &mut Checker<'_, '_>) {
         return;
     };
     let Some(entry) = cx.workspace().file_by_path(source.path()) else {
+        // A resource manifest or data file outside every project and
+        // gateway configuration collection: iglint lists it but has no
+        // resource to read it as.
+        let resource_like = matches!(
+            crate::discovery::FileKind::classify(source.path()),
+            Some(crate::discovery::FileKind::Manifest | crate::discovery::FileKind::ResourceJson)
+        );
+        if resource_like && matches!(cx.data(), ModelData::None) {
+            let name = source
+                .path()
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let range = start_range(source.text());
+            cx.report(
+                range,
+                format!(
+                    "`{name}` is not inside a project (`project.json`) or a gateway configuration collection (`config-mode.json`); the gateway does not load it and iglint does not read it"
+                ),
+            )
+            .fingerprint_key("outside tree");
+        }
         return;
     };
     let message = match (entry.kind, entry.resource) {
@@ -360,5 +391,135 @@ mod tests {
     fn files_outside_projects_are_not_reported() {
         let f = Fixture::new().file("views/W/view.json", r#"{"custom": {}}"#);
         assert!(f.lint(&["REF009"]).is_empty());
+    }
+
+    /// Reviewer round 9 (Opus) finding 3: a gateway tree without
+    /// `config-mode.json` (not loaded by Ignition 8.3.3) is reported, once
+    /// per file iglint lists but does not read.
+    #[test]
+    fn resource_files_outside_projects_and_collections_are_reported() {
+        let tags = r#"[{"name": "T", "tagType": "AtomicTag", "eventScripts": [{"eventid": "valueChanged", "script": "\tprint a.b.json"}]}]"#;
+        let f = Fixture::new()
+            .resource(
+                "services/gw/config/resources/core/ignition/tag-definition/default",
+                &[("tags.json", tags)],
+            )
+            .file(
+                "services/gw/config/resources/core/ignition/tag-definition/default/unary-resource.json",
+                r#"{"scope": "A", "version": 1, "files": ["tags.json"]}"#,
+            );
+        let d = f.lint(&["REF009"]);
+        let mut names: Vec<_> = d
+            .iter()
+            .map(|d| {
+                d.file
+                    .path()
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        names.sort();
+        assert_eq!(
+            names,
+            ["resource.json", "tags.json", "unary-resource.json"],
+            "{d:?}"
+        );
+        assert!(
+            d[0].message.contains("config-mode.json"),
+            "{}",
+            d[0].message
+        );
+        // With the collection manifest, the tree is a collection and read.
+        let f = f.file(
+            "services/gw/config/resources/core/config-mode.json",
+            r#"{"title": "Core"}"#,
+        );
+        assert!(
+            f.lint(&["REF009"])
+                .iter()
+                .all(|d| !d.message.contains("config-mode.json"))
+        );
+    }
+
+    /// Every file a walk lists is analysed (as part of a resource iglint
+    /// models, or on its own: a view or a Python file), skipped with a
+    /// reason in the run summary, of a resource type iglint does not read
+    /// (unknown code for the closed world, `script_facts::code_sources`),
+    /// or reported by REF009 as a file the gateway does not load.
+    #[test]
+    fn every_listed_file_is_analysed_or_reported() {
+        let perspective = "projects/p/com.inductiveautomation.perspective";
+        let f = Fixture::new()
+            .with_view(
+                "V",
+                r#"{"root": {"type": "ia.container.flex", "meta": {"name": "root"}}}"#,
+            )
+            .resource(
+                "projects/p/ignition/script-python/a/b",
+                &[("code.py", "import json\n")],
+            )
+            .file(&format!("{perspective}/views/Loose/view.json"), "{}")
+            .file(&format!("{perspective}/views/V/notes.json"), "{}")
+            .file("projects/p/ignition/script-python/a/b/helper.py", "x = 1\n")
+            .resource(
+                "projects/p/com.inductiveautomation.webdev/resources/w",
+                &[
+                    ("config.json", "{}"),
+                    ("doGet.py", "def doGet(request, session):\n\tpass\n"),
+                ],
+            )
+            .resource(
+                "projects/p/com.inductiveautomation.reporting/reports/r",
+                &[("data.bin", "x")],
+            )
+            .resource(
+                "services/gw/config/resources/core/ignition/tag-definition/default",
+                &[("tags.json", "[]")],
+            )
+            .resource(
+                "services/gw/config/resources/extra/ignition/tag-definition/default",
+                &[("tags.json", "[]")],
+            )
+            .file("loose/view.json", "{}")
+            .file("loose/lib.py", "x = 1\n");
+        let root = f.root().to_path_buf();
+        let result = f.run(&[("REF009", "")], crate::FixMode::None);
+        let settings = settings(&root, &[("REF009", "")]);
+        let discovery = crate::discovery::discover(&settings, std::slice::from_ref(&root));
+        let ws = iglint_project::Workspace::discover(std::slice::from_ref(&root));
+        let mut unanalysed = Vec::new();
+        for (path, _) in &discovery.files {
+            let abs = crate::discovery::absolute(path);
+            let name = path.file_name().unwrap().to_string_lossy();
+            // On the file itself, or (an unlisted file) on its manifest.
+            let reported = result.diagnostics.iter().any(|d| {
+                d.rule.code() == "REF009"
+                    && (crate::discovery::absolute(d.file.path()) == abs
+                        || (d.message.contains(&format!("`{name}` is not listed"))
+                            && abs.parent() == crate::discovery::absolute(d.file.path()).parent()))
+            });
+            let skipped = result
+                .skipped
+                .iter()
+                .any(|(p, _)| crate::discovery::absolute(p) == abs);
+            let standalone_read = name == "view.json" || name.ends_with(".py");
+            let analysed = match ws.file_by_path(&abs) {
+                Some(entry) => match crate::analyze::treatment(&ws, entry) {
+                    crate::analyze::Treatment::Resource => true,
+                    crate::analyze::Treatment::Standalone => standalone_read,
+                    crate::analyze::Treatment::Skip(_) => false,
+                },
+                None => standalone_read,
+            };
+            if !(analysed || reported || skipped) {
+                unanalysed.push(path.clone());
+            }
+        }
+        assert!(
+            unanalysed.is_empty(),
+            "listed but neither read nor reported: {unanalysed:?}"
+        );
     }
 }
