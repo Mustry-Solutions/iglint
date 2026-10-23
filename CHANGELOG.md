@@ -63,6 +63,10 @@ from 0.1.0 on.
   names that a frame builtin reached under another name can read
   (`from __builtin__ import locals as capture`, `e = eval`,
   `__builtin__.eval`, `sys._getframe`).
+- SCR002 no longer reports invalid assignment targets in unreachable
+  code that Jython generates but never runs into (after `break`, a
+  `try` whose body and handlers or whose `finally` do not complete, a
+  loop whose `else` does not complete).
 
 - `VIEW015` no longer trusts the body of a library function that may be
   replaced at run time, so its safe fix no longer removes properties the

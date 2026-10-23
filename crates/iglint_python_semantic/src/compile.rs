@@ -67,7 +67,9 @@ pub fn compile_errors(model: &SemanticModel<'_>) -> Vec<CompileError> {
     };
     c.future(&model.module.body);
     // The module's own statements are all compiled, even after a `raise`
-    // (verified on Jython); suites inside them are not.
+    // (verified on Jython); suites inside them are not. Code after a
+    // statement that does not complete is unreachable all the same.
+    let mut unreachable = false;
     for stmt in &model.module.body {
         c.stmt(
             stmt,
@@ -75,8 +77,10 @@ pub fn compile_errors(model: &SemanticModel<'_>) -> Vec<CompileError> {
                 scope: ScopeId::MODULE,
                 in_loop: false,
                 dead: false,
+                unreachable,
             },
         );
+        unreachable |= !completion(stmt).falls;
     }
     for (id, scope) in model.scopes() {
         if scope.kind.is_function_like() {
@@ -118,6 +122,11 @@ struct Ctx {
     /// errors its code generator raises do not occur, errors of its
     /// symbol table pass still do.
     dead: bool,
+    /// The statement's code is generated but cannot be reached in the
+    /// code object's bytecode (see [`completion`]). The bytecode
+    /// verifier crashes Jython only on reachable code, so invalid targets
+    /// there compile; every other error still occurs.
+    unreachable: bool,
 }
 
 struct Checker<'m, 'a> {
@@ -158,11 +167,14 @@ impl<'a> Checker<'_, 'a> {
         self.model.scope(scope).kind.is_function_like()
     }
 
-    /// A suite: Jython generates no code after a statement that ends it.
+    /// A suite: Jython generates no code after a statement that ends it,
+    /// and none of the code after a statement that does not complete is
+    /// reachable.
     fn body(&mut self, body: &'a [Stmt], mut ctx: Ctx) {
         for stmt in body {
             self.stmt(stmt, ctx);
             ctx.dead |= ends_suite(stmt);
+            ctx.unreachable |= !completion(stmt).falls;
         }
     }
 
@@ -195,6 +207,8 @@ impl<'a> Checker<'_, 'a> {
                     scope,
                     in_loop: false,
                     dead: ctx.dead,
+                    // A new code object.
+                    unreachable: false,
                 };
                 self.body(&f.body, inner);
             }
@@ -208,6 +222,8 @@ impl<'a> Checker<'_, 'a> {
                     scope,
                     in_loop: false,
                     dead: ctx.dead,
+                    // A new code object.
+                    unreachable: false,
                 };
                 self.body(&c.body, inner);
             }
@@ -380,6 +396,7 @@ impl<'a> Checker<'_, 'a> {
                             scope,
                             in_loop: false,
                             dead: ctx.dead,
+                            unreachable: false,
                         },
                     );
                 }
@@ -406,6 +423,8 @@ impl<'a> Checker<'_, 'a> {
                     scope,
                     in_loop: false,
                     dead: ctx.dead,
+                    // A new code object.
+                    unreachable: false,
                 };
                 for (i, g) in generators.iter().enumerate() {
                     self.target(&g.target, TargetContext::Generator, inner);
@@ -447,7 +466,7 @@ impl<'a> Checker<'_, 'a> {
             Expr::Attribute(a) => self.expr(&a.value, ctx),
             Expr::Subscript(_) => walk_children(target, &mut |child| self.expr(child, ctx)),
             other => {
-                if crashes_compiler(other, context) {
+                if crashes_compiler(other, context) && !ctx.unreachable {
                     self.codegen_error(
                         ctx,
                         CompileErrorKind::InvalidTarget,
@@ -815,6 +834,104 @@ pub(crate) fn ends_suite(stmt: &Stmt) -> bool {
             !s.orelse.is_empty() && s.body.iter().any(ends_suite) && s.orelse.iter().any(ends_suite)
         }
         _ => false,
+    }
+}
+
+/// How control leaves a statement, in the bytecode Jython generates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Completion {
+    /// Execution may continue with the next statement.
+    pub falls: bool,
+    /// A `break` may leave the innermost enclosing loop.
+    pub breaks: bool,
+}
+
+/// How control may leave `stmt`, with no constant folding (`while 1:`
+/// may end): `return`, `raise`, `continue` and `break` do not complete;
+/// `if` completes when a branch (or the missing `else`) does; a loop when
+/// it has no `else`, its `else` completes or its body breaks; `with`
+/// always (`__exit__` may swallow the exception); `try`/`except` when the
+/// body and `else` or a handler completes (an exception no handler takes
+/// propagates); `try`/`finally` when both its parts complete. Verified
+/// with `oracle/run-oracle.sh --compile` (the `reach-*` cases of
+/// `tests/oracle/compile.cases`).
+pub(crate) fn completion(stmt: &Stmt) -> Completion {
+    const FALLS: Completion = Completion {
+        falls: true,
+        breaks: false,
+    };
+    fn suite(body: &[Stmt]) -> Completion {
+        let mut c = FALLS;
+        for stmt in body {
+            if !c.falls {
+                break;
+            }
+            let s = completion(stmt);
+            c = Completion {
+                falls: s.falls,
+                breaks: c.breaks || s.breaks,
+            };
+        }
+        c
+    }
+    match stmt {
+        Stmt::Return(_) | Stmt::Raise(_) | Stmt::Continue(_) => Completion {
+            falls: false,
+            breaks: false,
+        },
+        Stmt::Break(_) => Completion {
+            falls: false,
+            breaks: true,
+        },
+        Stmt::If(s) => {
+            let (b, o) = (suite(&s.body), suite(&s.orelse));
+            Completion {
+                falls: b.falls || o.falls,
+                breaks: b.breaks || o.breaks,
+            }
+        }
+        Stmt::For(_) | Stmt::While(_) => {
+            let (body, orelse) = match stmt {
+                Stmt::For(s) => (&s.body, &s.orelse),
+                Stmt::While(s) => (&s.body, &s.orelse),
+                _ => unreachable!(),
+            };
+            let (b, o) = (suite(body), suite(orelse));
+            Completion {
+                falls: o.falls || b.breaks,
+                breaks: o.breaks,
+            }
+        }
+        Stmt::With(s) => Completion {
+            falls: true,
+            breaks: suite(&s.body).breaks,
+        },
+        Stmt::TryExcept(s) => {
+            let body = suite(&s.body);
+            let orelse = suite(&s.orelse);
+            let handlers: Vec<Completion> = s.handlers.iter().map(|h| suite(&h.body)).collect();
+            Completion {
+                falls: (body.falls && orelse.falls) || handlers.iter().any(|h| h.falls),
+                breaks: body.breaks
+                    || (body.falls && orelse.breaks)
+                    || handlers.iter().any(|h| h.breaks),
+            }
+        }
+        Stmt::TryFinally(s) => {
+            let (body, finally) = (suite(&s.body), suite(&s.finalbody));
+            if finally.falls {
+                Completion {
+                    falls: body.falls,
+                    breaks: body.breaks || finally.breaks,
+                }
+            } else {
+                Completion {
+                    falls: false,
+                    breaks: finally.breaks,
+                }
+            }
+        }
+        _ => FALLS,
     }
 }
 

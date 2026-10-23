@@ -1943,3 +1943,141 @@ error 2 0
 'break' outside loop
 ### dead-in-view-body
 ok
+### reach-tf-return
+ok
+### reach-tf-pass
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### reach-tf-finally-return
+ok
+### reach-tf-raise
+ok
+### reach-tf-return-in-finally-target
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### reach-tf-body-after-return
+ok
+### reach-te-return-pass
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### reach-te-return-return
+ok
+### reach-te-else
+ok
+### reach-tef-return
+ok
+### reach-tef-pass-except
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### reach-with-return
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### reach-while-return
+error 0 0
+internal error: java.lang.VerifyError
+### reach-if-return
+error 0 0
+internal error: java.lang.VerifyError
+### reach-tf-nested
+ok
+### reach-tf-if-else
+ok
+### reach-tf-continue
+ok
+### reach-tf-break
+ok
+### reach-tf-for-target
+ok
+### reach-tf-module
+ok
+### reach-tf-class
+ok
+### reach-tf-in-if
+ok
+### reach-tf-return-then-def
+error 0 0
+internal error: java.lang.VerifyError
+### reach-tf-return-pass-then
+ok
+### reach-te-tf-return
+ok
+### reach-baseline-return
+ok
+### reach-baseline-live
+error 0 0
+internal error: java.lang.VerifyError
+### reach-tf-yield-gen
+ok
+### reach-tf-return-value-gen
+error 7 4
+'return' with argument inside generator
+### reach-loop-break
+ok
+### reach-module-raise
+ok
+### reach-module-raise-def
+error 0 0
+internal error: java.lang.VerifyError
+### reach-while1-pass
+error 0 0
+internal error: java.lang.VerifyError
+### reach-for-else-return
+ok
+### reach-for-else-return-break
+error 0 0
+internal error: java.lang.VerifyError
+### reach-while-else-return
+ok
+### reach-te-specific
+ok
+### reach-te-two-handlers
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### reach-with-raise
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### reach-te-else-pass
+ok
+### reach-tef-finally-return
+ok
+### reach-if-break-continue
+ok
+### reach-while1-break
+error 0 0
+internal error: java.lang.VerifyError
+### reach-for-return
+error 0 0
+internal error: java.lang.VerifyError
+### reach-tf-then-if
+ok
+### reach-tf-then-for-target
+ok
+### reach-break-then-if
+ok
+### reach-module-tf-then-def
+error 0 0
+internal error: java.lang.VerifyError
+### reach-tf-then-class
+error 0 0
+internal error: java.lang.VerifyError
+### reach-tf-then-lambda-default
+ok
+### reach-tf-finally-loop-break
+ok
+### reach-te-handler-continue
+ok
+### reach-assert-false
+error 0 0
+internal error: java.lang.VerifyError
+### reach-try-body-break-except
+ok
+### reach-exec-after-return
+ok
+### reach-if1-return
+error 0 0
+internal error: java.lang.VerifyError
+### reach-if-else-return
+ok
+### reach-te-break-else
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException

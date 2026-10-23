@@ -2396,3 +2396,406 @@ break
 def runAction(self, event):
 	return
 	break
+### reach-tf-return
+def f():
+    try:
+        return
+    finally:
+        pass
+    -a = 1
+### reach-tf-pass
+def f():
+    try:
+        pass
+    finally:
+        pass
+    -a = 1
+### reach-tf-finally-return
+def f():
+    try:
+        pass
+    finally:
+        return
+    -a = 1
+### reach-tf-raise
+def f():
+    try:
+        raise X
+    finally:
+        pass
+    -a = 1
+### reach-tf-return-in-finally-target
+def f():
+    try:
+        return
+    finally:
+        -a = 1
+### reach-tf-body-after-return
+def f():
+    try:
+        return
+        -a = 1
+    finally:
+        pass
+### reach-te-return-pass
+def f():
+    try:
+        return
+    except:
+        pass
+    -a = 1
+### reach-te-return-return
+def f():
+    try:
+        return
+    except:
+        return
+    -a = 1
+### reach-te-else
+def f():
+    try:
+        pass
+    except:
+        return
+    else:
+        return
+    -a = 1
+### reach-tef-return
+def f():
+    try:
+        return
+    except:
+        return
+    finally:
+        pass
+    -a = 1
+### reach-tef-pass-except
+def f():
+    try:
+        return
+    except:
+        pass
+    finally:
+        pass
+    -a = 1
+### reach-with-return
+def f():
+    with x:
+        return
+    -a = 1
+### reach-while-return
+def f():
+    while 1:
+        return
+    -a = 1
+### reach-if-return
+def f():
+    if x:
+        return
+    -a = 1
+### reach-tf-nested
+def f():
+    try:
+        try:
+            return
+        finally:
+            pass
+    finally:
+        pass
+    -a = 1
+### reach-tf-if-else
+def f():
+    try:
+        if x:
+            return
+        else:
+            raise X
+    finally:
+        pass
+    -a = 1
+### reach-tf-continue
+def f():
+    for i in x:
+        try:
+            continue
+        finally:
+            pass
+        -a = 1
+### reach-tf-break
+def f():
+    for i in x:
+        try:
+            break
+        finally:
+            pass
+        -a = 1
+### reach-tf-for-target
+def f():
+    try:
+        return
+    finally:
+        pass
+    for g() in x:
+        pass
+### reach-tf-module
+try:
+    raise X
+finally:
+    pass
+-a = 1
+### reach-tf-class
+class K:
+    try:
+        raise X
+    finally:
+        pass
+    -a = 1
+### reach-tf-in-if
+def f():
+    if y:
+        try:
+            return
+        finally:
+            pass
+        -a = 1
+### reach-tf-return-then-def
+def f():
+    try:
+        return
+    finally:
+        pass
+    def g():
+        -a = 1
+### reach-tf-return-pass-then
+def f():
+    try:
+        return
+    finally:
+        pass
+    pass
+    -a = 1
+### reach-te-tf-return
+def f():
+    try:
+        return
+    except E:
+        raise
+    -a = 1
+### reach-baseline-return
+def f():
+    return
+    -a = 1
+### reach-baseline-live
+def f():
+    -a = 1
+### reach-tf-yield-gen
+def f():
+    try:
+        return
+    finally:
+        pass
+    yield 1
+### reach-tf-return-value-gen
+def f():
+    yield 1
+    try:
+        return
+    finally:
+        pass
+    return 2
+### reach-loop-break
+def f():
+    for i in x:
+        break
+        -a = 1
+### reach-module-raise
+raise X
+-a = 1
+### reach-module-raise-def
+raise X
+def g():
+    -a = 1
+### reach-while1-pass
+def f():
+    while 1:
+        pass
+    -a = 1
+### reach-for-else-return
+def f():
+    for i in x:
+        pass
+    else:
+        return
+    -a = 1
+### reach-for-else-return-break
+def f():
+    for i in x:
+        break
+    else:
+        return
+    -a = 1
+### reach-while-else-return
+def f():
+    while x:
+        pass
+    else:
+        return
+    -a = 1
+### reach-te-specific
+def f():
+    try:
+        return
+    except E:
+        return
+    -a = 1
+### reach-te-two-handlers
+def f():
+    try:
+        return
+    except E:
+        return
+    except:
+        pass
+    -a = 1
+### reach-with-raise
+def f():
+    with x:
+        raise X
+    -a = 1
+### reach-te-else-pass
+def f():
+    try:
+        return
+    except:
+        return
+    else:
+        pass
+    -a = 1
+### reach-tef-finally-return
+def f():
+    try:
+        return
+    except:
+        pass
+    finally:
+        return
+    -a = 1
+### reach-if-break-continue
+def f():
+    for i in x:
+        if y:
+            break
+        else:
+            continue
+        -a = 1
+### reach-while1-break
+def f():
+    while 1:
+        break
+    -a = 1
+### reach-for-return
+def f():
+    for i in x:
+        return
+    -a = 1
+### reach-tf-then-if
+def f():
+    try:
+        return
+    finally:
+        pass
+    if y:
+        -a = 1
+### reach-tf-then-for-target
+def f():
+    try:
+        return
+    finally:
+        pass
+    for -a in x:
+        pass
+### reach-break-then-if
+def f():
+    for i in x:
+        break
+        if y:
+            -a = 1
+### reach-module-tf-then-def
+try:
+    raise X
+finally:
+    pass
+def g():
+    -a = 1
+### reach-tf-then-class
+def f():
+    try:
+        return
+    finally:
+        pass
+    class K:
+        -a = 1
+### reach-tf-then-lambda-default
+def f():
+    try:
+        return
+    finally:
+        pass
+    [1 for -a in x]
+### reach-tf-finally-loop-break
+def f():
+    for i in x:
+        try:
+            pass
+        finally:
+            break
+        -a = 1
+### reach-te-handler-continue
+def f():
+    for i in x:
+        try:
+            continue
+        except:
+            continue
+        -a = 1
+### reach-assert-false
+def f():
+    assert False
+    -a = 1
+### reach-try-body-break-except
+def f():
+    for i in x:
+        try:
+            break
+        except:
+            break
+        -a = 1
+### reach-exec-after-return
+def f():
+    try:
+        return
+    finally:
+        pass
+    exec 'x'
+### reach-if1-return
+def f():
+    if 1:
+        return
+    -a = 1
+### reach-if-else-return
+def f():
+    if x:
+        return
+    else:
+        raise X
+    -a = 1
+### reach-te-break-else
+def f():
+    for i in x:
+        try:
+            pass
+        except:
+            pass
+        else:
+            break
+        -a = 1
