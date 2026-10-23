@@ -618,6 +618,11 @@ pub(crate) fn fix_file(
     let mut current_health: Option<FxHashMap<_, _>> = None;
     // The scripts of `current` and what they do, for the safe-fix net.
     let mut current_scripts: Option<(Vec<ScriptText>, Vec<ScriptFacts>)> = None;
+    // Set once no further fix applies: the fixes have reached a fixpoint
+    // and a second `--fix` run would change nothing. If the pass budget
+    // runs out while fixes are still being applied, this stays false and
+    // the run reports a non-convergence error.
+    let mut converged = false;
     for pass in 0..options.max_fix_passes.max(1) {
         let mut pass_skipped = Vec::new();
         let mut pass_applied = Vec::new();
@@ -630,6 +635,7 @@ pub(crate) fn fix_file(
             &mut pass_skipped,
         ) else {
             skipped = pass_skipped;
+            converged = true;
             break;
         };
         let before = current_health
@@ -695,6 +701,13 @@ pub(crate) fn fix_file(
                     applied.push(applied_fix);
                     continue;
                 }
+                // Whether this fix is being tried on its own. A fix that
+                // makes the file worse only in combination with others is
+                // retried in a later pass (where the others have been
+                // applied or dropped); only a fix that fails on its own is
+                // blocked for good, so that `--fix` reaches a fixpoint in
+                // one invocation instead of needing a second run.
+                let solo = kept.is_empty();
                 let mut trial = kept.clone();
                 trial.extend(edits.iter().cloned());
                 let Ok(trial_text) = iglint_text::apply_edits(&current, &trial) else {
@@ -724,7 +737,7 @@ pub(crate) fn fix_file(
                         kept_health = trial_health;
                         applied.push(applied_fix);
                     }
-                    Some(problem) => {
+                    Some(problem) if solo => {
                         let d = &pass_result.diagnostics[fixed];
                         rejected.borrow_mut().insert((
                             d.0,
@@ -738,15 +751,20 @@ pub(crate) fn fix_file(
                             harmful: true,
                         });
                     }
+                    // Rejected only in combination: leave it for a later
+                    // pass rather than reporting or blocking it.
+                    Some(_) => {}
                 }
             }
             let Some(kept_text) = kept_text else {
+                // Nothing could be kept this pass, so `current` is
+                // unchanged and another pass would do the same: the run
+                // has reached a fixpoint. Every rejection here was tried
+                // on its own (nothing was kept before it), so it is
+                // already recorded.
                 skipped = pass_skipped;
-                // Nothing kept: re-analyse nothing; retry the others.
-                if pass + 1 == options.max_fix_passes.max(1) {
-                    break;
-                }
-                continue;
+                converged = true;
+                break;
             };
             (kept_text, kept, kept_health)
         };
@@ -757,6 +775,22 @@ pub(crate) fn fix_file(
         if pass + 1 == options.max_fix_passes.max(1) {
             skipped = pass_skipped;
         }
+    }
+    // Single-pass mode (`max_fix_passes == 1`, used by the language
+    // server's quick fixes) applies one round by design and does not aim
+    // for a fixpoint, so non-convergence is only a problem when iterating.
+    if !converged && options.max_fix_passes.max(1) > 1 {
+        // The pass budget ran out while fixes were still being applied.
+        // Rather than write a file that a further `--fix` would keep
+        // changing, report it: this is a bug in a fix (fixes should reach
+        // a fixpoint quickly), not something the user can resolve.
+        return Err(FileError {
+            path: path.to_path_buf(),
+            message: format!(
+                "fixes did not converge after {} passes; this is a bug, please report it",
+                options.max_fix_passes.max(1)
+            ),
+        });
     }
     skipped.extend(harmful);
     let mut written = false;
@@ -799,4 +833,105 @@ pub fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
     std::fs::rename(&temp, path).inspect_err(|_| {
         let _ = std::fs::remove_file(&temp);
     })
+}
+
+#[cfg(test)]
+mod idempotency_tests {
+    use super::*;
+    use crate::rules::script::testing::{library, library_path};
+
+    /// Fixing is a fixpoint: a second `--fix` run over the same text
+    /// changes nothing. Covers hand-written programs that exercise the
+    /// combined-deletion and docstring-promotion paths, plus fuzzed
+    /// programs built from fix-triggering fragments (reviewer round 7,
+    /// finding 3). `FixMode::DiffOnly` is the same path `--fix` writes.
+    fn fix_twice(code: &str) {
+        let rules = [
+            ("SCR102", ""),
+            ("SCR103", ""),
+            ("SCR114", ""),
+            ("SCR123", ""),
+        ];
+        for unsafe_fixes in [false, true] {
+            let f = library("m", code);
+            let path = library_path(&f, "m");
+            let first = f.run(&rules, FixMode::DiffOnly { unsafe_fixes });
+            let once = first
+                .fixed
+                .iter()
+                .find(|s| s.path == path)
+                .map_or_else(|| code.to_owned(), |s| s.fixed.clone());
+            // Re-run over the already-fixed text: it must not change.
+            let g = library("m", &once);
+            let gpath = library_path(&g, "m");
+            let second = g.run(&rules, FixMode::DiffOnly { unsafe_fixes });
+            let twice = second
+                .fixed
+                .iter()
+                .find(|s| s.path == gpath)
+                .map_or_else(|| once.clone(), |s| s.fixed.clone());
+            assert_eq!(once, twice, "not idempotent ({unsafe_fixes}) for:\n{code}");
+        }
+    }
+
+    #[test]
+    fn hand_written_programs_fix_to_a_fixpoint() {
+        for code in [
+            "def f():\n    import math\n    import sys\n    \"doc\"\n    return 1\n",
+            "import os\nimport sys\n\"module docstring\"\n",
+            "def f():\n    import os\n    'promoted'\n    return f.__doc__\n",
+            "def f():\n    import os\n    import sys\n    import re\n    return 1\n",
+            "import json\nimport os, sys\nprint json.dumps(1)\n",
+            "def f(x):\n    if x:\n        import os\n        import sys\n    return x\n",
+            "x = 1  # iglint: ignore[SCR101]\ny = 2  # iglint: ignore[SCR101] reason\n",
+        ] {
+            fix_twice(code);
+        }
+    }
+
+    #[test]
+    fn fuzzed_programs_fix_to_a_fixpoint() {
+        // A small deterministic LCG builds programs out of fragments that
+        // trigger safe and unsafe fixes, nested in functions and suites.
+        let fragments = [
+            "import math\n",
+            "import os\n",
+            "import sys\n",
+            "import re\n",
+            "import json\n",
+            "'a bare string'\n",
+            "\"doc\"\n",
+            "x = 1\n",
+            "pass\n",
+            "return 1\n",
+            "print x\n",
+        ];
+        let mut state: u64 = 0x9e3779b97f4a7c15;
+        let mut next = |n: usize| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state as usize) % n
+        };
+        for _ in 0..400 {
+            let count = 1 + next(5);
+            let mut body = String::new();
+            for _ in 0..count {
+                body.push_str("    ");
+                body.push_str(fragments[next(fragments.len())]);
+            }
+            let code = format!("def f():\n{body}");
+            if iglint_python::parse_module(&code).errors.is_empty() {
+                fix_twice(&code);
+            }
+            // Also at module scope.
+            let mut mody = String::new();
+            for _ in 0..count {
+                mody.push_str(fragments[next(fragments.len())]);
+            }
+            if iglint_python::parse_module(&mody).errors.is_empty() {
+                fix_twice(&mody);
+            }
+        }
+    }
 }

@@ -732,6 +732,28 @@ mod tests {
         );
     }
 
+    /// Two function-local imports whose joint removal would promote a
+    /// bare string to the function docstring. `--fix` must reach a
+    /// fixpoint in one run: a second run changes nothing (reviewer round
+    /// 7, finding 3). `Fixture::fixed` asserts idempotency and that no
+    /// fixable finding is left.
+    #[test]
+    fn docstring_promotion_reaches_a_fixpoint_in_one_run() {
+        let f = library(
+            "m",
+            "def f():\n    import math\n    import sys\n    \"doc\"\n    return 1\n",
+        );
+        let fixed = f.fixed(&[("SCR102", "")], false, &library_path(&f, "m"));
+        // Both unused imports go; a `pass` takes the place of the first so
+        // the string is not promoted to the docstring, and the result is
+        // stable (one run reaches it).
+        assert_eq!(
+            fixed, "def f():\n\n    pass\n    \"doc\"\n    return 1\n",
+            "{fixed}"
+        );
+        assert_eq!(fixed.lines().count(), 5, "no line moves: {fixed}");
+    }
+
     #[test]
     fn fix_removes_names_or_statements() {
         let f = library("m", "import os, json\nimport sys\nprint json.dumps(1)\n");
@@ -1115,10 +1137,14 @@ mod tests {
             "\tdef f():\n\t\timport os\n\t\timport sys\n\t\t'promoted'\n\t\treturn f.__doc__\n\tprint f()\n",
         );
         let fixed = safe_fixed(&f, &["SCR102"], &view_path(&f));
+        // Both imports go and a `pass` keeps the string from becoming the
+        // docstring; the fix reaches this in one run (reviewer round 7,
+        // finding 3).
         assert!(
-            fixed.contains(r"\t\timport sys\n\t\t\u0027promoted\u0027"),
+            fixed.contains(r"\t\tpass\n\t\t\u0027promoted\u0027"),
             "{fixed}"
         );
         assert!(!fixed.contains("import os"), "{fixed}");
+        assert!(!fixed.contains("import sys"), "{fixed}");
     }
 }
