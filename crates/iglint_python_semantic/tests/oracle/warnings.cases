@@ -1,0 +1,266 @@
+### assign-before-global
+def f():
+    x = 1
+    global x
+### use-before-global
+def f():
+    print x
+    global x
+### module-assign-before-global
+x = 1
+global x
+### module-use-before-global
+print x
+global x
+### import-star-function
+def f():
+    from os import *
+### import-star-class
+class C:
+    from os import *
+### import-star-module
+from os import *
+### assert-tuple
+assert (x, 'msg')
+### global-then-assign
+x = 1
+def f():
+    global x
+    x = 2
+### del-before-global
+def f():
+    del x
+    global x
+### for-before-global
+def f():
+    for x in y: pass
+    global x
+### import-before-global
+def f():
+    import os
+    global os
+### augassign-before-global
+def f():
+    x += 1
+    global x
+### class-assign-before-global
+class C:
+    x = 1
+    global x
+### def-before-global
+def f():
+    def g(): pass
+    global g
+### class-def-before-global
+def f():
+    class K: pass
+    global K
+### with-before-global
+def f():
+    with a as x: pass
+    global x
+### except-before-global
+def f():
+    try: pass
+    except E, x: pass
+    global x
+### listcomp-before-global
+def f():
+    [x for x in y]
+    global x
+### use-and-assign-before-global
+def f():
+    print x
+    x = 1
+    global x
+### nested-use-before-global
+def f():
+    def g():
+        print x
+    global x
+### global-in-nested-after-outer-assign
+def f():
+    x = 1
+    def g():
+        global x
+### lambda-use-before-global
+def f():
+    l = lambda: x
+    global x
+### exec-in-function
+def f():
+    exec 'a = 1'
+### import-star-nested-function
+def f():
+    def g():
+        from os import *
+### import-star-function-free
+def f():
+    from os import *
+    def g():
+        return 1
+### star-and-global
+def f():
+    from os import *
+    global path
+### global-twice
+def f():
+    global x
+    global x
+### global-after-use-in-class
+class C:
+    print x
+    global x
+### global-after-use-other-name
+def f():
+    y = 1
+    global x
+### assign-before-global-other-branch
+def f():
+    if a:
+        x = 1
+    else:
+        global x
+### two-names
+def f():
+    x = 1
+    y = 2
+    global x, y
+### second-global-after-use
+def f():
+    global x
+    print x
+    global x
+### genexp-first-iter-use
+def f():
+    g = (i for i in x)
+    global x
+### genexp-inner-use
+def f():
+    g = (x for i in y)
+    global x
+### default-use
+def f():
+    def g(a=x): pass
+    global x
+### decorator-use
+def f():
+    @x
+    def g(): pass
+    global x
+### class-base-use
+def f():
+    class K(x): pass
+    global x
+### dictcomp-use
+def f():
+    d = {k: x for k in y}
+    global x
+### setcomp-first-iter
+def f():
+    d = {k for k in x}
+    global x
+### lambda-default
+def f():
+    l = lambda a=x: a
+    global x
+### use-after-global-same-line
+def f():
+    global x; print x
+### global-in-if
+def f():
+    print x
+    if a:
+        global x
+### del-use
+def f():
+    print x
+    del x
+    global x
+### param-global
+def f(x):
+    global x
+### import-as
+def f():
+    import os as x
+    global x
+### from-import
+def f():
+    from os import path as x
+    global x
+### tuple-target
+def f():
+    a, x = 1, 2
+    global x
+### attr-target
+def f():
+    x.a = 1
+    global x
+### subscript-target
+def f():
+    x[0] = 1
+    global x
+### star-in-lambda-ok
+f = lambda: 1
+### import-star-in-if-function
+def f():
+    if a:
+        from os import *
+### import-star-in-class-in-function
+def f():
+    class C:
+        from os import *
+### import-star-method
+class C:
+    def m(self):
+        from os import *
+### global-module-after-def
+def x(): pass
+global x
+### global-module-after-import
+import x
+global x
+### use-in-nested-class
+def f():
+    class K:
+        y = x
+    global x
+### both-unused
+def f():
+    global x
+### print-chevron-use
+def f():
+    print >>x, 1
+    global x
+### exec-in-use
+def f():
+    exec 'a' in x
+    global x
+### with-expr-use
+def f():
+    with x: pass
+    global x
+### aug-attr
+def f():
+    x.a += 1
+    global x
+### unreachable-assign-before-global
+def f():
+    return
+    x = 1
+    global x
+### global-same-statement-twice
+def f():
+    x = 1
+    global x, x
+### use-in-genexp-element-ok
+def f():
+    g = (x for i in y)
+    global x
+### aug-use-before-global-module
+x += 1
+global x
+### assign-after-global-ok
+def f():
+    global x
+    x = 1

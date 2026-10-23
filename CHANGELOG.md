@@ -31,6 +31,12 @@ from 0.1.0 on.
 
 ### Added
 
+- SCR003 `compile-warning` reports what Jython's compiler issues a
+  `SyntaxWarning` for, with Jython's message: `global x` after an
+  assignment to or a use of `x` in the same scope, and `import *` below
+  module level (in Perspective and event scripts, every `import *`). The
+  set and the messages are checked against Ignition's Jython
+  (`oracle/run-oracle.sh --warnings`, the `compile_warning_oracle` test).
 - An unsafe fix of SCR102, VIEW015 or NAME001 says why when code that is
   not vetted, or that reads a frame, keeps it from being safe: the
   construct and its location, in the script or (closed world) the first

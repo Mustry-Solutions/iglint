@@ -27,6 +27,7 @@ use crate::rule::ScriptUnit;
 pub mod assert_on_tuple;
 pub mod bare_except;
 pub mod compile_error;
+pub mod compile_warning;
 pub mod dangerous_loop_closure;
 pub mod deprecated_system_function;
 pub mod duplicate_dict_key;

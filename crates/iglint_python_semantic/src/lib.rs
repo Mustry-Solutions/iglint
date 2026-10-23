@@ -54,6 +54,7 @@
 //! references live in flat vectors indexed by ids.
 
 mod compile;
+mod compile_warnings;
 pub mod dynamic;
 mod flow;
 mod generated;
@@ -64,6 +65,7 @@ mod symbols;
 pub mod vetted;
 
 pub use compile::{CompileError, CompileErrorKind, compile_errors};
+pub use compile_warnings::{CompileWarning, compile_warnings};
 pub use limits::{MARK_LIMIT, mark_limit_error, size_errors};
 pub use model::*;
 pub use resolve::UnboundNames;

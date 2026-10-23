@@ -69,6 +69,7 @@ rules![
     refs::unhandled_message_handler,
     script::syntax_error,
     script::compile_error,
+    script::compile_warning,
     script::undefined_name,
     script::unused_import,
     script::unused_variable,

@@ -1,0 +1,1693 @@
+### return-module
+error
+### return-module-bare
+error
+### return-class
+error
+### return-in-func
+ok
+### yield-module
+error
+### yield-class
+error
+### yield-expr-module
+error
+### yield-in-lambda
+ok
+### yield-in-genexp-elt
+ok
+### break-module
+error
+### break-func
+error
+### break-in-loop
+ok
+### break-in-loop-else
+error
+### break-in-nested-def
+error
+### break-in-class-in-loop
+error
+### continue-module
+error
+### continue-in-loop
+ok
+### continue-in-finally
+error
+### continue-in-finally-nested-loop
+ok
+### break-in-finally
+ok
+### continue-in-try
+ok
+### continue-in-except
+ok
+### continue-in-while-else
+error
+### dup-arg
+error
+### dup-arg-default
+error
+### dup-arg-vararg
+ok
+### dup-arg-kwarg
+ok
+### dup-arg-var-kw
+ok
+### dup-arg-tuple
+error
+### dup-arg-lambda
+error
+### return-value-generator
+error
+### return-none-generator
+error
+### return-bare-generator
+ok
+### return-value-before-yield
+error
+### generator-nested-return
+ok
+### none-assign
+error
+### none-aug
+error
+### none-for
+error
+### none-param
+error
+### none-del
+ok
+### none-attr-assign
+ok
+### none-import-as
+ok
+### none-from-import
+ok
+### none-except
+ok
+### none-with
+error
+### none-global
+ok
+### none-def
+error
+### none-class
+error
+### none-kwarg
+error
+### none-tuple-assign
+error
+### none-listcomp
+ok
+### none-genexp
+ok
+### none-lambda
+error
+### none-vararg
+error
+### true-assign
+ok
+### debug-assign
+error
+### debug-param
+ok
+### import-star-func
+warning 2 import * only allowed at module level
+ok
+### import-star-func-free-vars
+warning 2 import * only allowed at module level
+error
+### import-star-func-nested-noref
+warning 2 import * only allowed at module level
+ok
+### import-star-class
+ok
+### import-star-nested-func-uses-global
+warning 3 import * only allowed at module level
+error
+### import-star-func-lambda
+warning 2 import * only allowed at module level
+error
+### import-star-child-has-free
+warning 3 import * only allowed at module level
+error
+### exec-func-free-vars
+error
+### exec-in-func-free-vars
+ok
+### exec-func
+ok
+### exec-nested-uses-f-local
+error
+### exec-nested-in-nested
+error
+### default-except-not-last
+error
+### default-except-last
+ok
+### two-default-except
+error
+### param-global
+error
+### global-after-use
+warning 3 name 'x' declared global after use
+ok
+### global-after-assign
+warning 3 name 'x' declared global after assignment
+ok
+### global-module
+ok
+### global-class
+ok
+### kw-repeated
+error
+### kw-repeated-class-base
+error
+### future-late
+error
+### future-after-docstring
+ok
+### future-after-two-docstrings
+error
+### future-unknown
+error
+### future-unknown2
+error
+### future-in-func
+error
+### future-multiple
+ok
+### future-after-import
+error
+### future-star
+error
+### future-print-function
+ok
+### future-with-statement
+ok
+### future-absolute
+ok
+### future-barry
+error
+### del-free-var
+error
+### del-local
+ok
+### del-cell-nested-class
+error
+### yield-inside-try-finally
+ok
+### return-in-init
+ok
+### lambda-return-yield-mix
+ok
+### func-call-star-before-kw
+ok
+### func-call-kw-after-star-kw
+ok
+### nested-func-same-name-param
+ok
+### augassign-to-call
+error
+### assign-to-call
+error
+### assign-to-literal
+error
+### del-call
+error
+### assign-to-lambda
+error
+### assign-to-compare
+error
+### aug-to-tuple
+error
+### assign-to-yield
+error
+### assign-to-genexp
+error
+### assign-to-listcomp
+error
+### assign-to-dict
+ok
+### assign-to-str
+error
+### assign-to-backquote
+error
+### assign-to-ifexp
+error
+### assign-to-binop
+error
+### assign-to-unary
+error
+### for-call-target
+error
+### del-binop
+error
+### except-call-target
+error
+### with-call-target
+error
+### listcomp-call-target
+error
+### aug-to-subscript
+ok
+### aug-to-attr
+ok
+### aug-to-list
+error
+### import-as-dotted
+ok
+### yield-in-class-in-func
+error
+### return-in-lambda
+ok
+### return-in-class-in-func
+error
+### break-in-try-in-loop
+ok
+### continue-in-finally-in-while-in-try
+ok
+### continue-in-with-in-finally
+ok
+### continue-in-if-in-finally
+ok
+### continue-in-except-in-finally
+error
+### nonlocal
+error
+### print-to-none
+ok
+### exec-tuple
+ok
+### huge-nesting-ok
+ok
+### star-import-module
+ok
+### import-star-func-noargs-print
+warning 2 import * only allowed at module level
+ok
+### class-free-var
+ok
+### dup-arg-nested-tuple
+error
+### dup-kwonly-lambda
+ok
+### return-generator-lambda
+ok
+### yield-in-listcomp-module
+error
+### yield-in-dictcomp-func
+ok
+### name-param-global-lambda
+ok
+### star-nested-builtin
+warning 2 import * only allowed at module level
+error
+### star-nested-lambda-nofree
+warning 2 import * only allowed at module level
+ok
+### star-genexp-nofree
+warning 2 import * only allowed at module level
+ok
+### star-genexp-free
+warning 2 import * only allowed at module level
+error
+### star-nested-class-free
+warning 2 import * only allowed at module level
+error
+### star-nested-class-method-free
+warning 2 import * only allowed at module level
+error
+### star-nested-deep-own
+warning 2 import * only allowed at module level
+ok
+### star-nested-param-only
+warning 2 import * only allowed at module level
+ok
+### star-nested-attr
+warning 2 import * only allowed at module level
+ok
+### star-nested-store-global
+warning 2 import * only allowed at module level
+ok
+### star-nested-load-global-decl
+warning 2 import * only allowed at module level
+ok
+### star-nested-None
+warning 2 import * only allowed at module level
+error
+### star-nested-dictcomp-nofree
+warning 2 import * only allowed at module level
+ok
+### star-nested-setcomp-free
+warning 2 import * only allowed at module level
+error
+### star-listcomp
+warning 2 import * only allowed at module level
+ok
+### star-in-class-in-func-nested
+warning 3 import * only allowed at module level
+ok
+### star-after-nested
+warning 4 import * only allowed at module level
+error
+### star-two
+warning 2 import * only allowed at module level
+error
+### exec-nested-builtin
+error
+### exec-nested-nofree
+ok
+### exec-self-free-outer
+error
+### exec-self-global
+ok
+### exec-nested-global-load
+error
+### exec-lambda-free
+error
+### exec-genexp-free
+error
+### exec-in-locals
+ok
+### exec-func-call-form
+error
+### exec-module-nested
+ok
+### exec-in-class-in-func
+ok
+### return-gen-in-nested-try
+error
+### yield-and-return-in-lambda-nested
+ok
+### except-default-middle-reraise
+error
+### except-default-nested
+ok
+### local-global-lambda
+ok
+### param-global-later
+error
+### param-global-tuple
+error
+### param-global-vararg
+error
+### param-global-kwarg
+error
+### del-free-var-nested-deeper
+error
+### del-free-var-genexp
+error
+### del-free-var-lambda
+error
+### del-global-in-nested
+ok
+### del-param-free
+error
+### del-in-nested-from-outer
+ok
+### del-free-tuple
+error
+### future-docstring-then-future-then-future
+ok
+### future-comment-blank
+ok
+### future-after-pass
+error
+### future-semicolon
+ok
+### future-semicolon-after-stmt
+error
+### future-in-class
+error
+### future-paren
+ok
+### future-as
+ok
+### future-unknown-later
+error
+### future-in-if
+error
+### future-after-future-unknown
+error
+### future-docstring-expr-not-string
+error
+### future-after-bytes-docstring
+ok
+### kw-repeated-lambda-call
+error
+### debug-aug
+error
+### debug-for
+error
+### debug-attr
+ok
+### debug-del
+error
+### debug-import
+ok
+### debug-import-as
+ok
+### debug-def
+ok
+### debug-class
+ok
+### debug-with
+error
+### debug-except
+error
+### debug-kwarg
+ok
+### debug-global
+ok
+### debug-tuple
+error
+### debug-listcomp
+error
+### debug-lambda
+ok
+### none-from-import-as
+ok
+### assign-to-set
+ok
+### assign-to-num-neg
+error
+### assign-to-subscript-call
+ok
+### aug-to-attr-of-call
+ok
+### for-attr-target
+ok
+### for-binop-target
+error
+### for-unary-target
+error
+### for-compare-target
+error
+### for-lit-target
+error
+### with-binop-target
+error
+### with-compare-target
+error
+### except-binop-target
+error
+### except-subscript-target
+ok
+### except-attr-target
+ok
+### listcomp-binop-target
+error
+### genexp-call-target
+ok
+### genexp-binop-target
+error
+### del-compare
+error
+### del-unary
+error
+### del-literal
+error
+### del-subscript-call
+ok
+### assign-tuple-with-call
+error
+### assign-tuple-with-binop
+error
+### assign-list-with-compare
+error
+### aug-to-binop
+error
+### aug-to-compare
+error
+### aug-to-unary
+error
+### chained-assign-binop
+error
+### assign-to-boolop
+error
+### assign-to-ifexp-for
+error
+### lambda-param-dup-tuple
+error
+### dup-arg-three
+error
+### dup-arg-nested-lambda
+error
+### assign/call
+error
+### assign/binop
+error
+### assign/unary
+error
+### assign/compare
+error
+### assign/num
+error
+### assign/str
+error
+### assign/boolop
+error
+### assign/ifexp
+error
+### assign/lambda
+error
+### assign/dict
+ok
+### assign/set
+ok
+### assign/repr
+error
+### assign/listcomp
+error
+### assign/genexp
+error
+### assign/attr
+ok
+### assign/sub
+ok
+### assign/neg
+error
+### assign/notop
+error
+### assign/invert
+error
+### assign/pow
+error
+### assign-tuple/call
+error
+### assign-tuple/binop
+error
+### assign-tuple/unary
+error
+### assign-tuple/compare
+error
+### assign-tuple/num
+error
+### assign-tuple/str
+error
+### assign-tuple/boolop
+error
+### assign-tuple/ifexp
+error
+### assign-tuple/lambda
+error
+### assign-tuple/dict
+ok
+### assign-tuple/set
+ok
+### assign-tuple/repr
+error
+### assign-tuple/listcomp
+error
+### assign-tuple/genexp
+error
+### assign-tuple/attr
+ok
+### assign-tuple/sub
+ok
+### assign-tuple/neg
+error
+### assign-tuple/notop
+error
+### assign-tuple/invert
+error
+### assign-tuple/pow
+error
+### assign-list/call
+error
+### assign-list/binop
+error
+### assign-list/unary
+error
+### assign-list/compare
+error
+### assign-list/num
+error
+### assign-list/str
+error
+### assign-list/boolop
+error
+### assign-list/ifexp
+error
+### assign-list/lambda
+error
+### assign-list/dict
+ok
+### assign-list/set
+ok
+### assign-list/repr
+error
+### assign-list/listcomp
+error
+### assign-list/genexp
+error
+### assign-list/attr
+ok
+### assign-list/sub
+ok
+### assign-list/neg
+error
+### assign-list/notop
+error
+### assign-list/invert
+error
+### assign-list/pow
+error
+### assign-chain/call
+error
+### assign-chain/binop
+error
+### assign-chain/unary
+error
+### assign-chain/compare
+error
+### assign-chain/num
+error
+### assign-chain/str
+error
+### assign-chain/boolop
+error
+### assign-chain/ifexp
+error
+### assign-chain/lambda
+error
+### assign-chain/dict
+ok
+### assign-chain/set
+ok
+### assign-chain/repr
+error
+### assign-chain/listcomp
+error
+### assign-chain/genexp
+error
+### assign-chain/attr
+ok
+### assign-chain/sub
+ok
+### assign-chain/neg
+error
+### assign-chain/notop
+error
+### assign-chain/invert
+error
+### assign-chain/pow
+error
+### aug/call
+error
+### aug/binop
+error
+### aug/unary
+error
+### aug/compare
+error
+### aug/num
+error
+### aug/str
+error
+### aug/boolop
+error
+### aug/ifexp
+error
+### aug/lambda
+error
+### aug/dict
+ok
+### aug/set
+ok
+### aug/repr
+error
+### aug/listcomp
+error
+### aug/genexp
+error
+### aug/attr
+ok
+### aug/sub
+ok
+### aug/neg
+error
+### aug/notop
+error
+### aug/invert
+error
+### aug/pow
+error
+### del/call
+error
+### del/binop
+error
+### del/unary
+error
+### del/compare
+error
+### del/num
+error
+### del/str
+error
+### del/boolop
+error
+### del/ifexp
+error
+### del/lambda
+ok
+### del/dict
+ok
+### del/set
+ok
+### del/repr
+ok
+### del/listcomp
+error
+### del/genexp
+ok
+### del/attr
+ok
+### del/sub
+ok
+### del/neg
+error
+### del/notop
+error
+### del/invert
+error
+### del/pow
+error
+### del-tuple/call
+error
+### del-tuple/binop
+error
+### del-tuple/unary
+error
+### del-tuple/compare
+error
+### del-tuple/num
+error
+### del-tuple/str
+error
+### del-tuple/boolop
+error
+### del-tuple/ifexp
+error
+### del-tuple/lambda
+ok
+### del-tuple/dict
+ok
+### del-tuple/set
+ok
+### del-tuple/repr
+ok
+### del-tuple/listcomp
+error
+### del-tuple/genexp
+ok
+### del-tuple/attr
+ok
+### del-tuple/sub
+ok
+### del-tuple/neg
+error
+### del-tuple/notop
+error
+### del-tuple/invert
+error
+### del-tuple/pow
+error
+### for/call
+error
+### for/binop
+error
+### for/unary
+error
+### for/compare
+error
+### for/num
+error
+### for/str
+error
+### for/boolop
+error
+### for/ifexp
+error
+### for/lambda
+error
+### for/dict
+error
+### for/set
+error
+### for/repr
+error
+### for/listcomp
+error
+### for/genexp
+error
+### for/attr
+ok
+### for/sub
+ok
+### for/neg
+error
+### for/notop
+error
+### for/invert
+error
+### for/pow
+error
+### for-tuple/call
+error
+### for-tuple/binop
+error
+### for-tuple/unary
+error
+### for-tuple/compare
+error
+### for-tuple/num
+error
+### for-tuple/str
+error
+### for-tuple/boolop
+error
+### for-tuple/ifexp
+error
+### for-tuple/lambda
+error
+### for-tuple/dict
+error
+### for-tuple/set
+error
+### for-tuple/repr
+error
+### for-tuple/listcomp
+error
+### for-tuple/genexp
+error
+### for-tuple/attr
+ok
+### for-tuple/sub
+ok
+### for-tuple/neg
+error
+### for-tuple/notop
+error
+### for-tuple/invert
+error
+### for-tuple/pow
+error
+### except/call
+error
+### except/binop
+error
+### except/unary
+error
+### except/compare
+error
+### except/num
+error
+### except/str
+error
+### except/boolop
+error
+### except/ifexp
+error
+### except/lambda
+error
+### except/dict
+error
+### except/set
+error
+### except/repr
+error
+### except/listcomp
+error
+### except/genexp
+error
+### except/attr
+ok
+### except/sub
+ok
+### except/neg
+error
+### except/notop
+error
+### except/invert
+error
+### except/pow
+error
+### with/call
+error
+### with/binop
+error
+### with/unary
+error
+### with/compare
+error
+### with/num
+error
+### with/str
+error
+### with/boolop
+error
+### with/ifexp
+error
+### with/lambda
+error
+### with/dict
+error
+### with/set
+error
+### with/repr
+error
+### with/listcomp
+error
+### with/genexp
+error
+### with/attr
+ok
+### with/sub
+ok
+### with/neg
+error
+### with/notop
+error
+### with/invert
+error
+### with/pow
+error
+### with-tuple/call
+error
+### with-tuple/binop
+error
+### with-tuple/unary
+error
+### with-tuple/compare
+error
+### with-tuple/num
+error
+### with-tuple/str
+error
+### with-tuple/boolop
+error
+### with-tuple/ifexp
+error
+### with-tuple/lambda
+error
+### with-tuple/dict
+error
+### with-tuple/set
+error
+### with-tuple/repr
+error
+### with-tuple/listcomp
+error
+### with-tuple/genexp
+error
+### with-tuple/attr
+ok
+### with-tuple/sub
+ok
+### with-tuple/neg
+error
+### with-tuple/notop
+error
+### with-tuple/invert
+error
+### with-tuple/pow
+error
+### listcomp/call
+error
+### listcomp/binop
+error
+### listcomp/unary
+ok
+### listcomp/compare
+error
+### listcomp/num
+error
+### listcomp/str
+error
+### listcomp/boolop
+error
+### listcomp/ifexp
+error
+### listcomp/lambda
+error
+### listcomp/dict
+error
+### listcomp/set
+error
+### listcomp/repr
+error
+### listcomp/listcomp
+error
+### listcomp/genexp
+error
+### listcomp/attr
+ok
+### listcomp/sub
+ok
+### listcomp/neg
+error
+### listcomp/notop
+ok
+### listcomp/invert
+ok
+### listcomp/pow
+error
+### listcomp-tuple/call
+error
+### listcomp-tuple/binop
+error
+### listcomp-tuple/unary
+ok
+### listcomp-tuple/compare
+error
+### listcomp-tuple/num
+error
+### listcomp-tuple/str
+error
+### listcomp-tuple/boolop
+error
+### listcomp-tuple/ifexp
+error
+### listcomp-tuple/lambda
+error
+### listcomp-tuple/dict
+error
+### listcomp-tuple/set
+error
+### listcomp-tuple/repr
+error
+### listcomp-tuple/listcomp
+error
+### listcomp-tuple/genexp
+error
+### listcomp-tuple/attr
+ok
+### listcomp-tuple/sub
+ok
+### listcomp-tuple/neg
+error
+### listcomp-tuple/notop
+ok
+### listcomp-tuple/invert
+ok
+### listcomp-tuple/pow
+error
+### genexp/call
+ok
+### genexp/binop
+error
+### genexp/unary
+error
+### genexp/compare
+error
+### genexp/num
+ok
+### genexp/str
+ok
+### genexp/boolop
+error
+### genexp/ifexp
+error
+### genexp/lambda
+ok
+### genexp/dict
+ok
+### genexp/set
+ok
+### genexp/repr
+ok
+### genexp/listcomp
+error
+### genexp/genexp
+ok
+### genexp/attr
+ok
+### genexp/sub
+ok
+### genexp/neg
+ok
+### genexp/notop
+error
+### genexp/invert
+error
+### genexp/pow
+error
+### setcomp/call
+ok
+### setcomp/binop
+error
+### setcomp/unary
+error
+### setcomp/compare
+error
+### setcomp/num
+ok
+### setcomp/str
+ok
+### setcomp/boolop
+error
+### setcomp/ifexp
+error
+### setcomp/lambda
+ok
+### setcomp/dict
+ok
+### setcomp/set
+ok
+### setcomp/repr
+ok
+### setcomp/listcomp
+error
+### setcomp/genexp
+ok
+### setcomp/attr
+ok
+### setcomp/sub
+ok
+### setcomp/neg
+ok
+### setcomp/notop
+error
+### setcomp/invert
+error
+### setcomp/pow
+error
+### dictcomp/call
+ok
+### dictcomp/binop
+error
+### dictcomp/unary
+error
+### dictcomp/compare
+error
+### dictcomp/num
+ok
+### dictcomp/str
+ok
+### dictcomp/boolop
+error
+### dictcomp/ifexp
+error
+### dictcomp/lambda
+ok
+### dictcomp/dict
+ok
+### dictcomp/set
+ok
+### dictcomp/repr
+ok
+### dictcomp/listcomp
+error
+### dictcomp/genexp
+ok
+### dictcomp/attr
+ok
+### dictcomp/sub
+ok
+### dictcomp/neg
+ok
+### dictcomp/notop
+error
+### dictcomp/invert
+error
+### dictcomp/pow
+error
+### func-for/call
+error
+### func-for/binop
+error
+### func-for/unary
+error
+### func-for/compare
+error
+### func-for/num
+error
+### func-for/str
+error
+### func-for/boolop
+error
+### func-for/ifexp
+error
+### func-for/lambda
+error
+### func-for/dict
+error
+### func-for/set
+error
+### func-for/repr
+error
+### func-for/listcomp
+error
+### func-for/genexp
+error
+### func-for/attr
+ok
+### func-for/sub
+ok
+### func-for/neg
+error
+### func-for/notop
+error
+### func-for/invert
+error
+### func-for/pow
+error
+### func-assign/call
+error
+### func-assign/binop
+error
+### func-assign/unary
+error
+### func-assign/compare
+error
+### func-assign/num
+error
+### func-assign/str
+error
+### func-assign/boolop
+error
+### func-assign/ifexp
+error
+### func-assign/lambda
+error
+### func-assign/dict
+ok
+### func-assign/set
+ok
+### func-assign/repr
+error
+### func-assign/listcomp
+error
+### func-assign/genexp
+error
+### func-assign/attr
+ok
+### func-assign/sub
+ok
+### func-assign/neg
+error
+### func-assign/notop
+error
+### func-assign/invert
+error
+### func-assign/pow
+error
+### direct
+error
+### after-stmt
+error
+### in-if
+ok
+### in-else
+ok
+### in-with
+ok
+### in-try-body
+error
+### in-except
+error
+### in-try-else
+error
+### in-inner-finally-body
+error
+### in-inner-finally
+error
+### in-except-not-in-finally
+ok
+### in-except-in-try-body
+ok
+### in-while-in-if-in-finally
+ok
+### in-for-else-in-finally
+ok
+### in-except-in-loop-in-finally
+ok
+### in-if-in-except-in-finally
+ok
+### in-with-in-finally-direct-after-if
+error
+### finally-in-if-in-loop
+error
+### finally-in-except
+error
+### break-in-except-in-finally
+ok
+### exec-tuple-in-func-nested
+error
+### exec-tuple3-in-func-nested
+error
+### star-func-self-free
+warning 4 import * only allowed at module level
+error
+### star-and-exec
+error
+### return-gen-lambda-yield
+ok
+### return-gen-genexp-yield
+ok
+### return-gen-listcomp-yield
+error
+### return-gen-two-returns
+error
+### return-gen-yield-in-nested-def
+ok
+### dup-arg-vararg-tuple
+ok
+### global-param-nested-other
+ok
+### global-param-lambda
+ok
+### global-and-param-class
+error
+### del-free-in-class-method
+error
+### del-free-global-in-module
+ok
+### del-free-class-scope
+ok
+### future-docstring-semicolon
+ok
+### debug-del-tuple
+error
+### debug-in-func
+error
+### star-nested-builtin-only
+warning 3 import * only allowed at module level
+error
+### star-nested-norefs
+warning 3 import * only allowed at module level
+error
+### star-nested-global-ref
+warning 4 import * only allowed at module level
+error
+### star-nested-both
+warning 4 import * only allowed at module level
+error
+### star-in-method
+warning 3 import * only allowed at module level
+ok
+### star-in-method-of-nested-class
+warning 5 import * only allowed at module level
+error
+### exec-nested-builtin-only
+error
+### exec-nested-norefs
+ok
+### exec-nested-both
+error
+### exec-in-method
+ok
+### exec-lambda-nested-param-only
+ok
+### exec-nested-class-free
+error
+### exec-nested-class-nofree
+ok
+### star-nested-class-nofree
+warning 2 import * only allowed at module level
+ok
+### star-nested-class-method-nofree
+warning 2 import * only allowed at module level
+ok
+### star-deep-free-grandchild
+warning 2 import * only allowed at module level
+error
+### star-genexp-uses-outer-var-only-in-first-iter
+warning 2 import * only allowed at module level
+ok
+### star-genexp-two-gens
+warning 2 import * only allowed at module level
+ok
+### star-genexp-two-gens-free
+warning 2 import * only allowed at module level
+error
+### dead-code-module-raise-break
+error
+### dead-code-func-break-dead-in-if
+ok
+### dead-code-func-continue-dead
+ok
+### dead-code-class-dead-return
+ok
+### dead-code-func-dead-yield-in-nongen
+error
+### dead-code-func-dead-import-star
+ok
+### dead-code-func-dead-exec-nested
+error
+### dead-code-except-not-last
+ok
+### dead-code-del-cell
+ok
+### dead-code-assign-debug
+error
+### dead-code-invalid-assign
+ok
+### dead-code-invalid-for
+ok
+### dead-code-invalid-listcomp
+ok
+### dead-code-dup-arg
+error
+### dead-code-param-global
+error
+### dead-code-future
+error
+### dead-code-future-unknown
+error
+### dead-code-yield-class
+ok
+### dead-code-yield-module-nested
+ok
+### dead-code-return-module-nested
+ok
+### dead-code-break-module-nested
+ok
+### dead-code-continue-class
+ok
+### dead-code-lambda-yield
+ok
+### dead-code-genexp-invalid
+ok
+### dead-code-nested-func-yield-return
+error
+### dead-code-nested-func-break
+ok
+### dead-code-except-not-last-module
+ok
+### dead-break-outside-loop
+ok
+### dead-return-module
+error
+### dead-yield-return-value
+error
+### dead-continue-finally
+error
+### live-star-dead-nested-function
+warning 2 import * only allowed at module level
+error
+### dead-after-if-else-return
+ok
+### live-after-if-return
+error
+### live-after-try-return
+error
+### live-after-loop-break
+error
+### dead-after-continue
+ok
+### live-module-after-raise
+error
+### dead-in-view-body
+ok
+### reach-tf-return
+ok
+### reach-tf-pass
+error
+### reach-tf-finally-return
+ok
+### reach-tf-raise
+ok
+### reach-tf-return-in-finally-target
+error
+### reach-tf-body-after-return
+ok
+### reach-te-return-pass
+error
+### reach-te-return-return
+ok
+### reach-te-else
+ok
+### reach-tef-return
+ok
+### reach-tef-pass-except
+error
+### reach-with-return
+error
+### reach-while-return
+error
+### reach-if-return
+error
+### reach-tf-nested
+ok
+### reach-tf-if-else
+ok
+### reach-tf-continue
+ok
+### reach-tf-break
+ok
+### reach-tf-for-target
+ok
+### reach-tf-module
+ok
+### reach-tf-class
+ok
+### reach-tf-in-if
+ok
+### reach-tf-return-then-def
+error
+### reach-tf-return-pass-then
+ok
+### reach-te-tf-return
+ok
+### reach-baseline-return
+ok
+### reach-baseline-live
+error
+### reach-tf-yield-gen
+ok
+### reach-tf-return-value-gen
+error
+### reach-loop-break
+ok
+### reach-module-raise
+ok
+### reach-module-raise-def
+error
+### reach-while1-pass
+error
+### reach-for-else-return
+ok
+### reach-for-else-return-break
+error
+### reach-while-else-return
+ok
+### reach-te-specific
+ok
+### reach-te-two-handlers
+error
+### reach-with-raise
+error
+### reach-te-else-pass
+ok
+### reach-tef-finally-return
+ok
+### reach-if-break-continue
+ok
+### reach-while1-break
+error
+### reach-for-return
+error
+### reach-tf-then-if
+ok
+### reach-tf-then-for-target
+ok
+### reach-break-then-if
+ok
+### reach-module-tf-then-def
+error
+### reach-tf-then-class
+error
+### reach-tf-then-lambda-default
+ok
+### reach-tf-finally-loop-break
+ok
+### reach-te-handler-continue
+ok
+### reach-assert-false
+error
+### reach-try-body-break-except
+ok
+### reach-exec-after-return
+ok
+### reach-if1-return
+error
+### reach-if-else-return
+ok
+### reach-te-break-else
+error
+### yield-comp-listcomp-elt
+error
+### yield-comp-listcomp-first-iter
+error
+### yield-comp-listcomp-if
+error
+### yield-comp-listcomp-second-iter
+error
+### yield-comp-listcomp-second-if
+error
+### yield-comp-listcomp-bare-stmt
+error
+### yield-comp-genexp-elt-ok
+ok
+### yield-comp-genexp-first-iter-ok
+ok
+### yield-comp-genexp-first-iter-deep-ok
+ok
+### yield-comp-genexp-second-iter-ok
+ok
+### yield-comp-genexp-if-ok
+ok
+### yield-comp-setcomp-elt-ok
+ok
+### yield-comp-setcomp-first-iter
+error
+### yield-comp-setcomp-first-iter-deep
+error
+### yield-comp-setcomp-second-iter-ok
+ok
+### yield-comp-setcomp-if-ok
+ok
+### yield-comp-dictcomp-value-ok
+ok
+### yield-comp-dictcomp-first-iter
+error
+### yield-comp-dictcomp-second-iter-ok
+ok
+### yield-comp-listcomp-in-genexp-scope
+error
+### yield-comp-listcomp-as-genexp-first-iter
+error
+### yield-comp-listcomp-nested-inner
+error
+### yield-comp-listcomp-nested-outer-iter
+error
+### yield-comp-listcomp-in-dictcomp-value
+error
+### yield-comp-listcomp-lambda-default
+error
+### yield-comp-listcomp-first-iter-genexp-inside
+error
+### yield-comp-listcomp-both-iters
+error
+### yield-comp-nested-def-in-listcomp-ok
+ok
+### yield-comp-lambda-in-listcomp-ok
+ok
+### yield-comp-listcomp-in-generator
+error
+### yield-comp-listcomp-return-value
+error
+### yield-comp-listcomp-module-level
+error
+### yield-comp-listcomp-class-level
+error
+### yield-comp-listcomp-dead-after-return
+ok
+### yield-comp-return-direct-yield
+error
+### yield-comp-return-yield-in-call
+error

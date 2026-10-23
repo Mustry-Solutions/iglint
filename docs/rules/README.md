@@ -2,7 +2,7 @@
 
 # Rules
 
-iglint has 107 rules. Rules with *yes* in the Default column run without configuration; enable the others with `select` or `extend-select` (see the [configuration](../../README.md#configuration)). Fix: *always* or *sometimes* means `iglint check --fix` can repair findings of the rule (unsafe fixes also need `--unsafe-fixes`).
+iglint has 108 rules. Rules with *yes* in the Default column run without configuration; enable the others with `select` or `extend-select` (see the [configuration](../../README.md#configuration)). Fix: *always* or *sometimes* means `iglint check --fix` can repair findings of the rule (unsafe fixes also need `--unsafe-fixes`).
 
 `iglint rule <CODE>` prints the same documentation in the terminal.
 
@@ -59,6 +59,7 @@ iglint has 107 rules. Rules with *yes* in the Default column run without configu
 |---|---|---|---|---|---|
 | [SCR001](SCR001.md) | `syntax-error` | Script does not parse with Jython 2.7 | error | yes |  |
 | [SCR002](SCR002.md) | `compile-error` | Script parses but Jython refuses to compile it | error | yes |  |
+| [SCR003](SCR003.md) | `compile-warning` | Jython compiles the script with a `SyntaxWarning` | warning | yes |  |
 | [SCR101](SCR101.md) | `undefined-name` | Name is not defined anywhere the script can see | error | yes |  |
 | [SCR102](SCR102.md) | `unused-import` | Imported name is never used | warning | yes | sometimes |
 | [SCR103](SCR103.md) | `unused-variable` | Local variable is assigned but never read | warning | yes | sometimes |

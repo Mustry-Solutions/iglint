@@ -1,0 +1,182 @@
+### assign-before-global
+warning 3 name 'x' declared global after assignment
+ok
+### use-before-global
+warning 3 name 'x' declared global after use
+ok
+### module-assign-before-global
+warning 2 name 'x' declared global after assignment
+ok
+### module-use-before-global
+warning 2 name 'x' declared global after use
+ok
+### import-star-function
+warning 2 import * only allowed at module level
+ok
+### import-star-class
+ok
+### import-star-module
+ok
+### assert-tuple
+ok
+### global-then-assign
+ok
+### del-before-global
+warning 3 name 'x' declared global after assignment
+ok
+### for-before-global
+warning 3 name 'x' declared global after assignment
+ok
+### import-before-global
+warning 3 name 'os' declared global after assignment
+ok
+### augassign-before-global
+warning 3 name 'x' declared global after assignment
+ok
+### class-assign-before-global
+warning 3 name 'x' declared global after assignment
+ok
+### def-before-global
+warning 3 name 'g' declared global after assignment
+ok
+### class-def-before-global
+warning 3 name 'K' declared global after assignment
+ok
+### with-before-global
+warning 3 name 'x' declared global after assignment
+ok
+### except-before-global
+warning 4 name 'x' declared global after assignment
+ok
+### listcomp-before-global
+warning 3 name 'x' declared global after assignment
+ok
+### use-and-assign-before-global
+warning 4 name 'x' declared global after assignment
+ok
+### nested-use-before-global
+ok
+### global-in-nested-after-outer-assign
+ok
+### lambda-use-before-global
+ok
+### exec-in-function
+ok
+### import-star-nested-function
+warning 3 import * only allowed at module level
+error
+### import-star-function-free
+warning 2 import * only allowed at module level
+ok
+### star-and-global
+warning 2 import * only allowed at module level
+ok
+### global-twice
+ok
+### global-after-use-in-class
+warning 3 name 'x' declared global after use
+ok
+### global-after-use-other-name
+ok
+### assign-before-global-other-branch
+warning 5 name 'x' declared global after assignment
+ok
+### two-names
+warning 4 name 'x' declared global after assignment
+warning 4 name 'y' declared global after assignment
+ok
+### second-global-after-use
+ok
+### genexp-first-iter-use
+warning 3 name 'x' declared global after use
+ok
+### genexp-inner-use
+ok
+### default-use
+warning 3 name 'x' declared global after use
+ok
+### decorator-use
+warning 4 name 'x' declared global after use
+ok
+### class-base-use
+warning 3 name 'x' declared global after use
+ok
+### dictcomp-use
+ok
+### setcomp-first-iter
+warning 3 name 'x' declared global after use
+ok
+### lambda-default
+warning 3 name 'x' declared global after use
+ok
+### use-after-global-same-line
+ok
+### global-in-if
+warning 4 name 'x' declared global after use
+ok
+### del-use
+warning 4 name 'x' declared global after assignment
+ok
+### param-global
+error
+### import-as
+warning 3 name 'x' declared global after assignment
+ok
+### from-import
+warning 3 name 'x' declared global after assignment
+ok
+### tuple-target
+warning 3 name 'x' declared global after assignment
+ok
+### attr-target
+warning 3 name 'x' declared global after use
+ok
+### subscript-target
+warning 3 name 'x' declared global after use
+ok
+### star-in-lambda-ok
+ok
+### import-star-in-if-function
+warning 3 import * only allowed at module level
+ok
+### import-star-in-class-in-function
+warning 3 import * only allowed at module level
+ok
+### import-star-method
+warning 3 import * only allowed at module level
+ok
+### global-module-after-def
+warning 2 name 'x' declared global after assignment
+ok
+### global-module-after-import
+warning 2 name 'x' declared global after assignment
+ok
+### use-in-nested-class
+ok
+### both-unused
+ok
+### print-chevron-use
+warning 3 name 'x' declared global after use
+ok
+### exec-in-use
+warning 3 name 'x' declared global after use
+ok
+### with-expr-use
+warning 3 name 'x' declared global after use
+ok
+### aug-attr
+warning 3 name 'x' declared global after use
+ok
+### unreachable-assign-before-global
+warning 4 name 'x' declared global after assignment
+ok
+### global-same-statement-twice
+warning 3 name 'x' declared global after assignment
+ok
+### use-in-genexp-element-ok
+ok
+### aug-use-before-global-module
+warning 2 name 'x' declared global after assignment
+ok
+### assign-after-global-ok
+ok
