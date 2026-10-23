@@ -1266,6 +1266,53 @@ mod tests {
         }
     }
 
+    /// The component name is observable through `meta.name` reached any
+    /// way, not only as a direct `self.meta.name` chain. (Reviewer repro
+    /// R5-G2.)
+    #[test]
+    fn meta_read_through_alias_or_subscript_is_unsafe() {
+        for script in [
+            // Alias of `.meta`, then `.name`.
+            "\\tm = self.meta\\n\\tself.props.text = m.name",
+            // Subscript of `.meta`.
+            "\\tself.props.text = self.meta[\\u0027name\\u0027]",
+            // getattr on `.meta`.
+            "\\tself.props.text = getattr(self.meta, \\u0027name\\u0027)",
+            // Another member of `.meta` reaches meta data too.
+            "\\tx = self.meta.tooltip",
+            // `.meta` passed to code.
+            "\\tfoo(self.meta)",
+        ] {
+            let button = component(
+                "bad name",
+                "ia.input.button",
+                &format!(
+                    r#", "events": {{"component": {{"onActionPerformed": {{"type": "script", "scope": "G", "config": {{"script": "{script}"}}}}}}}}"#
+                ),
+            );
+            let f = Fixture::view(&root(&[button]));
+            let d = f.lint_with(&[("NAME001", "convention = \"PascalCase\"")]);
+            let d = d
+                .iter()
+                .find(|d| d.message.contains("bad name"))
+                .unwrap_or_else(|| panic!("{script}: {d:?}"));
+            assert_eq!(
+                d.fix.as_ref().unwrap().applicability,
+                crate::Applicability::Unsafe,
+                "{script}"
+            );
+        }
+        // A plain `self.meta.name` read still blocks only the read
+        // component, and an unrelated script does not block a rename.
+        let safe = component("bad name", "ia.input.button", "");
+        let f = Fixture::view(&root(&[safe]));
+        let d = f.lint_with(&[("NAME001", "convention = \"PascalCase\"")]);
+        assert_eq!(
+            d[0].fix.as_ref().unwrap().applicability,
+            crate::Applicability::Safe
+        );
+    }
+
     #[test]
     fn literal_name_in_script_makes_the_rename_unsafe() {
         let button = component(

@@ -14,6 +14,21 @@
 //!
 //! A literal lookup whose receiver cannot be resolved, or whose literal
 //! cannot be rewritten in place, blocks renaming components of that name.
+//!
+//! # Component names are observable data
+//!
+//! A component's name is readable through `meta.name`, so a rename is
+//! unsafe wherever the view could read it. The only understood form is a
+//! `meta.name` read on a value that resolves to a component (a script's
+//! `<component>.meta.name`, a `{this.meta.name}` or `{Label.meta.name}`
+//! reference): that blocks renaming only that component. Every other use
+//! of `.meta` fails closed and blocks every rename ([`References::dynamic_meta_name`]):
+//! `meta.name` on a value that does not resolve, an alias of `.meta`
+//! (`m = self.meta`), a subscript (`self.meta['name']`), `getattr` on it,
+//! another member (`self.meta.tooltip`), or `.meta` passed to code.
+//! Handing a component itself to code outside the view is covered
+//! separately (`components_may_escape`), since that code could read
+//! `meta.name` too.
 
 use iglint_expression::{PropertyRef, PropertyTarget, Reference};
 use iglint_project::view::{BindingConfig, View};
@@ -311,13 +326,31 @@ impl<'a> Visitor<'a> for ScriptWalker<'_, '_, '_> {
                 if let Expr::Attribute(meta) = &*a.value
                     && meta.attr.as_str() == "meta"
                 {
+                    // The one understood form: `<value>.meta.name`.
                     match self.eval(&meta.value) {
                         Value::Component(c) => {
                             self.refs.meta_name_read.insert(c);
                         }
                         _ => self.refs.dynamic_meta_name = true,
                     }
+                    // Visit the base before `.meta` (lookups may be there),
+                    // but not the `.meta` node, which would otherwise be
+                    // taken as an un-understood meta access below.
+                    self.visit_expr(&meta.value);
+                    return;
                 }
+            }
+            Expr::Attribute(a) if a.attr.as_str() == "meta" => {
+                // Any other use of `.meta`: the component name is
+                // observable data reachable through it, so renaming is
+                // unsafe. Fail closed. Covers aliasing (`m = self.meta`),
+                // subscripts (`self.meta['name']`), `getattr(self.meta,
+                // ...)`, other members (`self.meta.tooltip`) and passing
+                // `.meta` to code. A `.meta` node reaches here only when no
+                // understood `.meta.name` consumer handled it above.
+                self.refs.dynamic_meta_name = true;
+                self.visit_expr(&a.value);
+                return;
             }
             Expr::Str(s) => {
                 if let Some(text) = s.s.as_str() {
