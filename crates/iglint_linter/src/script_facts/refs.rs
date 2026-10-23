@@ -17,7 +17,9 @@
 //! | `system.tag.readBlocking(['[p]a/b'])` and other tag reads and writes | tag path |
 //! | `x.props.style.classes = 'A B'` | style classes |
 //! | `core.util.fmt`, `from core.util import fmt`, a module's own top-level names | library name |
-//! | a library name used as a value, `from m import *`, non-literal `__import__`/`eval`/`exec` | dynamic library reference |
+//! | a library name used as a value, `from m import *`, non-literal `__import__`/`eval`/`exec`, `execfile`, `sys.modules` | dynamic library reference |
+//! | `core.util.fmt = f`, `del core.util.fmt`, `setattr(core.util, 'fmt', f)`, `core.util.__dict__` | library store |
+//! | `exec '...'`, `eval('...')`, `compile('...', ...)` with literal code | the references of the code |
 //! | a non-literal view path, query path or message type | dynamic reference with the literal prefix |
 
 use iglint_project::summary::{MessageSend, MessageTarget, References};
@@ -48,7 +50,7 @@ pub fn collect(model: &SemanticModel<'_>, ctx: &FactsContext<'_>, refs: &mut Ref
         if let Some(target) = api_target(model, &site) {
             api_reference(model, ctx, target, refs);
         }
-        dynamic_code(model, &site.callee, site.call, refs);
+        dynamic_code(model, ctx, &site.callee, site.call, refs);
     }
     let mut chains = Chains { model, ctx, refs };
     chains.visit_module(model.module);
@@ -220,27 +222,79 @@ fn api_reference(
     }
 }
 
-/// Code run from strings may reach any library name.
+/// Code run from strings may reach any library name; literal code is
+/// analysed like the script.
 fn dynamic_code(
     model: &SemanticModel<'_>,
+    ctx: &FactsContext<'_>,
     callee: &str,
     call: &iglint_python::ast::ExprCall,
     refs: &mut References,
 ) {
-    if !matches!(callee, "eval" | "execfile" | "__import__" | "compile") {
+    if !matches!(
+        callee,
+        "eval" | "execfile" | "__import__" | "compile" | "setattr" | "delattr"
+    ) {
         return;
     }
     if !crate::rules::script::is_builtin_reference(model, &call.func, callee) {
         return;
     }
     match call.args.first() {
+        Some(e) if matches!(callee, "setattr" | "delattr") => {
+            let mut chains = Chains { model, ctx, refs };
+            if let Some(object) = chains.dotted(e) {
+                let attr = call.args.get(1).and_then(|a| match a {
+                    Expr::Str(s) => s.s.as_str(),
+                    _ => None,
+                });
+                chains.store(match attr {
+                    Some(attr) => format!("{object}.{attr}"),
+                    None => object,
+                });
+            }
+        }
         Some(e) if callee == "__import__" => match string_values(model, e) {
-            Some(values) => refs.library.extend(values.into_iter().map(|l| l.value)),
+            // The module object is returned (the top-level package without
+            // `fromlist`): everything in it escapes.
+            Some(values) => {
+                for l in values {
+                    let root = l.value.split('.').next().unwrap_or_default().to_owned();
+                    refs.library.push(l.value);
+                    refs.dynamic.library.push(root);
+                }
+            }
             None => refs.dynamic.library.push(string_prefix(model, e)),
         },
-        Some(Expr::Str(_)) => {}
+        // `execfile` runs a file iglint does not see.
+        Some(Expr::Str(code)) if callee != "execfile" => literal_code(ctx, code, refs),
+        _ if matches!(callee, "setattr" | "delattr") => {}
         _ => refs.dynamic.library.push(String::new()),
     }
+}
+
+/// The references of code run from a string literal (`exec '...'`,
+/// `eval('...')`): code that does not parse never runs.
+fn literal_code(ctx: &FactsContext<'_>, code: &iglint_python::ast::ExprStr, refs: &mut References) {
+    let Some(source) = code.s.as_str() else {
+        refs.dynamic.library.push(String::new());
+        return;
+    };
+    let parsed = iglint_python::parse_module(source);
+    if !parsed.errors.is_empty() {
+        return;
+    }
+    let model = SemanticModel::build(
+        &parsed.module,
+        &iglint_python_semantic::SemanticOptions::default(),
+    );
+    // Names of the code that the string itself binds or reads are not the
+    // module's own top-level names here: only library names count.
+    let ctx = FactsContext {
+        module: None,
+        ..*ctx
+    };
+    collect(&model, &ctx, refs);
 }
 
 /// How an attribute chain is used.
@@ -305,10 +359,26 @@ impl Chains<'_, '_, '_, '_> {
         }
     }
 
+    /// Records a store to the library name `dotted`; replacing the code
+    /// or defaults of a function changes the function itself.
+    fn store(&mut self, mut dotted: String) {
+        if let Some((base, attr)) = dotted.rsplit_once('.')
+            && (super::symbols::CODE_ATTRIBUTES.contains(&attr) || attr == "__dict__")
+        {
+            dotted.truncate(base.len());
+        }
+        self.refs.library_stores.push(dotted);
+    }
+
     fn record(&mut self, e: &Expr, role: Role) {
         let Some(q) = self.dotted(e) else {
             return;
         };
+        if let Some(base) = q.strip_suffix(".__dict__") {
+            // The namespace of a module (or a function's attributes) may be
+            // written through it.
+            self.refs.library_stores.push(base.to_owned());
+        }
         if role == Role::Value {
             self.refs.dynamic.library.push(q.clone());
         }
@@ -317,6 +387,23 @@ impl Chains<'_, '_, '_, '_> {
 
     fn expr(&mut self, e: &Expr, role: Role) {
         match e {
+            _ if self.is_sys_modules(e) => {
+                // Any module may be reached and changed through it.
+                self.refs.dynamic.library.push(String::new());
+            }
+            Expr::Subscript(s) if self.is_sys_modules(&s.value) => {
+                // `sys.modules['core.util']`: the module escapes.
+                let module = match &*s.slice {
+                    Slice::Index(i) => match &*i.value {
+                        Expr::Str(k) => k.s.as_str().map(str::to_owned),
+                        Expr::Name(n) if &*n.id == "__name__" => self.ctx.module.map(str::to_owned),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                self.refs.dynamic.library.push(module.unwrap_or_default());
+                self.visit_slice(&s.slice);
+            }
             Expr::Name(n) => {
                 if matches!(n.ctx, ExprContext::Load | ExprContext::AugLoad) {
                     self.record(e, role);
@@ -327,6 +414,9 @@ impl Chains<'_, '_, '_, '_> {
                     self.record(e, role);
                 } else {
                     self.record(&a.value, Role::Base);
+                    if let Some(q) = self.dotted(e) {
+                        self.store(q);
+                    }
                 }
             }
             Expr::Attribute(a) => self.expr(&a.value, Role::Base),
@@ -351,6 +441,31 @@ impl Chains<'_, '_, '_, '_> {
             }
             other => walk_expr(self, other),
         }
+    }
+}
+
+impl Chains<'_, '_, '_, '_> {
+    /// `sys.modules` (also imported as `from sys import modules`), or an
+    /// attribute of it (`sys.modules.get`).
+    fn is_sys_modules(&self, e: &Expr) -> bool {
+        let mut at = e;
+        let mut named = false;
+        loop {
+            match at {
+                Expr::Attribute(a) => {
+                    named |= a.attr.as_str() == "modules";
+                    at = &a.value;
+                }
+                Expr::Name(n) => {
+                    named |= &*n.id == "modules";
+                    break;
+                }
+                _ => return false,
+            }
+        }
+        named
+            && super::calls::qualified(self.model, e, UnboundNames::AsGlobalEvenIfDynamic)
+                .is_some_and(|q| q == "sys.modules" || q.starts_with("sys.modules."))
     }
 }
 
@@ -383,11 +498,10 @@ impl<'a> Visitor<'a> for Chains<'_, '_, '_, '_> {
                     self.refs.dynamic.library.push(m.as_str().to_owned());
                 }
             }
-            Stmt::Exec(e) => {
-                if !matches!(&*e.body, Expr::Str(_)) {
-                    self.refs.dynamic.library.push(String::new());
-                }
-            }
+            Stmt::Exec(e) => match &*e.body {
+                Expr::Str(code) => literal_code(self.ctx, code, self.refs),
+                _ => self.refs.dynamic.library.push(String::new()),
+            },
             Stmt::Assign(a) => {
                 for t in &a.targets {
                     style_classes(self.model, t, &a.value, self.refs);
@@ -535,6 +649,38 @@ mod tests {
         assert_eq!(r.dynamic.library, ["core.jobs.run", "core.mod", "x"]);
         let r = refs_of("from core.util import *\nexec code\n", None);
         assert_eq!(r.dynamic.library, ["core.util", "", "code"]);
+    }
+
+    #[test]
+    fn library_stores_and_code_from_strings() {
+        let r = refs_of(
+            "import core.util as u\ncore.util.fmt = f\ndel core.jobs.run\nu.LIMIT += 1\nsetattr(core.tags, 'read', f)\nsetattr(core.tags, name, f)\ndelattr(core.a, 'x')\ncore.b.__dict__['x'] = 1\ncore.c.go.func_code = g.func_code\nself.props.text = 1\n",
+            None,
+        );
+        assert_eq!(
+            r.library_stores,
+            [
+                "core.tags.read",
+                "core.tags",
+                "core.a.x",
+                "core.util.fmt",
+                "core.jobs.run",
+                "core.util.LIMIT",
+                "core.b",
+                "core.c.go",
+                "self.props.text",
+            ]
+        );
+        let r = refs_of(
+            "import sys\nsys.modules['core.util'].f = 1\nm = sys.modules.get(k)\nexec 'core.x.y = 1\\ncore.z.f()'\nv = eval('core.w.g()')\n__import__('core.v')\nexecfile('/x.py')\n",
+            Some("app.main"),
+        );
+        assert_eq!(r.library_stores, ["core.x.y"]);
+        assert!(r.library.iter().any(|n| n == "core.z.f"));
+        assert!(r.library.iter().any(|n| n == "core.w.g"));
+        assert_eq!(r.dynamic.library, ["core", "", "core.util", "", "k"]);
+        let r = refs_of("import sys\nm = sys.modules[__name__]\n", Some("app.main"));
+        assert_eq!(r.dynamic.library, ["app.main"]);
     }
 
     #[test]

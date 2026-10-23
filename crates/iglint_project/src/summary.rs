@@ -240,6 +240,12 @@ pub struct References {
     pub tag_paths: Vec<String>,
     /// Dotted library names (`core.format.withUnit`).
     pub library: Vec<String>,
+    /// Dotted library names the script assigns, deletes or replaces the
+    /// code of (`core.util.fmt = f`, `setattr(core.util, 'fmt', f)`,
+    /// `core.util.__dict__[k] = v`, `core.util.fmt.func_code = c`): the
+    /// name and everything under it may differ at run time from its
+    /// definition.
+    pub library_stores: Vec<String>,
     /// Message sends (filled in by the script layer).
     pub messages: Vec<MessageSend>,
     /// Historian provider names.
@@ -259,6 +265,7 @@ impl References {
         self.pages.extend(other.pages);
         self.tag_paths.extend(other.tag_paths);
         self.library.extend(other.library);
+        self.library_stores.extend(other.library_stores);
         self.messages.extend(other.messages);
         self.history_providers.extend(other.history_providers);
         self.databases.extend(other.databases);

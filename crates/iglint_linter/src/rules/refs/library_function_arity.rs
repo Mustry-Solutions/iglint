@@ -26,7 +26,13 @@ twice.
 
 Only plain functions are checked: a name defined more than once in its
 module (conditional definitions, redefinitions, `global` assignments), a
-decorated function, a class or any other value is not. Calls that unpack
+decorated function, a class or any other value is not. Neither is a
+function its module may replace at run time (the module runs `exec`,
+`eval` or `execfile`, writes `globals()` or `sys.modules[__name__]`, sets
+the function's `func_code` or `func_defaults`, or a later
+`from x import *` may overwrite it), nor one that a script of the project
+assigns, deletes or replaces (`core.util.fmt = f`,
+`setattr(core.util, 'fmt', f)`, `core.util.__dict__[k] = v`). Calls that unpack
 `*args` or `**kwargs` are only checked for errors the unpacking cannot
 hide. Calls inside a `try` that catches `TypeError` or `Exception` are
 checked too: a wrong call is a bug, not a handled condition.
@@ -164,5 +170,36 @@ mod tests {
             UTIL,
         );
         assert_eq!(decoded_flagged(&f.lint(&["REF003"])), vec!["core.util.fmt"]);
+    }
+
+    /// Calls of a function that may be another function at run time are
+    /// not checked (verified on Jython: each rebinding changes what
+    /// `fmt()` accepts).
+    #[test]
+    fn rebound_functions_are_not_checked() {
+        for (util, other) in [
+            ("exec 'def fmt(): pass'\n", ""),
+            ("globals()['fmt'] = lambda: 1\n", ""),
+            ("fmt.func_defaults = (1,)\n", ""),
+            ("", "core.util.fmt = lambda: 1\n"),
+            ("", "setattr(core.util, 'fmt', lambda: 1)\n"),
+            ("", "m = core.util\nm.fmt = lambda: 1\n"),
+        ] {
+            let f = library(
+                "core/util",
+                &format!("def fmt(value):\n    return value\n{util}"),
+            );
+            let f = with_library(f, "app/other", other);
+            let f = with_library(f, "app/main", "def go():\n    core.util.fmt()\n");
+            assert!(f.lint(&["REF003"]).is_empty(), "{util}{other}");
+        }
+        // A store to another name of the module changes nothing.
+        let f = library(
+            "core/util",
+            "def fmt(value):\n    return value\nCACHE = {}\n",
+        );
+        let f = with_library(f, "app/other", "core.util.CACHE = {}\n");
+        let f = with_library(f, "app/main", "def go():\n    core.util.fmt()\n");
+        assert_eq!(f.lint(&["REF003"]).len(), 1);
     }
 }

@@ -58,8 +58,13 @@ by a text search:
   functions, up to 4 calls deep). A function that does not exist reads
   nothing (the call fails, which `REF002` reports). A function that uses
   the value in a way that cannot be followed, a function a child project
-  overrides, and calls of anything but a library function count as
-  reading everything.
+  overrides, a function that may be replaced at run time (its module runs
+  `exec`, `eval` or `execfile`, writes `globals()` or
+  `sys.modules[__name__]`, sets its `func_code`, or may overwrite it with
+  a later definition or `from x import *`; a script assigns or `setattr`s
+  it; its module is used as a value or reached through `sys.modules` or
+  code run from strings), and calls of anything but a library function
+  count as reading everything.
 
 These never count as unused:
 
@@ -547,6 +552,15 @@ fn resolve_callee<'i>(
                 .replace('/', ".");
             match symbols.get(head).map(|s| &s.kind) {
                 Some(SymbolKind::Function(_)) => format!("{module}.{callee}"),
+                // Another resource may rebind the module's name of the
+                // import (`app.views.fmt = f`).
+                Some(SymbolKind::Import { .. })
+                    if std::iter::once(project)
+                        .chain(index.workspace().project_descendants(project))
+                        .any(|p| index.library_name_rebound(p, &format!("{module}.{head}"))) =>
+                {
+                    return Callee::Unknown;
+                }
                 Some(SymbolKind::Import {
                     target: Some(target),
                 }) => match rest {
@@ -560,6 +574,14 @@ fn resolve_callee<'i>(
             }
         }
     };
+    // A name that may be rebound, or created, at run time says nothing
+    // about what the call does.
+    if std::iter::once(project)
+        .chain(index.workspace().project_descendants(project))
+        .any(|p| index.library_name_rebound(p, &dotted))
+    {
+        return Callee::Unknown;
+    }
     let segments: Vec<&str> = dotted.split('.').collect();
     match resolve(index, project, &dotted) {
         LibraryLookup::Missing { .. } | LibraryLookup::HiddenByModule { .. } => Callee::Missing,

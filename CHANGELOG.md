@@ -39,6 +39,36 @@ from 0.1.0 on.
 
 ### Fixed
 
+- `VIEW015` no longer trusts the body of a library function that may be
+  replaced at run time, so its safe fix no longer removes properties the
+  function that actually runs reads. A module's top-level name is no
+  longer a function (for every rule) when the module may rebind it:
+  `exec` (also inside a function, where the code may declare a name
+  `global`), `eval`, `execfile`, writes to `globals()` or
+  `sys.modules[__name__]`, a later `from x import *`, or a replaced
+  `func_code` / `func_defaults`. The project index records library names
+  that scripts assign, delete or `setattr` (also through aliases,
+  `__dict__`, `sys.modules['pkg.mod']` and literal `exec` / `eval` code):
+  `VIEW015` and `REF003` do not use the definitions of such names, and
+  `REF002` does not report a name another script creates. `VIEW015` also
+  treats functions of modules used as values (or reached through
+  `sys.modules` or code run from strings) as unknown.
+- Literal code run with `exec`, `eval` or `compile` counts as references:
+  a library name used only there is no longer unused for `SCR102` (whose
+  safe fix removed the import) and `REF012`. `execfile` and
+  `__import__` with a literal name make the modules they reach escape.
+- `SCR002` counts only the code Jython generates: nothing after `return`,
+  `raise`, `continue` or an `if`/`else` whose branches all end that way
+  (not for the module's own statement list). A function with 12,000 dead
+  `pass` lines, or 40,000 dead string literals, is no longer reported.
+  Errors of Jython's code generator (`'break' outside loop`, `'return'
+  outside function` in a class body, `import *` in a function, a bare
+  `except:` that is not last, ...) are no longer reported in dead code,
+  which Jython compiles.
+- `SCR112` treats a `.format` field too large for a Java `int`
+  (`{2147483648}`, also `{2147483648.x}` and in nested specs) as the
+  keyword it is in Jython: no finding when `**kwargs` may supply it.
+
 - `iglint ign-lint --version` prints the ign-lint version it emulates:
   `ign-lint 0.6.4 (iglint 0.1.0 compatibility mode)`.
 - The oracle scripts name their containers (`iglint-oracle-<pid>-...`)

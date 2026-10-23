@@ -109,6 +109,9 @@ struct ProjectData {
     /// Library modules whose every top-level name may be used (a module
     /// used as a value, `from m import *`).
     escaped_modules: FxHashSet<ResourceId>,
+    /// Library names that resources this project sees assign or delete
+    /// (`References::library_stores`).
+    library_stores: FxHashSet<String>,
     complete: bool,
     inheritable: bool,
     descendants: Vec<ProjectId>,
@@ -363,6 +366,7 @@ impl<'w> ProjectIndex<'w> {
         let mut sends: Vec<FxHashMap<String, Vec<SentMessage>>> = vec![FxHashMap::default(); n];
         let mut dynamic: Vec<DynamicReferences> = vec![DynamicReferences::default(); n];
         let mut escaped: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
+        let mut stores: Vec<FxHashSet<String>> = vec![FxHashSet::default(); n];
         // Resources of gateway collections (tag event scripts) run with the
         // gateway scripting project, which the workspace does not name:
         // their references count for every project.
@@ -435,6 +439,7 @@ impl<'w> ProjectIndex<'w> {
                     }
                 }
                 dynamic[pid.index()].extend(&refs.dynamic);
+                stores[pid.index()].extend(refs.library_stores.iter().cloned());
                 for m in &refs.messages {
                     let (target_project, perspective) = match &m.target {
                         MessageTarget::Perspective { .. } => (Some(pid), true),
@@ -483,6 +488,7 @@ impl<'w> ProjectIndex<'w> {
             }
             p.dynamic = d;
             p.escaped_modules = std::mem::take(&mut escaped[i]);
+            p.library_stores = std::mem::take(&mut stores[i]);
         }
         self.usage = usage;
         self.symbol_usage = symbol_usage;
@@ -755,6 +761,45 @@ impl<'w> ProjectIndex<'w> {
         self.projects[project.index()]
             .escaped_modules
             .contains(&module)
+    }
+
+    /// Whether a resource of `project` assigns or deletes the library name
+    /// `dotted` (as written, before following imports) or a module or
+    /// package on its path (`core.util.fmt = f`, `setattr(core.util,
+    /// 'fmt', f)`, `core.util.__dict__[k] = v`).
+    pub fn library_name_stored(&self, project: ProjectId, dotted: &str) -> bool {
+        let stores = &self.projects[project.index()].library_stores;
+        let mut prefix = dotted;
+        loop {
+            if stores.contains(prefix) {
+                return true;
+            }
+            match prefix.rsplit_once('.') {
+                Some((head, _)) => prefix = head,
+                None => return false,
+            }
+        }
+    }
+
+    /// Whether the library name `dotted` (as written, before following
+    /// imports) may be bound at run time to something other than its
+    /// definition by code the module itself does not show: it is stored
+    /// ([`ProjectIndex::library_name_stored`]) or its module escapes
+    /// ([`ProjectIndex::module_escapes`]: used as a value, reached through
+    /// `sys.modules` or code run from strings, so any code may set its
+    /// attributes). Rebinding by the module itself is part of its symbols
+    /// (a rebound name is a
+    /// [`SymbolKind::Variable`](crate::library::SymbolKind::Variable)).
+    pub fn library_name_rebound(&self, project: ProjectId, dotted: &str) -> bool {
+        if self.library_name_stored(project, dotted) {
+            return true;
+        }
+        match self.resolve_library(project, dotted) {
+            LibraryLookup::Symbol { resource, .. }
+            | LibraryLookup::MissingAttribute { resource, .. }
+            | LibraryLookup::Module { resource, .. } => self.module_escapes(project, resource),
+            _ => false,
+        }
     }
 
     /// How many literal sends of a message type target a project.

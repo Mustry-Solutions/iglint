@@ -86,12 +86,23 @@ pub(crate) fn is_miss(lookup: &LibraryLookup<'_>) -> bool {
 }
 
 /// Resolves `dotted` in `project`; a miss becomes `Unknown` when a project
-/// inheriting from it resolves the name (its scripts may run there).
+/// inheriting from it resolves the name (its scripts may run there), and
+/// any result becomes `Unknown` when a script of the project or of a
+/// project inheriting from it stores the name
+/// ([`ProjectIndex::library_name_stored`]): the definition then says
+/// nothing about what runs. Callers that must also exclude rebinding by
+/// code they cannot see check [`ProjectIndex::library_name_rebound`].
 pub(crate) fn resolve<'i>(
     index: &'i ProjectIndex<'_>,
     project: ProjectId,
     dotted: &str,
 ) -> LibraryLookup<'i> {
+    let stored = std::iter::once(project)
+        .chain(index.workspace().project_descendants(project))
+        .any(|p| index.library_name_stored(p, dotted));
+    if stored {
+        return LibraryLookup::Unknown;
+    }
     let lookup = index.resolve_library(project, dotted);
     if is_miss(&lookup) && index.workspace().project(project).inheritable() {
         let found_below = index
@@ -218,6 +229,31 @@ mod tests {
                 "Module `core.util` has no attribute `LIMITS`",
             ]
         );
+    }
+
+    /// A name another script creates (`core.util.extra = ...`) exists once
+    /// that script ran.
+    #[test]
+    fn stored_names_are_not_missing() {
+        for store in [
+            "core.util.extra = 1\n",
+            "setattr(core.util, 'extra', 1)\n",
+            "core.util.__dict__['extra'] = 1\n",
+            "exec 'core.util.extra = 1'\n",
+        ] {
+            let f = project(library(
+                "app/main",
+                "def go():\n    return core.util.extra\n",
+            ));
+            let f = with_library(f, "app/setup", store);
+            assert!(f.lint(&["REF002"]).is_empty(), "{store}");
+        }
+        let f = project(library(
+            "app/main",
+            "def go():\n    return core.util.extra\n",
+        ));
+        let f = with_library(f, "app/setup", "core.util.other = 1\n");
+        assert_eq!(flagged(&f.lint(&["REF002"])), vec!["extra"]);
     }
 
     #[test]

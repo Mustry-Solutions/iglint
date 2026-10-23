@@ -179,6 +179,145 @@ fn check_fix_removes_unused_custom_property() {
     assert_eq!(again.status, ExitStatus::Success, "{}", again.stdout);
 }
 
+/// A view whose button hands itself to `lib.util.handle`, which `util`
+/// defines as `def handle(p): pass`, plus `rest` appended to the module and
+/// `other` (a second library module, `lib.other`) when not empty.
+fn handed_to_library(rest: &str, other: &str) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path();
+    write(
+        d,
+        "projects/p/project.json",
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    );
+    let views = "projects/p/com.inductiveautomation.perspective/views";
+    write(d, &format!("{views}/Main/resource.json"), MANIFEST);
+    write(
+        d,
+        &format!("{views}/Main/view.json"),
+        r#"{
+  "root": {
+    "custom": {
+      "used": 42
+    },
+    "events": {
+      "component": {
+        "onActionPerformed": {
+          "config": {
+            "script": "\tlib.util.handle(self)\n"
+          },
+          "scope": "G",
+          "type": "script"
+        }
+      }
+    },
+    "meta": {
+      "name": "root"
+    },
+    "type": "ia.input.button"
+  }
+}"#,
+    );
+    let library = "projects/p/ignition/script-python/lib";
+    write(d, &format!("{library}/util/resource.json"), "{}\n");
+    write(
+        d,
+        &format!("{library}/util/code.py"),
+        &format!("def handle(p):\n    pass\n{rest}"),
+    );
+    if !other.is_empty() {
+        write(d, &format!("{library}/other/resource.json"), "{}\n");
+        write(d, &format!("{library}/other/code.py"), other);
+    }
+    dir
+}
+
+/// Every way of giving the module another `handle` after its `def` keeps
+/// the property: the safe fix must not remove what the function that
+/// actually runs reads. Each variant prints 42 on Jython (`p.custom.used`
+/// of a stand-in object).
+#[test]
+fn safe_fixes_keep_properties_of_rebound_library_functions() {
+    let new_handle = "def _h(p):\n    print p.custom.used\n";
+    let rebinding = [
+        ("exec 'def handle(p): print p.custom.used'\n".to_owned(), String::new()),
+        (
+            "def _setup():\n    exec 'global handle\\ndef handle(p): print p.custom.used'\n_setup()\n"
+                .to_owned(),
+            String::new(),
+        ),
+        (format!("{new_handle}globals()['handle'] = _h\n"), String::new()),
+        (
+            format!("import sys\n{new_handle}setattr(sys.modules[__name__], 'handle', _h)\n"),
+            String::new(),
+        ),
+        (
+            format!("import sys\n{new_handle}sys.modules[__name__].handle = _h\n"),
+            String::new(),
+        ),
+        (format!("{new_handle}handle = _h\n"), String::new()),
+        ("def handle(p):\n    print p.custom.used\n".to_owned(), String::new()),
+        (format!("{new_handle}handle.func_code = _h.func_code\n"), String::new()),
+        ("eval(\"globals().update(handle=lambda p: p.custom.used)\")\n".to_owned(), String::new()),
+        // Another module rebinds it.
+        (String::new(), format!("{new_handle}lib.util.handle = _h\n")),
+        (String::new(), format!("{new_handle}setattr(lib.util, 'handle', _h)\n")),
+        (String::new(), format!("{new_handle}lib.util.__dict__['handle'] = _h\n")),
+        (
+            String::new(),
+            format!("import sys\n{new_handle}sys.modules['lib.util'].handle = _h\n"),
+        ),
+        (String::new(), format!("{new_handle}exec 'lib.util.handle = _h'\n")),
+        (String::new(), format!("{new_handle}m = lib.util\nm.handle = _h\n")),
+    ];
+    let view = "projects/p/com.inductiveautomation.perspective/views/Main/view.json";
+    for (rest, other) in &rebinding {
+        let dir = handed_to_library(rest, other);
+        let run = run_with(
+            dir.path(),
+            &[
+                "check",
+                "--isolated",
+                "--no-cache",
+                "--select",
+                "VIEW015",
+                "--fix",
+            ],
+            false,
+        );
+        let text = std::fs::read_to_string(dir.path().join(view)).unwrap();
+        assert!(
+            text.contains("\"used\": 42"),
+            "{rest}{other}\n{}\n{text}",
+            run.stdout
+        );
+        assert_eq!(
+            run.status,
+            ExitStatus::Success,
+            "{rest}{other}\n{}",
+            run.stdout
+        );
+    }
+    // The function that is not rebound is followed: it reads nothing, so
+    // the property goes.
+    let dir = handed_to_library("", "def g():\n    return lib.util.handle\n");
+    let run = run_with(
+        dir.path(),
+        &[
+            "check",
+            "--isolated",
+            "--no-cache",
+            "--select",
+            "VIEW015",
+            "--fix",
+        ],
+        false,
+    );
+    assert_eq!(run.status, ExitStatus::Success, "{}", run.stdout);
+    let text = std::fs::read_to_string(dir.path().join(view)).unwrap();
+    assert!(!text.contains("used"), "{text}");
+}
+
 #[test]
 fn ign_lint_mode_prints_ign_lint_paths_and_wording() {
     let dir = tempfile::tempdir().unwrap();

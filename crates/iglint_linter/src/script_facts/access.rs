@@ -94,7 +94,7 @@ impl ScriptFacts for AstScriptFacts {
         );
         super::refs::collect(&model, ctx, &mut summary.references);
         if library {
-            summary.set_module_symbols(super::symbols::module_symbols(&model));
+            summary.set_module_symbols(super::symbols::module_symbols(&model, &unit.parsed.module));
         }
     }
 

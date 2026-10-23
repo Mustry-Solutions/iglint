@@ -6,23 +6,38 @@
 //! several times (conditional definitions, redefinitions, `global`
 //! assignments) or by a decorated `def` is a [`SymbolKind::Variable`], whose
 //! calls are never checked. A module whose namespace cannot be known
-//! (`from x import *`, unqualified `exec`, writes through `globals()`) is
-//! marked dynamic: lookups of names it does not define are then unknown
-//! rather than missing.
+//! (`from x import *`, `exec` without a namespace, writes through
+//! `globals()`, `eval`, `execfile`) is marked dynamic: lookups of names it
+//! does not define are then unknown rather than missing.
+//!
+//! A name the module may rebind at run time in a way the bindings do not
+//! show is a [`SymbolKind::Variable`] too, so that no rule trusts the body
+//! or signature of a `def` that may no longer be the module's function:
+//! every name when the module runs code from strings (`exec`, also inside
+//! a function, where the code may declare a name `global`; `eval`;
+//! `execfile`) or writes its own namespace (`globals()[...]`,
+//! `setattr(sys.modules[__name__], ...)`), a name a `from x import *` may
+//! overwrite (the import runs after the binding or in a loop), and a
+//! function whose code or defaults the module replaces
+//! (`f.func_code = ...`, `setattr(f, name, ...)`).
+//! Rebinding from other resources (`core.util.f = ...`, the module used as
+//! a value) is known only to the project index
+//! (`ProjectIndex::library_name_rebound`).
 
 use iglint_project::library::{
     ModuleSymbols, Parameter, ParameterKind, Signature, Symbol, SymbolKind,
 };
-use iglint_python::ast::{Arguments, Expr, Stmt};
+use iglint_python::ast::{Arguments, Expr, ExprContext, Module, Stmt};
+use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
 use iglint_python_semantic::{BindingKind, ScopeId, SemanticModel};
+use iglint_text::TextRange;
+use rustc_hash::FxHashSet;
 
-/// The symbols of a module, from its semantic model. `None` when the module
-/// does not parse (its content is unknown).
-pub fn module_symbols(model: &SemanticModel<'_>) -> ModuleSymbols {
+/// The symbols of a module, from its semantic model and syntax tree.
+pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols {
     let module = model.scope(ScopeId::MODULE);
-    let dynamic = model.scopes().any(|(_, s)| s.writes_globals)
-        || module.star_import.is_some()
-        || module.unqualified_exec.is_some();
+    let rebinds = Rebinds::collect(model, ast);
+    let dynamic = rebinds.anything || module.star_import.is_some();
     let mut symbols = Vec::new();
     for name in module.local_names() {
         let ids = module.bindings_of(name);
@@ -34,7 +49,12 @@ pub fn module_symbols(model: &SemanticModel<'_>) -> ModuleSymbols {
         let Some(first) = real.first() else {
             continue;
         };
-        let kind = if real.len() > 1 {
+        let rebound = rebinds.anything
+            || rebinds.attributes_set.contains(name)
+            || rebinds.star_imports.iter().any(|(star, in_loop)| {
+                *in_loop || real.iter().any(|b| b.range.start() < star.start())
+            });
+        let kind = if real.len() > 1 || rebound {
             SymbolKind::Variable
         } else {
             match first.kind {
@@ -60,6 +80,133 @@ pub fn module_symbols(model: &SemanticModel<'_>) -> ModuleSymbols {
         });
     }
     ModuleSymbols { symbols, dynamic }
+}
+
+/// Ways the module may rebind its own top-level names at run time that
+/// its bindings do not show.
+#[derive(Default)]
+struct Rebinds<'a> {
+    /// Any name: code from strings, writes to the module namespace.
+    anything: bool,
+    /// Module-level `from x import *`, and whether it is inside a loop.
+    star_imports: Vec<(TextRange, bool)>,
+    /// Module-level names whose code or defaults may be replaced
+    /// (`f.func_code = g.func_code`, `setattr(f, name, ...)`).
+    attributes_set: FxHashSet<&'a str>,
+}
+
+impl<'a> Rebinds<'a> {
+    fn collect(model: &SemanticModel<'a>, ast: &'a Module) -> Rebinds<'a> {
+        let mut v = RebindVisitor {
+            model,
+            out: Rebinds {
+                // `exec code` binds in the namespace it runs in; in a
+                // function the code may declare a name `global` (verified
+                // on Jython), so it is not limited to the module scope.
+                anything: model
+                    .scopes()
+                    .any(|(_, s)| s.writes_globals || s.unqualified_exec.is_some()),
+                ..Rebinds::default()
+            },
+            function_depth: 0,
+            loop_depth: 0,
+        };
+        iglint_python::visitor::walk_body(&mut v, &ast.body);
+        v.out
+    }
+}
+
+/// Function attributes that change what a call does or accepts.
+pub(crate) const CODE_ATTRIBUTES: &[&str] =
+    &["func_code", "__code__", "func_defaults", "__defaults__"];
+
+struct RebindVisitor<'m, 'a> {
+    model: &'m SemanticModel<'a>,
+    out: Rebinds<'a>,
+    /// Inside a `def`, `class` or `lambda` (not module-level code).
+    function_depth: usize,
+    /// Inside a module-level `for` or `while`.
+    loop_depth: usize,
+}
+
+impl<'a> RebindVisitor<'_, 'a> {
+    /// The module-level name `e` refers to, when it is a name that only
+    /// module-level bindings reach.
+    fn module_name(&self, e: &'a Expr) -> Option<&'a str> {
+        let Expr::Name(n) = e else { return None };
+        let r = self.model.reference_at(n.range)?;
+        (!r.bindings.is_empty()
+            && r.bindings
+                .iter()
+                .all(|b| self.model.binding(*b).scope == ScopeId::MODULE))
+        .then_some(r.name)
+    }
+
+    fn attribute_target(&mut self, e: &'a Expr) {
+        if let Expr::Attribute(a) = e
+            && matches!(a.ctx, ExprContext::Store | ExprContext::Del)
+            && CODE_ATTRIBUTES.contains(&a.attr.as_str())
+            && let Some(name) = self.module_name(&a.value)
+        {
+            self.out.attributes_set.insert(name);
+        }
+    }
+}
+
+impl<'a> Visitor<'a> for RebindVisitor<'_, 'a> {
+    fn visit_stmt(&mut self, stmt: &'a Stmt) {
+        match stmt {
+            Stmt::FunctionDef(_) | Stmt::ClassDef(_) => {
+                self.function_depth += 1;
+                walk_stmt(self, stmt);
+                self.function_depth -= 1;
+            }
+            Stmt::For(_) | Stmt::While(_) if self.function_depth == 0 => {
+                self.loop_depth += 1;
+                walk_stmt(self, stmt);
+                self.loop_depth -= 1;
+            }
+            Stmt::ImportFrom(i)
+                if self.function_depth == 0 && i.names.iter().any(|a| a.name.as_str() == "*") =>
+            {
+                self.out.star_imports.push((i.range, self.loop_depth > 0));
+            }
+            _ => walk_stmt(self, stmt),
+        }
+    }
+
+    fn visit_expr(&mut self, expr: &'a Expr) {
+        match expr {
+            Expr::Lambda(_) => {
+                self.function_depth += 1;
+                walk_expr(self, expr);
+                self.function_depth -= 1;
+                return;
+            }
+            Expr::Attribute(_) => self.attribute_target(expr),
+            Expr::Call(c) => {
+                let builtin =
+                    |name| crate::rules::script::is_builtin_reference(self.model, &c.func, name);
+                // Code run from a string can rebind any global
+                // (`eval("globals().update(...)")`, `execfile(path)` runs
+                // in the caller's globals).
+                if builtin("eval") || builtin("execfile") {
+                    self.out.anything = true;
+                }
+                if (builtin("setattr") || builtin("delattr"))
+                    && let Some(name) = c.args.first().and_then(|a| self.module_name(a))
+                    && c.args.get(1).is_none_or(|attr| match attr {
+                        Expr::Str(s) => s.s.as_str().is_none_or(|a| CODE_ATTRIBUTES.contains(&a)),
+                        _ => true,
+                    })
+                {
+                    self.out.attributes_set.insert(name);
+                }
+            }
+            _ => {}
+        }
+        walk_expr(self, expr);
+    }
 }
 
 /// The signature of a `def`.
@@ -107,7 +254,7 @@ mod tests {
         let parsed = iglint_python::parse_module(src);
         assert!(parsed.errors.is_empty());
         let model = SemanticModel::build(&parsed.module, &SemanticOptions::default());
-        module_symbols(&model)
+        module_symbols(&model, &parsed.module)
     }
 
     fn kinds(s: &ModuleSymbols) -> Vec<(String, String)> {
@@ -170,5 +317,80 @@ mod tests {
         assert!(symbols("def f():\n    globals()['a'] = 1\n").dynamic);
         assert!(symbols("exec 'a = 1'\n").dynamic);
         assert!(!symbols("exec 'a = 1' in ns\n").dynamic);
+        assert!(symbols("def f():\n    exec 'global a\\na = 1'\n").dynamic);
+        assert!(symbols("execfile('x.py')\n").dynamic);
+        assert!(symbols("def f(s):\n    return eval(s)\n").dynamic);
+    }
+
+    fn kind_of(src: &str, name: &str) -> String {
+        kinds(&symbols(src))
+            .into_iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, k)| k)
+            .unwrap()
+    }
+
+    /// Verified on Jython: each of these makes `handle` another function
+    /// after the module ran, so its `def` says nothing about calls.
+    #[test]
+    fn functions_the_module_may_rebind_are_variables() {
+        let def = "def handle(p):\n    pass\n";
+        for rebind in [
+            "exec 'def handle(p): print p.custom.used'\n",
+            "exec code\n",
+            "def setup():\n    exec 'global handle\\ndef handle(p): pass'\n",
+            "globals()['handle'] = other\n",
+            "globals().update(handle=other)\n",
+            "def setup():\n    globals()[name] = other\n",
+            "import sys\nsetattr(sys.modules[__name__], 'handle', other)\n",
+            "import sys\nsys.modules[__name__].handle = other\n",
+            "execfile(path)\n",
+            "eval(code)\n",
+            "from other import *\n",
+            "handle.func_code = other.func_code\n",
+            "setattr(handle, '__defaults__', (1,))\n",
+            "setattr(handle, name, None)\n",
+            "handle = wrap(handle)\n",
+            "def handle(p, q):\n    pass\n",
+            "from other import handle\n",
+            "def setup():\n    global handle\n    handle = other\n",
+        ] {
+            let src = format!("{def}{rebind}");
+            assert_eq!(kind_of(&src, "handle"), "var", "{src}");
+        }
+        // The same function rebinding nothing.
+        for innocent in [
+            "",
+            "exec 'x = 1' in ns\n",
+            "handle.cache = {}\n",
+            "setattr(handle, 'cache', {})\n",
+            "def eval(s):\n    return s\neval(code)\n",
+        ] {
+            let src = format!("{def}{innocent}");
+            assert_eq!(kind_of(&src, "handle"), "def(p)", "{src}");
+        }
+        // A star import before the definition cannot overwrite it, one in
+        // a loop or after it can.
+        assert_eq!(
+            kind_of(&format!("from other import *\n{def}"), "handle"),
+            "def(p)"
+        );
+        assert_eq!(
+            kind_of(
+                &format!("for m in mods:\n    from other import *\n{def}"),
+                "handle"
+            ),
+            "var"
+        );
+        assert_eq!(
+            kind_of(
+                &format!(
+                    "if c:\n    {}\nfrom other import *\n",
+                    def.trim_end().replace('\n', "\n    ")
+                ),
+                "handle"
+            ),
+            "var"
+        );
     }
 }

@@ -45,8 +45,13 @@ by a text search:
   functions, up to 4 calls deep). A function that does not exist reads
   nothing (the call fails, which `REF002` reports). A function that uses
   the value in a way that cannot be followed, a function a child project
-  overrides, and calls of anything but a library function count as
-  reading everything.
+  overrides, a function that may be replaced at run time (its module runs
+  `exec`, `eval` or `execfile`, writes `globals()` or
+  `sys.modules[__name__]`, sets its `func_code`, or may overwrite it with
+  a later definition or `from x import *`; a script assigns or `setattr`s
+  it; its module is used as a value or reached through `sys.modules` or
+  code run from strings), and calls of anything but a library function
+  count as reading everything.
 
 These never count as unused:
 
