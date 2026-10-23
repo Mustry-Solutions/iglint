@@ -150,9 +150,16 @@ longer needed for safety.
 
 Rules not listed offer no fix. The language server uses the same
 applicability: unsafe code actions are titled `(unsafe)`, and the
-fix-all action applies unsafe fixes only when configured to. Every safe
-fix also passes the post-fix safety net (see "Threat model"); a safe fix
-that fails it is not applied and is reported as skipped.
+fix-all action applies unsafe fixes only when configured to. Every path
+that applies or offers a fix goes through one function,
+`engine::fix_file`, and so through the health check and the post-fix
+safety net (see "Threat model"): `--fix`, `--fix --unsafe-fixes`,
+`--diff`, `iglint ign-lint --fix`, the language server's fix-all (code
+action, `source.fixAll` on save, command) and its single quick fixes
+(`Live::fix_one`). A safe fix that fails the net is not applied, reported
+as skipped, and not offered as a quick fix
+(`every_fix_path_goes_through_the_net`,
+`quick_fixes_go_through_the_safety_net`).
 
 ## Dynamic code: audit of every safe fix
 

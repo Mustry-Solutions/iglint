@@ -63,6 +63,11 @@ impl ScriptText {
     }
 }
 
+/// Tests only: a script containing this text fails the net for every safe
+/// fix, so tests can check that every fix path goes through the net.
+#[cfg(any(test, feature = "testing"))]
+pub const TEST_REJECT_MARKER: &str = "IGLINT_TEST_REJECT_SAFE_FIXES";
+
 /// The scripts of a text of the file being fixed.
 pub(crate) type Scripts<'r> = dyn Fn(&str) -> Vec<ScriptText> + 'r;
 
@@ -212,6 +217,13 @@ pub(crate) fn safe_fix_problem(
 ) -> Option<String> {
     if before_scripts.is_empty() && after_scripts.is_empty() {
         return None;
+    }
+    #[cfg(any(test, feature = "testing"))]
+    if before_scripts
+        .iter()
+        .any(|s| s.source.contains(TEST_REJECT_MARKER))
+    {
+        return Some("the test marker rejects safe fixes".to_owned());
     }
     if before_scripts.len() != after_scripts.len() {
         return Some("it would add or remove a script".to_owned());
@@ -671,6 +683,104 @@ mod tests {
         let after = iglint_text::apply_edits(&text, &edits).unwrap();
         let problem = safe_fix_problem(&path, &text, &before, &facts, &edits, &scripts(&after));
         assert!(problem.is_some_and(|p| p.contains("compiles")));
+    }
+
+    /// Every path that applies or offers a fix goes through
+    /// `engine::fix_file` and so through the net: `--fix`, `--fix
+    /// --unsafe-fixes`, `--diff` (with and without unsafe fixes; `iglint
+    /// ign-lint --fix` runs `engine::check` the same way), the language
+    /// server's fix-all (also the `source.fixAll` code action on save and
+    /// the fix-all command, both `Live::fix_all`) and its single quick
+    /// fixes (`Live::fix_one`). A test marker makes the net reject every
+    /// safe fix of the script; the unsafe fix still applies where unsafe
+    /// fixes are wanted.
+    #[test]
+    fn every_fix_path_goes_through_the_net() {
+        use crate::engine::FixMode;
+        use crate::rules::script::testing::*;
+
+        let code = format!(
+            "# {TEST_REJECT_MARKER}\nx = 1  # iglint: ignore[SCR101]\ny = 2  # iglint: ignore[SCR101] legacy\n"
+        );
+        let safe_kept = |fixed: &str| fixed.contains("x = 1  # iglint: ignore[SCR101]\n");
+        let unsafe_applied = |fixed: &str| !fixed.contains("legacy");
+        let rules = [("SCR101", ""), ("SCR123", "")];
+        let f = library("m", &code);
+        let path = library_path(&f, "m");
+        // The control: without the marker the safe fix applies.
+        let control = library("m", &code.replacen(TEST_REJECT_MARKER, "marker", 1));
+        let control_path = library_path(&control, "m");
+        let result = control.run(
+            &rules,
+            FixMode::DiffOnly {
+                unsafe_fixes: false,
+            },
+        );
+        let fixed = &result
+            .fixed
+            .iter()
+            .find(|s| s.path == control_path)
+            .unwrap()
+            .fixed;
+        assert!(!safe_kept(fixed), "{fixed}");
+
+        for (mode, wants_unsafe) in [
+            (
+                FixMode::DiffOnly {
+                    unsafe_fixes: false,
+                },
+                false,
+            ),
+            (FixMode::DiffOnly { unsafe_fixes: true }, true),
+            (FixMode::Safe, false),
+            (FixMode::Unsafe, true),
+        ] {
+            let g = library("m", &code);
+            let p = library_path(&g, "m");
+            let result = g.run(&rules, mode);
+            let fixed = result
+                .fixed
+                .iter()
+                .find(|s| s.path == p)
+                .map_or_else(|| code.clone(), |s| s.fixed.clone());
+            assert!(safe_kept(&fixed), "{mode:?}: {fixed}");
+            assert_eq!(unsafe_applied(&fixed), wants_unsafe, "{mode:?}: {fixed}");
+            if mode.writes() {
+                assert_eq!(std::fs::read_to_string(&p).unwrap(), fixed, "{mode:?}");
+            }
+        }
+
+        let settings = crate::rules::test_support::settings(f.root(), &rules);
+        let mut live = crate::live::LiveWorkspace::new(settings, vec![f.root().to_path_buf()]);
+        for unsafe_fixes in [false, true] {
+            let fixed = live
+                .fix_all(&path, unsafe_fixes)
+                .map_or_else(|| code.clone(), |f| f.fixed);
+            assert!(safe_kept(&fixed), "fix-all {unsafe_fixes}: {fixed}");
+            assert_eq!(unsafe_applied(&fixed), unsafe_fixes, "fix-all: {fixed}");
+        }
+        let diagnostics = live
+            .check(std::slice::from_ref(&path))
+            .pop()
+            .unwrap()
+            .diagnostics;
+        let quick: Vec<(crate::Applicability, bool)> = diagnostics
+            .iter()
+            .filter(|d| d.fix.is_some())
+            .map(|d| {
+                (
+                    d.fix.as_ref().unwrap().applicability,
+                    live.fix_one(&path, d).is_some(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            quick,
+            [
+                (crate::Applicability::Safe, false),
+                (crate::Applicability::Unsafe, true)
+            ]
+        );
     }
 
     fn walk(dir: &Path) -> Vec<std::path::PathBuf> {

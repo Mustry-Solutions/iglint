@@ -731,22 +731,48 @@ impl LiveWorkspace {
     /// changes. The workspace is not modified.
     pub fn fix_all(&mut self, path: &Path, unsafe_fixes: bool) -> Option<FixAll> {
         let path = absolute(path);
-        let source = self.source(&path)?;
         let diagnostics = self
             .check(std::slice::from_ref(&path))
             .pop()
             .map(|f| f.diagnostics)
             .unwrap_or_default();
+        self.apply_fixes(&path, diagnostics, unsafe_fixes, None)
+    }
+
+    /// Applies the fix of one finding of `path` (a quick fix) the way
+    /// [`Live::fix_all`] and `--fix` apply fixes, through
+    /// [`crate::engine::fix_file`]: a fix that would make the file worse,
+    /// or a safe fix that fails the safe-fix net, gives `None`. Unsafe
+    /// fixes are applied (the caller labels them).
+    pub fn fix_one(&mut self, path: &Path, diagnostic: &Diagnostic) -> Option<FixAll> {
+        let path = absolute(path);
+        self.apply_fixes(&path, vec![diagnostic.clone()], true, Some(1))
+    }
+
+    /// Runs [`crate::engine::fix_file`], the one function every fix path
+    /// shares, on `diagnostics` of `path`.
+    fn apply_fixes(
+        &mut self,
+        path: &Path,
+        diagnostics: Vec<Diagnostic>,
+        unsafe_fixes: bool,
+        passes: Option<usize>,
+    ) -> Option<FixAll> {
+        let path = path.to_path_buf();
+        let source = self.source(&path)?;
         if diagnostics.iter().all(|d| d.fix.is_none()) {
             return None;
         }
         let summaries = std::mem::take(&mut self.summaries);
         let index = ProjectIndex::build(&self.ws, summaries);
-        let options = CheckOptions {
+        let mut options = CheckOptions {
             fix_mode: FixMode::DiffOnly { unsafe_fixes },
             stdin: Some((path.clone(), String::new())),
             ..CheckOptions::default()
         };
+        if let Some(passes) = passes {
+            options.max_fix_passes = passes;
+        }
         let reanalyze =
             |text: &str, _edits: &[iglint_text::TextEdit], what: Reanalysis| -> Vec<Diagnostic> {
                 let text: Arc<str> = Arc::from(text);

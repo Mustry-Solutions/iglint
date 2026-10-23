@@ -85,6 +85,9 @@ from 0.1.0 on.
   source or strings, reflective accessors with computed names and the
   interpreter and reflection APIs.
 - SCR002 reports a recursive construct once, not once per nesting level.
+- Language server quick fixes go through the same fix function as
+  fix-all and `--fix`: a fix that would make the file worse, or a safe fix
+  that fails the safety net, is no longer offered.
 - VIEW015 no longer removes properties that a library function reads into
   a local it never uses (`x = c.custom.foo`, also inside `try`), calls
   (`f = c.custom.foo; f()`) or reads through an alias of the container

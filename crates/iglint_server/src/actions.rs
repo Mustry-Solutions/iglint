@@ -35,15 +35,23 @@ impl Server {
             return Some(actions);
         }
         let folder = self.folder_for(&path);
-        let published = self.results.get(&path)?;
         if wants(CodeActionKind::QUICKFIX.as_str()) {
-            for (d, lsp) in published.diagnostics.iter().zip(&published.lsp) {
-                if !overlaps(lsp.range, params.range) {
-                    continue;
-                }
+            let published = self.results.get(&path)?;
+            let in_range: Vec<(Diagnostic, lsp_types::Diagnostic)> = published
+                .diagnostics
+                .iter()
+                .zip(&published.lsp)
+                .filter(|(_, lsp)| overlaps(lsp.range, params.range))
+                .map(|(d, lsp)| (d.clone(), lsp.clone()))
+                .collect();
+            for (d, lsp) in &in_range {
+                // The fix goes through the same function as fix-all and
+                // `--fix` (`Live::fix_one`): one that would make the file
+                // worse, or a safe fix that fails the safe-fix net, is not
+                // offered.
                 if let Some(fix) = &d.fix
                     && fix.applicability != Applicability::DisplayOnly
-                    && let Some(edit) = self.workspace_edit(folder, &fix.edits)
+                    && let Some(edit) = self.quick_fix_edit(&uri, &path, folder, d)
                 {
                     let safe = fix.applicability == Applicability::Safe;
                     let title = if safe {
@@ -144,6 +152,33 @@ impl Server {
         };
         Some(WorkspaceEdit {
             changes: Some(HashMap::from([(uri.clone(), vec![edit])])),
+            ..WorkspaceEdit::default()
+        })
+    }
+
+    /// The edit of the quick fix of `d`, applied through
+    /// `Live::fix_one` (see [`Server::code_actions`]).
+    fn quick_fix_edit(
+        &mut self,
+        uri: &Url,
+        path: &Path,
+        folder: usize,
+        d: &Diagnostic,
+    ) -> Option<WorkspaceEdit> {
+        let current = self.folders[folder].live.source(path)?;
+        let fixed = self.folders[folder].live.fix_one(path, d)?;
+        if fixed.applied == 0 {
+            return None;
+        }
+        let (range, content) = convert::minimal_edit(current.text(), &fixed.fixed);
+        Some(WorkspaceEdit {
+            changes: Some(HashMap::from([(
+                uri.clone(),
+                vec![TextEdit {
+                    range: convert::source_range(&current, range),
+                    new_text: content,
+                }],
+            )])),
             ..WorkspaceEdit::default()
         })
     }

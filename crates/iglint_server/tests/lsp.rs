@@ -276,6 +276,69 @@ fn quick_fixes_fix_all_and_hover() {
     client.shutdown();
 }
 
+/// Quick fixes go through the same fix function as fix-all and `--fix`: a
+/// safe fix that the safe-fix net rejects is not offered, an unsafe fix
+/// is offered as unsafe, and fix-all applies neither (unsafe fixes off).
+#[test]
+fn quick_fixes_go_through_the_safety_net() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    demo_project(&root);
+    let lib = "projects/demo/ignition/script-python/m";
+    write(
+        &root,
+        &format!("{lib}/resource.json"),
+        &MANIFEST.replace("view.json", "code.py"),
+    );
+    let marker = iglint_linter::safety::TEST_REJECT_MARKER;
+    let text = format!(
+        "# {marker}\nx = 1  # iglint: ignore[SCR101]\ny = 2  # iglint: ignore[SCR101] legacy\n"
+    );
+    let path = write(&root, &format!("{lib}/code.py"), &text);
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&path, &text);
+    let published = client.diagnostics(&uri, Some(1));
+    let line = |n: u32| {
+        published
+            .diagnostics
+            .iter()
+            .find(|d| {
+                d.range.start.line == n
+                    && d.code.as_ref().is_some_and(|c| {
+                        *c == lsp_types::NumberOrString::String("SCR123".to_owned())
+                    })
+            })
+            .unwrap_or_else(|| panic!("{published:#?}"))
+            .range
+    };
+    let fixes = |client: &mut Client, range| -> Vec<CodeAction> {
+        code_actions(client, &uri, range, Some(vec![CodeActionKind::QUICKFIX]))
+            .into_iter()
+            .filter(|a| a.title.starts_with("SCR123") && !a.title.contains("suppress on this line"))
+            .collect()
+    };
+    let rejected = fixes(&mut client, line(1));
+    assert!(rejected.is_empty(), "{rejected:#?}");
+    let unsafe_fix = fixes(&mut client, line(2));
+    assert_eq!(unsafe_fix.len(), 1, "{unsafe_fix:#?}");
+    assert!(unsafe_fix[0].title.ends_with("(unsafe)"));
+    assert_eq!(unsafe_fix[0].is_preferred, Some(false));
+    let actions = code_actions(
+        &mut client,
+        &uri,
+        full_range(),
+        Some(vec![CodeActionKind::SOURCE_FIX_ALL]),
+    );
+    for action in actions {
+        let resolved = client.request::<CodeActionResolveRequest>(action);
+        if let Some(edit) = resolved.edit {
+            let fixed = apply(&text, &edit.changes.unwrap()[&uri]);
+            assert!(fixed.contains("x = 1  # iglint: ignore[SCR101]"), "{fixed}");
+        }
+    }
+    client.shutdown();
+}
+
 #[test]
 fn fix_all_without_resolve_support_is_eager() {
     let dir = tempfile::tempdir().unwrap();
