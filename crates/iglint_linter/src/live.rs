@@ -651,7 +651,19 @@ impl LiveWorkspace {
         };
         run_phase(&unit, None, &set, &set.local, &mut out);
         run_phase(&unit, Some(index), &set, &set.project, &mut out);
+        self.gate_file_reads(&mut out, index);
         out
+    }
+
+    /// Code that may read workspace files observes every fix
+    /// ([`crate::rules::vetting::gate_file_reads`]).
+    fn gate_file_reads(&self, out: &mut [Diagnostic], index: &ProjectIndex<'_>) {
+        crate::rules::vetting::gate_file_reads(
+            out,
+            index,
+            &self.table,
+            self.settings.assume_no_workspace_file_reads,
+        );
     }
 
     /// Project rules of one project (reported on `project.json`).
@@ -678,6 +690,7 @@ impl LiveWorkspace {
             let mut cx = Checker::new(&unit, Some(index), &set.active[*slot], &mut out);
             rule.check_project(&mut cx, project);
         }
+        self.gate_file_reads(&mut out, index);
         out
     }
 
@@ -723,6 +736,7 @@ impl LiveWorkspace {
         };
         run_phase(&unit, None, &set, &set.local, &mut out);
         run_phase(&unit, Some(index), &set, &set.project, &mut out);
+        self.gate_file_reads(&mut out, index);
         out
     }
 

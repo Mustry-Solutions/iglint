@@ -72,6 +72,12 @@ there is one: until the binding delivers its first value (query bindings
 are asynchronous), startup scripts, change scripts and expressions see
 the stored value before the fix and no value after it.
 
+Like every fix, it is unsafe while code in the workspace may read the
+files a fix edits (a read whose path is not a literal outside the
+workspace, or code that is not vetted); the project setting `[fix]
+assume-scripts-do-not-read-workspace-files = true` declares that no script
+does (see `docs/internal/fix-safety.md`, "File reads").
+
 ## ign-lint
 
 Equivalent of `PropertyPersistenceRule` (`expected_persistent`,

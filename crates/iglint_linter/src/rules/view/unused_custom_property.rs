@@ -134,6 +134,12 @@ outside its project whose scripts call names that may be library
 functions. View parameters are never removed automatically (callers pass
 them).
 
+Like every fix, it is unsafe while code in the workspace may read the
+files a fix edits (a read whose path is not a literal outside the
+workspace, or code that is not vetted); the project setting `[fix]
+assume-scripts-do-not-read-workspace-files = true` declares that no script
+does (see `docs/internal/fix-safety.md`, "File reads").
+
 ## ign-lint
 
 Equivalent of `UnusedCustomPropertiesRule`, with the same messages in
@@ -1495,6 +1501,39 @@ mod tests {
         assert!(
             d.iter()
                 .all(|d| d.fix.as_ref().unwrap().applicability == crate::Applicability::Safe),
+            "{d:?}"
+        );
+    }
+
+    /// Reviewer round 10 (Codex) blocker: a view event that reads its own
+    /// `view.json` sees the removed property. Reads of possibly-workspace
+    /// files make every fix unsafe, with the site named; a read of a
+    /// literal path outside the workspace does not.
+    #[test]
+    fn file_reads_make_fixes_unsafe() {
+        let d = with_library(
+            "\\timport json\\n\\td = json.loads(open('/usr/local/bin/ignition/data/projects/p/com.inductiveautomation.perspective/views/Main/view.json').read())\\n\\tsystem.perspective.print('a' in d['custom'])",
+            &[],
+        );
+        assert!(!d.is_empty());
+        for d in &d {
+            let fix = d.fix.as_ref().unwrap();
+            assert_eq!(fix.applicability, crate::Applicability::Unsafe, "{d:?}");
+            let site = fix.unsafe_reason.as_ref().unwrap().site.as_ref().unwrap();
+            assert!(site.what.starts_with("open("), "{site:?}");
+            assert!(site.path.ends_with("view.json"), "{site:?}");
+        }
+        let d = with_library(
+            "\\tlib.util.dump(1)",
+            &[(
+                "lib/util",
+                "def dump(x):\n    print open('/tmp/x.json').read()\n",
+            )],
+        );
+        assert!(
+            !d.is_empty()
+                && d.iter()
+                    .all(|d| d.fix.as_ref().unwrap().applicability == crate::Applicability::Safe),
             "{d:?}"
         );
     }

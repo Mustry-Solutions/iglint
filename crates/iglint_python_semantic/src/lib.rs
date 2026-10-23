@@ -56,6 +56,7 @@
 mod compile;
 mod compile_warnings;
 pub mod dynamic;
+pub mod file_reads;
 mod flow;
 mod generated;
 mod limits;

@@ -34,6 +34,10 @@ from 0.1.0 on.
 
 ### Added
 
+- `[fix] assume-scripts-do-not-read-workspace-files` (default `false`)
+  in `iglint.toml`: declares that no script reads the files of the
+  workspace, which lifts the file-read condition below (and only that).
+  The user's responsibility; shown by `--show-settings`.
 - VIEW021 `invalid-view-structure` reports the parts of a view (and of
   the session properties) that have the wrong JSON type, once at the
   offending value: `"root": []`, `"children": "x"`, `"script": 7`,
@@ -66,6 +70,26 @@ from 0.1.0 on.
 
 ### Fixed
 
+- Fixes of every rule were safe even when a script read the file they
+  edit: `open(...).read()` of a module saw `SCR102` remove an import,
+  `SCR124` trim a comment, `SCR123` remove a suppression and `VIEW015`
+  remove a custom property from a `view.json` the view's own event reads.
+  While any code in the workspace may read a workspace file (a read of
+  `open`, `file`, `os.stat`, `os.access`, `os.path.getsize` and the other
+  metadata functions, `system.file.readFileAsString` and friends, the
+  legacy `system.net.http*` functions, `java.io.File`, `FileInputStream`,
+  `FileReader`, `java.net.URL` or `URI` whose path is not a literal
+  outside the workspace, a measured Java member that hands out a file
+  handle such as `getParentFile` or `getProjectManager`, a Vision client
+  script, or code that is not vetted or reads frames), every fix is now
+  unsafe, and the unsafe reason names the first such site and the new
+  setting. Reads of literal paths outside the workspace (`/tmp/x.csv`),
+  write-only opens, directory listings and existence checks keep fixes
+  safe. `docs/internal/fix-safety.md` has a new "File reads" section and
+  no longer claims that whitespace and comments cannot be observed.
+- SCR102's documentation no longer says that removing an import of a
+  missing JDK class is a remaining effect of the safe fix (that removal is
+  unsafe since the previous round).
 - Pages and sessions hand out other views (`page.views`, `getViews()`,
   `page.view`, `session.pages`, `getPages()`, `getPage(id)`), with their
   custom properties and components. Such a use anywhere in the workspace

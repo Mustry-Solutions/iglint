@@ -51,9 +51,15 @@ pub fn is_dotted_name(text: &str) -> bool {
 
 fn unknown(summary: &mut ResourceSummary, file: FileId, range: TextRange, what: String) {
     let refs = &mut summary.references;
+    let site = UnknownSite { file, range, what };
+    // Code iglint does not read may read files too.
     refs.unknown_code = true;
+    refs.reads_files = true;
+    if refs.file_read_site.is_none() {
+        refs.file_read_site = Some(site.clone());
+    }
     if refs.unknown_site.is_none() {
-        refs.unknown_site = Some(UnknownSite { file, range, what });
+        refs.unknown_site = Some(site);
     }
 }
 
@@ -126,7 +132,11 @@ pub fn run_script_code(
             };
             super::refs::collect(&model, &ctx, &mut inner);
             // Sites inside the code are reported at the literal.
-            if let Some(site) = &mut inner.unknown_site {
+            for site in inner
+                .unknown_site
+                .iter_mut()
+                .chain(&mut inner.file_read_site)
+            {
                 *site = UnknownSite {
                     file,
                     range: at,

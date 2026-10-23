@@ -50,7 +50,12 @@ def runAction(self, event):
 
 ## Fix
 
-Removes the whitespace. Safe.
+Removes the whitespace. Safe: the whitespace is in no value and no line
+moves. Like every fix, it is unsafe while code in the workspace may read the
+files a fix edits (a read whose path is not a literal outside the
+workspace, or code that is not vetted); the project setting `[fix]
+assume-scripts-do-not-read-workspace-files = true` declares that no script
+does (see `docs/internal/fix-safety.md`, "File reads").
 
 ## pylint
 
@@ -124,19 +129,70 @@ mod tests {
         assert_eq!(fixed, "x = 1\n\ny = '''a  \nb'''\nz = 2\r\nw = 3");
     }
 
-    /// Whitespace outside string literals cannot be observed: Jython has
-    /// no source for scripts compiled from strings (`inspect.getsource`
-    /// fails, tracebacks show no lines; verified on Ignition 8.3's Jython)
-    /// and line numbers do not move. Dynamic code leaves the fix safe.
+    /// Whitespace outside string literals is not in any value and line
+    /// numbers do not move: Jython has no source for scripts compiled from
+    /// strings (`inspect.getsource` fails, tracebacks show no lines;
+    /// verified on Ignition 8.3's Jython). But code that is not vetted or
+    /// reads frames may read the file itself (`open` reached under another
+    /// name), so it makes the fix unsafe, unless the project declares that
+    /// no script reads workspace files.
     #[test]
-    fn dynamic_code_leaves_the_fix_safe() {
+    fn dynamic_code_makes_the_fix_unsafe_unless_declared() {
         let code = "import __builtin__  \nimport inspect\nev = eval  \nexec 'x = 1'  \nprint getattr(x, n)  \nprint inspect.getsource(f), inspect.currentframe().f_lineno  \n";
-        let d = lint_module("SCR124", code);
+        let f = library("m", code);
+        let d = f.lint(&["SCR124"]);
+        assert_eq!(d.len(), 5);
+        for d in &d {
+            let fix = d.fix.as_ref().unwrap();
+            assert_eq!(fix.applicability, crate::Applicability::Unsafe);
+            let reason = fix.unsafe_reason.as_ref().unwrap();
+            assert!(reason.message.contains("may read the files"), "{reason:?}");
+            assert_eq!(reason.site.as_ref().unwrap().what, "__builtin__");
+        }
+        let d = f
+            .run_assuming(&[("SCR124", "")], crate::FixMode::None, true)
+            .diagnostics;
         assert_eq!(d.len(), 5);
         assert!(
             d.iter()
                 .all(|d| d.fix.as_ref().unwrap().applicability == crate::Applicability::Safe)
         );
+    }
+
+    /// Reviewer round 10 (Codex) blocker: a script that reads a file with
+    /// trailing whitespace sees the fix (`open(...).read().splitlines()`).
+    /// A read of a computed path makes the fix unsafe, with the site named;
+    /// a read of a literal path outside the workspace does not.
+    #[test]
+    fn file_reads_make_the_fix_unsafe() {
+        let reader = "def last(p):\n    return open(p).read().splitlines()[-1]\n";
+        let f = with_library(library("m", "x = 1  # note  \n"), "r", reader);
+        let d = f.lint(&["SCR124"]);
+        assert_eq!(d.len(), 1);
+        let fix = d[0].fix.as_ref().unwrap();
+        assert_eq!(fix.applicability, crate::Applicability::Unsafe);
+        let site = fix.unsafe_reason.as_ref().unwrap().site.as_ref().unwrap();
+        assert_eq!(site.what, "open(p)");
+        assert_eq!((site.line, site.column), (2, 12));
+        assert!(!safe_fix_applies(&f, "SCR124", "m"));
+        // Opt-in: the user declares that no script reads workspace files.
+        assert_eq!(
+            f.fixed_assuming(&[("SCR124", "")], false, &library_path(&f, "m"), true),
+            "x = 1  # note\n"
+        );
+        for outside in [
+            "x = open('/tmp/report.csv').read()\n",
+            "def w(p, s):\n    open(p, 'w').write(s)\n",
+            "import os\nx = os.listdir(p)\n",
+        ] {
+            let f = with_library(library("m", "x = 1  \n"), "r", outside);
+            let d = f.lint(&["SCR124"]);
+            assert_eq!(
+                d[0].fix.as_ref().unwrap().applicability,
+                crate::Applicability::Safe,
+                "{outside}"
+            );
+        }
     }
 
     #[test]

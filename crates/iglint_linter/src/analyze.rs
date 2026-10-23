@@ -770,6 +770,15 @@ pub(crate) fn analyze_with(
                 ),
                 _ => None,
             };
+            // Code that may read workspace files observes every fix: after
+            // the cache, which keeps the findings of the file as they are.
+            let mut diagnostics = diagnostics;
+            crate::rules::vetting::gate_file_reads(
+                &mut diagnostics,
+                &index,
+                &table,
+                settings.assume_no_workspace_file_reads,
+            );
             // pylint findings are carried through the fixes, not recomputed.
             let pylint_code = RuleCode::new(&pylint::META);
             let carried = std::cell::RefCell::new(
@@ -779,6 +788,7 @@ pub(crate) fn analyze_with(
                     .cloned()
                     .collect::<Vec<_>>(),
             );
+            let assume_no_reads = settings.assume_no_workspace_file_reads;
             let reanalyze = |text: &str, edits: &[TextEdit], what: Reanalysis| -> Vec<Diagnostic> {
                 let text: Arc<str> = Arc::from(text);
                 let settings = match what {
@@ -811,6 +821,7 @@ pub(crate) fn analyze_with(
                 if what == Reanalysis::Health {
                     return out;
                 }
+                crate::rules::vetting::gate_file_reads(&mut out, &index, &table, assume_no_reads);
                 let mut carried = carried.borrow_mut();
                 if !carried.is_empty() {
                     let file = SourceFile::new(target.path.clone(), text);

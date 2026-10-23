@@ -836,3 +836,90 @@ fn quick_fix_for_an_import_that_fails_is_unsafe() {
         client.shutdown();
     }
 }
+
+/// Reviewer round 10 (Codex) blocker, through the language server: a
+/// script that reads its own file (`open(...).read()`) or another script's
+/// file observes every fix, so the quick fixes of `SCR102` and `SCR124` are
+/// unsafe and name the read, and fix-all applies neither; with `[fix]
+/// assume-scripts-do-not-read-workspace-files = true` they are safe again.
+#[test]
+fn quick_fixes_are_unsafe_when_scripts_read_workspace_files() {
+    for assume in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        demo_project(&root);
+        let mut config = String::from("extend-select = [\"SCR124\"]\n");
+        if assume {
+            config.push_str("[fix]\nassume-scripts-do-not-read-workspace-files = true\n");
+        }
+        write(&root, "iglint.toml", &config);
+        let lib = "projects/demo/ignition/script-python";
+        let manifest = MANIFEST.replace("view.json", "code.py");
+        write(&root, &format!("{lib}/r/resource.json"), &manifest);
+        write(
+            &root,
+            &format!("{lib}/r/code.py"),
+            "def last(p):\n    return open(p).read().splitlines()[-1]\n",
+        );
+        write(&root, &format!("{lib}/m/resource.json"), &manifest);
+        let text = "import math\nprint open('/w/projects/p/ignition/script-python/m/code.py').read().startswith('import math\\n')\nx = 1  # note  \n";
+        let path = write(&root, &format!("{lib}/m/code.py"), text);
+        let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+        let uri = client.open(&path, text);
+        let published = client.diagnostics(&uri, Some(1));
+        for code in ["SCR102", "SCR124"] {
+            let range = published
+                .diagnostics
+                .iter()
+                .find(|d| {
+                    d.code
+                        .as_ref()
+                        .is_some_and(|c| *c == lsp_types::NumberOrString::String(code.to_owned()))
+                })
+                .unwrap_or_else(|| panic!("{code}: {published:#?}"))
+                .range;
+            let fixes: Vec<CodeAction> = code_actions(
+                &mut client,
+                &uri,
+                range,
+                Some(vec![CodeActionKind::QUICKFIX]),
+            )
+            .into_iter()
+            .filter(|a| a.title.starts_with(code) && !a.title.contains("suppress"))
+            .collect();
+            assert!(!fixes.is_empty(), "{code}: {fixes:#?}");
+            for fix in &fixes {
+                if assume {
+                    assert!(!fix.title.contains("unsafe"), "{fix:#?}");
+                } else {
+                    assert!(
+                        fix.title
+                            .contains("(unsafe: code in the workspace may read the files"),
+                        "{fix:#?}"
+                    );
+                    assert!(fix.title.contains("open("), "{fix:#?}");
+                    assert_eq!(fix.is_preferred, Some(false), "{fix:#?}");
+                }
+            }
+        }
+        let actions = code_actions(
+            &mut client,
+            &uri,
+            full_range(),
+            Some(vec![CodeActionKind::SOURCE_FIX_ALL]),
+        );
+        let mut fixed = text.to_owned();
+        for action in actions {
+            let resolved = client.request::<CodeActionResolveRequest>(action);
+            if let Some(edit) = resolved.edit {
+                fixed = apply(text, &edit.changes.unwrap()[&uri]);
+            }
+        }
+        if assume {
+            assert!(fixed.ends_with("x = 1  # note\n"), "{fixed}");
+        } else {
+            assert_eq!(fixed, text);
+        }
+        client.shutdown();
+    }
+}

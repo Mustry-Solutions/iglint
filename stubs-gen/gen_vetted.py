@@ -32,6 +32,19 @@
 #   an import is known to succeed only when it names one of them (SCR102's
 #   safe removal, and vetting of Java classes, need that evidence).
 #
+#   JAVA_FILE_MEMBERS and JAVA_FILE_CLASSES: the member names whose declared
+#   type mentions a file handle (java.io.File, java.nio.file.Path, a file
+#   channel or descriptor, a URL or URI, a zip file, Ignition's project and
+#   resource collection managers and resources), found by a second fixed
+#   point over the same seeds in which the handle types are stops too (and
+#   are scanned, so that navigating from a handle, `getParentFile`, is a
+#   member too); and the vetted Java classes that are handle types or have a
+#   public constructor whose signature mentions one. vetted.rs gives every
+#   such class a policy (a file reader whose path argument must be a literal
+#   outside the workspace, a writer, or a class that only takes handles) and
+#   treats any member name on any value as a possible file read. See
+#   docs/internal/fix-safety.md ("File reads").
+#
 #   PERSPECTIVE_MEMBERS, PERSPECTIVE_PROPERTY_TYPES and
 #   PERSPECTIVE_DELEGATE_MEMBERS: the members of the objects Perspective
 #   hands to scripts (component, view, page and session SafetyWrappers),
@@ -227,6 +240,47 @@ STOP_TYPES = [
     'com.inductiveautomation.ignition.common.script.ScriptManager',
 ]
 
+# File handle types: holding one lets a script read the bytes or metadata
+# of a file, or of a project resource as the gateway loaded it. A member
+# whose declared type mentions one is a file handle source (JAVA_FILE_MEMBERS).
+FILE_HANDLE_TYPES = [
+    'java.io.File',
+    'java.io.FileDescriptor',
+    'java.io.FileInputStream',
+    'java.io.FileReader',
+    'java.io.RandomAccessFile',
+    'java.nio.file.Path',
+    'java.nio.file.FileSystem',
+    'java.nio.file.FileStore',
+    'java.nio.file.DirectoryStream',
+    'java.nio.file.spi.FileSystemProvider',
+    'java.nio.file.attribute.BasicFileAttributes',
+    'java.nio.channels.FileChannel',
+    'java.nio.channels.AsynchronousFileChannel',
+    'java.util.zip.ZipFile',
+    'java.net.URL',
+    'java.net.URI',
+    'java.net.URLConnection',
+    # Ignition 8.3: project and gateway resources as the gateway loaded
+    # them from the files a fix edits.
+    'com.inductiveautomation.ignition.gateway.project.ProjectManager',
+    'com.inductiveautomation.ignition.common.resourcecollection.Resource',
+    'com.inductiveautomation.ignition.common.resourcecollection.ResourceCollection',
+    'com.inductiveautomation.ignition.common.resourcecollection.Snapshot',
+    'com.inductiveautomation.ignition.gateway.resourcecollection.ResourceCollectionManager',
+    'com.inductiveautomation.ignition.gateway.resourcecollection.ResourceCollectionFileTree',
+    'com.inductiveautomation.ignition.gateway.resourcecollection.ResourceDataFile',
+    'com.inductiveautomation.ignition.gateway.resourcecollection.StreamingResource',
+]
+
+SCANNED_HANDLE_TYPES = [
+    'java.io.File',
+    'java.io.FileInputStream',
+    'java.io.FileReader',
+    'java.net.URL',
+    'java.net.URI',
+]
+
 # Stop types that a script also holds without naming any member, so their
 # own members are first hops too (and are scanned): a Java class named in
 # source (`ArrayList`, `type(x)`) is a class proxy exposing java.lang.Class's
@@ -316,6 +370,13 @@ INJECTED_CLASSES = [
     'com.inductiveautomation.sfc.api.PyFunctionalChartScope',
 ]
 
+# The Vision client's injected objects (JAVA_FILE_MEMBERS does not seed them).
+VISION_INJECTED = [
+    'com.inductiveautomation.factorypmi.application.script',
+    'java.awt.event',
+    'java.beans.PropertyChangeEvent',
+]
+
 # The Java types stubs-gen/normalize.py (JAVA_TYPES) writes as each
 # Python-level name, plus the Jython types for the names it does not map.
 PYTHON_NAMES = {
@@ -362,8 +423,9 @@ EXPLICIT_REFLECTION_API = [
 ]
 
 
-def system_types(path):
-    """The Java class names system.* returns and holds, all scopes."""
+def system_types(path, scopes=None):
+    """The Java class names system.* returns and holds, in every scope or,
+    with `scopes`, in variants available in one of them."""
     import json
     data = json.load(open(path))
     out = set()
@@ -376,13 +438,18 @@ def system_types(path):
             out.update(PYTHON_NAMES[t])
         elif '.' in t:
             out.add(t)
+    def wanted(v):
+        return scopes is None or any(s in scopes for s in v.get('scopes', []))
     for f in data['functions']:
         for v in f['variants']:
+            if not wanted(v):
+                continue
             for o in v['overloads']:
                 add(o.get('returns'))
     for o in data['objects']:
         for v in o['variants']:
-            add(v.get('type'))
+            if wanted(v):
+                add(v.get('type'))
     return data.get('build', ''), sorted(out)
 
 
@@ -400,13 +467,29 @@ def bean(name, nparams):
 
 
 class Closure(object):
-    def __init__(self, loader):
+    def __init__(self, loader, handles=None):
         self.loader = loader
         self.stop = []
         for n in STOP_TYPES:
             c = self.load(n)
             if c is not None:
                 self.stop.append(c)
+        # With `handles` (FILE_HANDLE_TYPES), only members whose type
+        # mentions a handle type are recorded, and expansion stops at the
+        # handle types, except SCANNED_HANDLE_TYPES: vetted code holds those
+        # without a recorded hop (a constructor call with a literal path
+        # outside the workspace), so the members that navigate from them
+        # (`getParentFile`, `toPath`, `resolve`) are handle sources too.
+        self.handles = None
+        self.handle_names = []
+        if handles is not None:
+            self.handles = []
+            for n in handles:
+                c = self.load(n)
+                if c is None:
+                    raise Exception('file handle type %s does not load' % n)
+                self.handles.append(c)
+                self.handle_names.append(n)
         self.names = {}      # member name -> 'declaring.Class.member' (smallest)
         self.queued = set()
         self.work = []
@@ -452,6 +535,9 @@ class Closure(object):
                 self.mentioned(b, acc, depth + 1)
 
     def queue(self, c):
+        if self.handles is not None and self.is_handle(c) \
+                and Class.getName(c) not in SCANNED_HANDLE_TYPES:
+            return
         try:
             if Class.isAnonymousClass(c) or Class.isLocalClass(c) or Class.isSynthetic(c):
                 return
@@ -479,11 +565,40 @@ class Closure(object):
         self.mentioned(generic, acc)
         return acc
 
+    def needs_handle(self, m):
+        # With `handles`: a method one of whose parameters is a handle type
+        # that vetted code cannot hold without a recorded hop (not one of
+        # SCANNED_HANDLE_TYPES) is not a first hop: its caller holds such a
+        # handle already (`LastModification.update(Resource, String)`).
+        if self.handles is None:
+            return False
+        for p in m.getGenericParameterTypes():
+            acc = []
+            self.mentioned(p, acc)
+            for t in acc:
+                if self.is_handle(t) and Class.getName(t) not in SCANNED_HANDLE_TYPES:
+                    return True
+        return False
+
+    def is_handle(self, c):
+        for r in self.handles or []:
+            if Class.isAssignableFrom(r, c):
+                return True
+        return False
+
     def follow(self, types):
-        # Queues the plain types; whether any is a stop type.
+        # Queues the plain types; whether any is a stop type (with
+        # `handles`: a handle type; the handle type itself is scanned).
         hit = False
         for t in types:
-            if self.is_stop(t):
+            if self.handles is not None:
+                if self.is_handle(t):
+                    hit = True
+                    if Class.getName(t) in SCANNED_HANDLE_TYPES:
+                        self.queue(t)
+                elif not self.is_stop(t):
+                    self.queue(t)
+            elif self.is_stop(t):
                 hit = True
             else:
                 self.queue(t)
@@ -518,7 +633,7 @@ class Closure(object):
                 except (Exception, JavaThrowable):
                     self.missing.add('%s.%s' % (cn, name))
                     continue
-                if self.follow(returns):
+                if self.follow(returns) and not self.needs_handle(m):
                     where = '%s.%s' % (cn, name)
                     self.record(name, where)
                     b = bean(name, len(params))
@@ -599,6 +714,49 @@ def java_reflective_members(java_classes, packages, system_json):
         'missing': sorted(closure.missing),
     }
     return sorted(names.items()), stats
+
+
+def java_file_members(loader, java_classes, packages, all_classes, system_json):
+    """JAVA_FILE_MEMBERS and JAVA_FILE_CLASSES (see the header)."""
+    closure = Closure(loader, FILE_HANDLE_TYPES)
+    # Gateway scope only: Vision clients run only for Vision resources,
+    # which are unknown code or (client event scripts) counted as possible
+    # file reads by the linter, so Vision's objects are not seeds here.
+    _, returned = system_types(system_json, ['gateway'])
+    injected_classes = [c for c in INJECTED_CLASSES if c not in VISION_INJECTED]
+    injected_packages = [p for p in INJECTED_PACKAGES if p not in VISION_INJECTED]
+    seeds = SEED_CLASSES + HELD_WITHOUT_A_HOP + list(java_classes) + returned + injected_classes
+    vetted = list(java_classes)
+    for n in all_classes:
+        pkg = n.rsplit('.', 1)[0] if '.' in n else ''
+        top = n.split('$')[0]
+        in_vetted = pkg in packages and top.rsplit('.', 1)[-1] not in packages[pkg]
+        injected = any(pkg == p or pkg.startswith(p + '.') for p in injected_packages)
+        if (in_vetted or injected) and public_member(closure, n):
+            seeds.append(n)
+            if in_vetted and '$' not in n:
+                vetted.append(n)
+    for n in sorted(set(seeds)):
+        closure.seed(n)
+    for n in SCANNED_HANDLE_TYPES:
+        closure.seed(n)
+    closure.run()
+    classes = []
+    for n in sorted(set(vetted)):
+        c = closure.load(n)
+        if c is None:
+            continue
+        if closure.is_handle(c):
+            classes.append(n)
+            continue
+        for k in Class.getConstructors(c):
+            acc = []
+            for t in k.getGenericParameterTypes():
+                closure.mentioned(t, acc)
+            if any(closure.is_handle(t) for t in acc):
+                classes.append(n)
+                break
+    return sorted(closure.names.items()), classes, len(closure.scanned)
 
 
 # --- the Python module attribute measurement -------------------------------
@@ -841,12 +999,15 @@ def main():
     package_classes = java_package_classes(java_classes, packages, stats['classes'],
                                            stats['loader'])
     all_attrs = module_attrs(modules)
+    file_members, file_classes, file_scanned = java_file_members(
+        stats['loader'], java_classes, packages, stats['classes'], system_json)
 
     signature = (['mod:%s' % m for m in modules]
                  + ['java:%s' % c for c in sorted(java_classes)]
                  + ['pkg:%s' % p for p in sorted(packages)]
                  + ['stubs:%s' % stats['build']]
-                 + ['perspective:%s=%s' % (short, name) for short, name in PERSPECTIVE_WRAPPERS])
+                 + ['perspective:%s=%s' % (short, name) for short, name in PERSPECTIVE_WRAPPERS]
+                 + ['file-handle:%s' % n for n in FILE_HANDLE_TYPES])
 
     lines = []
     lines.append('// @generated by stubs-gen/gen_vetted.py; do not edit by hand.')
@@ -880,6 +1041,25 @@ def main():
     lines.append('pub(crate) const JAVA_REFLECTIVE_MEMBERS: &[&str] = &[')
     for name, where in members:
         lines.append('    %s, // %s' % (rust_str(name), where))
+    lines.append('];')
+    lines.append('')
+    lines.append('/// Member names (Java method, Jython bean-property and field')
+    lines.append('/// spellings) whose declared type mentions a file handle (a file,')
+    lines.append('/// path, channel, descriptor, URL or URI, or a project resource as')
+    lines.append('/// the gateway loaded it), over every type a script can hold (%d'
+                 % file_scanned)
+    lines.append('/// types scanned). Naming any of these on any value may read the')
+    lines.append('/// bytes or metadata of a workspace file. Sorted.')
+    lines.append('pub(crate) const JAVA_FILE_MEMBERS: &[&str] = &[')
+    for name, where in file_members:
+        lines.append('    %s, // %s' % (rust_str(name), where))
+    lines.append('];')
+    lines.append('')
+    lines.append('/// The vetted Java classes that are file handle types or have a public')
+    lines.append('/// constructor whose signature mentions one. Sorted.')
+    lines.append('#[cfg_attr(not(test), allow(dead_code))]')
+    lines.append('pub(crate) const JAVA_FILE_CLASSES: &[&str] = &[')
+    lines.append(rust_str_list(file_classes, 4))
     lines.append('];')
     lines.append('')
     lines.append('/// For every vetted Python module, the attributes that are')

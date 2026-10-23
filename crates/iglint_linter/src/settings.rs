@@ -148,6 +148,11 @@ pub struct ProjectSettings {
     pub respect_gitignore: bool,
     /// Rules whose fixes are never applied.
     pub unfixable: BTreeSet<RuleCode>,
+    /// `[fix] assume-scripts-do-not-read-workspace-files`: the user states
+    /// that no code reads the files of the workspace, so code that may
+    /// (`ProjectIndex::may_read_workspace_files`) does not keep fixes from
+    /// being safe. The user's responsibility; off by default.
+    pub assume_no_workspace_file_reads: bool,
 }
 
 impl Default for ProjectSettings {
@@ -163,6 +168,7 @@ impl Default for ProjectSettings {
             gateways: Vec::new(),
             respect_gitignore: true,
             unfixable: BTreeSet::new(),
+            assume_no_workspace_file_reads: false,
         }
     }
 }

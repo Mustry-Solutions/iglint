@@ -250,3 +250,17 @@ pub fn safe_fixed(f: &Fixture, rules: &[&str], rel: &std::path::Path) -> String 
         None => std::fs::read_to_string(rel).expect("read"),
     }
 }
+
+/// Whether `--fix` (safe fixes only) changes library module `module`.
+pub fn safe_fix_applies(f: &Fixture, rule: &str, module: &str) -> bool {
+    let path = library_path(f, module);
+    f.run(
+        &[(rule, "")],
+        crate::FixMode::DiffOnly {
+            unsafe_fixes: false,
+        },
+    )
+    .fixed
+    .iter()
+    .any(|s| s.path == path && s.changed())
+}

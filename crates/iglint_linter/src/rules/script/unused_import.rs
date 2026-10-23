@@ -81,14 +81,15 @@ keeps them, so no line number changes; the unsafe fix removes the lines.
 
 Safe only when all of these hold:
 
-* importing cannot do anything outside the importing module, so that
-  removing the import cannot change what runs: Java classes of the JDK
-  (`java.*`, `javax.*`), or a plain `import x` of a standard library
-  module that is known to have no import-time effects in Jython 2.7
-  (`os`, `re`, `json`, `datetime`, `math`, `time`, ...), or
-  `from x import y` of such a module when it is not a package; and no
-  library package of the project (or of a project inheriting from it)
-  has the same top-level name;
+* the import is known to succeed and to do nothing outside the importing
+  module, so that removing it cannot change what runs: a Java class or
+  package of the vetted JDK packages that was measured to exist in the
+  Ignition image, or a plain `import x` of a standard library module that
+  is known to have no import-time effects in Jython 2.7 (`os`, `re`,
+  `json`, `datetime`, `math`, `time`, ...) and was measured to import, or
+  `from x import y` of such a module when it is not a package and `y` was
+  measured to exist; and no library package of the project (or of a
+  project inheriting from it) has the same top-level name;
 * the module uses only vetted code: every module, Java class, builtin
   and module attribute it uses is on iglint's allowlist, and every
   library module it imports or calls is vetted too (see
@@ -111,9 +112,15 @@ Also unsafe for top-level imports of library modules when iglint cannot
 see every use of the module's names (the module is used as a value,
 references are computed at run time, a resource of the project uses code
 that is not vetted, the project is inheritable or has scripts iglint does
-not model, or the file is linted outside its project). The one remaining
-effect of a safe fix: an import that would have failed (a class missing
-from the JDK) no longer fails.
+not model, or the file is linted outside its project), and for an import
+that may fail (a Java class or module attribute not measured to exist):
+removing it turns a failing import into a successful one.
+
+Like every fix, it is unsafe while code in the workspace may read the
+files a fix edits (a read whose path is not a literal outside the
+workspace, or code that is not vetted); the project setting `[fix]
+assume-scripts-do-not-read-workspace-files = true` declares that no script
+does (see `docs/internal/fix-safety.md`, "File reads").
 
 Top-level names of a library module are attributes of the module: an
 import that another resource uses as `pkg.mod.name` is not reported, nor
@@ -1268,6 +1275,28 @@ mod tests {
     /// the caller catches the `ImportError` (verified on Jython: `failed`
     /// before, `succeeded` after). Without positive evidence that the
     /// import succeeds the fix is unsafe.
+    /// Reviewer round 10 (Codex) blocker: removing `import math` changes
+    /// what a script that reads the module's own file sees
+    /// (`open(...).read().startswith('import math\\n')` flips from `True` to
+    /// `False` on Jython). The fix is unsafe and names the read.
+    #[test]
+    fn file_reads_make_the_removal_unsafe() {
+        let code = "import math\nprint open('/w/projects/p/ignition/script-python/m/code.py').read().startswith('import math\\n')\n";
+        let f = library("m", code);
+        let d = f.lint(&["SCR102"]);
+        assert_eq!(d.len(), 1);
+        let fix = d[0].fix.as_ref().unwrap();
+        assert_eq!(fix.applicability, crate::Applicability::Unsafe);
+        let reason = fix.unsafe_reason.as_ref().unwrap();
+        let site = reason.site.as_ref().unwrap();
+        assert!(site.what.starts_with("open('/w/projects/"), "{reason:?}");
+        assert_eq!((site.line, site.column), (2, 7));
+        assert!(!safe_fix_applies(&f, "SCR102", "m"));
+        // With the opt-in, the closed world decides as before.
+        let fixed = f.fixed_assuming(&[("SCR102", "")], false, &library_path(&f, "m"), true);
+        assert!(fixed.starts_with("\nprint open("), "{fixed}");
+    }
+
     #[test]
     fn removing_an_import_that_fails_is_unsafe() {
         let code = "def f():\n    from java.util import MissingReviewClass\ntry:\n    f()\nexcept Exception:\n    print \"failed\"\nelse:\n    print \"succeeded\"\n";

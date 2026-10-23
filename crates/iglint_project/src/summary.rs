@@ -271,6 +271,16 @@ pub struct References {
     /// Where [`References::unknown_code`] comes from: the first such use
     /// of the resource (by file and offset).
     pub unknown_site: Option<UnknownSite>,
+    /// Code that may read a file a fix edits (its bytes, or metadata that
+    /// depends on them): a file read in vetted code whose path is not a
+    /// literal outside the workspace (`iglint_python_semantic::file_reads`),
+    /// or any code that is not vetted or reads frames, which may call
+    /// `open` under another name. Every fix edits workspace files, so this
+    /// keeps every fix of the workspace from being safe. Code that only
+    /// reaches other views does not count.
+    pub reads_files: bool,
+    /// Where [`References::reads_files`] comes from: the first such site.
+    pub file_read_site: Option<UnknownSite>,
     /// Imports of modules that are not vetted, with where they are; any
     /// that is not a project library module counts as
     /// [`References::unknown_code`].
@@ -366,6 +376,10 @@ impl References {
         self.unknown_code |= other.unknown_code;
         if self.unknown_site.is_none() {
             self.unknown_site = other.unknown_site;
+        }
+        self.reads_files |= other.reads_files;
+        if self.file_read_site.is_none() {
+            self.file_read_site = other.file_read_site;
         }
         self.unvetted_imports.extend(other.unvetted_imports);
         self.perspective_calls.extend(other.perspective_calls);
@@ -571,13 +585,18 @@ fn binding_refs(bindings: &[crate::view::Binding<'_>], refs: &mut References) {
 /// read, so it is unknown code for the closed world.
 fn hidden_code(problems: &[crate::view::ModelProblem], file: FileId, refs: &mut References) {
     for p in problems.iter().filter(|p| p.hides_code) {
+        let site = UnknownSite {
+            file: p.file.unwrap_or(file),
+            range: p.range,
+            what: p.message.clone(),
+        };
         refs.unknown_code = true;
+        refs.reads_files = true;
         if refs.unknown_site.is_none() {
-            refs.unknown_site = Some(UnknownSite {
-                file: p.file.unwrap_or(file),
-                range: p.range,
-                what: p.message.clone(),
-            });
+            refs.unknown_site = Some(site.clone());
+        }
+        if refs.file_read_site.is_none() {
+            refs.file_read_site = Some(site);
         }
     }
 }

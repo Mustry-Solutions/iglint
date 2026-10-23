@@ -29,7 +29,10 @@ every fix below:
   a component, message payloads, `system.util.getGlobals()`;
 * string-built names (`getChild('Btn' + n)`, `meta.name` comparisons);
 * Perspective run-time semantics: property access modes, persistence and
-  stored values, bindings and change scripts that run on their own.
+  stored values, bindings and change scripts that run on their own;
+* the files themselves: every fix edits a file of the workspace, and code
+  that reads that file (its bytes, size or modification time) sees the
+  edit, however neutral it is for the code that runs (see "File reads").
 
 Regression tests named after each condition live next to the rule. Script
 behaviour was checked on IA's Jython (Ignition 8.3.3 image) by running the
@@ -344,6 +347,155 @@ binary test `fix_keeps_properties_read_from_another_view` and the
 language server test `quick_fix_for_a_property_read_from_another_view_is_unsafe`
 cover each route.
 
+### File reads
+
+Every fix, of every rule, edits a file of the workspace: a script, a
+`view.json`, a resource manifest. A script that reads that file observes
+the fix. `import math` followed by
+`print open('.../m/code.py').read().startswith('import math\n')` prints
+`True`, and `False` after `SCR102`'s safe fix (verified on Jython in the
+8.3.3 image); a script that reads the last line of another script sees
+`SCR124` trim its trailing whitespace; a view event that runs
+`json.loads(open(<its view.json>).read())` sees `VIEW015` remove a custom
+property. An earlier version of this document claimed that whitespace
+and comments cannot be observed: they cannot through the running code, but
+they can through the file.
+
+So **no fix is safe while code in the workspace may read a file that a fix
+edits**, unless the project declares that none does. The engine applies
+this after every rule (`rules::vetting::gate_file_reads`, on every path
+that reports or applies fixes: `check`, `--fix`, `--diff`, the fix passes,
+the language server's diagnostics, quick fixes and fix-all), so it covers
+every rule, present and future, including JSON-only fixes. The unsafe
+reason names the first such site in the workspace and the setting.
+
+**What counts** (`ProjectIndex::may_read_workspace_files`, from
+`References::reads_files`):
+
+* a possible read in vetted code (`iglint_python_semantic::file_reads`,
+  reported by `vetted::unknown_code` as `UnknownCode::file_read`):
+  * the builtins `open` and `file`, unless the mode is a literal without
+    `r`, `+` or `U` (a write-only open observes nothing);
+  * metadata that a fix changes: `os.stat` and `os.lstat` (size, times,
+    inode), `os.access` (a fix replaces the file, see below, and a new
+    owner may change the answer), `os.path.getsize`, `getmtime`,
+    `getatime`, `getctime` and `samefile`;
+  * Ignition: `system.file.readFileAsString`, `readFileAsBytes`,
+    `system.iec61850.writeFile` (it sends a local file to the device),
+    and the legacy `system.net.httpGet`, `httpPost`, `httpPut` and
+    `httpDelete`, which take any URL string (`file:` included, not
+    verified otherwise, so failing closed). `system.net.httpClient` uses
+    Java's `HttpClient`, which rejects `file:` URIs (verified:
+    `IllegalArgumentException: invalid URI scheme file`);
+  * vetted Java classes that make file handles from strings
+    (`file_reads::JAVA_FILE_POLICY`): `java.io.File`, `FileInputStream`,
+    `FileReader` (path arguments), `java.net.URL` and `URI` (an `http`,
+    `https` or `ftp` literal is fine, a `file:` literal is a path).
+    Writers (`FileOutputStream`, `FileWriter`, `PrintWriter`,
+    `java.util.Formatter`) and classes that only take a handle or stream
+    the script already holds (`Scanner`, `HttpURLConnection`) are plain.
+    Which vetted classes take or are handles is measured
+    (`JAVA_FILE_CLASSES`) and `every_measured_file_class_has_a_policy`
+    fails on one without a policy;
+  * any member named in `JAVA_FILE_MEMBERS`, on any value but a vetted
+    Python module, as an attribute or as a literal `getattr` name: the
+    members whose declared type mentions a file handle (`java.io.File`,
+    `FileDescriptor`, `FileInputStream`, `FileReader`, `RandomAccessFile`,
+    `java.nio.file.Path`, `FileSystem`, `FileStore`, `DirectoryStream`,
+    `FileSystemProvider`, `BasicFileAttributes`, file channels,
+    `ZipFile`, `URL`, `URI`, `URLConnection`, and Ignition's
+    `ProjectManager`, resource collections, resources, snapshots and
+    resource data files, which hand out resources as the gateway loaded
+    them from the files a fix edits). It is measured by
+    `stubs-gen/gen_vetted.py` as a second fixed point over the same seeds
+    as the reflection closure (see "Machine-measured facts"), with the
+    handle types as stops, except the handles vetted code can hold without
+    a recorded hop (`File`, `FileInputStream`, `FileReader`, `URL`, `URI`),
+    whose members are scanned so that navigating from one (`getParentFile`,
+    `toPath`, `resolve`, `openConnection`) is a recorded hop too. A method
+    that needs a handle the script cannot hold without a recorded hop
+    (`LastModification.update(Resource, String)`) is not a first hop. Seeds
+    are the gateway scope only: `system.*` return types of gateway
+    variants and the injected objects without Vision's (see below). For
+    8.3.3: 2,324 types scanned, 68 names (`getDataDir` on the WebDev
+    context's system manager, `getProjectManager`, `getParentFile`,
+    `toPath`, ...);
+  * a file facility or Java file class used as a value (`o = open`,
+    `map(open, paths)`, `F = File`): what is done with it is not followed;
+* code that is not vetted or reads frames (`vetted::unknown_code`'s other
+  uses, `dynamic::reads_frames`), imports that are neither vetted nor a
+  project library module, resources and expressions whose code iglint does
+  not read, and code hidden by a model problem: they may reach `open` under
+  another name (`f_builtins`, `eval`, a module that is not vetted). Not
+  code that only reaches other views (Perspective pages and sessions): it
+  cannot read files. This is fail closed: an unvetted Java class (an
+  Ignition class, say) may well read no file, but its methods that take a
+  string cannot be measured for whether the string is a path;
+* every Vision client script (client event scripts): the Vision client's
+  objects are not seeds of the measurement, so a Vision client script
+  counts as a possible read. Vision windows and templates are resources
+  iglint does not read, so a workspace with Vision clients already counts;
+  library code runs in a Vision client only when one of those exists.
+
+**A read is fine** only when its path is a string literal, a
+concatenation of literals or `os.path.join` of literals, that
+`file_reads::outside_workspace` proves names no file iglint edits. Files
+iglint edits are resources, always below a module directory (`ignition`,
+or a module id, dotted for every module of 8.3) of a project
+(`.../projects/<name>/...`, or a project directory linted on its own) or a
+gateway collection (`.../config/resources/<collection>/...`), plus the
+manifests `project.json` and `resource.json`; the workspace may be
+deployed anywhere, so the rule is about the path's shape, not the
+workspace's location. A path is possibly in the workspace when it is
+relative (the gateway's working directory is its installation
+directory), starts with `~`, has a `..` component (a symbolic link makes
+`..` leave a directory), a percent escape, or a component that is
+(case-insensitively, trailing dots and spaces ignored as on Windows)
+`projects`, `config`, `resources` or `ignition`, contains
+`inductiveautomation`, is a directory name with a dot after its first
+character (a module id), or is a manifest. `/tmp/report.csv` and
+`C:\exports\x.csv` are outside. A literal prefix with a computed rest
+(`'/tmp/' + name`, `os.path.join('/tmp', name)`, `'/tmp/%s' % name`) is
+not accepted: the rest may hold `../` or, for `os.path.join`, an absolute
+path that discards the prefix. The regression tests are
+`vetted::tests::file_reads`, `file_reads::tests::*`, the rule tests
+`file_reads_make_the_fix_unsafe` (`SCR124`),
+`file_reads_make_the_removal_unsafe` (`SCR102`),
+`file_reads_make_fixes_unsafe` (`VIEW015`), the binary tests
+`fixes_are_unsafe_when_scripts_read_workspace_files` and
+`reads_of_files_outside_the_workspace_keep_fixes_safe`, and the language
+server test `quick_fixes_are_unsafe_when_scripts_read_workspace_files`.
+
+**Listing and existence are not reads.** `os.listdir`, `os.walk`,
+`os.path.exists`, `isfile`, `isdir`, `islink`, `lexists` and
+`system.file.fileExists` stay plain: fixes never create or delete a file.
+A fix writes the new text to a temporary file next to the target and
+renames it over the target, keeping its permissions
+(`engine::write_atomically`), so after the fix the directory holds the
+same names; the temporary name exists only while iglint runs. The rename
+does make a new inode (and, when iglint runs as another user, a new
+owner), which is why `os.stat`, `os.access` and `samefile` count.
+
+**Not covered**, outside the closed world like projects outside the
+workspace: other processes that read the files (a database server on the
+same machine, an editor, a file sync, another gateway), Java methods in
+the measured closure that read a file named by a string argument without
+a handle type in their signature (a review of every scanned method with
+a string parameter and a name containing `read`, `load`, `open`,
+`import`, `file`, `path`, `resource`, `stream` or `content` found only
+the servlet context's web application resources, class path resources,
+named queries as loaded by the gateway, which fixes do not edit, and
+tag imports from a string of tag JSON), and project information that
+Perspective hands out as data (`session.getProjectInfo()`: titles,
+page and view paths, which no fix changes).
+
+**The opt-in.** `[fix] assume-scripts-do-not-read-workspace-files = true`
+in `iglint.toml` (default `false`) declares that no code reads the files
+of the workspace; checking that is the user's responsibility. It lifts
+only this gate: the closed-world conditions of `SCR102`, `VIEW015` and
+`NAME001` (code that is not vetted, frame readers, other views) still
+apply.
+
 ### Vetted code
 
 Each entry was checked on Ignition 8.3's Jython: it cannot evaluate code,
@@ -358,15 +510,15 @@ as a value is itself a route.
 | `string` | Except `Formatter`, which reads the attributes its format string names (verified). `Template` only looks names up in the mapping it is given (verified: `${x.y}` is rejected). |
 | `collections` | `namedtuple` runs generated code in a namespace of its own and rejects type and field names that are not identifiers (verified). |
 | `operator` | Except `attrgetter` and `methodcaller`, which look attributes up by name (verified). |
-| `os` | Only path and file functions and constants (`path`, `sep`, `getcwd`, `listdir`, `stat`, `environ`, `getenv`, `makedirs`, `remove`, `rename`, `walk`, ...). Not processes or anything else. |
+| `os` | Only path and file functions and constants (`path`, `sep`, `getcwd`, `listdir`, `stat`, `environ`, `getenv`, `makedirs`, `remove`, `rename`, `walk`, ...). Not processes or anything else. Their file reads are checked separately (see "File reads"). |
 | `sys` (also as Ignition's implicit global) | Only `version`, `version_info`, `hexversion`, `platform`, `maxint`, `maxsize`, `maxunicode`, `byteorder`, `float_info`, `stdout`, `stderr`, `exit`, `getdefaultencoding`, `getfilesystemencoding`, `getrecursionlimit`. Not `_getframe`, `modules`, `exc_info`, `path` (it decides which module an import loads), trace hooks. |
 | `system` (Ignition's scripting API) | No `system.*` function of 8.3 evaluates Python code in the caller's frame or resolves a callable by name in it (checked against the generated stubs): functions that take callables call the value, message handlers are looked up among the project's handlers, not in the caller. Except the functions that store or run code from run-time values, which are not vetted (see "`system.*` functions that run code"). A `system` package used as a value (`t = system.tag`) is not vetted either. |
 | `__future__` | Compile-time only. |
 | `java.util` (except `ServiceLoader` and the resource bundles, which load classes by name), `java.util.concurrent` (and `atomic`, `locks`), `java.util.function`, `java.util.regex`, `java.util.stream`, `java.math`, `java.text`, `java.time` (and `chrono`, `format`, `temporal`), `java.nio.charset` | Data structures and formatting; no reflection. |
 | `java.lang`: `Math`, `StrictMath`, `String`, `StringBuilder`, `StringBuffer`, the boxed number types, `Boolean`, `Character`, `Number`, `System` (except `load`, `loadLibrary`, `mapLibraryName`, security managers, `inheritedChannel`), `Exception` and common runtime exceptions | Not `Class`, `ClassLoader`, `Thread`, `Throwable`, `Runtime`, `Process*`, reflection, `invoke` or `StackWalker`. The exception classes hand out only stack traces (class, method, file and line), which safe fixes never change. |
-| `java.io`: readers, writers, file and byte streams, `File`, `IOException` | Not object streams: deserialization instantiates classes named by the data. |
+| `java.io`: readers, writers, file and byte streams, `File`, `IOException` | Not object streams: deserialization instantiates classes named by the data. Their file reads are checked separately (see "File reads"). |
 | `java.net`: `URL`, `URI`, `URLEncoder`, `URLDecoder`, `InetAddress`, `HttpURLConnection`, common exceptions | Not class loaders. |
-| Builtins: every builtin except those below; every exception class | Not `eval`, `execfile`, `compile`, `__import__`, `reload`, `input` (it evaluates what it reads), `locals`, `globals`, `vars`, `dir`, `help` (it imports modules by name). `getattr`, `setattr`, `delattr` and `hasattr` only as direct calls with a literal name (route 2 of `dynamic`). |
+| Builtins: every builtin except those below; every exception class | `open` and `file` reads are checked separately (see "File reads"). Not `eval`, `execfile`, `compile`, `__import__`, `reload`, `input` (it evaluates what it reads), `locals`, `globals`, `vars`, `dir`, `help` (it imports modules by name). `getattr`, `setattr`, `delattr` and `hasattr` only as direct calls with a literal name (route 2 of `dynamic`). |
 
 Everything else is unknown: `cPickle`, `pickle`, `copy_reg`, `shelve`,
 `marshal`, `warnings`, `logging`, `traceback`, `inspect`, `timeit`, `code`,
@@ -478,17 +630,22 @@ longer needed for safety.
 |---|---|---|---|
 | `NAME001` | Rename a component and every reference to it in the view | No reference to the component at all; no script reads `meta.name`; no script looks children up with a computed name or has a string literal equal to the name; every script parses; and no script of the view hands a component to code outside the view (library call, message payload, `getGlobals()`, an opaque call such as `locals()`), reaches a frame builtin in any way, calls an unnamed value or calls a library name that is not a plain function, class or literal constant: a library function that receives a component, or `eval` under another name, can call `getChild('Name')` itself; and every script of the view uses only vetted code (see "Threat model") | Unsafe when references exist, a component may escape or a script uses code that is not vetted (`cPickle.loads` of an `eval` opcode); no fix when a lookup cannot be rewritten or the new name is taken. Another view's script (or any code handed a page, session or one of its views) can look the component up: any such use in the workspace is unknown code under the closed-world rule |
 | `VIEW012` | Set, add or remove `access` in `propConfig` | Never: the access mode decides whether the browser receives the property and whether it may write it | Unsafe |
-| `VIEW013` | Set `persistent: false` (and remove the stored value) | No stored value: the property starts out absent either way | Unsafe when a stored value is removed: scripts and expressions that run before the binding delivers (query bindings are asynchronous) see a different value |
+| `VIEW013` | Set `persistent: false` (and remove the stored value) | No stored value: the property starts out absent either way; and no code in the workspace may read workspace files ("File reads") | Unsafe when a stored value is removed: scripts and expressions that run before the binding delivers (query bindings are asynchronous) see a different value |
 | `VIEW015` | Remove an unused custom property and its `propConfig` entries | Nothing reads or writes the property, and the view's own scripts prove it: resolved reads and writes cover expressions, bindings (bidirectional ones write) and scripts, analysed default-deny (every use of a component, the view, a page or session, a property container or an alias of one must be one of the forms listed under "`VIEW015`: understood forms" below; anything else reads and writes everything it reaches); a script that reads frames or reaches a frame builtin in any way reads everything, and every library name a script calls or uses as a value is checked to be a plain function, class or literal constant (or missing); properties with a binding or change script are never reported | Unsafe when a script, a library function it calls or a bidirectional binding writes the property (the write recreates it at run time without the `access` and `persistent` settings of the removed `propConfig` entry); unsafe when the finding relies on following a value into library functions (inter-procedural: the function's body, a function that does not exist, the depth limit); unsafe for a view linted outside its project whose scripts call names that may be library functions; unsafe when a script of the view, or a library module it imports or calls, uses code that is not vetted; unsafe when any code in the workspace reaches other views through a page or session (closed world, "Other views") |
 | `SCR102` | Remove unused import names or statements; the safe fix keeps the emptied lines, the unsafe fix removes them | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); not a top-level name of a library module that another resource reads (`pkg.mod.name`, a literal `getattr` or `hasattr` name) or uses as a value (a default argument, a container, `getGlobals()`, `sys.modules`; never reported); a top-level library import is provably unused by other resources and no resource of the project uses code that is not vetted; every removed import is known to succeed and to be effect-free: a measured Java class or package of the vetted packages, or a plain `import x` / non-package `from x import y` of a standard module on the verified list that was measured to import (and to have `y`), with no project library package of that name; the module uses only vetted code and calls no library name that may be a frame builtin; the import is not the only binding of a name still read in its scope or a nested scope; and it does not come before a `from __future__` import | Unsafe (project library modules, third-party and non-JDK Java packages, Java classes or module attributes not measured to exist, `socket`, `logging`, dotted imports, relative imports, unknown project, a library name that is not a plain function, class or literal constant, code that is not vetted, a name that would resolve differently, a misplaced future import that would become valid) |
 | `SCR103` | Remove `x = value`, or only `x = ` when the value calls or binds something | Never | Unsafe: the value may be wanted under another name, and a removed attribute or subscript read, operator, comparison, `in` or `%` formatting can raise or run code (getters, special methods). The statement is removed only when the value calls nothing (no call, no backticks, which call `repr`, no `yield`) and binds nothing (no list comprehension, whose variables Python 2 leaks), so no pointless statement (`SCR114`) is left |
 | `SCR110` | `is` to `==`, `is not` to `!=` | Never: the result changes whenever identity and equality differ (`int('1000') is 1000` is `False` in Jython), and `==` calls `__eq__` / Java `equals` | Unsafe |
 | `SCR115` | `except A, B:` to `except (A, B):` | Never: the handler then catches `B` and no longer rebinds the name | Unsafe. The finding itself requires `B` to resolve (ignoring the handler) to a class statement, a capitalized `from` import or a builtin exception, and the handler body not to read it |
-| `SCR123` | Remove unused suppression codes or the whole comment (a comment alone on its line leaves the line empty) | Only codes are removed (the rest of the comment stays), or the comment holds nothing but the suppression. Comments do not run, and no line moves | Unsafe when the whole comment would go and it also holds a reason, a `# pylint:` directive or a `coding:` declaration; that fix removes the line |
-| `SCR124` | Remove trailing whitespace | The script parses, the whitespace is outside string literals and outside the generated header (a backslash continuation followed by spaces is a syntax error, so it is never touched) | No finding when the script does not parse |
+| `SCR123` | Remove unused suppression codes or the whole comment (a comment alone on its line leaves the line empty) | Only codes are removed (the rest of the comment stays), or the comment holds nothing but the suppression. Comments do not run, and no line moves; and no code in the workspace may read workspace files ("File reads") | Unsafe when the whole comment would go and it also holds a reason, a `# pylint:` directive or a `coding:` declaration; that fix removes the line |
+| `SCR124` | Remove trailing whitespace | The script parses, the whitespace is outside string literals and outside the generated header (a backslash continuation followed by spaces is a syntax error, so it is never touched); and no code in the workspace may read workspace files ("File reads") | No finding when the script does not parse; unsafe while code may read workspace files |
 | `SCR206` | Remove a `shared.` / `project.` prefix | Never: in Ignition 7 the two prefixes named different libraries | Unsafe |
 | `SCR301` | Rewrite or insert the event script header | Never: code may rely on the written parameters or defaults | Unsafe |
-| `SCR900` | ign-lint's trailing-whitespace fix (every line `rstrip()`ed) | The script parses and no removed whitespace is inside a string literal (multi-line strings) | Unsafe |
+| `SCR900` | ign-lint's trailing-whitespace fix (every line `rstrip()`ed) | The script parses and no removed whitespace is inside a string literal (multi-line strings); and no code in the workspace may read workspace files ("File reads") | Unsafe |
+
+Every row above also needs the condition of "File reads": while code in
+the workspace may read workspace files, every fix is unsafe, whatever the
+rule (`NAME001`, `SCR102` and `VIEW015` included), unless the project sets
+`[fix] assume-scripts-do-not-read-workspace-files = true`.
 
 Rules not listed offer no fix. The language server uses the same
 applicability: unsafe code actions are titled `(unsafe)`, and the
@@ -541,11 +698,11 @@ fix). Each rule has a regression test with the patterns.
 | Rule | What dynamic code could do | Guard |
 |---|---|---|
 | `NAME001` | look the old name up (`eval("self.getChild('Old')")`, a library function receiving `self` whose code is replaced, `getattr(self, n)`) | Unsafe when a component may escape: accesses read everything for frame routes, `exec`, values passed to unknown code, calls of unnamed values, and callee checks that do not resolve to plain functions, and code that is not vetted (`dynamic_code_makes_the_rename_unsafe`) |
-| `VIEW013` | nothing: scripts cannot see the `persistent` flag, and without a stored value the property starts out absent either way | None needed (`dynamic_scripts_do_not_change_the_fix`) |
+| `VIEW013` | read `view.json` itself; the running scripts cannot see the `persistent` flag, and without a stored value the property starts out absent either way | "File reads" (`dynamic_scripts_do_not_change_the_fix` for the running scripts) |
 | `VIEW015` | read or write any property | Default-deny accesses, frame routes, callee checks, rebinding through exposure and `func_globals`; inter-procedural findings unsafe; code that is not vetted makes the fix unsafe (`dynamic_patterns_read_everything`, `unvetted_code_makes_fixes_unsafe`) |
 | `SCR102` | read the import by name (`lib.util.ev('os')`, `capture()['os']`, `getattr(me, n)` on the module itself) | Scopes with escape routes or frame builtins are dynamic (no finding); a computed `getattr` on a module object keeps module imports; a library name that may be a frame builtin, or code that is not vetted, makes the fix unsafe (`library_frame_builtins_and_computed_getattr`, `frame_builtins_under_other_names_keep_imports`, `review_round_six_repros`) |
-| `SCR123` | nothing: comments do not run, and the safe fix keeps every line, so line numbers (`f_lineno`, tracebacks, `warnings`, Java stack traces) do not move | None needed (`safe_removal_keeps_lines`) |
-| `SCR124`, `SCR900` | nothing: trailing whitespace outside string literals is not in any value, line numbers do not move, and Jython has no source for scripts compiled from strings (`inspect.getsource` raises `IOError`, tracebacks show no source lines; verified on Ignition 8.3's Jython) | None needed (`dynamic_code_leaves_the_fix_safe`) |
+| `SCR123` | read the script's file (`open(path).read()`); through the running code nothing: comments do not run, and the safe fix keeps every line, so line numbers (`f_lineno`, tracebacks, `warnings`, Java stack traces) do not move | "File reads": dynamic code may call `open` under another name, so it makes the fix unsafe unless the project declares that no script reads workspace files (`safe_removal_keeps_lines`) |
+| `SCR124`, `SCR900` | read the script's file; through the running code nothing: trailing whitespace outside string literals is not in any value, line numbers do not move, and Jython has no source for scripts compiled from strings (`inspect.getsource` raises `IOError`, tracebacks show no source lines; verified on Ignition 8.3's Jython) | "File reads" (`dynamic_code_makes_the_fix_unsafe_unless_declared`, `file_reads_make_the_fix_unsafe`) |
 
 Values that do not come from a name: calling the result of a call or an
 item of a container (`factory()()`, `getattr(o, name)()`, `handlers[k]()`,

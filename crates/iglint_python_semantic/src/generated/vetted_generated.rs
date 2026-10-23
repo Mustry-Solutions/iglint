@@ -107,6 +107,31 @@ pub(crate) const GENERATED_FROM: &[&str] = &[
     "perspective:page=com.inductiveautomation.perspective.gateway.script.PageScriptWrapper$SafetyWrapper",
     "perspective:session=com.inductiveautomation.perspective.gateway.script.SessionScriptWrapper$SafetyWrapper",
     "perspective:view=com.inductiveautomation.perspective.gateway.script.ViewModelScriptWrapper$SafetyWrapper",
+    "file-handle:java.io.File",
+    "file-handle:java.io.FileDescriptor",
+    "file-handle:java.io.FileInputStream",
+    "file-handle:java.io.FileReader",
+    "file-handle:java.io.RandomAccessFile",
+    "file-handle:java.nio.file.Path",
+    "file-handle:java.nio.file.FileSystem",
+    "file-handle:java.nio.file.FileStore",
+    "file-handle:java.nio.file.DirectoryStream",
+    "file-handle:java.nio.file.spi.FileSystemProvider",
+    "file-handle:java.nio.file.attribute.BasicFileAttributes",
+    "file-handle:java.nio.channels.FileChannel",
+    "file-handle:java.nio.channels.AsynchronousFileChannel",
+    "file-handle:java.util.zip.ZipFile",
+    "file-handle:java.net.URL",
+    "file-handle:java.net.URI",
+    "file-handle:java.net.URLConnection",
+    "file-handle:com.inductiveautomation.ignition.gateway.project.ProjectManager",
+    "file-handle:com.inductiveautomation.ignition.common.resourcecollection.Resource",
+    "file-handle:com.inductiveautomation.ignition.common.resourcecollection.ResourceCollection",
+    "file-handle:com.inductiveautomation.ignition.common.resourcecollection.Snapshot",
+    "file-handle:com.inductiveautomation.ignition.gateway.resourcecollection.ResourceCollectionManager",
+    "file-handle:com.inductiveautomation.ignition.gateway.resourcecollection.ResourceCollectionFileTree",
+    "file-handle:com.inductiveautomation.ignition.gateway.resourcecollection.ResourceDataFile",
+    "file-handle:com.inductiveautomation.ignition.gateway.resourcecollection.StreamingResource",
 ];
 
 /// Member names (Java method, Jython bean-property and field
@@ -261,6 +286,100 @@ pub(crate) const JAVA_REFLECTIVE_MEMBERS: &[&str] = &[
     "userClass", // com.inductiveautomation.ignition.gateway.localdb.persistence.RecordMeta.getUserClass
     "validator", // simpleorm.dataset.SRecordInstance$BrokenOptimisticLockException.getValidator
     "valueClass", // com.inductiveautomation.historian.common.model.data.AtomicPoint.valueClass
+];
+
+/// Member names (Java method, Jython bean-property and field
+/// spellings) whose declared type mentions a file handle (a file,
+/// path, channel, descriptor, URL or URI, or a project resource as
+/// the gateway loaded it), over every type a script can hold (2324
+/// types scanned). Naming any of these on any value may read the
+/// bytes or metadata of a workspace file. Sorted.
+pub(crate) const JAVA_FILE_MEMBERS: &[&str] = &[
+    "FD", // java.io.FileInputStream.getFD
+    "URIs", // java.net.CookieStore.getURIs
+    "absoluteFile", // java.io.File.getAbsoluteFile
+    "baseDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getBaseDir
+    "build", // com.inductiveautomation.ignition.common.resourcecollection.ResourceBuilder.build
+    "bundleFile", // com.inductiveautomation.ignition.gateway.model.DiagnosticsManager$DiagnosticsBundle.getBundleFile
+    "canonicalFile", // java.io.File.getCanonicalFile
+    "channel", // java.io.FileInputStream.getChannel
+    "configDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getConfigDir
+    "configurationManager", // com.inductiveautomation.ignition.gateway.model.GatewayContext.getConfigurationManager
+    "create", // java.net.URI.create
+    "createTempFile", // java.io.File.createTempFile
+    "dataDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getDataDir
+    "getAbsoluteFile", // java.io.File.getAbsoluteFile
+    "getBaseDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getBaseDir
+    "getBundleFile", // com.inductiveautomation.ignition.gateway.model.DiagnosticsManager$DiagnosticsBundle.getBundleFile
+    "getCanonicalFile", // java.io.File.getCanonicalFile
+    "getChannel", // java.io.FileInputStream.getChannel
+    "getConfigDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getConfigDir
+    "getConfigurationManager", // com.inductiveautomation.ignition.gateway.model.GatewayContext.getConfigurationManager
+    "getDataDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getDataDir
+    "getFD", // java.io.FileInputStream.getFD
+    "getLibDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getLibDir
+    "getLocalDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getLocalDir
+    "getLocation", // java.security.CodeSource.getLocation
+    "getLogsDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getLogsDir
+    "getModuleConfigDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getModuleConfigDir
+    "getModuleConfigLocalDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getModuleConfigLocalDir
+    "getModuleTransientDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getModuleTransientDir
+    "getParentFile", // java.io.File.getParentFile
+    "getPlatformConfigDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getPlatformConfigDir
+    "getPlatformConfigLocalDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getPlatformConfigLocalDir
+    "getPlatformTransientDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getPlatformTransientDir
+    "getProjectManager", // com.inductiveautomation.ignition.gateway.model.GatewayContext.getProjectManager
+    "getRelativeRequestUri", // com.inductiveautomation.ignition.gateway.dataroutes.RequestContext.getRelativeRequestUri
+    "getRequestUri", // com.inductiveautomation.ignition.gateway.dataroutes.RequestContext.getRequestUri
+    "getResource", // com.inductiveautomation.ignition.common.resourcecollection.ChangeOperation$CreateResourceOperation.getResource
+    "getResourceFromChange", // com.inductiveautomation.ignition.common.resourcecollection.ChangeOperation$CreateResourceOperation.getResourceFromChange
+    "getTempDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getTempDir
+    "getURIs", // java.net.CookieStore.getURIs
+    "getURL", // java.sql.CallableStatement.getURL
+    "getUserLibDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getUserLibDir
+    "libDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getLibDir
+    "listFiles", // java.io.File.listFiles
+    "listRoots", // java.io.File.listRoots
+    "localDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getLocalDir
+    "location", // java.security.CodeSource.getLocation
+    "logsDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getLogsDir
+    "normalize", // java.net.URI.normalize
+    "openConnection", // java.net.URL.openConnection
+    "parentFile", // java.io.File.getParentFile
+    "parseServerAuthority", // java.net.URI.parseServerAuthority
+    "platformConfigDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getPlatformConfigDir
+    "platformConfigLocalDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getPlatformConfigLocalDir
+    "platformTransientDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getPlatformTransientDir
+    "projectManager", // com.inductiveautomation.ignition.gateway.model.GatewayContext.getProjectManager
+    "relativeRequestUri", // com.inductiveautomation.ignition.gateway.dataroutes.RequestContext.getRelativeRequestUri
+    "relativize", // java.net.URI.relativize
+    "requestUri", // com.inductiveautomation.ignition.gateway.dataroutes.RequestContext.getRequestUri
+    "resolve", // java.net.URI.resolve
+    "resource", // com.inductiveautomation.ignition.common.resourcecollection.ChangeOperation$CreateResourceOperation.getResource
+    "snapshot", // com.inductiveautomation.perspective.gateway.api.PerspectiveProject.snapshot
+    "tempDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getTempDir
+    "toPath", // java.io.File.toPath
+    "toURI", // java.io.File.toURI
+    "toURL", // java.io.File.toURL
+    "uri", // java.net.http.HttpRequest.uri
+    "userLibDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getUserLibDir
+];
+
+/// The vetted Java classes that are file handle types or have a public
+/// constructor whose signature mentions one. Sorted.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) const JAVA_FILE_CLASSES: &[&str] = &[
+    "java.io.File",
+    "java.io.FileInputStream",
+    "java.io.FileOutputStream",
+    "java.io.FileReader",
+    "java.io.FileWriter",
+    "java.io.PrintWriter",
+    "java.net.HttpURLConnection",
+    "java.net.URI",
+    "java.net.URL",
+    "java.util.Formatter",
+    "java.util.Scanner",
 ];
 
 /// For every vetted Python module, the attributes that are

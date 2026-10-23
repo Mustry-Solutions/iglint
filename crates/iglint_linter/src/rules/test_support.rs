@@ -119,7 +119,19 @@ impl Fixture {
     }
 
     pub fn run(&self, rules: &[(&str, &str)], fix_mode: FixMode) -> CheckResult {
-        let settings = settings(self.root(), rules);
+        self.run_assuming(rules, fix_mode, false)
+    }
+
+    /// [`Fixture::run`] with `[fix] assume-scripts-do-not-read-workspace-files`
+    /// set to `assume_no_file_reads`.
+    pub fn run_assuming(
+        &self,
+        rules: &[(&str, &str)],
+        fix_mode: FixMode,
+        assume_no_file_reads: bool,
+    ) -> CheckResult {
+        let mut settings = settings(self.root(), rules);
+        settings.assume_no_workspace_file_reads = assume_no_file_reads;
         let options = CheckOptions {
             fix_mode,
             ..CheckOptions::default()
@@ -133,7 +145,23 @@ impl Fixture {
     /// writing). Asserts that fixing is idempotent and that the fixed text
     /// no longer has fixable findings of those rules.
     pub fn fixed(&self, rules: &[(&str, &str)], unsafe_fixes: bool, rel: &Path) -> String {
-        let result = self.run(rules, FixMode::DiffOnly { unsafe_fixes });
+        self.fixed_assuming(rules, unsafe_fixes, rel, false)
+    }
+
+    /// [`Fixture::fixed`] with `[fix] assume-scripts-do-not-read-workspace-files`
+    /// set to `assume_no_file_reads`.
+    pub fn fixed_assuming(
+        &self,
+        rules: &[(&str, &str)],
+        unsafe_fixes: bool,
+        rel: &Path,
+        assume_no_file_reads: bool,
+    ) -> String {
+        let result = self.run_assuming(
+            rules,
+            FixMode::DiffOnly { unsafe_fixes },
+            assume_no_file_reads,
+        );
         let summary = result
             .fixed
             .iter()
@@ -149,7 +177,11 @@ impl Fixture {
             .root()
             .join(rel.strip_prefix(self.root()).expect("inside"));
         std::fs::write(&rel_in_copy, &fixed).expect("write");
-        let second = again.run(rules, FixMode::DiffOnly { unsafe_fixes });
+        let second = again.run_assuming(
+            rules,
+            FixMode::DiffOnly { unsafe_fixes },
+            assume_no_file_reads,
+        );
         if let Some(s) = second.fixed.iter().find(|f| f.path == rel_in_copy) {
             assert_eq!(s.fixed, fixed, "fixing is not idempotent");
         }

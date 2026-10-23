@@ -932,3 +932,24 @@ fn pylint_script_rule_maps_to_pylint_and_the_native_script_rules() {
             .contains(&"PylintScriptRule: disabled (SCR101, SCR102, SCR900)".to_owned())
     );
 }
+
+#[test]
+fn fix_table_declares_no_workspace_file_reads() {
+    assert!(
+        !load_toml("")
+            .unwrap()
+            .settings
+            .assume_no_workspace_file_reads
+    );
+    let config = load_toml("[fix]\nassume-scripts-do-not-read-workspace-files = true\n").unwrap();
+    assert!(config.settings.assume_no_workspace_file_reads);
+    assert_eq!(
+        load_toml("[fix]\nassume-scripts-do-not-read-files = true\n").unwrap_err(),
+        "iglint.toml:2:1: unknown key `assume-scripts-do-not-read-files` in `fix`; did you mean `assume-scripts-do-not-read-workspace-files`?"
+    );
+    assert!(
+        load_toml("[fix]\nassume-scripts-do-not-read-workspace-files = 1\n")
+            .unwrap_err()
+            .contains("must be a boolean")
+    );
+}

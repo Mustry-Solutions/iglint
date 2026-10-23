@@ -36,10 +36,13 @@
 //! vetted either (an attribute read through an alias is not checked), and
 //! subclassing a Java class is unknown (its instances are Java-backed).
 
-use iglint_python::ast::{Alias, Expr, ExprContext, ExprName, Operator, Stmt, StmtImportFrom};
+use iglint_python::ast::{
+    Alias, Expr, ExprCall, ExprContext, ExprName, Operator, Stmt, StmtImportFrom,
+};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
-use iglint_text::TextRange;
+use iglint_text::{Ranged, TextRange};
 
+use crate::file_reads::{Facility, JavaPolicy};
 use crate::{Binding, BindingKind, Resolution, ScopeId, ScopeKind, SemanticModel};
 
 /// Python modules whose every public, non-module attribute is vetted,
@@ -618,6 +621,13 @@ pub struct UnknownCode {
     /// project library package of the same name would be imported
     /// instead.
     pub vetted_imports: Vec<String>,
+    /// The first possible read of a file that a fix may edit, in vetted
+    /// code ([`crate::file_reads`]): a file facility with a path that is
+    /// not a literal outside the workspace, or used as a value, a Java
+    /// file handle member, a Java file class used other than as a
+    /// constructor with such a literal. Not part of [`UnknownCode::is_empty`]:
+    /// the caller decides which fixes a file read keeps from being safe.
+    pub file_read: Option<TextRange>,
 }
 
 impl UnknownCode {
@@ -648,9 +658,15 @@ pub fn unknown_code(model: &SemanticModel<'_>) -> UnknownCode {
         .bindings()
         .map(|(_, b)| binding_bound(b))
         .collect::<Vec<_>>();
+    let qualified = model
+        .bindings()
+        .map(|(_, b)| binding_qualified(b))
+        .collect::<Vec<_>>();
     let mut v = Walk {
         model,
         bound,
+        qualified,
+        callee: None,
         out: UnknownCode::default(),
     };
     for stmt in &model.module.body {
@@ -718,6 +734,27 @@ fn binding_bound(b: &Binding<'_>) -> Bound {
     }
 }
 
+/// The qualified name of what a binding binds, for the file facilities
+/// ([`crate::file_reads`]): the dotted name of an import, `__builtin__.<n>`
+/// for a builtin, the injected `sys` or `system`. `None` for values the
+/// code computes.
+fn binding_qualified(b: &Binding<'_>) -> Option<String> {
+    match b.kind {
+        BindingKind::Import | BindingKind::FromImport => b.qualified.clone(),
+        BindingKind::Builtin | BindingKind::Injected => implicit_qualified(b.name),
+        _ => None,
+    }
+}
+
+/// [`binding_qualified`] of a name no binding of the code provides.
+fn implicit_qualified(name: &str) -> Option<String> {
+    match name {
+        "sys" | "system" => Some(name.to_owned()),
+        _ if iglint_stubs::is_jython_builtin(name) => Some(format!("__builtin__.{name}")),
+        _ => None,
+    }
+}
+
 /// What a name that no binding of the code provides stands for: Ignition's
 /// `sys` and `system`, a builtin (vetted or not), or a name the caller
 /// resolves (a project library package, Ignition's other injected names;
@@ -742,6 +779,10 @@ struct Walk<'m, 'a> {
     model: &'m SemanticModel<'a>,
     /// [`binding_bound`] of every binding, by binding id.
     bound: Vec<Bound>,
+    /// [`binding_qualified`] of every binding, by binding id.
+    qualified: Vec<Option<String>>,
+    /// The callee of the call being visited: not a use as a value.
+    callee: Option<TextRange>,
     out: UnknownCode,
 }
 
@@ -755,9 +796,18 @@ impl Walk<'_, '_> {
     /// Everything the `Load` name `n` may stand for at run time, flow
     /// insensitively (see [`unknown_code`]).
     fn candidates(&self, n: &ExprName) -> Vec<Bound> {
+        self.candidates_with_names(n)
+            .into_iter()
+            .map(|(b, _)| b)
+            .collect()
+    }
+
+    /// [`Walk::candidates`], each with its qualified name
+    /// ([`binding_qualified`]).
+    fn candidates_with_names(&self, n: &ExprName) -> Vec<(Bound, Option<String>)> {
         let Some(r) = self.model.reference_at(n.range) else {
             // No reference: we cannot say what the name is. Fail closed.
-            return vec![Bound::Unknown];
+            return vec![(Bound::Unknown, None)];
         };
         let name = &*n.id;
         let of = |scope: ScopeId| {
@@ -765,9 +815,9 @@ impl Walk<'_, '_> {
                 .scope(scope)
                 .bindings_of(name)
                 .iter()
-                .map(|id| self.bound[id.index()])
+                .map(|id| (self.bound[id.index()], self.qualified[id.index()].clone()))
         };
-        let mut out: Vec<Bound> = Vec::new();
+        let mut out: Vec<(Bound, Option<String>)> = Vec::new();
         let fallback = match r.resolution {
             Resolution::Local => {
                 out.extend(of(r.scope));
@@ -793,10 +843,10 @@ impl Walk<'_, '_> {
                 true
             }
             Resolution::Builtin | Resolution::Injected | Resolution::Unresolved => true,
-            Resolution::Dynamic => return vec![Bound::Unknown],
+            Resolution::Dynamic => return vec![(Bound::Unknown, None)],
         };
         if fallback {
-            out.push(implicit_bound(name));
+            out.push((implicit_bound(name), implicit_qualified(name)));
         }
         out
     }
@@ -903,6 +953,184 @@ impl Walk<'_, '_> {
     }
 }
 
+/// The attribute names of the chain `expr` (outermost last) and its root.
+fn chain_parts(expr: &Expr) -> (Vec<&str>, &Expr) {
+    let mut attrs = Vec::new();
+    let mut root = expr;
+    while let Expr::Attribute(a) = root {
+        attrs.push(a.attr.as_str());
+        root = &a.value;
+    }
+    attrs.reverse();
+    (attrs, root)
+}
+
+/// Argument `position`, or keyword `keyword`, of `c`.
+fn argument<'c>(c: &'c ExprCall, position: usize, keyword: &str) -> Option<&'c Expr> {
+    c.args.get(position).or_else(|| {
+        c.keywords
+            .iter()
+            .find(|k| k.arg.as_str() == keyword)
+            .map(|k| &k.value)
+    })
+}
+
+/// File reads ([`crate::file_reads`]).
+impl Walk<'_, '_> {
+    fn file_read(&mut self, range: TextRange) {
+        if self.out.file_read.is_none_or(|o| range.start() < o.start()) {
+            self.out.file_read = Some(range);
+        }
+    }
+
+    /// The qualified names `expr`, a name or an attribute chain rooted at
+    /// one, may stand for (`os.path.getsize`, `java.io.File`,
+    /// `__builtin__.open`).
+    fn dotted_names(&self, expr: &Expr) -> Vec<String> {
+        let (attrs, root) = chain_parts(expr);
+        let Expr::Name(n) = root else {
+            return Vec::new();
+        };
+        if n.ctx != ExprContext::Load {
+            return Vec::new();
+        }
+        self.candidates_with_names(n)
+            .into_iter()
+            .filter_map(|(_, q)| q)
+            .map(|q| {
+                let mut dotted = q;
+                for a in &attrs {
+                    dotted.push('.');
+                    dotted.push_str(a);
+                }
+                dotted
+            })
+            .collect()
+    }
+
+    /// The literal path of `e`, if it is one
+    /// ([`crate::file_reads::literal_text`]).
+    fn literal_path(&self, e: &Expr) -> Option<String> {
+        let is_join = |f: &Expr| self.dotted_names(f).iter().any(|q| q == "os.path.join");
+        crate::file_reads::literal_text(e, &is_join)
+    }
+
+    fn literal_outside(&self, e: Option<&Expr>) -> bool {
+        e.and_then(|e| self.literal_path(e))
+            .is_some_and(|p| crate::file_reads::outside_workspace(&p))
+    }
+
+    /// Whether the call `c` of the file facility `f` reads no workspace file.
+    fn facility_call_ok(&self, f: Facility, c: &ExprCall) -> bool {
+        if c.starargs.is_some() || c.kwargs.is_some() {
+            return false;
+        }
+        match f {
+            Facility::Path {
+                position,
+                keyword,
+                mode,
+            } => {
+                if let Some((mp, mk)) = mode
+                    && let Some(Expr::Str(m)) = argument(c, mp, mk)
+                    && crate::file_reads::write_only_mode(&m.s.to_latin1())
+                {
+                    return true;
+                }
+                self.literal_outside(argument(c, position, keyword))
+            }
+            Facility::TwoPaths => {
+                self.literal_outside(c.args.first()) && self.literal_outside(c.args.get(1))
+            }
+            Facility::Url { position, keyword } => argument(c, position, keyword)
+                .and_then(|e| self.literal_path(e))
+                .is_some_and(|u| crate::file_reads::url_outside_workspace(&u)),
+        }
+    }
+
+    /// Whether the constructor call `c` of a Java file class reads no
+    /// workspace file.
+    fn java_call_ok(&self, policy: JavaPolicy, c: &ExprCall) -> bool {
+        if policy == JavaPolicy::Plain {
+            return true;
+        }
+        if c.starargs.is_some() || c.kwargs.is_some() || !c.keywords.is_empty() || c.args.is_empty()
+        {
+            return false;
+        }
+        match policy {
+            JavaPolicy::Reader { all: true } => {
+                let parts: Option<Vec<String>> =
+                    c.args.iter().map(|a| self.literal_path(a)).collect();
+                parts.is_some_and(|p| crate::file_reads::outside_workspace(&p.join("/")))
+            }
+            JavaPolicy::Reader { all: false } => self.literal_outside(c.args.first()),
+            JavaPolicy::Url => {
+                c.args.len() == 1
+                    && self
+                        .literal_path(&c.args[0])
+                        .is_some_and(|u| crate::file_reads::url_outside_workspace(&u))
+            }
+            JavaPolicy::Plain => true,
+        }
+    }
+
+    fn check_file_call(&mut self, c: &ExprCall) {
+        let mut read = false;
+        for q in self.dotted_names(&c.func) {
+            if let Some(f) = crate::file_reads::facility(&q) {
+                read |= !self.facility_call_ok(f, c);
+            } else if let Some(p) = crate::file_reads::java_policy(&q) {
+                read |= !self.java_call_ok(p, c);
+            } else if q == "__builtin__.getattr"
+                && let Some(Expr::Str(name)) = c.args.get(1)
+            {
+                read |= crate::file_reads::file_member(&name.s.to_latin1());
+            }
+        }
+        if read {
+            self.file_read(c.range);
+        }
+    }
+
+    /// A file facility or Java file class used as a value: what is done
+    /// with it is not followed.
+    fn check_file_value(&mut self, expr: &Expr) {
+        if self.callee == Some(expr.range()) {
+            return;
+        }
+        let read = self.dotted_names(expr).iter().any(|q| {
+            crate::file_reads::facility(q).is_some()
+                || matches!(
+                    crate::file_reads::java_policy(q),
+                    Some(JavaPolicy::Reader { .. } | JavaPolicy::Url)
+                )
+        });
+        if read {
+            self.file_read(expr.range());
+        }
+    }
+
+    /// Members that hand out a Java file handle (measured), named on any
+    /// value but a vetted Python module.
+    fn check_file_members(&mut self, expr: &Expr) {
+        let (attrs, root) = chain_parts(expr);
+        if !attrs.iter().any(|a| crate::file_reads::file_member(a)) {
+            return;
+        }
+        let module_root = match root {
+            Expr::Name(n) if n.ctx == ExprContext::Load => {
+                let c = self.candidates(n);
+                !c.is_empty() && c.iter().all(|b| matches!(b, Bound::Module(_)))
+            }
+            _ => false,
+        };
+        if !module_root {
+            self.file_read(expr.range());
+        }
+    }
+}
+
 impl<'a> Visitor<'a> for Walk<'_, '_> {
     fn visit_stmt(&mut self, stmt: &'a Stmt) {
         match stmt {
@@ -965,6 +1193,18 @@ impl<'a> Visitor<'a> for Walk<'_, '_> {
     }
 
     fn visit_expr(&mut self, expr: &'a Expr) {
+        match expr {
+            Expr::Call(c) => {
+                self.check_file_call(c);
+                self.callee = Some(c.func.range());
+            }
+            Expr::Attribute(_) => {
+                self.check_file_members(expr);
+                self.check_file_value(expr);
+            }
+            Expr::Name(n) if n.ctx == ExprContext::Load => self.check_file_value(expr),
+            _ => {}
+        }
         match expr {
             Expr::Call(c) if self.system_write(&c.func) => {
                 let paths = c.args.first().or_else(|| {
@@ -1315,6 +1555,12 @@ mod tests {
                 .iter()
                 .map(|(short, class)| format!("perspective:{short}={class}")),
         );
+        // The file handle types whose members are measured.
+        sig.extend(
+            crate::file_reads::FILE_HANDLE_TYPES
+                .iter()
+                .map(|t| format!("file-handle:{t}")),
+        );
         let generated: Vec<&str> = crate::generated::GENERATED_FROM.to_vec();
         assert_eq!(
             sig, generated,
@@ -1364,6 +1610,122 @@ mod tests {
         assert!(!java_class_exists("java.util", "MissingReviewClass"));
         assert!(java_package_exists("java") && java_package_exists("java.util"));
         assert!(!java_package_exists("java.missing"));
+    }
+
+    /// Reviewer round 10 (Codex) blocker: a script that reads a file a fix
+    /// edits observes the fix. Every possible read of a workspace file is
+    /// reported, and reads of literal paths outside the workspace are not.
+    #[test]
+    fn file_reads() {
+        for src in [
+            "import math\nprint open('/w/projects/p/ignition/script-python/m/code.py').read()\n",
+            "x = open(p).read()\n",
+            "x = open(p, 'r')\n",
+            "x = open(p, mode)\n",
+            "x = open(p, 'a+')\n",
+            "x = file(p)\n",
+            "with open(p) as f:\n    pass\n",
+            "o = open\n",
+            "x = map(open, ps)\n",
+            "def f(o=open):\n    pass\n",
+            "x = open(*args)\n",
+            "x = open('relative.txt')\n",
+            "x = open('/tmp/x/../w/x')\n",
+            "x = open('/tmp/' + name)\n",
+            "import os\nx = os.path.join('/tmp', name)\ny = open(x)\n",
+            "import os\nx = open(os.path.join('/tmp', name))\n",
+            "import os\nx = os.stat(p).st_size\n",
+            "import os\nx = os.lstat(p)\n",
+            "import os\nx = os.access(p, os.R_OK)\n",
+            "import os\nx = os.path.getsize(p)\n",
+            "import os.path\nx = os.path.getmtime(p)\n",
+            "from os.path import getmtime\nx = getmtime(p)\n",
+            "import os.path as op\nx = op.getctime(p)\n",
+            "from os import path\nx = path.getatime(p)\n",
+            "import os\nx = os.path.samefile('/tmp/a', p)\n",
+            "import os\ng = os.path.getsize\n",
+            "x = system.file.readFileAsString(p)\n",
+            "x = system.file.readFileAsBytes('data/x.bin')\n",
+            "x = system.file.readFileAsString(filepath=p)\n",
+            "x = system.net.httpGet(url)\n",
+            "x = system.net.httpGet('file:///w/projects/p/x')\n",
+            "r = system.file.readFileAsString\n",
+            "from java.io import File\nx = File(p).length()\n",
+            "from java.io import File\nx = File('/tmp').getParentFile()\n",
+            "from java.io import File\nx = File('/tmp').parentFile\n",
+            "from java.io import File\nx = File('/tmp', name)\n",
+            "from java.io import File\nx = File.listRoots()\n",
+            "from java.io import File\nF = File\n",
+            "from java.io import File as F\nx = F('data/x')\n",
+            "from java.io import FileInputStream\nx = FileInputStream(p)\n",
+            "from java.io import FileReader\nx = FileReader('rel.txt')\n",
+            "from java.net import URL\nx = URL(u).openStream()\n",
+            "from java.net import URL\nx = URL('file:///w/projects/p/x').openStream()\n",
+            "from java.net import URI\nx = URI('http://h/').resolve(p)\n",
+            "x = getattr(f, 'toPath')()\n",
+            "x = f.toPath()\n",
+            "x = context.getSystemManager().getDataDir()\n",
+            "x = request['context'].getProjectManager()\n",
+            "x = request['context'].projectManager\n",
+        ] {
+            let found = unknown(src);
+            assert!(found.file_read.is_some(), "no file read in:\n{src}");
+        }
+        for src in [
+            "x = open('/tmp/report.csv').read()\n",
+            "x = open('C:\\\\exports\\\\x.csv').read()\n",
+            "x = open('/tmp/' + 'x.csv')\n",
+            "import os\nx = open(os.path.join('/tmp', 'x.csv'))\n",
+            "x = open(p, 'w')\n",
+            "x = open(p, mode='wb')\n",
+            "x = open(p, 'a')\n",
+            "import os\nx = os.listdir(p)\n",
+            "import os\nfor d, ds, fs in os.walk(p):\n    pass\n",
+            "import os\nx = os.path.exists(p) and os.path.isfile(p) and os.path.isdir(p)\n",
+            "import os\nx = os.path.join(a, b)\n",
+            "import os\nx = os.stat('/tmp/x')\n",
+            "x = system.file.fileExists(p)\n",
+            "system.file.writeFile(p, data)\n",
+            "x = system.file.getTempFile('csv')\n",
+            "x = system.net.httpGet('https://example.com/a')\n",
+            "from java.io import File\nx = File('/tmp/x').length()\n",
+            "from java.io import File\nx = File('/tmp', 'x')\n",
+            "from java.io import File\nx = File.separator\n",
+            "from java.io import FileOutputStream, PrintWriter, FileWriter\nx = FileOutputStream(p)\ny = PrintWriter(p)\nz = FileWriter(p, True)\n",
+            "from java.io import FileInputStream\nx = FileInputStream('/tmp/x')\n",
+            "from java.net import URL\nx = URL('https://example.com').openStream()\n",
+            "from java.util import Scanner\nx = Scanner('1 2 3')\n",
+            "d = {}\nd.update(x)\n",
+            "x = self.getChild('A').parent\n",
+            "x = getattr(o, 'value')\n",
+        ] {
+            let found = unknown(src);
+            assert_eq!(found.file_read, None, "file read in:\n{src}");
+            assert!(found.is_empty(), "{src}");
+        }
+    }
+
+    /// The verdict on a file read does not depend on statement order.
+    #[test]
+    fn file_reads_do_not_depend_on_statement_order() {
+        let exploits: &[&[&str]] = &[
+            &[
+                "def f():\n    return o(p)",
+                "o = 1",
+                "from java.io import File as o",
+            ],
+            &[
+                "def f():\n    return g(p)",
+                "import os",
+                "g = os.path.getsize",
+            ],
+            &["def f():\n    return open(p)", "import math"],
+        ];
+        for stmts in exploits {
+            for src in arrangements(stmts) {
+                assert!(unknown(&src).file_read.is_some(), "no file read:\n{src}");
+            }
+        }
     }
 
     /// An import of a class that does not exist in a vetted package fails

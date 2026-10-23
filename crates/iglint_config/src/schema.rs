@@ -36,7 +36,10 @@ pub(crate) const TOP_KEYS: &[&str] = &[
     "output-format",
     "rules",
     "overrides",
+    "fix",
 ];
+
+pub(crate) const FIX_KEYS: &[&str] = &["assume-scripts-do-not-read-workspace-files"];
 
 pub(crate) const OVERRIDE_KEYS: &[&str] = &[
     "files",
@@ -109,6 +112,8 @@ pub(crate) struct RawConfig {
     pub output_format: Option<String>,
     pub rules: BTreeMap<RuleCode, RawRule>,
     pub overrides: Vec<RawOverride>,
+    /// `[fix] assume-scripts-do-not-read-workspace-files`.
+    pub assume_no_workspace_file_reads: Option<bool>,
 }
 
 struct Ctx<'a> {
@@ -507,6 +512,18 @@ fn parse_table(
                 raw.output_format = Some(format);
             }
             "rules" => raw.rules = parse_rules(ctx, "", value)?,
+            "fix" => {
+                let fix = ctx.table("fix", value)?;
+                for (key, value) in fix.iter() {
+                    match key.get_ref().as_ref() {
+                        "assume-scripts-do-not-read-workspace-files" => {
+                            raw.assume_no_workspace_file_reads =
+                                Some(ctx.bool(key.get_ref(), value)?);
+                        }
+                        _ => return Err(ctx.unknown_key(key, "fix", FIX_KEYS)),
+                    }
+                }
+            }
             "overrides" => {
                 let array = value
                     .get_ref()

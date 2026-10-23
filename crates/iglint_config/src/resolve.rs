@@ -132,6 +132,7 @@ struct Merged {
     rules: BTreeMap<RuleCode, RawRule>,
     overrides: Vec<RawOverride>,
     layers: Vec<Layer>,
+    assume_no_workspace_file_reads: Option<bool>,
 }
 
 fn merge(chain: Vec<RawConfig>) -> Merged {
@@ -149,6 +150,9 @@ fn merge(chain: Vec<RawConfig>) -> Merged {
         merged.respect_gitignore = raw.respect_gitignore.or(merged.respect_gitignore);
         merged.cache_dir = raw.cache_dir.or(merged.cache_dir);
         merged.output_format = raw.output_format.or(merged.output_format);
+        merged.assume_no_workspace_file_reads = raw
+            .assume_no_workspace_file_reads
+            .or(merged.assume_no_workspace_file_reads);
         for (rule, settings) in raw.rules {
             let combined = merged
                 .rules
@@ -411,6 +415,9 @@ pub(crate) fn load_source(
                 gateways: merged.gateways.unwrap_or_default(),
                 respect_gitignore: merged.respect_gitignore.unwrap_or(true),
                 unfixable: matching(registry, &merged.unfixable.unwrap_or_default()),
+                assume_no_workspace_file_reads: merged
+                    .assume_no_workspace_file_reads
+                    .unwrap_or(false),
             };
             Ok(Configuration {
                 source,

@@ -475,3 +475,151 @@ fn fix_keeps_properties_read_from_another_view() {
         .unwrap();
     assert!(!std::fs::read_to_string(&a).unwrap().contains("\"foo\""));
 }
+
+/// A workspace whose scripts read their own files (reviewer round 10,
+/// Codex blocker): `m` reads its own source after `import math`, `r` reads
+/// the last line of `m` (a comment with trailing whitespace), and view
+/// `Main` reads its own `view.json`.
+fn file_reading_workspace() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        "p/project.json",
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    );
+    let library = |name: &str, code: &str| {
+        write(
+            &format!("p/ignition/script-python/{name}/resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        );
+        write(&format!("p/ignition/script-python/{name}/code.py"), code);
+    };
+    library(
+        "m",
+        "import math\nprint open('/w/projects/p/ignition/script-python/m/code.py').read().startswith('import math\\n')\nx = 1  # note  \n",
+    );
+    library(
+        "r",
+        "def last(p):\n    return open(p).read().splitlines()[-1]\n",
+    );
+    write(
+        "p/com.inductiveautomation.perspective/views/Main/resource.json",
+        r#"{"scope": "G", "version": 1, "files": ["view.json"]}"#,
+    );
+    write(
+        "p/com.inductiveautomation.perspective/views/Main/view.json",
+        r#"{"custom": {"unused": 1}, "params": {}, "root": {"meta": {"name": "root"}, "type": "ia.container.flex", "children": [{"meta": {"name": "Btn"}, "type": "ia.input.button", "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": "\timport json\n\td = json.loads(open('/usr/local/bin/ignition/data/projects/p/com.inductiveautomation.perspective/views/Main/view.json').read())\n\tsystem.perspective.print('unused' in d['custom'])"}}}}}]}}"#,
+    );
+    dir
+}
+
+#[test]
+fn fixes_are_unsafe_when_scripts_read_workspace_files() {
+    let dir = file_reading_workspace();
+    let m = dir.path().join("p/ignition/script-python/m/code.py");
+    let view = dir
+        .path()
+        .join("p/com.inductiveautomation.perspective/views/Main/view.json");
+    let before = (
+        std::fs::read_to_string(&m).unwrap(),
+        std::fs::read_to_string(&view).unwrap(),
+    );
+    let select = ["--select", "SCR102,SCR124,VIEW015"];
+    // With and without the cache (the second cached run restores findings).
+    for cache in ["--no-cache", "--cache-dir=.cache", "--cache-dir=.cache"] {
+        let out = iglint(dir.path())
+            .args([cache, "--output-format", "json"])
+            .args(select)
+            .output()
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+        let found = v.as_array().unwrap();
+        let mut rules: Vec<&str> = found.iter().map(|d| d["code"].as_str().unwrap()).collect();
+        rules.sort_unstable();
+        assert_eq!(rules, ["SCR102", "SCR124", "VIEW015"], "{v}");
+        for d in found {
+            assert_eq!(d["fix"]["applicability"], "unsafe", "{d}");
+            let reason = &d["fix"]["unsafe_reason"];
+            assert!(
+                reason["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("assume-scripts-do-not-read-workspace-files"),
+                "{reason}"
+            );
+            assert!(
+                reason["what"].as_str().unwrap().starts_with("open("),
+                "{reason}"
+            );
+        }
+    }
+    iglint(dir.path())
+        .args(["--no-cache", "--fix"])
+        .args(select)
+        .output()
+        .unwrap();
+    assert_eq!(std::fs::read_to_string(&m).unwrap(), before.0);
+    assert_eq!(std::fs::read_to_string(&view).unwrap(), before.1);
+    // The text output names the read and the setting.
+    let out = iglint(dir.path())
+        .args(["--no-cache", "--select", "SCR124"])
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.contains(
+            "note: the fix is unsafe because code in the workspace may read the files a fix edits"
+        ),
+        "{text}"
+    );
+    // The project declares that no script reads workspace files: safe
+    // fixes apply again (the closed world still decides SCR102 and VIEW015).
+    std::fs::write(
+        dir.path().join("iglint.toml"),
+        "[fix]\nassume-scripts-do-not-read-workspace-files = true\n",
+    )
+    .unwrap();
+    iglint(dir.path())
+        .args(["--no-cache", "--fix"])
+        .args(select)
+        .output()
+        .unwrap();
+    let fixed = std::fs::read_to_string(&m).unwrap();
+    assert!(fixed.ends_with("x = 1  # note\n"), "{fixed}");
+    assert!(fixed.starts_with("\nprint open("), "{fixed}");
+    assert!(
+        !std::fs::read_to_string(&view)
+            .unwrap()
+            .contains("\"unused\"")
+    );
+}
+
+#[test]
+fn reads_of_files_outside_the_workspace_keep_fixes_safe() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("p/ignition/script-python/m")).unwrap();
+    std::fs::write(
+        dir.path().join("p/project.json"),
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("p/ignition/script-python/m/resource.json"),
+        r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+    )
+    .unwrap();
+    let m = dir.path().join("p/ignition/script-python/m/code.py");
+    std::fs::write(&m, "x = open('/tmp/report.csv').read()  \n").unwrap();
+    iglint(dir.path())
+        .args(["--no-cache", "--fix", "--select", "SCR124"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&m).unwrap(),
+        "x = open('/tmp/report.csv').read()\n"
+    );
+}

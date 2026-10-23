@@ -175,6 +175,11 @@ pub struct ProjectIndex<'w> {
     /// The first use (by path and offset) of code that is not vetted, or
     /// that reads a frame or the interpreter, in the workspace.
     first_unknown: Option<UnknownSite>,
+    /// Some resource of the workspace may read a file a fix edits
+    /// (`References::reads_files`, or an import that is not vetted and not
+    /// a library module), and the first such site by path and offset.
+    reads_files: bool,
+    first_file_read: Option<UnknownSite>,
 }
 
 /// Lowercases ASCII and non-ASCII letters (tag paths are case-insensitive).
@@ -205,6 +210,8 @@ impl<'w> ProjectIndex<'w> {
             theme_classes: FxHashSet::default(),
             has_themes: false,
             first_unknown: None,
+            reads_files: false,
+            first_file_read: None,
             databases: FxHashSet::default(),
             has_databases: false,
             usage: FxHashMap::default(),
@@ -599,6 +606,7 @@ impl<'w> ProjectIndex<'w> {
             p.unknown_code = unknown_code[i];
         }
         self.first_unknown = first_unknown;
+        self.count_file_reads();
         self.usage = usage;
         self.symbol_usage = symbol_usage;
         self.external_symbol_usage = external_symbol_usage;
@@ -883,6 +891,73 @@ impl<'w> ProjectIndex<'w> {
     /// closed.
     pub fn has_any_unknown_code(&self) -> bool {
         self.projects.iter().any(|p| p.unknown_code)
+    }
+
+    /// Whether any code of the workspace may read a file that a fix edits
+    /// (`References::reads_files`, or an import that is neither vetted nor
+    /// a project library module): every fix edits workspace files, so none
+    /// is safe while this holds, unless the project declares that scripts
+    /// do not read workspace files.
+    pub fn may_read_workspace_files(&self) -> bool {
+        self.reads_files
+    }
+
+    /// The first site (by path, then offset) of
+    /// [`ProjectIndex::may_read_workspace_files`].
+    pub fn first_file_read(&self) -> Option<&UnknownSite> {
+        self.first_file_read.as_ref()
+    }
+
+    fn count_file_reads(&mut self) {
+        let ws = self.ws;
+        let key = |s: &UnknownSite| (ws.file(s.file).path.clone(), s.range.start());
+        let mut reads = false;
+        let mut first: Option<UnknownSite> = None;
+        for r in &ws.resources {
+            let Some(summary) = self.summaries[r.id.index()].as_ref() else {
+                continue;
+            };
+            let refs = &summary.references;
+            // An import of a module that is neither vetted nor a library
+            // module of every project that may run the resource.
+            let projects: Vec<ProjectId> = match r.container {
+                Container::Project(p) => {
+                    let mut out = vec![p];
+                    out.extend(self.projects[p.index()].descendants.iter().copied());
+                    out
+                }
+                Container::Collection(_) => ws.projects.iter().map(|p| p.id).collect(),
+            };
+            let unvetted = refs.unvetted_imports.iter().find(|(name, _)| {
+                projects.is_empty()
+                    || projects.iter().any(|p| {
+                        !matches!(
+                            self.resolve_library(*p, name),
+                            LibraryLookup::Module { .. }
+                                | LibraryLookup::Package { .. }
+                                | LibraryLookup::Symbol { .. }
+                        )
+                    })
+            });
+            if !refs.reads_files && unvetted.is_none() {
+                continue;
+            }
+            reads = true;
+            let sites = refs
+                .file_read_site
+                .iter()
+                .filter(|_| refs.reads_files)
+                .chain(unvetted.map(|(_, site)| site));
+            for site in sites {
+                if site.file != UnknownSite::DETACHED
+                    && first.as_ref().is_none_or(|f| key(site) < key(f))
+                {
+                    first = Some(site.clone());
+                }
+            }
+        }
+        self.reads_files = reads;
+        self.first_file_read = first;
     }
 
     /// The first use (by path, then offset) of code that is not vetted, or

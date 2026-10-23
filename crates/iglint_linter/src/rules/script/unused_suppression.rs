@@ -56,6 +56,12 @@ used. A comment alone on its line leaves the line empty, so no line number
 changes. Safe, except when the whole comment would go and it holds more
 than the suppression (a reason, a `# pylint:` directive, a `coding:`
 declaration); that fix is unsafe and removes the comment's line too.
+
+Like every fix, it is unsafe while code in the workspace may read the
+files a fix edits (a read whose path is not a literal outside the
+workspace, or code that is not vetted); the project setting `[fix]
+assume-scripts-do-not-read-workspace-files = true` declares that no script
+does (see `docs/internal/fix-safety.md`, "File reads").
 "#,
     ..RuleMeta::DEFAULT
 };
@@ -310,7 +316,7 @@ mod tests {
     fn removes_whole_comments() {
         let f = library(
             "m",
-            "import os  # iglint: ignore[SCR102]\nprint os\n# iglint: ignore[SCR102]\nx = 1\n",
+            "import os  # iglint: ignore[SCR102]\nprint os.sep\n# iglint: ignore[SCR102]\nx = 1\n",
         );
         let fixed = f.fixed(
             &[("SCR102", ""), ("SCR123", "")],
@@ -318,7 +324,7 @@ mod tests {
             &library_path(&f, "m"),
         );
         // The comment's own line stays, empty: no line number changes.
-        assert_eq!(fixed, "import os\nprint os\n\nx = 1\n");
+        assert_eq!(fixed, "import os\nprint os.sep\n\nx = 1\n");
     }
 
     /// The safe fix never moves a line, so it stays safe where code reads
@@ -337,17 +343,28 @@ mod tests {
         ] {
             let code = format!("{line}{reader}");
             let f = library("m", &code);
-            let d = f.lint(&["SCR101", "SCR123"]);
-            let found: Vec<_> = d
+            // Each reader is code that is not vetted or reads frames, which
+            // may read the file itself: unsafe, unless the project declares
+            // that no script reads workspace files.
+            let applicability = |assume| -> Vec<_> {
+                f.run_assuming(
+                    &[("SCR101", ""), ("SCR123", "")],
+                    crate::FixMode::None,
+                    assume,
+                )
+                .diagnostics
                 .iter()
                 .filter(|d| d.rule.code() == "SCR123")
                 .map(|d| d.fix.as_ref().map(|f| f.applicability))
-                .collect();
-            assert_eq!(found, [Some(Safe)], "{reader}");
-            let fixed = f.fixed(
+                .collect()
+            };
+            assert_eq!(applicability(false), [Some(Unsafe)], "{reader}");
+            assert_eq!(applicability(true), [Some(Safe)], "{reader}");
+            let fixed = f.fixed_assuming(
                 &[("SCR101", ""), ("SCR123", "")],
                 false,
                 &library_path(&f, "m"),
+                true,
             );
             assert_eq!(fixed, format!("\nx = 1\n{reader}"));
         }

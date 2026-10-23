@@ -131,6 +131,12 @@ fn show_settings(
         let codes: Vec<_> = settings.unfixable.iter().map(|r| r.code()).collect();
         writeln!(out, "  unfixable = {codes:?}")?;
     }
+    if settings.assume_no_workspace_file_reads {
+        writeln!(
+            out,
+            "  fix.assume-scripts-do-not-read-workspace-files = true"
+        )?;
+    }
     writeln!(out, "  overrides = {}", settings.overrides.len())?;
     writeln!(out, "  enabled rules ({}):", resolved.rules.len())?;
     for (rule, rule_settings) in &resolved.rules {

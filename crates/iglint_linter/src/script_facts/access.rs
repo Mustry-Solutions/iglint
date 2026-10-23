@@ -216,6 +216,23 @@ impl ScriptFacts for AstScriptFacts {
         if let Some(site) = &mut references.unknown_site {
             place(site);
         }
+        if let Some(site) = &mut references.file_read_site {
+            place(site);
+        }
+        // A Vision client script holds the client's objects, whose members
+        // are not measured for file handles (`JAVA_FILE_MEMBERS` covers the
+        // gateway): it may read files.
+        if unit.script.run_scope == iglint_project::RunScope::VisionClient {
+            references.reads_files = true;
+            if references.file_read_site.is_none() {
+                let mut site = iglint_project::summary::UnknownSite::detached(TextRange::empty(
+                    unit.script.source_map.body_start(),
+                ));
+                place(&mut site);
+                site.what = "a Vision client script".to_owned();
+                references.file_read_site = Some(site);
+            }
+        }
         for (_, site) in &mut references.unvetted_imports {
             place(site);
         }

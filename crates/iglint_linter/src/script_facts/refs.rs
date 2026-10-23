@@ -74,6 +74,19 @@ pub fn collect(model: &SemanticModel<'_>, ctx: &FactsContext<'_>, refs: &mut Ref
     {
         refs.unknown_site = Some(UnknownSite::detached(range));
     }
+    // A possible read of a workspace file, or code that may read one under
+    // another name (anything that is not vetted or reads frames can reach
+    // `open`): it observes every fix (`iglint_python_semantic::file_reads`).
+    let read = [unknown.file_read, unknown.other, frames]
+        .into_iter()
+        .flatten()
+        .min_by_key(|r| r.start());
+    if let Some(range) = read {
+        refs.reads_files = true;
+        if refs.file_read_site.is_none() {
+            refs.file_read_site = Some(UnknownSite::detached(range));
+        }
+    }
     refs.unvetted_imports.extend(
         unknown
             .imports

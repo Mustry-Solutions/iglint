@@ -10,7 +10,7 @@ use iglint_text::TextRange;
 use rustc_hash::FxHashSet;
 
 use crate::checker::{Checker, FileTable};
-use crate::diagnostic::{Diagnostic, ReasonSite, UnsafeReason};
+use crate::diagnostic::{Applicability, Diagnostic, ReasonSite, UnsafeReason};
 
 /// Where code is not vetted ([`unknown_code_at`]).
 #[derive(Clone, Copy, Debug)]
@@ -246,6 +246,60 @@ pub(crate) fn complete_reasons(diagnostics: &mut [Diagnostic], site: Option<&Rea
             && reason.site.is_none()
         {
             reason.site = Some(site.clone());
+        }
+    }
+}
+
+/// Why every fix is unsafe while code in the workspace may read the files
+/// a fix edits ([`ProjectIndex::may_read_workspace_files`]).
+pub(crate) const FILE_READ_REASON: &str = "code in the workspace may read the files a fix edits \
+     (set `assume-scripts-do-not-read-workspace-files = true` under `[fix]` if no script \
+     does)";
+
+/// Makes every safe fix of `diagnostics` unsafe when code in the workspace
+/// may read the files a fix edits, unless `assume_no_reads` (the project
+/// setting `[fix] assume-scripts-do-not-read-workspace-files`). Every fix
+/// edits a workspace file, and a script that reads it (`open(path).read()`,
+/// its size or modification time) observes the edit, however neutral the
+/// edit is for the code that runs: removing an unused import, trailing
+/// whitespace or a suppression comment, or a custom property. Run after
+/// [`complete_reasons`] on every path that reports or applies fixes
+/// (`--fix`, `--diff`, the language server), after the cache.
+pub(crate) fn gate_file_reads(
+    diagnostics: &mut [Diagnostic],
+    index: &ProjectIndex<'_>,
+    files: &FileTable,
+    assume_no_reads: bool,
+) {
+    if assume_no_reads || !index.may_read_workspace_files() {
+        return;
+    }
+    let site = index.first_file_read().and_then(|site| {
+        let source = files.get(site.file)?;
+        let at = source
+            .line_index()
+            .line_column(site.range.start(), source.text());
+        Some(ReasonSite {
+            path: source.path().to_path_buf(),
+            line: at.line,
+            column: at.column,
+            what: site.what.clone(),
+        })
+    });
+    for d in diagnostics {
+        if let Some(fix) = d.fix.as_mut()
+            && fix.applicability == Applicability::Safe
+        {
+            fix.applicability = Applicability::Unsafe;
+            fix.unsafe_reason = Some(UnsafeReason {
+                message: if site.is_some() {
+                    format!("{FILE_READ_REASON}, first")
+                } else {
+                    FILE_READ_REASON.to_owned()
+                },
+                site: site.clone(),
+                workspace: true,
+            });
         }
     }
 }
