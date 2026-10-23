@@ -109,6 +109,8 @@ struct ProjectData {
     /// Library modules whose every top-level name may be used (a module
     /// used as a value, `from m import *`).
     escaped_modules: FxHashSet<ResourceId>,
+    /// Library modules that a resource this project sees star-imports.
+    star_imported_modules: FxHashSet<ResourceId>,
     /// Library names that resources this project sees assign or delete
     /// (`References::library_stores`).
     library_stores: FxHashSet<String>,
@@ -367,6 +369,7 @@ impl<'w> ProjectIndex<'w> {
         let mut dynamic: Vec<DynamicReferences> = vec![DynamicReferences::default(); n];
         let mut escaped: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut stores: Vec<FxHashSet<String>> = vec![FxHashSet::default(); n];
+        let mut star_imported: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         // Resources of gateway collections (tag event scripts) run with the
         // gateway scripting project, which the workspace does not name:
         // their references count for every project.
@@ -440,6 +443,12 @@ impl<'w> ProjectIndex<'w> {
                 }
                 dynamic[pid.index()].extend(&refs.dynamic);
                 stores[pid.index()].extend(refs.library_stores.iter().cloned());
+                for name in &refs.library_star_imports {
+                    if let LibraryLookup::Module { resource, .. } = self.resolve_library(pid, name)
+                    {
+                        star_imported[pid.index()].insert(resource);
+                    }
+                }
                 for m in &refs.messages {
                     let (target_project, perspective) = match &m.target {
                         MessageTarget::Perspective { .. } => (Some(pid), true),
@@ -489,6 +498,7 @@ impl<'w> ProjectIndex<'w> {
             p.dynamic = d;
             p.escaped_modules = std::mem::take(&mut escaped[i]);
             p.library_stores = std::mem::take(&mut stores[i]);
+            p.star_imported_modules = std::mem::take(&mut star_imported[i]);
         }
         self.usage = usage;
         self.symbol_usage = symbol_usage;
@@ -760,6 +770,15 @@ impl<'w> ProjectIndex<'w> {
     pub fn module_escapes(&self, project: ProjectId, module: ResourceId) -> bool {
         self.projects[project.index()]
             .escaped_modules
+            .contains(&module)
+    }
+
+    /// Whether a resource `project` sees star-imports the library module
+    /// (`from core.util import *`), so that every name the module exports
+    /// to star imports is used.
+    pub fn module_star_imported(&self, project: ProjectId, module: ResourceId) -> bool {
+        self.projects[project.index()]
+            .star_imported_modules
             .contains(&module)
     }
 

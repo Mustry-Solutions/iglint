@@ -73,6 +73,10 @@ from 0.1.0 on.
   for the package, and code that reaches stack frames
   (`sys._getframe()`, `inspect.currentframe()`, `.f_locals`) counts as
   reading everything, in library functions and in view scripts.
+- `SCR102` no longer reports a top-level import of a library module that
+  another resource star-imports (`from pkg.mod import *` binds it there):
+  every name not starting with `_`, or only the names of `__all__` when
+  the module assigns it unconditionally, counts as used.
 - `SCR112` treats a `.format` field too large for a Java `int`
   (`{2147483648}`, also `{2147483648.x}` and in nested specs) as the
   keyword it is in Jython: no finding when `**kwargs` may supply it.

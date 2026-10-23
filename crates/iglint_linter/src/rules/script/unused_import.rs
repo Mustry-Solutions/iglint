@@ -101,7 +101,9 @@ project). The one remaining effect of a safe fix: an import that would
 have failed (a class missing from the JDK) no longer fails.
 
 Top-level names of a library module are attributes of the module: an
-import that another resource uses as `pkg.mod.name` is not reported.
+import that another resource uses as `pkg.mod.name` is not reported, nor
+one that `from pkg.mod import *` in another resource binds there (every
+name not starting with `_`, or the names of `__all__`).
 
 ## pylint
 
@@ -368,6 +370,10 @@ impl ScriptRule for UnusedImport {
                     if text.contains(&format!("{dotted}.{}", b.name)) {
                         return false;
                     }
+                    // `from pkg.mod import *` elsewhere binds the name there.
+                    if star_imported(cx) && exported_to_star_imports(model, unit, b.name) {
+                        return false;
+                    }
                     match external_use(cx, b.name) {
                         ExternalUse::Used => false,
                         ExternalUse::Unused => true,
@@ -412,6 +418,45 @@ impl ScriptRule for UnusedImport {
                 let _ = r.fix_opt(fix.clone());
             }
         }
+    }
+}
+
+/// Whether a resource of the project star-imports the library module being
+/// checked.
+fn star_imported(cx: &Checker<'_, '_>) -> bool {
+    match (cx.project_index(), cx.resource()) {
+        (Some((index, project)), Some(resource)) => {
+            index.module_star_imported(project, resource.id)
+        }
+        // Unknown context: `external_use` makes the fix unsafe.
+        _ => false,
+    }
+}
+
+/// Whether `from module import *` binds `name` in the importer (Python
+/// 2.7): every top-level name not starting with `_`, or only the names of
+/// `__all__` when the module assigns `__all__` once in its own statement
+/// list (names listed in `__all__` are never reported).
+fn exported_to_star_imports(
+    model: &SemanticModel<'_>,
+    unit: &ScriptUnit<'_, '_>,
+    name: &str,
+) -> bool {
+    let all = model.scope(ScopeId::MODULE).bindings_of("__all__");
+    let unconditional_all = match all {
+        [only] => model.binding(*only).stmt.is_some_and(|stmt| {
+            unit.parsed
+                .module
+                .body
+                .iter()
+                .any(|s| std::ptr::eq(s, stmt))
+        }),
+        _ => false,
+    };
+    if unconditional_all && !model.dunder_all_is_dynamic() {
+        model.dunder_all().iter().any(|n| n == name)
+    } else {
+        !name.starts_with('_')
     }
 }
 
@@ -598,6 +643,50 @@ mod tests {
             &library_path(&f, "sem/unusedimp"),
         );
         assert_eq!(fixed, "import os\n");
+    }
+
+    /// `from pkg.mod import *` binds every name the module exports in the
+    /// importer (Jython: `os`, `json` and `sep` are bound, `_sys` is not;
+    /// with `__all__` only its names are).
+    #[test]
+    fn library_imports_star_imported_by_other_modules_are_used() {
+        let user = "from sem.unusedimp import *\ndef g():\n    return os.sep + json.dumps(1)\n";
+        let f = with_library(
+            library(
+                "sem/unusedimp",
+                "import os\nimport json\nimport sys as _sys\nfrom os import path as _p, sep\ndef f():\n    return 1\n",
+            ),
+            "sem/user",
+            user,
+        );
+        let d = f.lint(&["SCR102"]);
+        // Not exported: still reported, unsafe because the module escapes
+        // (`from` imports of library modules are never reported).
+        assert_eq!(flagged(&d), ["_sys"]);
+        assert_eq!(
+            applicability(&d),
+            [Some(crate::diagnostic::Applicability::Unsafe)]
+        );
+        // `__all__` decides what is exported.
+        let f = with_library(
+            library(
+                "sem/unusedimp",
+                "import os\nimport json\n__all__ = ['json']\n",
+            ),
+            "sem/user",
+            user,
+        );
+        assert_eq!(flagged(&f.lint(&["SCR102"])), ["os"]);
+        // An `__all__` that may not be assigned does not.
+        let f = with_library(
+            library(
+                "sem/unusedimp",
+                "import os\nimport json\nif os.sep == '/':\n    __all__ = ['json']\n",
+            ),
+            "sem/user",
+            user,
+        );
+        assert!(f.lint(&["SCR102"]).is_empty());
     }
 
     /// When the module is used as a value, any of its names may be used:

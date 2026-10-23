@@ -496,6 +496,7 @@ impl<'a> Visitor<'a> for Chains<'_, '_, '_, '_> {
                     && i.level == 0
                 {
                     self.refs.dynamic.library.push(m.as_str().to_owned());
+                    self.refs.library_star_imports.push(m.as_str().to_owned());
                 }
             }
             Stmt::Exec(e) => match &*e.body {
