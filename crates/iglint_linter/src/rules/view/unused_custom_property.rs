@@ -57,7 +57,11 @@ by a text search:
   `param.getSibling('A').custom.y`, passing it on to other library
   functions, up to 4 calls deep). A function that does not exist reads
   nothing (the call fails, which `REF002` reports). A function that uses
-  the value in a way that cannot be followed, a function a child project
+  the value in a way that cannot be followed (it stores the value where
+  it outlives the call, in a `global`, a module or class attribute, a
+  default argument or a container it does not own, returns, yields or
+  raises it, captures it in a nested function, or reaches stack frames
+  with `sys._getframe()` or `inspect`), a function a child project
   overrides, a function that may be replaced at run time (its module runs
   `exec`, `eval` or `execfile`, writes `globals()` or
   `sys.modules[__name__]`, sets its `func_code`, or may overwrite it with
@@ -964,6 +968,73 @@ mod tests {
             &[("lib/util", "")],
         );
         assert!(d.is_empty(), "{:?}", paths(&d));
+    }
+
+    /// Every way a followed parameter can leave the function: the value
+    /// outlives the call (globals, module and class attributes, default
+    /// arguments, containers reachable from outside), reaches unknown code
+    /// (returned, yielded, raised, passed on, captured by a closure) or is
+    /// read through the frame. Each counts as reading everything.
+    #[test]
+    fn library_values_that_escape_read_everything() {
+        for util in [
+            // Globals, also through aliases and other kinds of stores.
+            "_c = None\ndef handle(p):\n    global _c\n    _c = p\ndef later():\n    return _c.view.custom.a\n",
+            "def handle(p):\n    global _c\n    _c = p.view\n",
+            "def handle(p):\n    global _c\n    v = p\n    _c = v\n",
+            "def handle(p):\n    global _c\n    _c, _d = p, 1\n",
+            "def handle(p):\n    global _c\n    for _c in [p]:\n        pass\n",
+            "def handle(p):\n    global _c\n    [0 for _c in (p,)]\n",
+            "_l = []\ndef handle(p):\n    global _l\n    _l += [p]\n",
+            "def handle(p):\n    def g():\n        global _c\n        _c = p\n    g()\n",
+            "def handle(p):\n    globals()['_c'] = p\n",
+            // Attributes and items of objects that outlive the call.
+            "import lib.util as m\ndef handle(p):\n    m.saved = p\n",
+            "def handle(p):\n    lib.util.saved = p\n",
+            "import sys\ndef handle(p):\n    setattr(sys.modules[__name__], '_c', p)\n",
+            "class K:\n    pass\ndef handle(p):\n    K.saved = p\n",
+            "_s = {}\ndef handle(p):\n    _s['k'] = p\n",
+            "_s = []\ndef handle(p):\n    _s.append(p)\n",
+            "_s = []\ndef handle(p):\n    l = [p]\n    _s.extend(l)\n",
+            "_s = {}\ndef handle(p):\n    _s.update({'k': p})\n",
+            "def handle(p, cache={}):\n    cache['k'] = p\n",
+            "def handle(p, cache=[]):\n    cache.append(p.view)\n",
+            "def handle(p, **lib):\n    lib.update(k=p)\n",
+            // Unknown code: returned, yielded, raised, passed on, captured.
+            "def handle(p):\n    v = p.view\n    return v\n",
+            "def handle(p):\n    yield p\n",
+            "def handle(p):\n    raise ValueError(p)\n",
+            "def handle(p):\n    system.util.invokeLater(lambda: p.view.custom.a)\n",
+            "def handle(p):\n    return (p for _ in [1])\n",
+            "def handle(p):\n    v = p.view\n    return lambda: v\n",
+            "def handle(p):\n    class C:\n        q = p\n    return C\n",
+            // Frames.
+            "import sys\ndef handle(p):\n    return sys._getframe(0).f_locals\n",
+            "import inspect\ndef handle(p):\n    return inspect.currentframe()\n",
+        ] {
+            let d = with_library("\\tlib.util.handle(self)", &[("lib/util", util)]);
+            assert!(d.is_empty(), "{util}: {:?}", paths(&d));
+        }
+        // A local that is not global is followed.
+        let util = "_c = None\ndef handle(p):\n    _c = p\n    print _c.view.custom.a\n";
+        let d = with_library("\\tlib.util.handle(self)", &[("lib/util", util)]);
+        assert_eq!(
+            paths(&d),
+            [
+                "view.custom.b",
+                "view.custom.c",
+                "root/A.custom.x",
+                "root/A.custom.y"
+            ]
+        );
+        // The same for the view script itself.
+        for script in [
+            "\\tglobal v\\n\\tv = self.view",
+            "\\timport sys\\n\\tsys._getframe(0)",
+        ] {
+            let d = with_library(script, &[]);
+            assert!(d.is_empty(), "{script}: {:?}", paths(&d));
+        }
     }
 
     #[test]

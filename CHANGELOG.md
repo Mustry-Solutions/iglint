@@ -65,6 +65,14 @@ from 0.1.0 on.
   outside function` in a class body, `import *` in a function, a bare
   `except:` that is not last, ...) are no longer reported in dead code,
   which Jython compiles.
+- `VIEW015` no longer follows a library function's parameter stored in a
+  name the function declares `global` as a local alias: the store is an
+  escape, so the safe fix no longer removes a property that another
+  function of the module reads later through the global. A `**kwargs`
+  or `*args` parameter named like a library package is no longer taken
+  for the package, and code that reaches stack frames
+  (`sys._getframe()`, `inspect.currentframe()`, `.f_locals`) counts as
+  reading everything, in library functions and in view scripts.
 - `SCR112` treats a `.format` field too large for a Java `int`
   (`{2147483648}`, also `{2147483648.x}` and in nested specs) as the
   keyword it is in Jython: no finding when `**kwargs` may supply it.

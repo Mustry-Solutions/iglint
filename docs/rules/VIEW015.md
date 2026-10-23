@@ -44,7 +44,11 @@ by a text search:
   `param.getSibling('A').custom.y`, passing it on to other library
   functions, up to 4 calls deep). A function that does not exist reads
   nothing (the call fails, which `REF002` reports). A function that uses
-  the value in a way that cannot be followed, a function a child project
+  the value in a way that cannot be followed (it stores the value where
+  it outlives the call, in a `global`, a module or class attribute, a
+  default argument or a container it does not own, returns, yields or
+  raises it, captures it in a nested function, or reaches stack frames
+  with `sys._getframe()` or `inspect`), a function a child project
   overrides, a function that may be replaced at run time (its module runs
   `exec`, `eval` or `execfile`, writes `globals()` or
   `sys.modules[__name__]`, sets its `func_code`, or may overwrite it with

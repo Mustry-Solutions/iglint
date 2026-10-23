@@ -183,6 +183,17 @@ fn check_fix_removes_unused_custom_property() {
 /// defines as `def handle(p): pass`, plus `rest` appended to the module and
 /// `other` (a second library module, `lib.other`) when not empty.
 fn handed_to_library(rest: &str, other: &str) -> tempfile::TempDir {
+    library_view(
+        "\\tlib.util.handle(self)\\n",
+        &format!("def handle(p):\n    pass\n{rest}"),
+        other,
+    )
+}
+
+/// A view whose root button (custom property `used`) runs `script` (JSON
+/// escaped), in a project whose library has `lib.util` with `util` and
+/// `lib.other` with `other` when not empty.
+fn library_view(script: &str, util: &str, other: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     let d = dir.path();
     write(
@@ -195,7 +206,7 @@ fn handed_to_library(rest: &str, other: &str) -> tempfile::TempDir {
     write(
         d,
         &format!("{views}/Main/view.json"),
-        r#"{
+        &r#"{
   "root": {
     "custom": {
       "used": 42
@@ -204,7 +215,7 @@ fn handed_to_library(rest: &str, other: &str) -> tempfile::TempDir {
       "component": {
         "onActionPerformed": {
           "config": {
-            "script": "\tlib.util.handle(self)\n"
+            "script": "SCRIPT"
           },
           "scope": "G",
           "type": "script"
@@ -216,15 +227,12 @@ fn handed_to_library(rest: &str, other: &str) -> tempfile::TempDir {
     },
     "type": "ia.input.button"
   }
-}"#,
+}"#
+        .replace("SCRIPT", script),
     );
     let library = "projects/p/ignition/script-python/lib";
     write(d, &format!("{library}/util/resource.json"), "{}\n");
-    write(
-        d,
-        &format!("{library}/util/code.py"),
-        &format!("def handle(p):\n    pass\n{rest}"),
-    );
+    write(d, &format!("{library}/util/code.py"), util);
     if !other.is_empty() {
         write(d, &format!("{library}/other/resource.json"), "{}\n");
         write(d, &format!("{library}/other/code.py"), other);
@@ -316,6 +324,92 @@ fn safe_fixes_keep_properties_of_rebound_library_functions() {
     assert_eq!(run.status, ExitStatus::Success, "{}", run.stdout);
     let text = std::fs::read_to_string(dir.path().join(view)).unwrap();
     assert!(!text.contains("used"), "{text}");
+}
+
+/// `iglint check --fix` on `dir` (a [`library_view`]) keeps `used`, and
+/// `--diff` offers no fix for it.
+fn assert_fix_keeps_used(dir: &Path, case: &str) {
+    let args = ["check", "--isolated", "--no-cache", "--select", "VIEW015"];
+    let diff = run_with(dir, &[&args[..], &["--diff"]].concat(), false);
+    assert!(!diff.stdout.contains("used"), "{case}\n{}", diff.stdout);
+    let run = run_with(dir, &[&args[..], &["--fix"]].concat(), false);
+    let view = "projects/p/com.inductiveautomation.perspective/views/Main/view.json";
+    let text = std::fs::read_to_string(dir.join(view)).unwrap();
+    assert!(
+        text.contains("\"used\": 42"),
+        "{case}\n{}\n{text}",
+        run.stdout
+    );
+}
+
+/// A library function that stores the component in a module global (or
+/// anywhere else that outlives the call) lets later code read it: the safe
+/// fix keeps the property. Each variant prints 42 on Jython.
+#[test]
+fn safe_fixes_keep_properties_stored_by_library_functions() {
+    let later = "def later():\n    print _c.custom.used\n";
+    for util in [
+        format!("_c = None\ndef handle(c):\n    global _c\n    _c = c\n{later}"),
+        format!("def handle(c):\n    global _c\n    v = c\n    _c = v\n{later}"),
+        "_s = []\ndef handle(c):\n    _s.append(c)\ndef later():\n    print _s[0].custom.used\n"
+            .to_owned(),
+        "import lib.other as m\ndef handle(c):\n    m._c = c\ndef later():\n    print m._c.custom.used\n"
+            .to_owned(),
+        "def handle(c, cache={}):\n    cache['c'] = c\ndef later():\n    print handle.func_defaults[0]['c'].custom.used\n"
+            .to_owned(),
+    ] {
+        let dir = library_view(
+            "\\tlib.util.handle(self)\\n\\tlib.util.later()\\n",
+            &util,
+            "_c = None\n",
+        );
+        assert_fix_keeps_used(dir.path(), &util);
+    }
+}
+
+/// A library function the view script itself, or another module through an
+/// alias, replaces before the call: the function that runs reads the
+/// property. Each variant prints 42 on Jython.
+#[test]
+fn safe_fixes_keep_properties_of_functions_replaced_by_callers() {
+    let util = "def handle(c):\n    pass\n";
+    let real = "def real(c):\n    print c.custom.used\n";
+    let cases = [
+        (
+            "\\tdef real(c):\\n\\t\\tprint c.custom.used\\n\\tlib.util.handle = real\\n\\tlib.util.handle(self)\\n",
+            util.to_owned(),
+            String::new(),
+        ),
+        (
+            "\\timport lib.util as u\\n\\tdef real(c):\\n\\t\\tprint c.custom.used\\n\\tu.handle = real\\n\\tlib.util.handle(self)\\n",
+            util.to_owned(),
+            String::new(),
+        ),
+        (
+            "\\tdef real(c):\\n\\t\\tprint c.custom.used\\n\\tsetattr(lib.util, 'handle', real)\\n\\tlib.util.handle(self)\\n",
+            util.to_owned(),
+            String::new(),
+        ),
+        (
+            "\\tlib.util.handle(self)\\n",
+            util.to_owned(),
+            format!("import lib.util as u\n{real}u.handle = real\n"),
+        ),
+        (
+            "\\tlib.util.handle(self)\\n",
+            util.to_owned(),
+            format!("import lib.util as u\n{real}setattr(u, 'handle', real)\n"),
+        ),
+        (
+            "\\tlib.util.handle(self)\\n",
+            format!("{util}from lib.other import *\n"),
+            "def handle(c):\n    print c.custom.used\n".to_owned(),
+        ),
+    ];
+    for (script, util, other) in &cases {
+        let dir = library_view(script, util, other);
+        assert_fix_keeps_used(dir.path(), &format!("{script}\n{util}\n{other}"));
+    }
 }
 
 #[test]

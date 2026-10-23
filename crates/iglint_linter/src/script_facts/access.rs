@@ -30,7 +30,10 @@
 //!
 //! A local name assigned exactly once from one of these values
 //! (`view = self.view`, `table = self.getSibling('Table')`) is followed as
-//! an alias.
+//! an alias. A name declared `global` is never an alias: the value stored
+//! in it outlives the call, so the store is an escape. Reaching a stack
+//! frame (`sys._getframe()`, `inspect.currentframe()`, `.f_locals`, ...)
+//! makes every local readable, so it counts as an escape of everything.
 //!
 //! A value passed to a call of a dotted name that the script does not bind
 //! (`lib.util.handle(self)`, `lib.util.handle(view=self.view)`) escapes
@@ -213,6 +216,11 @@ impl<'v, 'a> Analysis<'v, 'a, '_> {
         let mut stores = Stores::default();
         for stmt in body {
             stores.visit_stmt(stmt);
+        }
+        // A global outlives the call and other code reads it: storing a
+        // value in it is an escape, not an alias.
+        for name in declared_globals(body) {
+            stores.count.entry(name).or_default().0 += 2;
         }
         // Resolve in a few rounds so aliases of aliases work.
         for _ in 0..3 {
@@ -441,6 +449,9 @@ impl<'v, 'a> Analysis<'v, 'a, '_> {
     /// Walks an expression; returns its followed value when `role` is
     /// [`Role::Base`]. In [`Role::Value`] a followed value escapes.
     fn walk(&mut self, e: &Expr, role: Role, aug: bool) -> Option<Val> {
+        if is_frame_access(e) {
+            self.everything(e_range(e));
+        }
         let result = match e {
             Expr::Name(n) => match n.ctx {
                 ExprContext::Load | ExprContext::AugLoad => self.name_value(&n.id),
@@ -496,6 +507,9 @@ impl<'v, 'a> Analysis<'v, 'a, '_> {
             }
             Expr::Call(c) => {
                 let mut value = None;
+                if is_frame_access(&c.func) {
+                    self.everything(c.range);
+                }
                 match &*c.func {
                     Expr::Attribute(a) => {
                         let base = self.walk(&a.value, Role::Base, false);
@@ -860,6 +874,41 @@ fn bound_names(body: &[Stmt]) -> FxHashSet<String> {
     bound.0
 }
 
+/// Every name a `global` statement in `body` declares, nested scopes
+/// included.
+fn declared_globals(body: &[Stmt]) -> FxHashSet<String> {
+    #[derive(Default)]
+    struct Globals(FxHashSet<String>);
+    impl<'e> Visitor<'e> for Globals {
+        fn visit_stmt(&mut self, stmt: &'e Stmt) {
+            if let Stmt::Global(g) = stmt {
+                self.0.extend(g.names.iter().map(|n| n.as_str().to_owned()));
+            }
+            walk_stmt(self, stmt);
+        }
+    }
+    let mut globals = Globals::default();
+    for stmt in body {
+        globals.visit_stmt(stmt);
+    }
+    globals.0
+}
+
+/// Whether `e` reaches stack frames (`sys._getframe()`,
+/// `inspect.currentframe()`, `.f_locals`, `.tb_frame`, ...), through which
+/// any local variable can be read.
+fn is_frame_access(e: &Expr) -> bool {
+    let Expr::Attribute(a) = e else {
+        return false;
+    };
+    match a.attr.as_str() {
+        "_getframe" | "_current_frames" | "currentframe" | "getouterframes" | "getinnerframes"
+        | "f_locals" | "f_globals" | "f_back" | "tb_frame" | "gi_frame" => true,
+        "stack" | "trace" => matches!(&*a.value, Expr::Name(n) if &*n.id == "inspect"),
+        _ => false,
+    }
+}
+
 // ---- library functions ----
 
 /// What `f` does with each of its positional parameters, when they hold a
@@ -874,8 +923,29 @@ pub fn param_uses(f: &StmtFunctionDef) -> Vec<ParamUse> {
             _ => None,
         })
         .collect();
+    struct Names(FxHashSet<String>);
+    impl<'e> Visitor<'e> for Names {
+        fn visit_expr(&mut self, expr: &'e Expr) {
+            if let Expr::Name(n) = expr {
+                self.0.insert(n.id.to_string());
+            }
+            walk_expr(self, expr);
+        }
+    }
+    let mut names_of_args = Names(FxHashSet::default());
+    for a in &f.args.args {
+        names_of_args.visit_expr(a);
+    }
+    let mut arguments = names_of_args.0;
+    arguments.extend(
+        [&f.args.vararg, &f.args.kwarg]
+            .into_iter()
+            .flatten()
+            .map(|n| n.as_str().to_owned()),
+    );
     let mut w = ParamWalker {
         params: FxHashMap::default(),
+        arguments,
         aliases: FxHashMap::default(),
         bound: bound_names(&f.body),
         uses: names.iter().map(|_| ParamUse::Paths(Vec::new())).collect(),
@@ -906,6 +976,9 @@ type Sym = (usize, Vec<PathStep>);
 
 struct ParamWalker {
     params: FxHashMap<String, usize>,
+    /// Every name the function's arguments bind (`*args`, `**kwargs` and
+    /// tuple parameters included): such a name is never a library module.
+    arguments: FxHashSet<String>,
     /// Names assigned exactly once from a parameter path.
     aliases: FxHashMap<String, Option<Sym>>,
     bound: FxHashSet<String>,
@@ -943,6 +1016,9 @@ impl ParamWalker {
         let mut stores = Stores::default();
         for stmt in body {
             stores.visit_stmt(stmt);
+        }
+        for name in declared_globals(body) {
+            stores.count.entry(name).or_default().0 += 2;
         }
         for _ in 0..3 {
             for (name, (count, value)) in &stores.count {
@@ -1000,6 +1076,9 @@ impl ParamWalker {
 
     /// Like [`Analysis::walk`], over parameter paths.
     fn walk(&mut self, e: &Expr, role: Role, aug: bool) -> Option<Sym> {
+        if is_frame_access(e) {
+            self.dynamic_all();
+        }
         let result = match e {
             Expr::Name(n) => match n.ctx {
                 ExprContext::Load | ExprContext::AugLoad => self.name_value(&n.id),
@@ -1052,6 +1131,9 @@ impl ParamWalker {
             Expr::Call(c) => {
                 let mut value = None;
                 let mut callee = None;
+                if is_frame_access(&c.func) {
+                    self.dynamic_all();
+                }
                 match &*c.func {
                     Expr::Attribute(a) => {
                         if let Some((p, mut steps)) = self.walk(&a.value, Role::Base, false) {
@@ -1073,7 +1155,7 @@ impl ParamWalker {
                 // Only names the function does not bind are resolved later.
                 let callee = callee.filter(|d| {
                     let head = d.split('.').next().unwrap_or("");
-                    !self.bound.contains(head) && !self.params.contains_key(head)
+                    !self.bound.contains(head) && !self.arguments.contains(head)
                 });
                 for (i, arg) in c.args.iter().enumerate() {
                     match &callee {
