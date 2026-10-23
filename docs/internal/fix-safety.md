@@ -37,12 +37,15 @@ code before and after the edit.
 
 ## Threat model
 
-Six review rounds in a row found a dynamic Python route that defeated a
+Seven review rounds in a row found a dynamic Python route that defeated a
 safe fix, each time one that an enumerated list did not contain (frames,
 tracebacks, generators, reflection, `cPickle` opcodes that call `eval` or
 `globals()` in the caller's frame, `str.format` reading attributes,
-`warnings` and Java stack traces reading line numbers). The argument is
-therefore no longer "these are all the routes". It is:
+`warnings` and Java stack traces reading line numbers, Java bean
+properties `x.class` / `x.classLoader` / `x.methods` reaching reflection,
+vetted modules handing out `sys` as a `PySystemState`, and byte-string
+literals that are not valid UTF-8). The argument is therefore no longer
+"these are all the routes". It is:
 
 **Safe fixes assume that the code uses only vetted modules, Java classes,
 builtins and module attributes, plus the language constructs that the
@@ -57,11 +60,12 @@ Three mechanisms carry it:
    uses is on the allowlist below, every import that is not is a project
    library module whose own code is vetted (transitively, also for the
    library names it calls without importing), and no vetted module name
-   is shadowed by a project library package. For library-module imports,
-   `SCR102` also needs every resource of the project (and of projects
-   inheriting from it) to be vetted: unknown code anywhere may read any
-   module's names by name (`cPickle.loads("c<module>\n<name>\n.")`).
-   Findings are not affected: only the fixes become unsafe.
+   is shadowed by a project library package. The attributes that are
+   vetted per module, and the Java member names that reach reflection, are
+   not hand lists: they are measured inside the Ignition image (see
+   "Machine-measured facts" below). Subclassing a Java class is not plain
+   (its instances are Java-backed). Findings are not affected: only the
+   fixes become unsafe.
 2. **The default-deny walkers.** Within vetted code, the access analysis of
    `VIEW015` and `NAME001` (`script_facts/access.rs`) enumerates the
    understood uses of components and properties and treats every other
@@ -84,6 +88,83 @@ Three mechanisms carry it:
    generated header; `every_check_runs_for_every_script_kind` enumerates
    them.
 
+### Machine-measured facts
+
+Two parts of the vetted-code guard are measured, not hand-listed, because a
+name list for either was defeated. They are generated inside the Ignition
+8.3.3 image by `stubs-gen/gen_vetted.py` (run `stubs-gen/run.sh --vetted`,
+which needs only the image's Jython and reflection, not a gateway) into
+`crates/iglint_python_semantic/src/generated/vetted_generated.rs`. The test
+`generated_tables_match_vetted_inputs` fails if the vetted module list or
+Java class list changes without regenerating.
+
+* **Java reflection, a closed argument.** In Jython every value is a
+  `java.lang.Object` and exposes `getClass()`, spelled `.class` or
+  `__class__` as a bean property; from a `Class` a script reaches its
+  `ClassLoader`, `methods`, `fields` and constructors, and from those
+  `org.python.core.Py`, `getSystemState()`, the module table,
+  `__builtin__` and `eval` (verified on Jython: subclassing `ArrayList`
+  and reading `.class` reads the module's globals). The argument is not a
+  list of bad names; it is: **a script cannot reach a reflection object
+  without, as its first hop from a plain value, naming a member whose
+  declared type is reflection-bearing** (`Class`, `ClassLoader`,
+  `java.lang.reflect.*`, `java.lang.invoke.*`). The generator enumerates
+  exactly those first-hop members over the types a plain value can hold
+  (`Object`, `Throwable`, `Thread` and every vetted Java class), in both
+  the Java method and the Jython bean / field spellings, into
+  `JAVA_REFLECTIVE_MEMBERS`. `iglint_python_semantic::dynamic` treats any
+  of them, named on a value or as an identifier in a string literal, as
+  introspective and fails closed; this covers values returned by
+  `system.*` (any `.class` on them is caught) without enumerating their
+  types. `StackTraceElement` and `Thread` are deliberately not
+  reflection-bearing: a stack-trace element gives only line numbers and
+  class-name strings (a name becomes a class only through `Class.forName`,
+  which is flagged, and line numbers are protected by line preservation),
+  and a `Thread` is plain until its `ClassLoader` is named
+  (`getContextClassLoader`, which is flagged). So `Thread.currentThread()`
+  and reading a stack trace, both common in Ignition, stay plain.
+* **Vetted module attributes, measured positively.** `sys` in Jython is a
+  `PySystemState`, not a `types.ModuleType`, so `re.sys`, `calendar.sys`
+  and `os.path.sys` slipped past a "deny the module attributes" rule and
+  reached `modules` and `__builtin__`. The generator now measures every
+  attribute of every vetted module by kind and emits `MODULE_VETTED_ATTRS`,
+  the attributes that are a function, a class or a constant of an immutable
+  vetted type. Everything else, a module, a `PySystemState`, a Java class
+  (`base64.binascii`) or any other object, is unknown. `vetted.rs` consults
+  this positive list; the per-module denylist still removes members that
+  look names up from data (`string.Formatter`, `operator.attrgetter`).
+
+### Byte strings
+
+A `str` literal that is not valid UTF-8 (`'{0.f_locals}\xff'`) must never
+read as "nothing" in a safety scan: Jython maps each byte to the Java char
+of the same value (Latin-1, `'\xe9' == u'é'`). `StringValue::to_latin1`
+does that and never fails, and every safety-relevant scan uses it (the
+introspection-attribute scan, `NAME001`'s literal collection). The
+`script_facts` access and reference analyses already fail closed on a
+non-decodable key (an unknown key reads and writes everything).
+
+### Closed world
+
+The Ignition runtime is shared across every project and gateway-scoped
+script (tag event scripts, WebDev, session and gateway events). Code that
+can read a frame or the interpreter, anywhere in that runtime, can observe
+any module's names and, through `sys._current_frames()`, any frame's
+locals, including a function-local import and a component held in a
+running view script. So "unknown code" for the safe-fix guard is not only
+`vetted::unknown_code`: a script with any frame or interpreter route
+(`iglint_python_semantic::dynamic`'s escape routes) counts too, recorded
+as `References::unknown_code` and surfaced as
+`ProjectIndex::has_any_unknown_code`. The Safe applicability of `SCR102`
+(module-level and function-local), `VIEW015` and `NAME001` requires the
+whole workspace closure, every project, its parents, the children that
+inherit and can call its library, and the gateway-scoped scripts, to be
+free of unknown code. Projects outside the workspace: a safe fix is
+withheld when the project is inheritable or its inheritance chain is
+incomplete (`all_library_references_known`), so a child that may exist
+outside the workspace cannot invalidate a fix. The workspace is the closed
+world; there is no option to declare it complete while inheritable.
+
 ### Vetted code
 
 Each entry was checked on Ignition 8.3's Jython: it cannot evaluate code,
@@ -94,7 +175,7 @@ as a value is itself a route.
 
 | Allowed | Reason and exceptions |
 |---|---|
-| `math`, `cmath`, `time`, `datetime`, `calendar`, `random`, `itertools`, `heapq`, `bisect`, `base64`, `binascii`, `hashlib`, `struct`, `textwrap`, `decimal`, `fractions`, `uuid`, `re`, `json`, `os.path` | Pure computation on their arguments. Attributes that are modules (measured with `isinstance(v, types.ModuleType)`: `re.sre_compile`, `os.path.os`, `uuid.ctypes`, `json.decoder`, `calendar.datetime`, ...) and private attributes are not vetted: they lead to other modules. Module objects used as values are not vetted. |
+| `math`, `cmath`, `time`, `datetime`, `calendar`, `random`, `itertools`, `heapq`, `bisect`, `base64`, `binascii`, `hashlib`, `struct`, `textwrap`, `decimal`, `fractions`, `uuid`, `re`, `json`, `os.path` | Pure computation on their arguments. Which attributes are vetted is measured positively per module (see "Machine-measured facts"): only functions, classes and immutable constants. Attributes that are modules (`re.sre_compile`, `os.path.os`, `json.decoder`), a `PySystemState` (`re.sys`), a Java class (`base64.binascii`) or private are not vetted. Module objects used as values are not vetted. |
 | `string` | Except `Formatter`, which reads the attributes its format string names (verified). `Template` only looks names up in the mapping it is given (verified: `${x.y}` is rejected). |
 | `collections` | `namedtuple` runs generated code in a namespace of its own and rejects type and field names that are not identifiers (verified). |
 | `operator` | Except `attrgetter` and `methodcaller`, which look attributes up by name (verified). |

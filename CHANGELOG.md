@@ -46,6 +46,29 @@ from 0.1.0 on.
 
 ### Fixed
 
+- SCR002 reports a `yield` inside a list comprehension, or in the first
+  iterable of a set or dict comprehension: Jython's compiler crashes on it
+  (`java.lang.VerifyError`). The exact crashing and compiling forms were
+  mapped against the compile oracle.
+- The vetted-code guard no longer trusts hand lists for two routes that
+  defeated them. Java reflection reached through a bean property
+  (`x.class`, `x.classLoader`, `x.methods`) and vetted modules that hand
+  out `sys` (a `PySystemState` in Jython: `re.sys`, `calendar.sys`) are
+  now caught by tables measured inside the Ignition image
+  (`stubs-gen/gen_vetted.py`, `stubs-gen/run.sh --vetted`); subclassing a
+  Java class is unknown code too.
+- Safety scans decode a `str` literal that is not valid UTF-8 as Latin-1
+  (Jython's byte-to-char mapping) instead of reading it as empty, so a
+  `'{0.f_locals}\xff'` format string or `getChild` argument can no longer
+  slip a safe fix through.
+- Closed world: a script that reads a frame or the interpreter, anywhere
+  in the shared-runtime workspace, now blocks the safe fixes of SCR102
+  (including function-local imports), VIEW015 and NAME001, not only when it
+  is in the same resource.
+- `--fix` reaches a fixpoint in one run: a safe fix rejected only in
+  combination with another is retried in a later pass, so removing unused
+  imports whose joint deletion would promote a docstring no longer needs a
+  second run. `--fix` reports a clear error if fixes do not converge.
 - Safe fixes now assume only vetted code (`docs/internal/fix-safety.md`,
   "Threat model"), instead of a list of dynamic routes that six review
   rounds each defeated. A script or library module keeps the safe fixes
