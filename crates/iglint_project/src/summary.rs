@@ -275,6 +275,26 @@ pub struct References {
     /// that is not a project library module counts as
     /// [`References::unknown_code`].
     pub unvetted_imports: Vec<(String, UnknownSite)>,
+    /// Calls that hand a Perspective object (a component, a view, a page
+    /// or a session) to a dotted name that may be a library function. The
+    /// linter resolves them once the index is built: a callee that may
+    /// reach other views with it counts as [`References::unknown_code`]
+    /// ([`crate::ProjectIndex::mark_unknown_code`]).
+    pub perspective_calls: Vec<PerspectiveCall>,
+}
+
+/// A call that hands a Perspective object to a name that may be a library
+/// function ([`References::perspective_calls`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PerspectiveCall {
+    /// The dotted name called, as written in the script.
+    pub callee: String,
+    /// The parameter the object binds to.
+    pub slot: crate::library::ArgSlot,
+    /// A page or session (`true`), or a component or view.
+    pub host: bool,
+    /// Where the object is passed.
+    pub site: UnknownSite,
 }
 
 /// Where a script uses code that is not vetted or reads a frame or the
@@ -348,6 +368,7 @@ impl References {
             self.unknown_site = other.unknown_site;
         }
         self.unvetted_imports.extend(other.unvetted_imports);
+        self.perspective_calls.extend(other.perspective_calls);
     }
 }
 

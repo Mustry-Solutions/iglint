@@ -98,10 +98,11 @@ pub trait ScriptFacts: Sync {
     /// Adds the cross-resource references of one script to its resource's
     /// summary (views, named queries, library names, message sends, pages,
     /// dynamic references) and, for library modules, the module's
-    /// top-level symbols.
+    /// top-level symbols. `view` is the view of a view's scripts.
     fn summarize(
         &self,
         unit: &ScriptUnit<'_, '_>,
+        view: Option<&View<'_>>,
         ctx: &FactsContext<'_>,
         summary: &mut ResourceSummary,
     );
@@ -134,6 +135,7 @@ impl ScriptFacts for NoScriptFacts {
     fn summarize(
         &self,
         _unit: &ScriptUnit<'_, '_>,
+        _view: Option<&View<'_>>,
         _ctx: &FactsContext<'_>,
         _summary: &mut ResourceSummary,
     ) {

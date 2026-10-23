@@ -893,6 +893,52 @@ impl<'w> ProjectIndex<'w> {
         self.first_unknown.as_ref()
     }
 
+    /// Every [`crate::summary::PerspectiveCall`] of the workspace, with each
+    /// project whose scripts may make it (the project a resource belongs
+    /// to, the projects inheriting it, and every project for gateway
+    /// resources), in a stable order.
+    pub fn perspective_calls(&self) -> Vec<(ProjectId, crate::summary::PerspectiveCall)> {
+        let ws = self.ws;
+        let gateway: Vec<ResourceId> = ws
+            .resources
+            .iter()
+            .filter(|r| matches!(r.container, Container::Collection(_)) && !r.manifest.missing)
+            .map(|r| r.id)
+            .collect();
+        let mut out = Vec::new();
+        for p in &ws.projects {
+            let mut seen = ws.effective_resources(Container::Project(p.id));
+            seen.extend(gateway.iter().copied());
+            for rid in seen {
+                let Some(summary) = self.summaries[rid.index()].as_ref() else {
+                    continue;
+                };
+                for call in &summary.references.perspective_calls {
+                    out.push((p.id, call.clone()));
+                }
+            }
+        }
+        out
+    }
+
+    /// Counts `site` as code that is not vetted in `project` (and so in the
+    /// workspace, [`ProjectIndex::has_any_unknown_code`]): a fact the
+    /// linter derives after the index is built (a library function that
+    /// reaches other views with a Perspective object it is handed).
+    pub fn mark_unknown_code(&mut self, project: ProjectId, site: UnknownSite) {
+        self.projects[project.index()].unknown_code = true;
+        let ws = self.ws;
+        let key = |s: &UnknownSite| (ws.file(s.file).path.clone(), s.range.start());
+        if site.file != UnknownSite::DETACHED
+            && self
+                .first_unknown
+                .as_ref()
+                .is_none_or(|f| key(&site) < key(f))
+        {
+            self.first_unknown = Some(site);
+        }
+    }
+
     /// Whether every top-level name of a library module may be used by
     /// `project` (the module is used as a value or star-imported).
     pub fn module_escapes(&self, project: ProjectId, module: ResourceId) -> bool {

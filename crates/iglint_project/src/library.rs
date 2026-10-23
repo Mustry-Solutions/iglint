@@ -194,6 +194,10 @@ pub enum PathEnd {
     /// `'name' in value` (or `not in`): reads property `name` of a
     /// container.
     Contains(String),
+    /// Only the truth value or identity of the value is used (`if v:`,
+    /// `not v`, `v is None`): a container is read, a component, view, page
+    /// or session is not.
+    Test,
 }
 
 /// One parameter.

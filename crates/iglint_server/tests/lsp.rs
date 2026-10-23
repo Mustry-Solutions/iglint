@@ -700,3 +700,139 @@ fn quick_fix_for_import_read_through_an_earlier_function_is_unsafe() {
     }
     client.shutdown();
 }
+
+/// The VIEW015 quick fixes (and fix-all) of `view` in a workspace where
+/// another view runs `script`: the titles and whether each is preferred.
+fn view015_fixes(script: &str) -> Vec<(String, Option<bool>)> {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    demo_project(&root);
+    let views = "projects/demo/com.inductiveautomation.perspective/views";
+    let button = |script: &str| {
+        format!(
+            r#"{{"meta": {{"name": "Btn"}}, "type": "ia.input.button", "events": {{"component": {{"onActionPerformed": {{"type": "script", "scope": "G", "config": {{"script": "{script}"}}}}}}}}}}"#
+        )
+    };
+    let view = |custom: &str, script: &str| {
+        format!(
+            "{{\"custom\": {custom}, \"params\": {{}},\n  \"root\": {{\"meta\": {{\"name\": \"root\"}}, \"type\": \"ia.container.flex\", \"children\": [{}]}}}}\n",
+            button(script)
+        )
+    };
+    let a = view(
+        r#"{"foo": 1, "bar": 2}"#,
+        r"\tsystem.perspective.print(self.view.custom.bar)",
+    );
+    write(&root, &format!("{views}/A/resource.json"), MANIFEST);
+    let path = write(&root, &format!("{views}/A/view.json"), &a);
+    write(&root, &format!("{views}/B/resource.json"), MANIFEST);
+    write(&root, &format!("{views}/B/view.json"), &view("{}", script));
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&path, &a);
+    let published = client.diagnostics(&uri, Some(1));
+    let range = published
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.code
+                .as_ref()
+                .is_some_and(|c| *c == lsp_types::NumberOrString::String("VIEW015".to_owned()))
+        })
+        .unwrap_or_else(|| panic!("{published:#?}"))
+        .range;
+    let fixes = code_actions(
+        &mut client,
+        &uri,
+        range,
+        Some(vec![CodeActionKind::QUICKFIX]),
+    )
+    .into_iter()
+    .filter(|a| a.title.starts_with("VIEW015") && !a.title.contains("suppress"))
+    .map(|a| (a.title, a.is_preferred))
+    .collect();
+    client.shutdown();
+    fixes
+}
+
+/// Reviewer round 9 (Opus) blocker, through the language server: another
+/// view that reaches this view through the page makes the VIEW015 quick
+/// fix unsafe (not preferred), naming the site; without it the fix is
+/// safe and preferred.
+#[test]
+fn quick_fix_for_a_property_read_from_another_view_is_unsafe() {
+    let fixes =
+        view015_fixes(r"\tfor v in self.page.views:\n\t\tsystem.perspective.print(v.custom.foo)");
+    assert!(!fixes.is_empty());
+    for (title, preferred) in &fixes {
+        assert!(title.contains("(unsafe: closed world"), "{title}");
+        assert!(title.contains("views/B/view.json"), "{title}");
+        assert_eq!(*preferred, Some(false), "{title}");
+    }
+    let fixes = view015_fixes(r"\tsystem.perspective.print(self.page.props.path)");
+    assert!(!fixes.is_empty());
+    for (title, preferred) in &fixes {
+        assert!(!title.contains("unsafe"), "{title}");
+        assert_eq!(*preferred, Some(true), "{title}");
+    }
+}
+
+/// Reviewer round 9 (Codex) blocker, through the language server: removing
+/// an import that fails (a class that does not exist) changes what the
+/// program does when the caller catches the error, so the quick fix is
+/// unsafe; an import of a class measured to exist keeps the safe fix.
+#[test]
+fn quick_fix_for_an_import_that_fails_is_unsafe() {
+    for (import, safe) in [
+        ("from java.util import MissingReviewClass", false),
+        ("from java.util import ArrayList", true),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        demo_project(&root);
+        let lib = "projects/demo/ignition/script-python/m";
+        write(
+            &root,
+            &format!("{lib}/resource.json"),
+            &MANIFEST.replace("view.json", "code.py"),
+        );
+        let text = format!(
+            "def f():\n    {import}\ntry:\n    f()\nexcept Exception:\n    print 'failed'\nelse:\n    print 'succeeded'\n"
+        );
+        let path = write(&root, &format!("{lib}/code.py"), &text);
+        let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+        let uri = client.open(&path, &text);
+        let published = client.diagnostics(&uri, Some(1));
+        let range = published
+            .diagnostics
+            .iter()
+            .find(|d| {
+                d.code
+                    .as_ref()
+                    .is_some_and(|c| *c == lsp_types::NumberOrString::String("SCR102".to_owned()))
+            })
+            .unwrap_or_else(|| panic!("{published:#?}"))
+            .range;
+        let fixes: Vec<CodeAction> = code_actions(
+            &mut client,
+            &uri,
+            range,
+            Some(vec![CodeActionKind::QUICKFIX]),
+        )
+        .into_iter()
+        .filter(|a| a.title.starts_with("SCR102") && !a.title.contains("suppress"))
+        .collect();
+        assert!(!fixes.is_empty(), "{fixes:#?}");
+        assert_eq!(
+            fixes.iter().any(|f| f.is_preferred == Some(true)),
+            safe,
+            "{import}: {fixes:#?}"
+        );
+        if !safe {
+            assert!(
+                fixes.iter().all(|f| f.title.contains("(unsafe")),
+                "{fixes:#?}"
+            );
+        }
+        client.shutdown();
+    }
+}

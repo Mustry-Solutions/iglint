@@ -358,7 +358,7 @@ fn unsafe_fixes_name_the_code_that_makes_them_unsafe() {
     let r = reason(&first);
     assert_eq!(
         r["message"],
-        "closed world: code in the workspace is not vetted or reads frames, first"
+        "closed world: code in the workspace is not vetted, reads frames or reaches other views, first"
     );
     assert_eq!(r["what"], "re.sys");
     assert_eq!(r["filename"], "p/ignition/script-python/m/code.py");
@@ -369,8 +369,9 @@ fn unsafe_fixes_name_the_code_that_makes_them_unsafe() {
     let text = run("text");
     assert!(
         text.contains(
-            "note: the fix is unsafe because closed world: code in the workspace is not vetted \
-             or reads frames, first: `re.sys` at p/ignition/script-python/m/code.py:2:5"
+            "note: the fix is unsafe because closed world: code in the workspace is not vetted, \
+             reads frames or reaches other views, first: `re.sys` at \
+             p/ignition/script-python/m/code.py:2:5"
         ),
         "{text}"
     );
@@ -385,4 +386,92 @@ fn unsafe_fixes_name_the_code_that_makes_them_unsafe() {
     // `c` names the new line.
     std::fs::write(lib.join("m/code.py"), "\nimport re\nx = re.sys\n").unwrap();
     assert_eq!(reason(&run("json"))["location"]["row"], 3);
+}
+
+/// Reviewer round 9 (Opus) blocker, through the binary: view `B` reads
+/// view `A`'s custom property `foo` through `self.page.views`; `--fix`
+/// must not delete it, `--fix --unsafe-fixes` may, and the JSON output
+/// names the site in `B`.
+#[test]
+fn fix_keeps_properties_read_from_another_view() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("p")).unwrap();
+    std::fs::write(
+        dir.path().join("p/project.json"),
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    )
+    .unwrap();
+    let view = |custom: &str, script: &str| {
+        format!(
+            r#"{{"custom": {custom}, "params": {{}}, "root": {{"meta": {{"name": "root"}}, "type": "ia.container.flex", "children": [{{"meta": {{"name": "Btn"}}, "type": "ia.input.button", "events": {{"component": {{"onActionPerformed": {{"type": "script", "scope": "G", "config": {{"script": "{script}"}}}}}}}}}}]}}}}"#
+        )
+    };
+    let views = dir
+        .path()
+        .join("p/com.inductiveautomation.perspective/views");
+    for (name, json) in [
+        (
+            "A",
+            view(
+                r#"{"foo": 1, "bar": 2}"#,
+                r"\tsystem.perspective.print(self.view.custom.bar)",
+            ),
+        ),
+        (
+            "B",
+            view(
+                "{}",
+                r"\tfor v in self.page.views:\n\t\tif v.id.startswith('A@'):\n\t\t\tsystem.perspective.print(v.custom.foo)",
+            ),
+        ),
+    ] {
+        std::fs::create_dir_all(views.join(name)).unwrap();
+        std::fs::write(
+            views.join(name).join("resource.json"),
+            r#"{"scope": "G", "version": 1, "files": ["view.json"]}"#,
+        )
+        .unwrap();
+        std::fs::write(views.join(name).join("view.json"), json).unwrap();
+    }
+    let a = views.join("A/view.json");
+    let out = iglint(dir.path())
+        .args([
+            "--no-cache",
+            "--select",
+            "VIEW015",
+            "--output-format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let foo = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["message"].as_str().unwrap().contains("`foo`"))
+        .unwrap();
+    assert_eq!(foo["fix"]["applicability"], "unsafe", "{foo}");
+    let reason = &foo["fix"]["unsafe_reason"];
+    assert_eq!(
+        reason["filename"], "p/com.inductiveautomation.perspective/views/B/view.json",
+        "{reason}"
+    );
+    assert_eq!(reason["what"], "self.page.views", "{reason}");
+    iglint(dir.path())
+        .args(["--no-cache", "--fix", "--select", "VIEW015"])
+        .output()
+        .unwrap();
+    assert!(std::fs::read_to_string(&a).unwrap().contains("\"foo\""));
+    iglint(dir.path())
+        .args([
+            "--no-cache",
+            "--fix",
+            "--unsafe-fixes",
+            "--select",
+            "VIEW015",
+        ])
+        .output()
+        .unwrap();
+    assert!(!std::fs::read_to_string(&a).unwrap().contains("\"foo\""));
 }

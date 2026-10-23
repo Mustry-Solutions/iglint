@@ -672,7 +672,7 @@ fn follow_library_calls<'a>(
 /// Resolves a name called with a value of a view, or (`check`) called or
 /// used as a value while values of the view are live: written in the view
 /// script (`context` `None`) or in the body of a library function.
-fn resolve_callee<'i>(
+pub(crate) fn resolve_callee<'i>(
     index: &'i ProjectIndex<'_>,
     project: ProjectId,
     callee: &str,
@@ -1577,5 +1577,168 @@ mod tests {
             c.fix.as_ref().unwrap().applicability,
             crate::Applicability::Unsafe
         );
+    }
+
+    /// View `A` with custom `foo` (unused) and `bar` (read by its button),
+    /// view `B` whose button runs `script`, plus `extra` resources
+    /// (`(dir, file, text)`): VIEW015 on `A`'s `foo`.
+    fn cross_view(script: &str, extra: &[(&str, &str, &str)]) -> Diagnostic {
+        let a = view(
+            r#"{"foo": 1, "bar": 2}"#,
+            "{}",
+            &[label(
+                "Btn",
+                &event("\\tsystem.perspective.print(self.view.custom.bar)"),
+            )],
+            "{}",
+        );
+        let b = view("{}", "{}", &[label("Btn", &event(script))], "{}");
+        let mut f = Fixture::new().with_view("A", &a).with_view("B", &b);
+        for (dir, file, text) in extra {
+            f = f.resource(dir, &[(file, text)]);
+        }
+        let d = f.lint(&["VIEW015"]);
+        let mut found: Vec<Diagnostic> = d
+            .into_iter()
+            .filter(|d| d.node_path.as_deref() == Some("view.custom.foo"))
+            .collect();
+        assert_eq!(found.len(), 1, "{found:?}");
+        found.remove(0)
+    }
+
+    fn applicability(d: &Diagnostic) -> crate::Applicability {
+        d.fix.as_ref().expect("a fix").applicability
+    }
+
+    /// Reviewer round 9 (Opus) blocker: a page or session hands out the
+    /// other views of the page (`page.views`, `getViews()`, `page.view`)
+    /// and other pages (`session.pages`, `getPages()`, `getPage(id)`), with
+    /// their custom properties. Such a use anywhere in the workspace is
+    /// unknown code for the closed world: the fix in view `A` is unsafe and
+    /// names the site.
+    #[test]
+    fn other_views_through_pages_and_sessions_make_fixes_unsafe() {
+        let unsafe_at = |d: &Diagnostic, what: &str| {
+            assert_eq!(applicability(d), crate::Applicability::Unsafe, "{d:?}");
+            let reason = d
+                .fix
+                .as_ref()
+                .unwrap()
+                .unsafe_reason
+                .as_ref()
+                .expect("a reason");
+            let site = reason.site.as_ref().expect("a site");
+            assert!(site.what.contains(what), "{site:?}");
+        };
+        // View to view.
+        for (script, what) in [
+            (
+                "\\tfor v in self.page.views:\\n\\t\\tif v.id.startswith('A@'):\\n\\t\\t\\tsystem.perspective.print(v.custom.foo)",
+                "views",
+            ),
+            (
+                "\\tvs = self.page.getViews()\\n\\tvs[0].custom.foo",
+                "getViews",
+            ),
+            ("\\tself.page.view.custom.foo", "view"),
+            ("\\tself.getPage().getView().custom.foo", "getView"),
+            ("\\tself.session.getPage('x').views", "getPage"),
+            ("\\tfor p in self.session.pages:\\n\\t\\tpass", "pages"),
+            ("\\tself.view.session.getPages()", "getPages"),
+            ("\\tgetattr(self.page, 'views')", "self.page"),
+            ("\\tsystem.util.getGlobals()['p'] = self.page", "self.page"),
+            ("\\tsystem.util.getGlobals()['c'] = self", "self"),
+            ("\\tself.page.__getattribute__('views')", "__getattribute__"),
+        ] {
+            unsafe_at(&cross_view(script, &[]), what);
+        }
+        // A session message handler, a session property transform's
+        // session and a page startup script.
+        let perspective = "projects/p/com.inductiveautomation.perspective";
+        unsafe_at(
+            &cross_view(
+                "\\tsystem.perspective.print(1)",
+                &[(
+                    &format!("{perspective}/message/m"),
+                    "handleMessage.py",
+                    "def handleMessage(session, payload):\n\tfor p in session.getPages():\n\t\tfor v in p.views:\n\t\t\tprint v.custom.foo\n",
+                )],
+            ),
+            "getPages",
+        );
+        unsafe_at(
+            &cross_view(
+                "\\tsystem.perspective.print(1)",
+                &[(
+                    &format!("{perspective}/page-startup"),
+                    "onPageStartup.py",
+                    "def onPageStartup(page):\n\tprint page.views[0].custom.foo\n",
+                )],
+            ),
+            "views",
+        );
+        // A library function that receives the page, or a component, and
+        // reaches other views with it; the site is the call.
+        let library = "projects/p/ignition/script-python/lib/util";
+        for (script, code) in [
+            (
+                "\\tlib.util.dump(self.page)",
+                "def dump(p):\n    for v in p.views:\n        print v.custom.foo\n",
+            ),
+            (
+                "\\tlib.util.dump(self)",
+                "def dump(c):\n    return c.page.getViews()\n",
+            ),
+            // Passed on to code that is not followed.
+            (
+                "\\tlib.util.dump(self)",
+                "def dump(c):\n    keep(c)\nkeep = None\n",
+            ),
+            // Returned to the caller, which may do anything with it.
+            (
+                "\\tlib.util.dump(self).page.views",
+                "def dump(c):\n    return c\n",
+            ),
+        ] {
+            unsafe_at(&cross_view(script, &[(library, "code.py", code)]), "self");
+        }
+    }
+
+    /// The forms that stay inside the page and session keep the safe fix:
+    /// their own properties, names and actions, the view's own tree, and
+    /// library functions that only use those.
+    #[test]
+    fn page_and_session_members_that_stay_local_keep_the_fix() {
+        let library = "projects/p/ignition/script-python/lib/util";
+        for (script, code) in [
+            ("\\tself.page.props.path", ""),
+            ("\\tself.session.custom.user = self.page.id", ""),
+            ("\\tself.session.props.id\\n\\tself.page.print('x')", ""),
+            (
+                "\\tif self.page is not None and self.session:\\n\\t\\tpass",
+                "",
+            ),
+            ("\\tself.page.session.custom.x", ""),
+            (
+                "\\tfor c in self.getChildren():\\n\\t\\tc.props.text = 'x'",
+                "",
+            ),
+            (
+                "\\tlib.util.show(self.page)\\n\\tlib.util.show2(self)",
+                "def show(p):\n    p.props.path\ndef show2(c):\n    c.view.custom.bar\n",
+            ),
+        ] {
+            let extra: Vec<(&str, &str, &str)> = if code.is_empty() {
+                Vec::new()
+            } else {
+                vec![(library, "code.py", code)]
+            };
+            let d = cross_view(script, &extra);
+            assert_eq!(
+                applicability(&d),
+                crate::Applicability::Safe,
+                "{script}: {d:?}"
+            );
+        }
     }
 }

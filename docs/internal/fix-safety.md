@@ -100,14 +100,15 @@ Three mechanisms carry it:
 
 ### Machine-measured facts
 
-Two parts of the vetted-code guard are measured, not hand-listed, because a
-name list for either was defeated. They are generated inside the Ignition
+Parts of the vetted-code guard are measured, not hand-listed, because a
+name list for each was defeated or could not be checked. They are generated inside the Ignition
 8.3.3 image by `stubs-gen/gen_vetted.py` (run `stubs-gen/run.sh --vetted`,
 which needs only the image's Jython, jars and reflection, not a gateway)
 into `crates/iglint_python_semantic/src/generated/vetted_generated.rs`. The
 test `generated_tables_match_vetted_inputs` fails if the vetted module
 list, the Java class or package lists or the stubs build changes without
-regenerating.
+regenerating, and `vetted_names_exist_in_the_image` that every vetted
+class, package and module was measured to exist.
 
 * **Java reflection and the interpreter, a closed argument.** A Java
   value in Jython exposes its public Java members, `getClass()` included,
@@ -220,6 +221,34 @@ regenerating.
   this positive list; the per-module denylist still removes members that
   look names up from data (`string.Formatter`, `operator.attrgetter`).
 
+* **Perspective script objects.** `self`, `self.view`, `self.page`,
+  `self.session` and the `session` and `page` of session events are
+  `PyDelegateObject`s over a `SafetyWrapper` (read in the gateway's
+  bytecode: property tree names from `PropertyType` first, then custom
+  methods and the component model delegate's script-callable methods,
+  then the wrapper's public Java members). The generator emits
+  `PERSPECTIVE_MEMBERS` (every member of the component, view, page and
+  session wrappers in the method and bean spellings, with the kind of
+  its declared type: a page or session, a view or component, a property
+  tree, `Object`/`PyObject`, or a value), `PERSPECTIVE_PROPERTY_TYPES`
+  and `PERSPECTIVE_DELEGATE_MEMBERS`, exposed by
+  `iglint_python_semantic::perspective`. The access analysis classifies
+  each member and `every_measured_perspective_member_is_classified`
+  fails on a member it does not: on a page or session, members that
+  return views, pages or components reach other views (the session
+  member returns the session); on a component or view, every member is
+  one of the understood forms; `getInfo` and `getProjectInfo` are JSON
+  data (`Gson.toJsonTree` in the bytecode); the delegates' members return
+  values or map data. A `PropertyTree` has no member that reaches its
+  owner.
+* **What an import finds.** `JAVA_PACKAGE_CLASSES` lists the public
+  top-level classes of every vetted Java package and of the packages of
+  the vetted classes, and `MODULE_ATTRS` every attribute (`dir()`) of
+  every vetted Python module, `os` and `sys` that imports in the image. A
+  Java class is vetted only when it is listed there (an import of a
+  missing class fails), and `SCR102` removes an import safely only with
+  this positive evidence (see "Import side effects").
+
 ### String sinks
 
 A string literal names a member at run time only in a sink, so only
@@ -286,6 +315,34 @@ withheld when the project is inheritable or its inheritance chain is
 incomplete (`all_library_references_known`), so a child that may exist
 outside the workspace cannot invalidate a fix. The workspace is the closed
 world; there is no option to declare it complete while inheritable.
+
+**Other views.** A Perspective page hands out the views it shows
+(`page.views`, `getViews()`, its primary `page.view`) and a session its
+pages (`session.pages`, `getPages()`, `getPage(id)`); the views arrive as
+view wrappers with their `custom` and `params` trees and `getChild(...)`.
+So a script of one view, a session event or page startup script, a
+session property script or a library function handed any of these
+objects can read and write the custom properties and look up the
+components of every other view. The access analysis
+(`script_facts/access.rs`, "Other views") records such a use, and the
+script layer counts it as unknown code with its site: a member of a page
+or session that hands out views, pages or components (every member is
+measured, see "Machine-measured facts"), a special name of any of these
+objects, an item of a page or session, a component, view, page or session
+used as a value the analysis does not follow (stored, put in a container,
+passed to a builtin, returned), and a call that hands one to a name that
+may be a library function whose followed body reaches other views, passes
+the object on to code that is not followed, or that is not a plain
+function (`resolve_perspective_calls`, after the index is built). Nothing
+else hands out a page or session: no `system.perspective` function returns
+one (`getSessionInfo` and `getProjectInfo` return data), and expressions
+and property bindings name only `this`, `view`, `parent`, `page` and
+`session` paths of their own view, page and session.
+`other_views_through_pages_and_sessions_make_fixes_unsafe` (VIEW015),
+`other_views_through_the_page_make_the_rename_unsafe` (NAME001), the
+binary test `fix_keeps_properties_read_from_another_view` and the
+language server test `quick_fix_for_a_property_read_from_another_view_is_unsafe`
+cover each route.
 
 ### Vetted code
 
@@ -386,6 +443,22 @@ JSON string of a modelled resource that mentions `runScript` but is not an
 expression or script iglint reads. The site of each is named in unsafe
 fixes (`script_facts::code_sources`).
 
+A view, session property or tag file part that has the wrong JSON type is
+skipped by the model (`VIEW021` reports the view and session ones). When
+the skipped part is a place for scripts (a component, `events`,
+`scripts`, `propConfig`, an action, binding or change script, a custom
+method without a string name, a script that is not a string, a tag) and
+contains a string, the code there is unknown code
+(`ModelProblem::hides_code`).
+
+Resource manifests and data files outside every project and gateway
+configuration collection are not loaded by Ignition (verified on 8.3.3: a
+collection directory without `config-mode.json` is ignored, its tags do
+not exist, and a `core` directory without one keeps the gateway from
+starting). Their scripts never run, so they are not unknown code; `REF009`
+reports each such file, so that nothing iglint lists goes unread without a
+finding (`every_listed_file_is_analysed_or_reported`).
+
 ### Line numbers
 
 Line numbers are invariant under safe fixes. A safe fix that deletes a
@@ -403,11 +476,11 @@ longer needed for safety.
 
 | Rule | Fix | Safe when | Otherwise |
 |---|---|---|---|
-| `NAME001` | Rename a component and every reference to it in the view | No reference to the component at all; no script reads `meta.name`; no script looks children up with a computed name or has a string literal equal to the name; every script parses; and no script of the view hands a component to code outside the view (library call, message payload, `getGlobals()`, an opaque call such as `locals()`), reaches a frame builtin in any way, calls an unnamed value or calls a library name that is not a plain function, class or literal constant: a library function that receives a component, or `eval` under another name, can call `getChild('Name')` itself; and every script of the view uses only vetted code (see "Threat model") | Unsafe when references exist, a component may escape or a script uses code that is not vetted (`cPickle.loads` of an `eval` opcode); no fix when a lookup cannot be rewritten or the new name is taken |
+| `NAME001` | Rename a component and every reference to it in the view | No reference to the component at all; no script reads `meta.name`; no script looks children up with a computed name or has a string literal equal to the name; every script parses; and no script of the view hands a component to code outside the view (library call, message payload, `getGlobals()`, an opaque call such as `locals()`), reaches a frame builtin in any way, calls an unnamed value or calls a library name that is not a plain function, class or literal constant: a library function that receives a component, or `eval` under another name, can call `getChild('Name')` itself; and every script of the view uses only vetted code (see "Threat model") | Unsafe when references exist, a component may escape or a script uses code that is not vetted (`cPickle.loads` of an `eval` opcode); no fix when a lookup cannot be rewritten or the new name is taken. Another view's script (or any code handed a page, session or one of its views) can look the component up: any such use in the workspace is unknown code under the closed-world rule |
 | `VIEW012` | Set, add or remove `access` in `propConfig` | Never: the access mode decides whether the browser receives the property and whether it may write it | Unsafe |
 | `VIEW013` | Set `persistent: false` (and remove the stored value) | No stored value: the property starts out absent either way | Unsafe when a stored value is removed: scripts and expressions that run before the binding delivers (query bindings are asynchronous) see a different value |
-| `VIEW015` | Remove an unused custom property and its `propConfig` entries | Nothing reads or writes the property, and the view's own scripts prove it: resolved reads and writes cover expressions, bindings (bidirectional ones write) and scripts, analysed default-deny (every use of a component, the view, a page or session, a property container or an alias of one must be one of the forms listed under "`VIEW015`: understood forms" below; anything else reads and writes everything it reaches); a script that reads frames or reaches a frame builtin in any way reads everything, and every library name a script calls or uses as a value is checked to be a plain function, class or literal constant (or missing); properties with a binding or change script are never reported | Unsafe when a script, a library function it calls or a bidirectional binding writes the property (the write recreates it at run time without the `access` and `persistent` settings of the removed `propConfig` entry); unsafe when the finding relies on following a value into library functions (inter-procedural: the function's body, a function that does not exist, the depth limit); unsafe for a view linted outside its project whose scripts call names that may be library functions; unsafe when a script of the view, or a library module it imports or calls, uses code that is not vetted |
-| `SCR102` | Remove unused import names or statements; the safe fix keeps the emptied lines, the unsafe fix removes them | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); a top-level library import is provably unused by other resources and no resource of the project uses code that is not vetted; every removed import is effect-free: `java.*` / `javax.*`, or a plain `import x` / non-package `from x import y` of a standard module on the verified list, with no project library package of that name; the module uses only vetted code and calls no library name that may be a frame builtin; the import is not the only binding of a name still read in its scope or a nested scope; and it does not come before a `from __future__` import | Unsafe (project library modules, third-party and non-JDK Java packages, `socket`, `logging`, dotted imports, relative imports, unknown project, a library name that is not a plain function, class or literal constant, code that is not vetted, a name that would resolve differently, a misplaced future import that would become valid) |
+| `VIEW015` | Remove an unused custom property and its `propConfig` entries | Nothing reads or writes the property, and the view's own scripts prove it: resolved reads and writes cover expressions, bindings (bidirectional ones write) and scripts, analysed default-deny (every use of a component, the view, a page or session, a property container or an alias of one must be one of the forms listed under "`VIEW015`: understood forms" below; anything else reads and writes everything it reaches); a script that reads frames or reaches a frame builtin in any way reads everything, and every library name a script calls or uses as a value is checked to be a plain function, class or literal constant (or missing); properties with a binding or change script are never reported | Unsafe when a script, a library function it calls or a bidirectional binding writes the property (the write recreates it at run time without the `access` and `persistent` settings of the removed `propConfig` entry); unsafe when the finding relies on following a value into library functions (inter-procedural: the function's body, a function that does not exist, the depth limit); unsafe for a view linted outside its project whose scripts call names that may be library functions; unsafe when a script of the view, or a library module it imports or calls, uses code that is not vetted; unsafe when any code in the workspace reaches other views through a page or session (closed world, "Other views") |
+| `SCR102` | Remove unused import names or statements; the safe fix keeps the emptied lines, the unsafe fix removes them | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); not a top-level name of a library module that another resource reads (`pkg.mod.name`, a literal `getattr` or `hasattr` name) or uses as a value (a default argument, a container, `getGlobals()`, `sys.modules`; never reported); a top-level library import is provably unused by other resources and no resource of the project uses code that is not vetted; every removed import is known to succeed and to be effect-free: a measured Java class or package of the vetted packages, or a plain `import x` / non-package `from x import y` of a standard module on the verified list that was measured to import (and to have `y`), with no project library package of that name; the module uses only vetted code and calls no library name that may be a frame builtin; the import is not the only binding of a name still read in its scope or a nested scope; and it does not come before a `from __future__` import | Unsafe (project library modules, third-party and non-JDK Java packages, Java classes or module attributes not measured to exist, `socket`, `logging`, dotted imports, relative imports, unknown project, a library name that is not a plain function, class or literal constant, code that is not vetted, a name that would resolve differently, a misplaced future import that would become valid) |
 | `SCR103` | Remove `x = value`, or only `x = ` when the value calls or binds something | Never | Unsafe: the value may be wanted under another name, and a removed attribute or subscript read, operator, comparison, `in` or `%` formatting can raise or run code (getters, special methods). The statement is removed only when the value calls nothing (no call, no backticks, which call `repr`, no `yield`) and binds nothing (no list comprehension, whose variables Python 2 leaks), so no pointless statement (`SCR114`) is left |
 | `SCR110` | `is` to `==`, `is not` to `!=` | Never: the result changes whenever identity and equality differ (`int('1000') is 1000` is `False` in Jython), and `==` calls `__eq__` / Java `equals` | Unsafe |
 | `SCR115` | `except A, B:` to `except (A, B):` | Never: the handler then catches `B` and no longer rebinds the name | Unsafe. The finding itself requires `B` to resolve (ignoring the handler) to a class statement, a capitalized `from` import or a builtin exception, and the handler body not to read it |
@@ -513,15 +586,23 @@ remaining documented assumption.
   deletion before a `__future__` import is therefore unsafe in `SCR102`,
   and the safety net rejects any safe fix that changes whether a script
   compiles, in either direction.
-* **Import side effects.** Removing an import is safe only for the JDK and
-  for standard library modules verified on Jython not to start threads,
-  register handlers or print (the list is `PURE_STDLIB_MODULES` in
-  `unused_import.rs`). Project library modules are never safe to remove:
-  importing them runs their top level, which in Ignition often registers
-  loggers, caches or message handlers. The one remaining change of a safe
-  removal: an import that would have failed (a class missing from the JDK)
-  no longer fails, which only matters to code that relied on the
-  `ImportError` without catching it where it was raised.
+* **Import side effects.** Removing an import is safe only with positive
+  evidence that the import succeeds and has no effect: a Java class
+  measured to exist in the image (a public top-level class of a vetted
+  Java package or of the package of a vetted class, `JAVA_PACKAGE_CLASSES`)
+  or such a package, and a standard library module verified on Jython not
+  to start threads, register handlers or print (`PURE_STDLIB_MODULES` in
+  `unused_import.rs`) that was measured to import in the image, with, for
+  `from m import n`, `n` measured to be an attribute of `m`
+  (`MODULE_ATTRS`). Dotted imports of Python modules are never safe (they
+  make the submodule an attribute of its package for every other script).
+  An earlier version accepted any capitalised name of a vetted Java
+  package: removing `from java.util import MissingClass` turned a failed
+  call into a successful one when the caller caught the `ImportError`
+  (verified on Jython: `failed` before the fix, `succeeded` after). Project
+  library modules are never safe to remove: importing them runs their top
+  level, which in Ignition often registers loggers, caches or message
+  handlers.
 * **Unknown context is unsafe.** A file linted outside its project, an
   inheritable project, an incomplete parent chain, or resources whose
   scripts iglint does not model make cross-resource facts unknown; fixes
@@ -536,9 +617,11 @@ remaining documented assumption.
   * component or view: `.custom`, `.params` (view), `.view`, `.parent`,
     `.children`, `.rootContainer` and their getters, `.getSibling(...)`,
     `.getChild(...)` (literal names resolve, others mean any component),
-    `.page`, `.session` and their getters (a host: only `.props`,
-    `.custom`, names, `.print`, `.close`, `.isConnected` are understood
-    on it), the harmless members `.props`, `.meta`, `.position`, `.name`,
+    `.page`, `.session` and their getters (a host: only its own property
+    trees, names, info, `.print`, `.close`, `.isConnected`,
+    `.refreshBinding`, `.invokeOnQueue` and `.session` are understood on
+    it; its other members reach other views, see "Closed world"), the
+    harmless members `.props`, `.meta`, `.position`, `.name`,
     `.id`, `.print`, `.focus`, `.requestTooltip`, `.removeTooltip`,
     `.requestContextMenu`, `.removeContextMenu`, `.requestPrint`,
     `.refreshBinding`, custom methods the view defines for it,
@@ -555,6 +638,9 @@ remaining documented assumption.
     named like a wrapper method or a special name counts as that
     property and, unless called in one of the forms above, as the whole
     container;
+  * a loop variable bound only by `for c in <children>:` (any
+    component), and truth and identity tests (`if c:`, `not c`, `c is
+    None`) of a component, view, page or session, which read no property;
   * any followed value: a local name assigned only once from it (class
     bodies and `global` names excluded; in library functions the
     assignment itself is recorded, so `x = p.custom.a` reads `a` even

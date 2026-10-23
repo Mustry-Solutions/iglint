@@ -115,7 +115,8 @@ pub(crate) fn script_reason(
 /// workspace, is filled in after the cache from the project index.
 pub(crate) fn workspace_reason() -> UnsafeReason {
     UnsafeReason {
-        message: "closed world: code in the workspace is not vetted or reads frames, first"
+        message: "closed world: code in the workspace is not vetted, reads frames or reaches \
+                  other views, first"
             .to_owned(),
         site: None,
         workspace: true,

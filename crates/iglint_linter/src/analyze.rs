@@ -480,7 +480,7 @@ pub(crate) fn analyze_with(
         phase_a.into_iter().unzip();
 
     // Index.
-    let index = ProjectIndex::build(&ws, summaries);
+    let index = build_index(&ws, summaries);
 
     // Files outside any resource, modelled standalone.
     struct Standalone {
@@ -1134,6 +1134,16 @@ pub(crate) fn run_phase(
     }
 }
 
+/// The project index of `summaries`, with the facts only the script
+/// layer can derive from the whole index (Perspective objects handed to
+/// library functions that reach other views). Every index the linter uses
+/// is built here.
+pub(crate) fn build_index(ws: &Workspace, summaries: Vec<ResourceSummary>) -> ProjectIndex<'_> {
+    let mut index = ProjectIndex::build(ws, summaries);
+    crate::script_facts::access::resolve_perspective_calls(&mut index);
+    index
+}
+
 /// The summary of a resource model with what its scripts contribute
 /// (references and library symbols), as phase A computes it. The live
 /// workspace uses the same function so its index equals `check`'s.
@@ -1180,9 +1190,13 @@ pub(crate) fn add_script_references(
     }
     let facts = crate::script_facts::provider();
     let parsed = cache.parsed_scripts(data);
+    let view = match data {
+        ModelData::View { view, .. } => Some(view),
+        _ => None,
+    };
     for (index, ((file, script), parsed)) in scripts.into_iter().zip(parsed).enumerate() {
         let unit = ScriptUnit::new(file, script, parsed, index);
-        facts.summarize(&unit, ctx, summary);
+        facts.summarize(&unit, view, ctx, summary);
     }
 }
 

@@ -34,6 +34,11 @@ from 0.1.0 on.
 
 ### Added
 
+- VIEW021 `invalid-view-structure` reports the parts of a view (and of
+  the session properties) that have the wrong JSON type, once at the
+  offending value: `"root": []`, `"children": "x"`, `"script": 7`,
+  `"customMethods": [{"name": 5}]`, `events`, `scripts` or `propConfig`
+  that are not objects, and more.
 - SCR003 `compile-warning` reports what Jython's compiler issues a
   `SyntaxWarning` for, with Jython's message: `global x` after an
   assignment to or a use of `x` in the same scope, and `import *` below
@@ -61,6 +66,45 @@ from 0.1.0 on.
 
 ### Fixed
 
+- Pages and sessions hand out other views (`page.views`, `getViews()`,
+  `page.view`, `session.pages`, `getPages()`, `getPage(id)`), with their
+  custom properties and components. Such a use anywhere in the workspace
+  (view, component and session property scripts, session and page event
+  scripts, library functions handed a component, view, page or session)
+  is unknown code for the closed world, so VIEW015 and NAME001 fixes
+  become unsafe and name the site. So is a component, view, page or
+  session used as a value the analysis does not follow. The members of
+  the page, session, view and component script objects are measured in
+  the Ignition 8.3.3 image (`stubs-gen/gen_vetted.py`) and each is
+  classified. Loops over children and truth or identity tests of
+  components are followed instead of reading everything.
+- SCR102: removing an import is safe only with positive evidence that it
+  succeeds. Java classes must be measured to exist in the image (public
+  classes of the vetted packages), and `from m import n` needs `n` to be
+  a measured attribute of `m`; removing `from java.util import Missing`
+  changed whether a caller's `except` ran.
+- SCR102 no longer reports a library module's import that another module
+  reads through the module object: `getattr(a.b, "json")` and
+  `hasattr(...)` with a literal name are uses of `a.b.json`, and a module
+  used as a value (a default argument, a container, `getGlobals()`,
+  `sys.modules["a.b"]`, also reached as `re.sys.modules`) may have any of
+  its names read.
+- REF009 reports resource manifests and data files outside every project
+  and gateway configuration collection (a `config/resources/core` tree
+  without `config-mode.json`): Ignition does not load them (verified on
+  8.3.3; a `core` directory without the manifest keeps the gateway from
+  starting), and iglint does not read their tag event scripts.
+- Malformed view parts that may hold scripts (a component, `events`,
+  `scripts`, `propConfig`, a custom method without a string name, a
+  script that is not a string) are unknown code for the closed world;
+  malformed tag folders too.
+- SCR112 reports literal arguments of the wrong type: numeric
+  conversions and `*` with strings, complex numbers, containers or
+  `None` (`'%d' % 'ab'`), `%c` out of range, and presentation types the
+  literal does not support in `str.format` (`'{:d}'.format('a')`,
+  `'{:s}'.format(1)`, any type but `s` after `!r` or `!s`). Checked
+  against 3,000 generated cases on Jython: no finding on code that
+  formats.
 - Code that runs from expressions and run-time strings counts for the
   closed world. `runScript` with a computed script, or with code that is
   not vetted or does not parse, is unknown code; literal code is analysed

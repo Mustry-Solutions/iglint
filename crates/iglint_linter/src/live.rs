@@ -338,7 +338,7 @@ impl LiveWorkspace {
         }
         let old = std::mem::replace(old, new);
         let summaries = std::mem::take(&mut self.summaries);
-        let index = ProjectIndex::build(&self.ws, summaries);
+        let index = crate::analyze::build_index(&self.ws, summaries);
         let dependents = dependents(&self.ws, &index, rid, &old);
         self.summaries = index.into_summaries();
         dependents
@@ -368,7 +368,7 @@ impl LiveWorkspace {
         let old = std::mem::replace(&mut self.summaries[rid.index()], new);
         let changed = old != self.summaries[rid.index()];
         let summaries = std::mem::take(&mut self.summaries);
-        let index = ProjectIndex::build(&self.ws, summaries);
+        let index = crate::analyze::build_index(&self.ws, summaries);
         let dependents = if changed {
             dependents(&self.ws, &index, rid, &old)
         } else {
@@ -387,7 +387,7 @@ impl LiveWorkspace {
     /// Findings of `paths`, in the order given.
     pub fn check(&mut self, paths: &[PathBuf]) -> Vec<FileDiagnostics> {
         let summaries = std::mem::take(&mut self.summaries);
-        let index = ProjectIndex::build(&self.ws, summaries);
+        let index = crate::analyze::build_index(&self.ws, summaries);
         let result = self.check_with(&index, paths);
         self.summaries = index.into_summaries();
         result
@@ -764,7 +764,7 @@ impl LiveWorkspace {
             return None;
         }
         let summaries = std::mem::take(&mut self.summaries);
-        let index = ProjectIndex::build(&self.ws, summaries);
+        let index = crate::analyze::build_index(&self.ws, summaries);
         let mut options = CheckOptions {
             fix_mode: FixMode::DiffOnly { unsafe_fixes },
             stdin: Some((path.clone(), String::new())),

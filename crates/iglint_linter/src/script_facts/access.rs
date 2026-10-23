@@ -17,7 +17,7 @@
 //! |---|---|
 //! | component | `self` in a component script, `getSibling`, `getChild`, `parent`, ... |
 //! | view | `self` in a view script, `<component>.view` |
-//! | host | `<component or view>.page`, `.session` (and `getPage()`, `getSession()`): they reach every view of the page or session |
+//! | host | `<component or view>.page`, `.session` (and `getPage()`, `getSession()`), the `session` and `page` of session events, `self` in session property scripts: they reach every view of the page or session |
 //! | container | `<component or view>.custom`, `<view>.params` |
 //!
 //! Understood uses of a **component or view** (anything else: everything):
@@ -33,12 +33,51 @@
 //! | `.custom = ...` | writes every custom property |
 //! | `children[i]` of any component | any component |
 //!
-//! Understood uses of a **host**: `.props`, `.custom` (the page's or
-//! session's own properties), `.id`, `.name`, `.info`, `.project`,
-//! `.projectInfo` and their getters, `.print(...)`, `.close(...)`,
-//! `.isConnected()`: nothing. Anything else (`.view`, `.getViews()`,
-//! `.getPages()`, `.getPropertyTreeOf(...)`, the host as a value, ...) is
-//! everything.
+//! Understood uses of a **host**: its own property trees (`.props`,
+//! `.custom`, ...), `.id`, `.name`, `.info`, `.project`, `.projectInfo`
+//! and their getters, `.getPropertyTreeOf(...)`, `.print(...)`,
+//! `.close(...)`, `.isConnected()`, `.refreshBinding(...)`,
+//! `.invokeOnQueue(...)`: nothing; `.session`, `.getSession()`: the host.
+//! Any other member of a page or session (`.view`, `.views`,
+//! `.getViews()`, `.pages`, `.getPages()`, `.getPage(id)`, ...) reaches
+//! other views (see "Other views"); any other name is everything.
+//!
+//! # Other views
+//!
+//! A page hands out the views it shows (`page.views`, `getViews()`, its
+//! primary `page.view`), a session its pages (`session.pages`,
+//! `getPages()`, `getPage(id)`), and the views arrive as view wrappers
+//! with their `custom` and `params` trees and `getChild(...)`. What a
+//! script does with another view is not a property access of the view
+//! being linted, so the analysis records the first such use
+//! (`Analysis::cross`) and the script layer counts it as unknown code
+//! for the closed world (`AstScriptFacts::summarize`): `VIEW015` and
+//! `NAME001` fixes anywhere in the workspace become unsafe and name the
+//! site. A use reaches other views when it is
+//!
+//! * a member of a page or session other than the understood ones above
+//!   (every member is measured in the Ignition image,
+//!   `iglint_python_semantic::perspective`, and classified;
+//!   `every_measured_perspective_member_is_classified`), a special name
+//!   (`__getattribute__`, ...) of any followed object, or an item of a
+//!   host;
+//! * a component, the view, a page or a session that escapes: used as a
+//!   value anywhere the analysis does not follow it (stored, put in a
+//!   container, passed to a builtin, returned), since code that holds any
+//!   of them can reach the page;
+//! * a component, view, page or session passed to a name that may be a
+//!   library function, when the function (followed with the project
+//!   index, [`resolve_perspective_calls`]) reaches other views with it,
+//!   passes it on to code that may, or is not a plain function.
+//!
+//! The followed objects are `self` in view, component and session
+//! property scripts and the `session` and `page` parameters of the
+//! session events; nothing else hands out a page or session (no
+//! `system.perspective` function returns one, `getSessionInfo` returns
+//! data). A loop over the children (`for c in self.getChildren():`, `c`
+//! bound only there) follows `c` as any component, and truth and identity
+//! tests (`if c:`, `c is None`) use no property, so neither is an
+//! escape.
 //!
 //! Understood uses of a **container** (anything else, among them every
 //! use as a value: `len(c)`, `for k in c`, `c == d`, `'%s' % c`, `f(c)`,
@@ -66,8 +105,10 @@
 //! | form | meaning |
 //! |---|---|
 //! | `x = <value>`, `x` assigned only there | an alias: every use of `x` is analysed like the value; the assignment itself reads nothing (in library functions it is recorded, [`PathEnd::Alias`], so that reads in its steps count) |
+//! | `for x in <components>:`, `x` bound only there | `x` is any component |
+//! | `if v:`, `while v:`, `not v`, `v is w`, `v is not None` (also in `and`/`or` of a test) | nothing for a component, view, page or session (a container is read) |
 //! | an argument of a call of a dotted name the script does not bind (`lib.util.handle(self)`) | the library function is followed ([`LibraryCall`], [`param_uses`]) |
-//! | in library functions: `p is None`, `p is not q`, `if p:`, `not p` | nothing (identity and truth of the parameter itself) |
+//! | in library functions: `p is None`, `p is not q`, `if p:`, `not p` | nothing (identity and truth of the parameter itself; of a value derived from it, [`PathEnd::Test`]) |
 //!
 //! # Frames and builtins
 //!
@@ -141,6 +182,7 @@ impl ScriptFacts for AstScriptFacts {
     fn summarize(
         &self,
         unit: &ScriptUnit<'_, '_>,
+        view: Option<&View<'_>>,
         ctx: &super::FactsContext<'_>,
         summary: &mut ResourceSummary,
     ) {
@@ -177,6 +219,50 @@ impl ScriptFacts for AstScriptFacts {
         for (_, site) in &mut references.unvetted_imports {
             place(site);
         }
+        // Perspective objects that may reach other views.
+        let roots = perspective_roots(unit.script, view.is_some());
+        if !roots.is_empty() && reads_frames(&unit.parsed.module.body).is_none() {
+            let mut found = Vec::new();
+            let mut a = Analysis::with_roots(
+                Some(&model),
+                view,
+                roots,
+                &unit.parsed.module.body,
+                &mut found,
+            );
+            a.visit_module(&unit.parsed.module);
+            if let Some(range) = a.cross {
+                references.unknown_code = true;
+                if references.unknown_site.is_none() {
+                    let mut site = iglint_project::summary::UnknownSite::detached(range);
+                    place(&mut site);
+                    references.unknown_site = Some(site);
+                }
+            }
+            let mut done: Vec<&Arc<LibraryCall>> = Vec::new();
+            for access in &found {
+                let Some(call) = &access.via else { continue };
+                let host = match call.value {
+                    Escaped::Host => true,
+                    Escaped::Object(_) => false,
+                    Escaped::Container(..) => continue,
+                };
+                if call.is_callee_check() || done.iter().any(|c| Arc::ptr_eq(c, call)) {
+                    continue;
+                }
+                done.push(call);
+                let mut site = iglint_project::summary::UnknownSite::detached(access.range);
+                place(&mut site);
+                references
+                    .perspective_calls
+                    .push(iglint_project::summary::PerspectiveCall {
+                        callee: call.callee.clone(),
+                        slot: call.slot.clone(),
+                        host,
+                        site,
+                    });
+            }
+        }
         summary.references.extend(references);
         if library {
             summary.set_module_symbols(super::symbols::module_symbols(&model, &unit.parsed.module));
@@ -201,7 +287,7 @@ impl ScriptFacts for AstScriptFacts {
             // unused-property findings do not depend on a script the user
             // has to fix anyway (SCR001 reports it).
             let start = out.len();
-            let mut a = Analysis::new(None, view, this, &[], out);
+            let mut a = Analysis::new(None, Some(view), this, &[], out);
             a.everything(anchor);
             for access in &mut a.out[start..] {
                 access.write = false;
@@ -216,10 +302,10 @@ impl ScriptFacts for AstScriptFacts {
         let model = script_model(unit);
         let mut found = Vec::new();
         if let Some(range) = reads_frames(body) {
-            let mut a = Analysis::new(model.as_ref(), view, this, &[], &mut found);
+            let mut a = Analysis::new(model.as_ref(), Some(view), this, &[], &mut found);
             a.everything(range);
         } else {
-            let mut a = Analysis::new(model.as_ref(), view, this, body, &mut found);
+            let mut a = Analysis::new(model.as_ref(), Some(view), this, body, &mut found);
             a.visit_module(&unit.parsed.module);
         }
         for mut access in found {
@@ -260,6 +346,10 @@ enum Step {
     Opaque,
     /// Not understood: everything the base reaches may be accessed.
     Everything,
+    /// A member of a page or session that hands out views, pages or
+    /// components, or that is not understood: it may reach every view
+    /// (see "Other views").
+    Cross,
 }
 
 /// Methods (and other attributes) of Perspective's property wrapper, from
@@ -325,25 +415,68 @@ const OPAQUE_OBJECT_ATTRIBUTES: &[&str] = &[
     "refreshBinding",
 ];
 
-/// Attributes of pages and sessions that reach no view
-/// (`PageScriptWrapper.SafetyWrapper`, `SessionScriptWrapper.SafetyWrapper`).
+/// Members of pages and sessions that reach no view
+/// (`PageScriptWrapper.SafetyWrapper`, `SessionScriptWrapper.SafetyWrapper`,
+/// measured in `iglint_python_semantic::perspective`): names, actions, the
+/// page's or session's own property trees, and session data. `info` and
+/// `projectInfo` are JSON data (`Gson.toJsonTree` of the session and
+/// project info, read in the gateway's bytecode); `invokeOnQueue` calls
+/// the callable it is given (its argument is a value like any other).
+/// `id` is not a session member (it raises).
 const OPAQUE_HOST_ATTRIBUTES: &[&str] = &[
-    "props",
-    "custom",
-    "id",
-    "name",
-    "info",
-    "project",
-    "projectInfo",
+    "close",
+    "connected",
     "getId",
-    "getName",
     "getInfo",
+    "getName",
     "getProject",
     "getProjectInfo",
-    "print",
-    "close",
+    "getPropertyTreeOf",
+    "id",
+    "info",
+    "invokeOnQueue",
     "isConnected",
+    "name",
+    "print",
+    "project",
+    "projectInfo",
+    "refreshBinding",
 ];
+
+/// Members of pages and sessions that return the session: a host again.
+/// (`page.page` and `getPage()` return the page itself, but a session's
+/// `getPage(id)` and `pages` return other pages, so they reach other
+/// views.)
+const HOST_SESSION_MEMBERS: &[&str] = &["getSession", "session"];
+
+/// What member `name` of a page or session is: its own property trees and
+/// [`OPAQUE_HOST_ATTRIBUTES`] reach no view, [`HOST_SESSION_MEMBERS`] the
+/// session, any other member of either wrapper (`views`, `getViews()`,
+/// `view`, `pages`, `getPages()`, `getPage(id)`, ...) and any special
+/// name reach other views; any other name raises (`AttributeError`) and
+/// is treated, as before, as reaching everything of this view.
+fn host_member(name: &str) -> Step {
+    use iglint_python_semantic::perspective;
+    if perspective::is_property_type(name) || OPAQUE_HOST_ATTRIBUTES.contains(&name) {
+        return Step::Opaque;
+    }
+    if HOST_SESSION_MEMBERS.contains(&name) {
+        return Step::Follow(Val::Host);
+    }
+    if is_special(name)
+        || perspective::member_kind("page", name).is_some()
+        || perspective::member_kind("session", name).is_some()
+    {
+        return Step::Cross;
+    }
+    Step::Everything
+}
+
+/// A special name (`__getattribute__`, `__dict__`, ...): Jython may resolve
+/// it on the wrapper itself, and it may hand out any member.
+fn is_special(name: &str) -> bool {
+    name.starts_with("__") && name.ends_with("__")
+}
 
 /// Whether attribute `name` of a container may be something other than a
 /// property: a method of the wrapper, or any special name (`__dict__`,
@@ -558,30 +691,60 @@ fn is_known_global(name: &str) -> bool {
 }
 
 struct Analysis<'v, 'a, 'o> {
-    view: &'v View<'a>,
-    this: Val,
+    /// The view the script belongs to; `None` when it is not known (a
+    /// library function followed for [`resolve_perspective_calls`]):
+    /// component lookups then find any component.
+    view: Option<&'v View<'a>>,
+    /// The names that hold followed values from the start (`self`, the
+    /// `session` or `page` of a session event).
+    roots: Vec<(String, Val)>,
     aliases: FxHashMap<String, Option<Val>>,
     names: Names,
     out: &'o mut Vec<PropertyAccess>,
+    /// The first use that may reach another view, page or session (see
+    /// "Other views" in the module documentation).
+    cross: Option<TextRange>,
 }
 
 impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
     fn new(
         model: Option<&SemanticModel<'_>>,
-        view: &'v View<'a>,
+        view: Option<&'v View<'a>>,
         this: Val,
+        body: &[Stmt],
+        out: &'o mut Vec<PropertyAccess>,
+    ) -> Analysis<'v, 'a, 'o> {
+        Analysis::with_roots(model, view, vec![("self".to_owned(), this)], body, out)
+    }
+
+    fn with_roots(
+        model: Option<&SemanticModel<'_>>,
+        view: Option<&'v View<'a>>,
+        roots: Vec<(String, Val)>,
         body: &[Stmt],
         out: &'o mut Vec<PropertyAccess>,
     ) -> Analysis<'v, 'a, 'o> {
         let mut a = Analysis {
             view,
-            this,
+            roots,
             aliases: FxHashMap::default(),
             names: Names::new(model, body, []),
             out,
+            cross: None,
         };
         a.collect_aliases(body);
         a
+    }
+
+    /// `range` may reach another view: record it.
+    fn cross_view(&mut self, range: TextRange) {
+        if self.cross.is_none_or(|c| range.start() < c.start()) {
+            self.cross = Some(range);
+        }
+    }
+
+    fn is_root(&self, name: &str) -> bool {
+        self.roots.iter().any(|(n, _)| n == name)
     }
 
     // ---- aliases ----
@@ -592,10 +755,18 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
         // Resolve in a few rounds so aliases of aliases work.
         for _ in 0..3 {
             for (name, value) in &stores {
-                if name == "self" {
+                if self.is_root(name) {
                     continue;
                 }
-                let v = value.and_then(|value| self.peek(value));
+                let v = match value {
+                    Some(Assigned::Value(value)) => self.peek(value),
+                    // `for c in <components>:`
+                    Some(Assigned::Item(iter)) => match self.peek(iter) {
+                        Some(any @ Val::Object(AccessTarget::AnyComponent)) => Some(any),
+                        _ => None,
+                    },
+                    None => None,
+                };
                 self.aliases.insert(name.clone(), v);
             }
         }
@@ -630,21 +801,21 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
     }
 
     fn name_value(&self, name: &str) -> Option<Val> {
-        if name == "self" {
-            return Some(self.this);
+        if let Some((_, v)) = self.roots.iter().find(|(n, _)| n == name) {
+            return Some(*v);
         }
         self.aliases.get(name).copied().flatten()
     }
 
     fn is_followed_name(&self, name: &str) -> bool {
-        name == "self" || self.aliases.get(name).is_some_and(Option::is_some)
+        self.is_root(name) || self.aliases.get(name).is_some_and(Option::is_some)
     }
 
     // ---- navigation ----
 
     fn parent(&self, t: AccessTarget) -> AccessTarget {
         match t {
-            AccessTarget::Component(c) => match self.view.component(c).parent {
+            AccessTarget::Component(c) => match self.view.and_then(|v| v.component(c).parent) {
                 Some(p) => AccessTarget::Component(p),
                 None => AccessTarget::AnyComponent,
             },
@@ -653,12 +824,15 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
     }
 
     fn child_path(&self, from: Option<ComponentId>, path: &str) -> Option<AccessTarget> {
+        let Some(view) = self.view else {
+            return Some(AccessTarget::AnyComponent);
+        };
         let mut segments = path.split('/').filter(|s| !s.is_empty());
         let mut at = match from {
             Some(c) => c,
             None => {
                 // From the view: the first segment names the root.
-                let root = self.view.root_component()?;
+                let root = view.root_component()?;
                 if segments.next()? != root.name {
                     return None;
                 }
@@ -666,13 +840,13 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
             }
         };
         for segment in segments {
-            at = self.view.children(at).find(|c| c.name == segment)?.id;
+            at = view.children(at).find(|c| c.name == segment)?.id;
         }
         Some(AccessTarget::Component(at))
     }
 
     fn root(&self) -> Step {
-        match self.view.root_component() {
+        match self.view.and_then(View::root_component) {
             Some(r) => Step::Follow(Val::Object(AccessTarget::Component(r.id))),
             None => Step::Follow(Val::Object(AccessTarget::AnyComponent)),
         }
@@ -683,8 +857,8 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
     fn attribute(&self, base: Val, attr: &str) -> Step {
         let t = match base {
             Val::Object(t) => t,
-            Val::Host if OPAQUE_HOST_ATTRIBUTES.contains(&attr) => return Step::Opaque,
-            Val::Host | Val::Container(..) => return Step::Everything,
+            Val::Host => return host_member(attr),
+            Val::Container(..) => return Step::Everything,
         };
         let component = matches!(t, AccessTarget::Component(_) | AccessTarget::AnyComponent);
         match attr {
@@ -700,6 +874,8 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
             "children" if component => Step::Follow(Val::Object(AccessTarget::AnyComponent)),
             "page" | "session" => Step::Follow(Val::Host),
             _ if OPAQUE_OBJECT_ATTRIBUTES.contains(&attr) => Step::Opaque,
+            // `self.__getattribute__`, ...: any member, the page included.
+            _ if is_special(attr) => Step::Cross,
             _ => Step::Everything,
         }
     }
@@ -709,8 +885,8 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
     fn method(&self, base: Val, name: &str, literal: Option<String>) -> Step {
         let t = match base {
             Val::Object(t) => t,
-            Val::Host if OPAQUE_HOST_ATTRIBUTES.contains(&name) => return Step::Opaque,
-            Val::Host | Val::Container(..) => return Step::Everything,
+            Val::Host => return host_member(name),
+            Val::Container(..) => return Step::Everything,
         };
         let component = matches!(t, AccessTarget::Component(_) | AccessTarget::AnyComponent);
         let found = |t: Option<AccessTarget>| match t {
@@ -723,14 +899,16 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
                 let Some(name) = literal else {
                     return Step::Follow(Val::Object(AccessTarget::AnyComponent));
                 };
-                let Some(parent) = self.view.component(c).parent else {
+                let Some(view) = self.view else {
+                    return Step::Follow(Val::Object(AccessTarget::AnyComponent));
+                };
+                let Some(parent) = view.component(c).parent else {
                     return Step::Opaque;
                 };
                 // `getSibling` looks the name up in the parent, so a
                 // component finds itself too.
                 found(
-                    self.view
-                        .children(parent)
+                    view.children(parent)
                         .find(|s| s.name == name)
                         .map(|s| AccessTarget::Component(s.id)),
                 )
@@ -756,6 +934,7 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
             _ if OPAQUE_OBJECT_ATTRIBUTES.contains(&name) => Step::Opaque,
             // A custom method of the view: its script is analysed as a
             // script of the view (with its own `self`).
+            _ if is_special(name) => Step::Cross,
             _ if self.is_custom_method(t, name) => Step::Opaque,
             _ => Step::Everything,
         }
@@ -764,7 +943,17 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
     /// Whether `t` has a custom method `name` (any component, for
     /// [`AccessTarget::AnyComponent`]).
     fn is_custom_method(&self, t: AccessTarget, name: &str) -> bool {
-        self.view.custom_methods.iter().any(|m| {
+        let Some(view) = self.view else {
+            // Any name that is not a member of the wrapper may be a custom
+            // method of some component (or a model delegate's method).
+            let wrapper = if t == AccessTarget::View {
+                "view"
+            } else {
+                "component"
+            };
+            return iglint_python_semantic::perspective::member_kind(wrapper, name).is_none();
+        };
+        view.custom_methods.iter().any(|m| {
             m.name.is_some_and(|n| n.value() == name)
                 && match t {
                     AccessTarget::View => m.owner == Owner::View,
@@ -815,6 +1004,16 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
 
     /// A followed value escapes: everything reachable may be accessed.
     fn escape(&mut self, val: Val, range: TextRange) {
+        if matches!(val, Val::Object(_) | Val::Host) {
+            // Code that holds a component, the view, a page or a session
+            // can reach the page and every view in it.
+            self.cross_view(range);
+        }
+        self.escape_locally(val, range);
+    }
+
+    /// [`Analysis::escape`] for this view only.
+    fn escape_locally(&mut self, val: Val, range: TextRange) {
         match val {
             // A container passed on may be read and written.
             Val::Container(t, c) => self.record(t, c, None, ExprContext::AugLoad, range),
@@ -844,7 +1043,9 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
     /// carry the call.
     fn escape_into(&mut self, val: Val, range: TextRange, callee: &str, slot: ArgSlot) {
         let start = self.out.len();
-        self.escape(val, range);
+        // Whether the call reaches other views is decided where the callee
+        // is resolved ([`resolve_perspective_calls`]).
+        self.escape_locally(val, range);
         let call = Arc::new(LibraryCall {
             callee: callee.to_owned(),
             slot,
@@ -916,6 +1117,17 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
                 }
             }
             Expr::Call(c) => self.walk_call(c),
+            Expr::Compare(c) if c.ops.iter().all(|o| matches!(o, CmpOp::Is | CmpOp::IsNot)) => {
+                self.test(&c.left);
+                for comparator in &c.comparators {
+                    self.test(comparator);
+                }
+                None
+            }
+            Expr::UnaryOp(u) if u.op == UnaryOp::Not => {
+                self.test(&u.operand);
+                None
+            }
             Expr::Compare(c) if is_literal_in(c) => {
                 let base = self.walk(&c.comparators[0], Role::Base, false);
                 match base {
@@ -977,23 +1189,65 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
                     self.record(t, PropCategory::Custom, None, ctx, range);
                 } else if !OPAQUE_OBJECT_ATTRIBUTES.contains(&attr) {
                     self.everything(range);
+                    if is_special(attr) {
+                        self.cross_view(a.range);
+                    }
                 }
                 None
             }
             Val::Host if ctx != ExprContext::Load => {
-                if !OPAQUE_HOST_ATTRIBUTES.contains(&attr) {
+                if host_member(attr) != Step::Opaque {
                     self.everything(range);
+                    self.cross_view(a.range);
                 }
                 None
             }
-            b => match self.attribute(b, attr) {
-                Step::Follow(v) => Some(v),
-                Step::Opaque => None,
-                Step::Everything => {
-                    self.everything(range);
-                    None
+            b => {
+                let step = self.attribute(b, attr);
+                self.apply(step, range, a.range)
+            }
+        }
+    }
+
+    /// An expression whose truth value or identity is all that is used
+    /// (`if x:`, `not x`, `x is None`): a component, the view, a page or a
+    /// session is not handed to anything (its `__nonzero__` reads no
+    /// property). A container still counts as read (its truth value
+    /// depends on its properties).
+    fn test(&mut self, e: &Expr) {
+        if let Expr::BoolOp(b) = e {
+            for value in &b.values {
+                self.test(value);
+            }
+            return;
+        }
+        match self.walk(e, Role::Base, false) {
+            Some(Val::Object(_) | Val::Host) => {}
+            Some(c @ Val::Container(..)) => self.escape(c, e_range(e)),
+            None => {
+                if matches!(e, Expr::Name(_) | Expr::Attribute(_)) {
+                    self.check_callee(e);
                 }
-            },
+            }
+        }
+    }
+
+    /// Records what a step does at `range` (`site`: the whole expression,
+    /// to name a use that reaches other views); the followed value, if
+    /// any.
+    fn apply(&mut self, step: Step, range: TextRange, site: TextRange) -> Option<Val> {
+        match step {
+            Step::Follow(v) => Some(v),
+            Step::Opaque => None,
+            Step::Everything => {
+                self.everything(range);
+                None
+            }
+            Step::Cross => {
+                self.everything(range);
+                self.cross_view(site);
+                None
+            }
         }
     }
 
@@ -1006,11 +1260,10 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
                     let uses = container_call(a.attr.as_str(), first_literal(&c.args));
                     self.uses(t, cat, uses, a.range);
                 }
-                Some(base) => match self.method(base, a.attr.as_str(), first_literal(&c.args)) {
-                    Step::Follow(v) => value = Some(v),
-                    Step::Opaque => {}
-                    Step::Everything => self.everything(a.range),
-                },
+                Some(base) => {
+                    let step = self.method(base, a.attr.as_str(), first_literal(&c.args));
+                    value = self.apply(step, a.range, c.range);
+                }
                 None => {
                     self.check_callee(&c.func);
                     library = self.library_callee(&c.func);
@@ -1120,12 +1373,16 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
                         self.record(t, PropCategory::Custom, None, ctx, range);
                     } else if !OPAQUE_OBJECT_ATTRIBUTES.contains(&n.as_str()) {
                         self.everything(range);
+                        if is_special(n) {
+                            self.cross_view(range);
+                        }
                     }
                     return;
                 }
                 (Val::Host, PathStep::Attr(n)) if ctx != ExprContext::Load => {
-                    if !OPAQUE_HOST_ATTRIBUTES.contains(&n.as_str()) {
+                    if host_member(n) != Step::Opaque {
                         self.everything(range);
+                        self.cross_view(range);
                     }
                     return;
                 }
@@ -1136,15 +1393,12 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
                 {
                     Step::Follow(v)
                 }
+                (Val::Host, PathStep::Index(_)) => Step::Cross,
                 (_, PathStep::Index(_)) => Step::Everything,
             };
-            match next {
-                Step::Follow(n) => v = n,
-                Step::Opaque => return,
-                Step::Everything => {
-                    self.everything(range);
-                    return;
-                }
+            match self.apply(next, range, range) {
+                Some(n) => v = n,
+                None => return,
             }
         }
         match &path.end {
@@ -1156,6 +1410,11 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
                 }
                 _ => self.escape(v, range),
             },
+            PathEnd::Test => {
+                if let Val::Container(..) = v {
+                    self.escape(v, range);
+                }
+            }
             PathEnd::Load | PathEnd::Store | PathEnd::Update => self.escape(v, range),
         }
     }
@@ -1185,12 +1444,130 @@ impl<'e> Visitor<'e> for Analysis<'_, '_, '_> {
                 self.everything(s.range);
                 walk_stmt(self, stmt);
             }
+            Stmt::For(f)
+                if matches!(&*f.target, Expr::Name(n)
+                    if self.aliases.get(&*n.id).copied().flatten().is_some()) =>
+            {
+                // `for c in self.getChildren():` with `c` bound only
+                // here: `c` is followed as any component.
+                self.walk(&f.iter, Role::Base, false);
+                for stmt in f.body.iter().chain(&f.orelse) {
+                    self.visit_stmt(stmt);
+                }
+            }
+            Stmt::If(s) => {
+                self.test(&s.test);
+                for stmt in s.body.iter().chain(&s.orelse) {
+                    self.visit_stmt(stmt);
+                }
+            }
+            Stmt::While(s) => {
+                self.test(&s.test);
+                for stmt in s.body.iter().chain(&s.orelse) {
+                    self.visit_stmt(stmt);
+                }
+            }
             _ => walk_stmt(self, stmt),
         }
     }
 
     fn visit_expr(&mut self, expr: &'e Expr) {
         self.walk(expr, Role::Value, false);
+    }
+}
+
+/// The names of a script that hold Perspective objects from the start:
+/// `self` in view, component and session property scripts, and the
+/// `session` and `page` parameters of the Perspective session events
+/// (`has_view`: the view of a view script is known).
+fn perspective_roots(
+    script: &iglint_project::EmbeddedScript<'_>,
+    has_view: bool,
+) -> Vec<(String, Val)> {
+    use iglint_project::{EventScriptKind as E, ScriptKind};
+    let this = match script.owner {
+        Owner::View => Some(Val::Object(AccessTarget::View)),
+        Owner::Component(c) if has_view => Some(Val::Object(AccessTarget::Component(c))),
+        Owner::Component(_) => Some(Val::Object(AccessTarget::AnyComponent)),
+        Owner::Session => Some(Val::Host),
+        Owner::Tag(_) | Owner::Resource => None,
+    };
+    if let Some(this) = this {
+        return vec![("self".to_owned(), this)];
+    }
+    let ScriptKind::EventFile(kind) = script.kind else {
+        return Vec::new();
+    };
+    let perspective = matches!(
+        kind,
+        E::SessionStartup
+            | E::SessionShutdown
+            | E::PageStartup
+            | E::SessionMessage
+            | E::KeyEvent
+            | E::Barcode
+            | E::Bluetooth
+            | E::NfcScan
+            | E::Accelerometer
+            | E::AuthChallenge
+            | E::FormSubmission
+    );
+    if !perspective {
+        return Vec::new();
+    }
+    script
+        .params
+        .iter()
+        .filter(|p| matches!(&***p, "session" | "page"))
+        .map(|p| (p.to_string(), Val::Host))
+        .collect()
+}
+
+/// Resolves the [`iglint_project::summary::PerspectiveCall`]s of the
+/// workspace through the index: a call whose callee may reach another
+/// view, page or session with the object it is handed (the library
+/// function does, it passes the object on to code that may, or the callee
+/// is not a library function that can be followed) counts as code that is
+/// not vetted, at the call ([`ProjectIndex::mark_unknown_code`]). Run once
+/// after every [`ProjectIndex::build`].
+pub fn resolve_perspective_calls(index: &mut iglint_project::ProjectIndex<'_>) {
+    let calls = index.perspective_calls();
+    if calls.is_empty() {
+        return;
+    }
+    let mut found = Vec::new();
+    {
+        let index = &*index;
+        for (project, call) in calls {
+            let resolve = |callee: &str, context: Option<CalleeContext>, check: bool| {
+                crate::rules::view::unused_custom_property::resolve_callee(
+                    index, project, callee, context, check, 0,
+                )
+            };
+            let mut out = Vec::new();
+            let mut a = Analysis::with_roots(None, None, Vec::new(), &[], &mut out);
+            let value = if call.host {
+                Val::Host
+            } else {
+                Val::Object(AccessTarget::AnyComponent)
+            };
+            follow(
+                &mut a,
+                &call.callee,
+                None,
+                &call.slot,
+                value,
+                TextRange::default(),
+                &resolve,
+                0,
+            );
+            if a.cross.is_some() {
+                found.push((project, call.site));
+            }
+        }
+    }
+    for (project, site) in found {
+        index.mark_unknown_code(project, site);
     }
 }
 
@@ -1283,7 +1660,13 @@ pub fn follow_call<'i>(
     resolve: &dyn Fn(&str, Option<CalleeContext>, bool) -> Callee<'i>,
 ) -> Vec<PropertyAccess> {
     let mut out = Vec::new();
-    let mut a = Analysis::new(None, view, Val::Object(AccessTarget::View), &[], &mut out);
+    let mut a = Analysis::new(
+        None,
+        Some(view),
+        Val::Object(AccessTarget::View),
+        &[],
+        &mut out,
+    );
     follow(
         &mut a,
         &call.callee,
@@ -1385,14 +1768,24 @@ fn dotted_name(e: &Expr) -> Option<String> {
     }
 }
 
-/// Names assigned by exactly one plain `name = value` statement and bound
-/// in no other way (nested scopes included), with that value; other bound
-/// names map to `None`. A name declared `global` is never an alias: a
-/// value stored in it outlives the call.
-fn single_assignments(body: &[Stmt]) -> Vec<(String, Option<&Expr>)> {
+/// What a name is bound to by its only binding.
+#[derive(Clone, Copy, Debug)]
+enum Assigned<'e> {
+    /// `name = value`.
+    Value(&'e Expr),
+    /// `for name in iter:`: each item of `iter`.
+    Item(&'e Expr),
+}
+
+/// Names bound by exactly one plain `name = value` statement (or one
+/// `for name in ...:` loop) and bound in no other way (nested scopes
+/// included), with that value; other bound names map to `None`. A name
+/// declared `global` is never an alias: a value stored in it outlives the
+/// call.
+fn single_assignments(body: &[Stmt]) -> Vec<(String, Option<Assigned<'_>>)> {
     #[derive(Default)]
     struct Stores<'e> {
-        count: FxHashMap<String, (usize, Option<&'e Expr>)>,
+        count: FxHashMap<String, (usize, Option<Assigned<'e>>)>,
         /// Directly in a class body: names bound there are attributes of
         /// the class, which outlive the call.
         class_body: bool,
@@ -1427,8 +1820,21 @@ fn single_assignments(body: &[Stmt]) -> Vec<(String, Option<&Expr>)> {
                     };
                     let e = self.count.entry(n.id.to_string()).or_default();
                     e.0 += 1;
-                    e.1 = Some(&s.value);
+                    e.1 = Some(Assigned::Value(&s.value));
                     self.visit_expr(&s.value);
+                    return;
+                }
+                Stmt::For(f) if !self.class_body && matches!(&*f.target, Expr::Name(_)) => {
+                    let Expr::Name(n) = &*f.target else {
+                        unreachable!()
+                    };
+                    let e = self.count.entry(n.id.to_string()).or_default();
+                    e.0 += 1;
+                    e.1 = Some(Assigned::Item(&f.iter));
+                    self.visit_expr(&f.iter);
+                    for stmt in f.body.iter().chain(&f.orelse) {
+                        self.visit_stmt(stmt);
+                    }
                     return;
                 }
                 // Other kinds of bindings: never an alias.
@@ -1464,7 +1870,7 @@ fn single_assignments(body: &[Stmt]) -> Vec<(String, Option<&Expr>)> {
     for stmt in body {
         stores.visit_stmt(stmt);
     }
-    let mut out: Vec<(String, Option<&Expr>)> = stores
+    let mut out: Vec<(String, Option<Assigned<'_>>)> = stores
         .count
         .into_iter()
         .map(|(name, (count, value))| (name, if count == 1 { value } else { None }))
@@ -1706,7 +2112,10 @@ impl ParamWalker {
         let stores = single_assignments(body);
         for _ in 0..3 {
             for (name, value) in &stores {
-                let v = value.and_then(|value| self.peek(value));
+                let v = match value {
+                    Some(Assigned::Value(value)) => self.peek(value),
+                    _ => None,
+                };
                 self.aliases.insert(name.clone(), v);
             }
         }
@@ -1962,8 +2371,14 @@ impl ParamWalker {
     /// An expression whose truth value or identity is all that is used:
     /// the parameter itself is not read, anything derived from it is.
     fn test(&mut self, e: &Expr) {
+        if let Expr::BoolOp(b) = e {
+            for value in &b.values {
+                self.test(value);
+            }
+            return;
+        }
         match self.walk(e, Role::Base, false) {
-            Some(sym) if !sym.1.is_empty() => self.record(sym, PathEnd::Load),
+            Some(sym) if !sym.1.is_empty() => self.record(sym, PathEnd::Test),
             Some(_) => {}
             None => {
                 if matches!(e, Expr::Name(_) | Expr::Attribute(_)) {
@@ -2083,7 +2498,7 @@ pub fn unresolved_lookups(unit: &ScriptUnit<'_, '_>, view: &View<'_>) -> Vec<Unr
         return Vec::new();
     }
     let mut sink = Vec::new();
-    let a = Analysis::new(None, view, this, &unit.parsed.module.body, &mut sink);
+    let a = Analysis::new(None, Some(view), this, &unit.parsed.module.body, &mut sink);
     let mut out = Vec::new();
     crate::rules::script::walk_exprs(&unit.parsed.module.body, &mut |e| {
         let Expr::Call(c) = e else { return };
@@ -2124,7 +2539,8 @@ pub fn unresolved_lookups(unit: &ScriptUnit<'_, '_>, view: &View<'_>) -> Vec<Unr
 impl Analysis<'_, '_, '_> {
     /// Whether components may be looked up below `c` (it is a container).
     fn holds_children(&self, c: ComponentId) -> bool {
-        let component = self.view.component(c);
+        let Some(view) = self.view else { return false };
+        let component = view.component(c);
         component.value.get("children").is_some()
             || component
                 .type_id
@@ -2133,9 +2549,10 @@ impl Analysis<'_, '_, '_> {
 
     /// Why `base.method(name)` finds nothing, if it certainly does not.
     fn lookup_problem(&self, base: AccessTarget, method: &str, name: &str) -> Option<String> {
+        let view = self.view?;
         let (start, path, describe) = match (base, method) {
             (AccessTarget::Component(c), "getSibling") => {
-                let parent = self.view.component(c).parent?;
+                let parent = view.component(c).parent?;
                 if name.contains('/') {
                     return None;
                 }
@@ -2150,7 +2567,7 @@ impl Analysis<'_, '_, '_> {
         let mut at = match start {
             Some(c) => c,
             None => {
-                let root = self.view.root_component()?;
+                let root = view.root_component()?;
                 // Paths start with the root container's name; other forms
                 // are not certain to fail.
                 if segments.next()? != root.name {
@@ -2163,12 +2580,11 @@ impl Analysis<'_, '_, '_> {
             if !self.holds_children(at) {
                 return None;
             }
-            match self.view.children(at).find(|c| c.name == segment) {
+            match view.children(at).find(|c| c.name == segment) {
                 Some(c) => at = c.id,
                 None => {
-                    let owner = self.view.component(at);
-                    let hint = self
-                        .view
+                    let owner = view.component(at);
+                    let hint = view
                         .children(at)
                         .find(|c| c.name.eq_ignore_ascii_case(segment))
                         .map(|c| format!(" (names are case-sensitive; did you mean `{}`?)", c.name))
@@ -2266,6 +2682,88 @@ pub(crate) mod tests {
 
     const EVERYTHING: [&str; 3] = ["view.custom.* r w", "view.params.* r w", "*.custom.* r w"];
 
+    /// Every member of Perspective's script objects measured in the image
+    /// (`iglint_python_semantic::perspective`) is classified: on a page or
+    /// session, members that hand out views, pages or components reach
+    /// other views, the session is a host again, and everything else is
+    /// opaque; on a component or view, every member is one of the
+    /// understood forms and none reaches another view; the property tree
+    /// names and the model delegates' methods reach nothing. A regenerated
+    /// table with a member this does not cover fails here.
+    #[test]
+    fn every_measured_perspective_member_is_classified() {
+        use iglint_python_semantic::perspective;
+        // `object` members checked by hand: JSON data of the session and
+        // project info, and the result of the callable `invokeOnQueue`
+        // runs.
+        const OBJECT_HOST: &[&str] = &[
+            "getInfo",
+            "getProjectInfo",
+            "info",
+            "invokeOnQueue",
+            "projectInfo",
+        ];
+        let mut out = Vec::new();
+        let a = Analysis::with_roots(None, None, Vec::new(), &[], &mut out);
+        for (wrapper, name, kind) in perspective::members() {
+            let step = match *wrapper {
+                "page" | "session" => host_member(name),
+                _ => {
+                    let base = if *wrapper == "view" {
+                        Val::Object(AccessTarget::View)
+                    } else {
+                        Val::Object(AccessTarget::AnyComponent)
+                    };
+                    let attribute = a.attribute(base, name);
+                    let method = a.method(base, name, Some("x".to_owned()));
+                    // The spelling that is understood.
+                    if attribute == Step::Everything {
+                        method
+                    } else {
+                        attribute
+                    }
+                }
+            };
+            let host = matches!(*wrapper, "page" | "session");
+            let ok = match (host, *kind) {
+                (true, "element" | "host") if HOST_SESSION_MEMBERS.contains(name) => {
+                    step == Step::Follow(Val::Host)
+                }
+                (true, "element" | "host") => step == Step::Cross,
+                (true, "object") => OBJECT_HOST.contains(name) && step == Step::Opaque,
+                (true, _) => step == Step::Opaque,
+                (false, "element") => matches!(step, Step::Follow(Val::Object(_))),
+                (false, "host") => step == Step::Follow(Val::Host),
+                // `getPropertyTreeOf`: this object's own trees (a
+                // `PropertyTree` reaches no owner), read as everything.
+                (false, "tree") => step == Step::Everything,
+                (false, _) => step == Step::Opaque,
+            };
+            assert!(ok, "{wrapper}.{name} ({kind}): {step:?}");
+        }
+        assert_eq!(
+            perspective::property_types(),
+            ["custom", "meta", "params", "position", "props"]
+        );
+        for (name, kind) in perspective::delegate_members() {
+            // Map data (`PyDictionary`) or values: no view.
+            assert!(
+                *kind == "value"
+                    || (*kind == "object"
+                        && [
+                            "bounds",
+                            "center",
+                            "getBounds",
+                            "getCenter",
+                            "getSize",
+                            "size"
+                        ]
+                        .contains(name)),
+                "delegate member {name} ({kind})"
+            );
+        }
+    }
+
     fn is_everything(found: &[String]) -> bool {
         EVERYTHING.iter().all(|e| found.iter().any(|f| f == e))
     }
@@ -2298,10 +2796,17 @@ pub(crate) mod tests {
                 "A.custom.s r"
             ]
         );
-        // Iterating over children loses track of the components.
+        // A loop over children binds any component.
         assert_eq!(
             accesses(
                 "\tfor c in self.parent.children:\n\t\tc.custom.x = 1\n\tn = event.name\n\tself.getSibling(n).custom.w"
+            ),
+            vec!["*.custom.x w", "*.custom.w r"]
+        );
+        // A loop variable bound elsewhere too loses track of them.
+        assert_eq!(
+            accesses(
+                "\tfor c in self.parent.children:\n\t\tc.custom.x = 1\n\tc = 1\n\tn = event.name\n\tself.getSibling(n).custom.w"
             ),
             vec![
                 "view.custom.* r w",
@@ -2592,6 +3097,12 @@ pub(crate) mod tests {
     pub(crate) fn understood_component(context: &str) -> Option<&'static [&'static str]> {
         Some(match context {
             "x = {v}" | "try:\n\t\tpass\n\tfinally:\n\t\tx = {v}" => &[],
+            // Truth value and identity: no property is read.
+            "x = not {v}"
+            | "x = {v} is None"
+            | "x = {v} is not y"
+            | "while {v}:\n\t\tbreak"
+            | "if {v}:\n\t\tpass" => &[],
             _ => return None,
         })
     }

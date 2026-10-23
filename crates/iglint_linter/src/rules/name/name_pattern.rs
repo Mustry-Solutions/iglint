@@ -1557,4 +1557,46 @@ skip-names = ["root", "Legacy_Name"]"#,
             );
         }
     }
+
+    /// Reviewer round 9 (Opus) blocker: another view reaches this view's
+    /// components through the page (`v.getChild('root/submitButton')`,
+    /// with a literal or computed path): the rename in view `A` is unsafe,
+    /// a script of `B` that stays on its own page and session is not.
+    #[test]
+    fn other_views_through_the_page_make_the_rename_unsafe() {
+        let rules = [("NAME001", "convention = \"PascalCase\"")];
+        let applicability = |script: &str| {
+            let a = root(&[component("submitButton", "ia.input.button", "")]);
+            let b = root(&[component(
+                "Btn",
+                "ia.input.button",
+                &format!(
+                    r#", "events": {{"component": {{"onActionPerformed": {{"type": "script", "scope": "G", "config": {{"script": "{script}"}}}}}}}}"#
+                ),
+            )]);
+            let f = Fixture::new().with_view("A", &a).with_view("B", &b);
+            let d = f.lint_with(&rules);
+            let d: Vec<_> = d
+                .into_iter()
+                .filter(|d| d.message.contains("submitButton"))
+                .collect();
+            assert_eq!(d.len(), 1, "{d:?}");
+            d[0].fix.as_ref().map(|f| f.applicability)
+        };
+        for script in [
+            r"\tfor v in self.page.views:\n\t\tv.getChild('root/submitButton').props.text = 'x'",
+            r"\tn = 'submit' + 'Button'\n\tfor v in self.page.getViews():\n\t\tv.getChild('root/' + n)",
+            r"\tself.page.view.rootContainer.getChild('submitButton')",
+        ] {
+            assert_eq!(
+                applicability(script),
+                Some(crate::Applicability::Unsafe),
+                "{script}"
+            );
+        }
+        assert_eq!(
+            applicability(r"\tself.page.props.path\n\tself.getSibling('Btn').props.text = 'x'"),
+            Some(crate::Applicability::Safe)
+        );
+    }
 }
