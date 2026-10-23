@@ -298,6 +298,10 @@ fn may_be_created_by_scripts(
     name: &str,
 ) -> bool {
     let (accesses, complete) = cx.script_property_accesses();
+    // A name the scripts call that may be a frame builtin may create
+    // anything.
+    let accesses =
+        crate::rules::view::unused_custom_property::resolve_callee_checks(cx, view, accesses);
     if complete {
         // The object the reference points at: resolve it with a category
         // that always exists.
@@ -317,8 +321,7 @@ fn may_be_created_by_scripts(
                 (AccessTarget::AnyComponent, RefTarget::Component(_)) => true,
                 _ => false,
             };
-            !a.is_callee_check()
-                && same_target
+            same_target
                 && a.write
                 && a.category.name() == category
                 && a.name.as_deref().is_none_or(|n| n == name)

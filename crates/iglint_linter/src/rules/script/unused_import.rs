@@ -88,7 +88,10 @@ module, so that removing the import cannot change what runs:
   not a package;
 
 and, for both, when no library package of the project (or of a project
-inheriting from it) has the same top-level name. Unsafe otherwise:
+inheriting from it) has the same top-level name, and the module calls no
+library name that is not a plain function, class or literal constant
+(it may be `eval` or `locals` under another name, which reads the
+caller's names). Unsafe otherwise:
 importing a project library module runs its top level, other Java
 classes run static initializers, some standard modules start threads
 (`socket`) or configure logging (`logging`), and a dotted import makes the
@@ -185,8 +188,8 @@ pub(crate) fn unused_imports<'a>(
 
 /// Whether some code of the module may read its globals by name: `eval`,
 /// `execfile`, `exec`, `globals`, `locals()`, `vars()` or `dir()` (in any
-/// scope), or the module object through `sys.modules`, a frame or
-/// `__dict__`.
+/// scope), or the module object through `sys.modules`, a frame,
+/// `__dict__` or `getattr` with a computed name.
 fn reads_globals_dynamically(model: &SemanticModel<'_>) -> bool {
     const READERS: &[&str] = &["eval", "execfile", "globals"];
     model.references().any(|(_, r)| READERS.contains(&r.name))
@@ -197,6 +200,23 @@ fn reads_globals_dynamically(model: &SemanticModel<'_>) -> bool {
             let mut found = false;
             crate::rules::script::walk_stmts(&model.module.body, &mut |s| {
                 found |= matches!(s, Stmt::Exec(_));
+            });
+            found
+        }
+        || {
+            // `getattr(m, name)` with a computed name on a module object
+            // (an imported name or a library package, possibly the module
+            // itself) reads its globals by name.
+            let mut found = false;
+            crate::rules::script::walk_exprs(&model.module.body, &mut |e| {
+                if let Expr::Call(c) = e
+                    && let Expr::Name(f) = &*c.func
+                    && matches!(&*f.id, "getattr" | "hasattr" | "setattr" | "delattr")
+                    && c.args.get(1).is_none_or(|a| !matches!(a, Expr::Str(_)))
+                    && c.args.first().is_some_and(|m| may_be_module(model, m))
+                {
+                    found = true;
+                }
             });
             found
         }
@@ -213,6 +233,26 @@ fn reads_globals_dynamically(model: &SemanticModel<'_>) -> bool {
             });
             found
         }
+}
+
+/// Whether `e` may be a module object: a chain of attributes on a name
+/// bound by an import or bound nowhere in the module (a library package).
+fn may_be_module(model: &SemanticModel<'_>, e: &Expr) -> bool {
+    let mut root = e;
+    while let Expr::Attribute(a) = root {
+        root = &a.value;
+    }
+    let Expr::Name(n) = root else { return false };
+    let Some(r) = model.reference_at(n.range) else {
+        return true;
+    };
+    r.bindings.is_empty()
+        || r.bindings.iter().any(|b| {
+            matches!(
+                model.binding(*b).kind,
+                BindingKind::Import | BindingKind::FromImport
+            )
+        })
 }
 
 /// Python standard library modules of Jython 2.7 whose import has no
@@ -350,10 +390,19 @@ impl ScriptRule for UnusedImport {
         };
         let library = unit.script.kind == ScriptKind::LibraryModule;
         let text = source(unit);
+        // A library name the module calls may be `eval` or `locals` under
+        // another name: it reads the caller's names, imports included.
+        let mut frames = None;
         for (stmt, mut unused) in unused_imports(model, library) {
             // Top-level names of a library module are its attributes: other
             // resources may use them as `pkg.mod.name`.
-            let mut applicability = if unused.iter().all(|id| removal_is_pure(cx, model, *id)) {
+            let mut applicability = if unused.iter().all(|id| removal_is_pure(cx, model, *id))
+                && !*frames.get_or_insert_with(|| {
+                    crate::rules::view::unused_custom_property::library_names_may_read_frames(
+                        cx,
+                        &unit.parsed.module.body,
+                    )
+                }) {
                 Applicability::Safe
             } else {
                 Applicability::Unsafe
@@ -785,6 +834,41 @@ mod tests {
             let d = lint_module("SCR102", code);
             assert!(!flagged(&d).contains(&"os".to_owned()), "{code}: {d:?}");
         }
+    }
+
+    /// `eval` or `locals` under a library name reads the caller's names:
+    /// the removal is unsafe in a module that calls one, and a module that
+    /// reads its own globals with a computed `getattr` uses every import.
+    #[test]
+    fn library_frame_builtins_and_computed_getattr() {
+        let fixes = |code: &str| -> Vec<(String, crate::Applicability)> {
+            with_library(
+                with_library(library("m", code), "lib/util", "ev = eval\n"),
+                "lib/plain",
+                "def log(m):\n    pass\n",
+            )
+            .lint(&["SCR102"])
+            .iter()
+            .map(|d| (d.message.clone(), d.fix.as_ref().unwrap().applicability))
+            .collect()
+        };
+        assert_eq!(
+            fixes("def f():\n    import os\n    return lib.util.ev('os')\n"),
+            [(
+                "`os` imported but unused".to_owned(),
+                crate::Applicability::Unsafe
+            )]
+        );
+        assert_eq!(
+            fixes("def f():\n    import os\n    lib.plain.log(1)\n"),
+            [(
+                "`os` imported but unused".to_owned(),
+                crate::Applicability::Safe
+            )]
+        );
+        assert!(
+            fixes("import os\nimport m as me\ndef f(n):\n    return getattr(me, n)\n").is_empty()
+        );
     }
 
     /// Removing an import is safe only when importing has no effect

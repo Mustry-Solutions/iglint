@@ -384,6 +384,35 @@ mod tests {
         assert_eq!(fixed, expected);
     }
 
+    /// Scripts cannot observe the `persistent` flag of a property without
+    /// a stored value (it starts out absent either way), so dynamic code
+    /// (`eval` under a library name, `__builtin__`, `exec`, `getattr` with
+    /// a computed name) leaves the safe fix alone.
+    #[test]
+    fn dynamic_scripts_do_not_change_the_fix() {
+        let script = r#"\timport __builtin__\n\t__builtin__.eval(s)\n\texec s\n\tgetattr(self.view.custom, n)\n\tlib.util.ev(s)"#;
+        let view = VIEW.replacen(
+            "\"type\": \"ia.container.flex\"",
+            &format!(
+                "\"events\": {{\"component\": {{\"onActionPerformed\": {{\"type\": \"script\", \"scope\": \"G\", \"config\": {{\"script\": \"{script}\"}}}}}}}},\n    \"type\": \"ia.container.flex\""
+            ),
+            1,
+        );
+        let applicabilities = |view: &str| -> Vec<(String, crate::Applicability)> {
+            Fixture::view(view)
+                .lint_with(&[("VIEW013", "expected-persistent = false")])
+                .iter()
+                .map(|d| {
+                    (
+                        d.node_path.clone().unwrap_or_default(),
+                        d.fix.as_ref().unwrap().applicability,
+                    )
+                })
+                .collect()
+        };
+        assert_eq!(applicabilities(&view), applicabilities(VIEW));
+    }
+
     /// Removing a stored value changes the property's value until the
     /// binding delivers: unsafe. Without one, only the flag changes.
     #[test]

@@ -73,6 +73,11 @@ finding).
   view hands a component to code outside the view, for example to a library
   function, which may look the component up by name (2 entries, one per
   view, for every variant).
+* Outside a project (a lone view, as in the fixtures), the rename is also
+  unsafe when a script of the view calls a name that may be a project
+  library function (`lib.util.f()`, an undefined name): iglint cannot
+  check that it is not a frame builtin such as `eval` under another name,
+  which could look the component up (6 entries, one per view).
 * Unknown kwargs are reported as configuration notices instead of being
   ignored silently (bug 9).
 * Keys of Ignition's dataset encoding (`$`, `$columns`) are Ignition's

@@ -37,15 +37,15 @@ code before and after the edit.
 
 | Rule | Fix | Safe when | Otherwise |
 |---|---|---|---|
-| `NAME001` | Rename a component and every reference to it in the view | No reference to the component at all; no script reads `meta.name`; no script looks children up with a computed name or has a string literal equal to the name; every script parses; and no script of the view hands a component to code outside the view (library call, message payload, `getGlobals()`, an opaque call such as `locals()`): a library function that receives a component can call `getChild('Name')` itself | Unsafe when references exist or a component may escape; no fix when a lookup cannot be rewritten or the new name is taken |
+| `NAME001` | Rename a component and every reference to it in the view | No reference to the component at all; no script reads `meta.name`; no script looks children up with a computed name or has a string literal equal to the name; every script parses; and no script of the view hands a component to code outside the view (library call, message payload, `getGlobals()`, an opaque call such as `locals()`), reaches a frame builtin in any way, calls an unnamed value or calls a library name that is not a plain function, class or literal constant: a library function that receives a component, or `eval` under another name, can call `getChild('Name')` itself | Unsafe when references exist or a component may escape; no fix when a lookup cannot be rewritten or the new name is taken |
 | `VIEW012` | Set, add or remove `access` in `propConfig` | Never: the access mode decides whether the browser receives the property and whether it may write it | Unsafe |
 | `VIEW013` | Set `persistent: false` (and remove the stored value) | No stored value: the property starts out absent either way | Unsafe when a stored value is removed: scripts and expressions that run before the binding delivers (query bindings are asynchronous) see a different value |
 | `VIEW015` | Remove an unused custom property and its `propConfig` entries | Nothing reads or writes the property, and the view's own scripts prove it: resolved reads and writes cover expressions, bindings (bidirectional ones write) and scripts, analysed default-deny (every use of a component, the view, a page or session, a property container or an alias of one must be one of the forms listed under "`VIEW015`: understood forms" below; anything else reads and writes everything it reaches); a script that reads frames or reaches a frame builtin in any way reads everything, and every library name a script calls or uses as a value is checked to be a plain function, class or literal constant (or missing); properties with a binding or change script are never reported | Unsafe when a script, a library function it calls or a bidirectional binding writes the property (the write recreates it at run time without the `access` and `persistent` settings of the removed `propConfig` entry); unsafe when the finding relies on following a value into library functions (inter-procedural: the function's body, a function that does not exist, the depth limit); unsafe for a view linted outside its project whose scripts call names that may be library functions |
-| `SCR102` | Remove unused import names or statements | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); a top-level library import is provably unused by other resources; and every removed import is effect-free: `java.*` / `javax.*`, or a plain `import x` / non-package `from x import y` of a standard module on the verified list, with no project library package of that name | Unsafe (project library modules, third-party and non-JDK Java packages, `socket`, `logging`, dotted imports, relative imports, unknown project) |
+| `SCR102` | Remove unused import names or statements | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); a top-level library import is provably unused by other resources; and every removed import is effect-free: `java.*` / `javax.*`, or a plain `import x` / non-package `from x import y` of a standard module on the verified list, with no project library package of that name; and the module calls no library name that may be a frame builtin | Unsafe (project library modules, third-party and non-JDK Java packages, `socket`, `logging`, dotted imports, relative imports, unknown project, a library name that is not a plain function, class or literal constant) |
 | `SCR103` | Remove `x = value`, or only `x = ` when the value calls or binds something | Never | Unsafe: the value may be wanted under another name, and a removed attribute or subscript read, operator, comparison, `in` or `%` formatting can raise or run code (getters, special methods). The statement is removed only when the value calls nothing (no call, no backticks, which call `repr`, no `yield`) and binds nothing (no list comprehension, whose variables Python 2 leaks), so no pointless statement (`SCR114`) is left |
 | `SCR110` | `is` to `==`, `is not` to `!=` | Never: the result changes whenever identity and equality differ (`int('1000') is 1000` is `False` in Jython), and `==` calls `__eq__` / Java `equals` | Unsafe |
 | `SCR115` | `except A, B:` to `except (A, B):` | Never: the handler then catches `B` and no longer rebinds the name | Unsafe. The finding itself requires `B` to resolve (ignoring the handler) to a class statement, a capitalized `from` import or a builtin exception, and the handler body not to read it |
-| `SCR123` | Remove unused suppression codes or the whole comment | Only codes are removed (the rest of the comment stays), or the comment holds nothing but the suppression. Comments do not run | Unsafe when the whole comment would go and it also holds a reason, a `# pylint:` directive or a `coding:` declaration |
+| `SCR123` | Remove unused suppression codes or the whole comment | Only codes are removed (the rest of the comment stays), or the comment holds nothing but the suppression. Comments do not run | Unsafe when the whole comment would go and it also holds a reason, a `# pylint:` directive or a `coding:` declaration, or when a whole line goes in a script that reads frames (line numbers move) |
 | `SCR124` | Remove trailing whitespace | The script parses, the whitespace is outside string literals and outside the generated header (a backslash continuation followed by spaces is a syntax error, so it is never touched) | No finding when the script does not parse |
 | `SCR206` | Remove a `shared.` / `project.` prefix | Never: in Ignition 7 the two prefixes named different libraries | Unsafe |
 | `SCR301` | Rewrite or insert the event script header | Never: code may rely on the written parameters or defaults | Unsafe |
@@ -54,6 +54,43 @@ code before and after the edit.
 Rules not listed offer no fix. The language server uses the same
 applicability: unsafe code actions are titled `(unsafe)`, and the
 fix-all action applies unsafe fixes only when configured to.
+
+## Dynamic code: audit of every safe fix
+
+Code that reads names without writing them can invalidate a fix: frame
+builtins (`eval`, `locals`, `vars`, `dir`, `execfile`, `exec`) reached
+under any name (`__builtin__.eval`, `from __builtin__ import locals as
+l`, `e = eval`, a library variable holding one), frames
+(`sys._getframe()`, `inspect.currentframe()`, `.f_locals`,
+`.tb_frame`), `getattr` / `setattr` with a computed name, and functions
+whose code is replaced (`f.func_code = ...`, also through an alias or a
+helper). Where they matter, the guards are shared:
+`iglint_python_semantic::dynamic` (escape routes, which make every scope
+of a module read and write names dynamically),
+`script_facts::access` (default-deny accesses of view scripts, with
+callee checks of library names), and
+`unused_custom_property::{resolve_callee_checks, may_read_frames,
+library_names_may_read_frames}` (callee checks resolved through the
+project index: a library name that is not a plain function, class or
+literal constant may hold `eval`; outside a project every such name
+counts). Each rule has a regression test with the patterns.
+
+| Rule | What dynamic code could do | Guard |
+|---|---|---|
+| `NAME001` | look the old name up (`eval("self.getChild('Old')")`, a library function receiving `self` whose code is replaced, `getattr(self, n)`) | Unsafe when a component may escape: accesses read everything for frame routes, `exec`, values passed to unknown code, calls of unnamed values, and callee checks that do not resolve to plain functions (`dynamic_code_makes_the_rename_unsafe`) |
+| `VIEW013` | nothing: scripts cannot see the `persistent` flag, and without a stored value the property starts out absent either way | None needed (`dynamic_scripts_do_not_change_the_fix`) |
+| `VIEW015` | read or write any property | Default-deny accesses, frame routes, callee checks, rebinding through exposure and `func_globals`; inter-procedural findings unsafe (`dynamic_patterns_read_everything` and the tests above) |
+| `SCR102` | read the import by name (`lib.util.ev('os')`, `capture()['os']`, `getattr(me, n)` on the module itself) | Scopes with escape routes or frame builtins are dynamic (no finding); a computed `getattr` on a module object keeps module imports; a library name that may be a frame builtin makes the fix unsafe (`library_frame_builtins_and_computed_getattr`, `frame_builtins_under_other_names_keep_imports`) |
+| `SCR123` | see line numbers move when a whole comment line goes (`f_lineno`, frames of tracebacks) | Unsafe when a line is deleted in a script that reads frames or calls a library name that may hold a frame builtin; removing only the comment keeps lines (`line_removal_is_unsafe_where_frames_are_read`) |
+| `SCR124`, `SCR900` | nothing: trailing whitespace outside string literals is not in any value, line numbers do not move, and Jython has no source for scripts compiled from strings (`inspect.getsource` raises `IOError`, tracebacks show no source lines; verified on Ignition 8.3's Jython) | None needed (`dynamic_code_leaves_the_fix_safe`) |
+
+Values that do not come from a name: calling the result of a call or an
+item of a container (`factory()()`, `getattr(o, name)()`, `handlers[k]()`,
+`vars()['f']()`) counts as calling a frame builtin; an item of a library
+name (`lib.util.HANDLERS['x']`) is a callee check. Methods of other
+values (`x.m()` where `x` is a local variable, an event or payload value
+or a call result) are assumed not to be frame builtins: that is the
+remaining documented assumption.
 
 ## Decisions
 

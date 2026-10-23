@@ -52,7 +52,8 @@ No equivalent.
 
 pub static RULE: RuleImpl = RuleImpl {
     meta: &META,
-    phase: Phase::Local,
+    // Names scripts call are checked through the project index.
+    phase: Phase::Project,
     hooks: &[Hook::View(&OutputParamNeverWritten)],
     options: None,
 };
@@ -75,11 +76,9 @@ impl ViewRule for OutputParamNeverWritten {
         if !complete && !view.scripts.is_empty() {
             return;
         }
-        let accesses: Vec<_> = accesses
-            .iter()
-            .filter(|a| !a.is_callee_check())
-            .cloned()
-            .collect();
+        // A name the scripts call that may be a frame builtin may write
+        // anything.
+        let accesses = super::unused_custom_property::resolve_callee_checks(cx, view, accesses);
         let usage = usage(view, &accesses);
         for (i, def) in view.properties.iter().enumerate() {
             if def.category != PropCategory::Params

@@ -30,7 +30,14 @@ property binding paths, indirect tag binding references, and literal
 `getChild('...')` / `getSibling('...')` calls in scripts whose receiver
 resolves (`self`, `self.parent`, `self.view.rootContainer`, earlier
 lookups). References are found by resolution, so a different component with
-the same name elsewhere in the view is left alone.
+the same name elsewhere in the view is left alone. The rename is unsafe when
+a script could find the component another way: it reads `meta.name`,
+looks children up with a computed name or a matching string, hands a
+component to code outside the view, reaches `eval`, `locals()` or a
+frame in any way (also under another name, `__builtin__.eval`), calls an
+unnamed value (`factory()()`), or calls a library name that is not a
+plain function, class or literal constant (it may be `eval` under
+another name; outside a project any such name counts).
 
 The fix is offered only when every reference can be updated: a literal
 lookup on an unresolvable receiver naming the component, a suggestion that

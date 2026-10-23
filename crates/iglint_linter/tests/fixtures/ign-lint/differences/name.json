@@ -2239,6 +2239,54 @@
    "message": "*",
    "kind": "fix",
    "reason": "intended: a script of the view hands a component to code outside the view (a library call), which may look up children by name, so iglint's rename is unsafe (ign-lint: safe)"
+  },
+  {
+   "view": "cases/BadContextData",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "*",
+   "kind": "fix",
+   "reason": "intended: a script of the view calls names that may be project library functions, and outside a project iglint cannot check that they are not frame builtins such as `eval` that could look components up by name, so the rename is unsafe (ign-lint: safe)"
+  },
+  {
+   "view": "cases/ExtensionFunctions",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "*",
+   "kind": "fix",
+   "reason": "intended: a script of the view calls names that may be project library functions, and outside a project iglint cannot check that they are not frame builtins such as `eval` that could look components up by name, so the rename is unsafe (ign-lint: safe)"
+  },
+  {
+   "view": "cases/LineDashboard",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "*",
+   "kind": "fix",
+   "reason": "intended: a script of the view calls names that may be project library functions, and outside a project iglint cannot check that they are not frame builtins such as `eval` that could look components up by name, so the rename is unsafe (ign-lint: safe)"
+  },
+  {
+   "view": "cases/PylintViolations",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "*",
+   "kind": "fix",
+   "reason": "intended: a script of the view calls names that may be project library functions, and outside a project iglint cannot check that they are not frame builtins such as `eval` that could look components up by name, so the rename is unsafe (ign-lint: safe)"
+  },
+  {
+   "view": "probes/ScriptLines",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "*",
+   "kind": "fix",
+   "reason": "intended: a script of the view calls names that may be project library functions, and outside a project iglint cannot check that they are not frame builtins such as `eval` that could look components up by name, so the rename is unsafe (ign-lint: safe)"
+  },
+  {
+   "view": "probes/ScriptPy2Syntax",
+   "variant": "*",
+   "rule": "NamePatternRule",
+   "message": "*",
+   "kind": "fix",
+   "reason": "intended: a script of the view calls names that may be project library functions, and outside a project iglint cannot check that they are not frame builtins such as `eval` that could look components up by name, so the rename is unsafe (ign-lint: safe)"
   }
  ]
 }

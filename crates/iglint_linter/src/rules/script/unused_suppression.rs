@@ -54,7 +54,10 @@ return total
 Removes the unused codes, or the whole comment when none of its codes is
 used (the whole line when the comment is alone on it). Safe, except when
 the whole comment would go and it holds more than the suppression (a
-reason, a `# pylint:` directive, a `coding:` declaration): then unsafe.
+reason, a `# pylint:` directive, a `coding:` declaration), and when a
+whole line goes in a script that reads frames (`sys._getframe()`,
+`inspect`, `eval`, `locals()`, or a library name that may hold one of
+them): line numbers move. Then unsafe.
 "#,
     ..RuleMeta::DEFAULT
 };
@@ -172,9 +175,19 @@ pub(crate) fn report_unused(
         // suppression: other text (a reason, a `# pylint:` directive) and a
         // coding declaration are not iglint's to remove.
         let comment = s.comment.slice(source);
-        let applicability = if all_unused
-            && (!directive_rest(comment).trim().is_empty() || is_coding_declaration(comment))
-        {
+        // Deleting a whole line moves the code below it up: line numbers
+        // are visible to code that reads frames (`f_lineno`).
+        let removes_line = edit
+            .as_ref()
+            .is_some_and(|(r, _)| r.slice(source).contains('\n'));
+        let applicability = if (all_unused
+            && (!directive_rest(comment).trim().is_empty() || is_coding_declaration(comment)))
+            || (removes_line
+                && unit.parsed.is_valid()
+                && crate::rules::view::unused_custom_property::may_read_frames(
+                    cx,
+                    &unit.parsed.module.body,
+                )) {
             Applicability::Unsafe
         } else {
             Applicability::Safe
@@ -307,6 +320,50 @@ mod tests {
             &library_path(&f, "m"),
         );
         assert_eq!(fixed, "import os\nprint os\nx = 1\n");
+    }
+
+    /// Deleting a whole line moves line numbers, which code that reads
+    /// frames sees: the fix is unsafe there, and safe for a comment after
+    /// code or in a script without frame access.
+    #[test]
+    fn line_removal_is_unsafe_where_frames_are_read() {
+        let applicability = |code: &str| {
+            let f = with_library(
+                with_library(library("m", code), "lib/util", "ev = eval\n"),
+                "lib/plain",
+                "def log(m):\n    pass\n",
+            );
+            let d = f.lint(&["SCR101", "SCR123"]);
+            let d = d
+                .iter()
+                .find(|d| d.rule.code() == "SCR123")
+                .unwrap_or_else(|| panic!("{code}: {d:?}"));
+            d.fix.as_ref().unwrap().applicability
+        };
+        let line = "# iglint: ignore[SCR101]\nx = 1\n";
+        for dynamic in [
+            "import sys\nprint sys._getframe(0).f_lineno\n",
+            "import __builtin__\n__builtin__.eval(s)\n",
+            "lib.util.ev(s)\n",
+            "exec s\n",
+            "import inspect\nprint inspect.currentframe()\n",
+        ] {
+            assert_eq!(
+                applicability(&format!("{line}{dynamic}")),
+                crate::Applicability::Unsafe,
+                "{dynamic}"
+            );
+            // Only the comment goes: no line moves.
+            assert_eq!(
+                applicability(&format!("x = 1  # iglint: ignore[SCR101]\n{dynamic}")),
+                crate::Applicability::Safe,
+                "{dynamic}"
+            );
+        }
+        assert_eq!(
+            applicability(&format!("{line}lib.plain.log(s)\nprint getattr(x, n)\n")),
+            crate::Applicability::Safe
+        );
     }
 
     #[test]

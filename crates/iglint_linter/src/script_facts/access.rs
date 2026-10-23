@@ -88,9 +88,13 @@
 //! a builtin and not an Ignition global, or it is bound by an import) is
 //! checked through the project index ([`ArgSlot::Callee`]): unless it is a
 //! plain `def` function or a class of a module without dynamic code, or
-//! does not exist, the script reads and writes everything. Values that do
-//! not come from a name (results of calls, items of containers, event and
-//! payload values) are assumed not to be frame builtins.
+//! does not exist, the script reads and writes everything. Items of such
+//! names (`lib.util.HANDLERS['x']`) are checked the same way. Calling a
+//! value that does not come from a name (the result of a call, `f()()`,
+//! `getattr(o, name)()`, or an item of a container, `handlers[k]()`)
+//! reads and writes everything. Methods of other values (`x.m()` where
+//! `x` is a local, an event or payload value or a call result) are
+//! assumed not to be frame builtins.
 //!
 //! # Library functions
 //!
@@ -762,6 +766,10 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
             Expr::Attribute(a) => self.walk_attribute(a, aug),
             Expr::Subscript(s) => {
                 let base = self.walk(&s.value, Role::Base, false);
+                if base.is_none() {
+                    // An item of a library value may be anything.
+                    self.check_callee(&s.value);
+                }
                 let key = literal_key(&s.slice);
                 self.walk_slice(&s.slice);
                 let ctx = if aug { ExprContext::AugStore } else { s.ctx };
@@ -894,6 +902,11 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
                 }
             }
             other => {
+                if calls_unnamed_value(other) {
+                    // The result of a call or an item of a container,
+                    // called: it may be a frame builtin.
+                    self.everything(e_range(other));
+                }
                 self.walk(other, Role::Value, false);
             }
         }
@@ -1192,6 +1205,22 @@ fn follow<'i>(
     }
 }
 
+/// Whether calling `func` calls a value that does not come from a name:
+/// the result of a call (`f()()`, `getattr(o, name)()`) or an item of a
+/// container (`handlers[k]()`, `vars()['f']()`). Such a value may be a
+/// frame builtin. `getattr(o, 'literal')(...)` is a method call.
+fn calls_unnamed_value(func: &Expr) -> bool {
+    match func {
+        Expr::Subscript(_) => true,
+        Expr::Call(c) => {
+            !(matches!(&*c.func, Expr::Name(n) if &*n.id == "getattr")
+                && c.args.len() == 2
+                && matches!(&c.args[1], Expr::Str(_)))
+        }
+        _ => false,
+    }
+}
+
 /// The first argument of a call, when it is a string literal.
 fn first_literal(args: &[Expr]) -> Option<String> {
     match args.first() {
@@ -1433,6 +1462,40 @@ fn bound_names(body: &[Stmt]) -> FxHashSet<String> {
     bound.0
 }
 
+/// Every dotted name `body` (all scopes) calls or uses as a value that may
+/// be a library name, as [`Analysis::check_callee`] sees them: rules
+/// whose fixes depend on names read by name check these through the
+/// project index (a library variable may hold `eval` or `locals`).
+pub fn library_names_used(body: &[Stmt]) -> Vec<String> {
+    struct Used<'n> {
+        names: &'n Names,
+        out: Vec<String>,
+    }
+    impl<'e> Visitor<'e> for Used<'_> {
+        fn visit_expr(&mut self, expr: &'e Expr) {
+            if matches!(expr, Expr::Name(_) | Expr::Attribute(_)) && dotted_name(expr).is_some() {
+                for n in self.names.library_names(expr, &|_| false) {
+                    if !self.out.contains(&n) {
+                        self.out.push(n);
+                    }
+                }
+                // The chain's prefixes are not used on their own.
+                return;
+            }
+            walk_expr(self, expr);
+        }
+    }
+    let names = Names::new(body, []);
+    let mut v = Used {
+        names: &names,
+        out: Vec::new(),
+    };
+    for stmt in body {
+        v.visit_stmt(stmt);
+    }
+    v.out
+}
+
 // ---- library functions ----
 
 /// What `f` does with each of its positional parameters, when they hold a
@@ -1606,6 +1669,9 @@ impl ParamWalker {
             },
             Expr::Subscript(s) => {
                 let base = self.walk(&s.value, Role::Base, false);
+                if base.is_none() {
+                    self.check_callee(&s.value);
+                }
                 let mut children = Children::default();
                 children.visit_slice(&s.slice);
                 for child in children.0 {
@@ -1714,6 +1780,9 @@ impl ParamWalker {
                 }
             },
             other => {
+                if calls_unnamed_value(other) {
+                    self.dynamic_all();
+                }
                 self.walk(other, Role::Value, false);
             }
         }
@@ -2247,6 +2316,20 @@ pub(crate) mod tests {
                 "check json.dumps"
             ]
         );
+    }
+
+    /// Calling a value that does not come from a name (a call result, an
+    /// item) may call a frame builtin; `getattr(o, 'm')()` is a method.
+    #[test]
+    fn calls_of_unnamed_values_read_everything() {
+        for script in [
+            "\tfactory()('x')",
+            "\thandlers[k]('x')",
+            "\tgetattr(o, n)('x')",
+        ] {
+            assert!(is_everything(&accesses(script)), "{script}");
+        }
+        assert!(accesses("\tgetattr(o, 'm')('x')").is_empty());
     }
 
     #[test]

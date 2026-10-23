@@ -63,6 +63,15 @@ from 0.1.0 on.
   names that a frame builtin reached under another name can read
   (`from __builtin__ import locals as capture`, `e = eval`,
   `__builtin__.eval`, `sys._getframe`).
+- Safe fixes of NAME001, SCR102 and SCR123 become unsafe when a script
+  may read names or frames dynamically: `eval` or `locals` under another
+  name (also a library variable holding one, checked through the project
+  index), calls of unnamed values (`factory()()`, `handlers[k]()`), or,
+  for SCR123, a deleted line in a script that reads frames. SCR102 keeps
+  module imports when the module reads its globals with a computed
+  `getattr`. VIEW019 and BIND unresolved property references treat such
+  names as writing anything. NAME001 and VIEW019 now run in the project
+  phase.
 - SCR002 no longer reports invalid assignment targets in unreachable
   code that Jython generates but never runs into (after `break`, a
   `try` whose body and handlers or whose `finally` do not complete, a

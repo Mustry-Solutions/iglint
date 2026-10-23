@@ -540,6 +540,74 @@ fn fix(
     })
 }
 
+/// Whether code of `body` may read variables by name or reach frames:
+/// it reads frames itself ([`iglint_python_semantic::dynamic::reads_frames`])
+/// or calls or uses a library name that is not a plain function, class
+/// or literal constant (it may hold `eval` or `locals`), checked through
+/// the project index; without the index, any such name counts.
+pub(crate) fn may_read_frames(cx: &Checker<'_, '_>, body: &[iglint_python::ast::Stmt]) -> bool {
+    iglint_python_semantic::dynamic::reads_frames(body).is_some()
+        || library_names_may_read_frames(cx, body)
+}
+
+/// Whether `body` calls or uses a library name that is not a plain
+/// function, class or literal constant (see [`may_read_frames`]).
+pub(crate) fn library_names_may_read_frames(
+    cx: &Checker<'_, '_>,
+    body: &[iglint_python::ast::Stmt],
+) -> bool {
+    let names = crate::script_facts::access::library_names_used(body);
+    if names.is_empty() {
+        return false;
+    }
+    let Some((index, project)) = cx.project_index() else {
+        return true;
+    };
+    names.iter().any(|n| {
+        matches!(
+            resolve_callee(index, project, n, None, true, 0),
+            Callee::Unknown
+        )
+    })
+}
+
+/// `accesses` with the callee checks ([`PropertyAccess::is_callee_check`])
+/// resolved through the project index, for rules that do not follow
+/// library calls: a name that is not a plain function, class or literal
+/// constant may be a frame builtin and accesses everything. Without the
+/// index (a view linted outside its project) the checks stay: every such
+/// name may be one.
+pub(crate) fn resolve_callee_checks<'a>(
+    cx: &Checker<'_, '_>,
+    view: &View<'_>,
+    accesses: &'a [PropertyAccess],
+) -> Cow<'a, [PropertyAccess]> {
+    if !accesses.iter().any(PropertyAccess::is_callee_check) {
+        return Cow::Borrowed(accesses);
+    }
+    let Some((index, project)) = cx.project_index() else {
+        return Cow::Borrowed(accesses);
+    };
+    let resolve = |callee: &str, context: Option<CalleeContext>, check: bool| {
+        resolve_callee(index, project, callee, context, check, 0)
+    };
+    let mut out = Vec::with_capacity(accesses.len());
+    let mut done: Vec<&Arc<LibraryCall>> = Vec::new();
+    for a in accesses {
+        match &a.via {
+            Some(call) if call.is_callee_check() => {
+                if done.iter().any(|f| Arc::ptr_eq(f, call)) {
+                    continue;
+                }
+                done.push(call);
+                out.extend(follow_call(view, call, a.range, &resolve));
+            }
+            _ => out.push(a.clone()),
+        }
+    }
+    Cow::Owned(out)
+}
+
 /// `accesses` with the assumptions made for library calls
 /// ([`PropertyAccess::via`]) replaced by what the called functions do, and
 /// `accesses` with only the callee checks ([`LibraryCall::is_callee_check`])
@@ -653,8 +721,9 @@ fn resolve_callee<'i>(
                     None => target.clone(),
                 },
                 Some(SymbolKind::Class) => return opaque,
+                // A literal or one of its methods (`NAMES.index(x)`).
                 Some(SymbolKind::Variable)
-                    if rest.is_none()
+                    if check
                         && symbols.constants.iter().any(|c| c == head)
                         && !index.library_name_rebound(project, &format!("{module}.{head}")) =>
                 {
@@ -716,8 +785,8 @@ fn resolve_callee<'i>(
                     Callee::Function(signature, CalleeContext { module: resource })
                 }
                 (SymbolKind::Class, _) => opaque,
-                (SymbolKind::Variable, 0)
-                    if symbols.is_some_and(|s| s.constants.contains(&symbol.name)) =>
+                (SymbolKind::Variable, _)
+                    if check && symbols.is_some_and(|s| s.constants.contains(&symbol.name)) =>
                 {
                     opaque
                 }
@@ -1218,6 +1287,31 @@ mod tests {
                 assert_eq!(found, expected, "{util}");
             }
             assert!(parsed_once, "{context}");
+        }
+    }
+
+    /// The dynamic patterns of the safe-fix audit (`fix-safety.md`): each
+    /// reads everything, so nothing is reported.
+    #[test]
+    fn dynamic_patterns_read_everything() {
+        let util = "ev = eval\ndef handle(p):\n    pass\ndef _real(p):\n    print p.view.custom.a\nhandle.func_code = _real.func_code\n";
+        for script in [
+            "\\tlib.util.ev('self.view.custom.a')",
+            "\\timport __builtin__\\n\\t__builtin__.eval(s)",
+            "\\tlib.util.handle(self)",
+            "\\tgetattr(self.view.custom, n)",
+            "\\tgetattr(self, n)",
+            "\\texec s",
+            "\\tf = getattr(lib.util, n)\\n\\tf(s)",
+            "\\tlib.util.HANDLERS['x'](s)",
+            "\\tfactory()(s)",
+        ] {
+            let d = with_library(script, &[("lib/util", util)]);
+            assert!(
+                paths(&d).iter().all(|p| !p.starts_with("view.custom.")),
+                "{script}: {:?}",
+                paths(&d)
+            );
         }
     }
 

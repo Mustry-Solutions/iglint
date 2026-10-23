@@ -45,7 +45,14 @@ property binding paths, indirect tag binding references, and literal
 `getChild('...')` / `getSibling('...')` calls in scripts whose receiver
 resolves (`self`, `self.parent`, `self.view.rootContainer`, earlier
 lookups). References are found by resolution, so a different component with
-the same name elsewhere in the view is left alone.
+the same name elsewhere in the view is left alone. The rename is unsafe when
+a script could find the component another way: it reads `meta.name`,
+looks children up with a computed name or a matching string, hands a
+component to code outside the view, reaches `eval`, `locals()` or a
+frame in any way (also under another name, `__builtin__.eval`), calls an
+unnamed value (`factory()()`), or calls a library name that is not a
+plain function, class or literal constant (it may be `eval` under
+another name; outside a project any such name counts).
 
 The fix is offered only when every reference can be updated: a literal
 lookup on an unresolvable receiver naming the component, a suggestion that
@@ -223,7 +230,9 @@ refer to the component dynamically.
 
 pub static RULE: RuleImpl = RuleImpl {
     meta: &META,
-    phase: Phase::Local,
+    // The rename fix checks the names scripts call through the project
+    // index (they may be frame builtins that look components up).
+    phase: Phase::Project,
     hooks: &[Hook::View(&NamePattern)],
     options: Some(parse_options),
 };
@@ -726,7 +735,7 @@ fn rename_fix(
         count += 1;
     }
     let risky = count > 0
-        || components_may_escape(cx)
+        || components_may_escape(cx, view)
         || refs.meta_name_read.contains(&c.id)
         || refs.dynamic_meta_name
         || refs.dynamic_lookup
@@ -744,12 +753,15 @@ fn rename_fix(
 /// view (`util.initialise(self)`, a message payload, `getGlobals()`),
 /// which can then look up children by name; or the scripts were not all
 /// followed.
-fn components_may_escape(cx: &Checker<'_, '_>) -> bool {
+fn components_may_escape(cx: &Checker<'_, '_>, view: &View<'_>) -> bool {
     let (accesses, complete) = cx.script_property_accesses();
+    // Names the scripts call that may be frame builtins reach every
+    // component.
+    let accesses =
+        crate::rules::view::unused_custom_property::resolve_callee_checks(cx, view, accesses);
     !complete
         || accesses.iter().any(|a| {
-            !a.is_callee_check()
-                && a.target == crate::script_facts::AccessTarget::AnyComponent
+            a.target == crate::script_facts::AccessTarget::AnyComponent
                 && a.name.is_none()
                 && a.read
                 && a.write
@@ -1157,6 +1169,61 @@ mod tests {
         let d = f.lint_with(&[("NAME001", "convention = \"PascalCase\"")]);
         assert_eq!(flagged(&d), vec!["\"the_label\""]);
         assert!(d[0].fix.is_none());
+    }
+
+    /// Dynamic code that can look a component up by a name it builds:
+    /// `eval` under a library name, the builtins module, a library function
+    /// whose code is replaced (it receives `self`), `getattr` with a
+    /// computed name, `exec`. Each makes the rename unsafe; a call of a
+    /// plain library function does not.
+    #[test]
+    fn dynamic_code_makes_the_rename_unsafe() {
+        let util = "ev = eval\ndef handle(p):\n    pass\ndef _real(p):\n    p.parent.getChild('the_label')\nhandle.func_code = _real.func_code\n";
+        let applicability = |script: &str| {
+            let button = component(
+                "Btn",
+                "ia.input.button",
+                &format!(
+                    r#", "events": {{"component": {{"onActionPerformed": {{"type": "script", "scope": "G", "config": {{"script": "{script}"}}}}}}}}"#
+                ),
+            );
+            let f = Fixture::view(&root(&[
+                component("the_label", "ia.display.label", ""),
+                button,
+            ]))
+            .resource(
+                "projects/p/ignition/script-python/lib/util",
+                &[("code.py", util)],
+            )
+            .resource(
+                "projects/p/ignition/script-python/lib/plain",
+                &[("code.py", "def log(m):\n    pass\n")],
+            );
+            let d = f.lint_with(&[("NAME001", "convention = \"PascalCase\"")]);
+            let d = d
+                .iter()
+                .find(|d| d.message.contains("the_label"))
+                .unwrap_or_else(|| panic!("{script}: {d:?}"));
+            d.fix.as_ref().map(|f| f.applicability)
+        };
+        for script in [
+            "\\tlib.util.ev('self.parent.getChild(n)')",
+            "\\timport __builtin__\\n\\t__builtin__.eval(s)",
+            "\\tlib.util.handle(self)",
+            "\\tgetattr(self.parent, n)('x')",
+            "\\texec s",
+            "\\tfrom __builtin__ import locals as l\\n\\tl()",
+        ] {
+            assert_eq!(
+                applicability(script),
+                Some(crate::Applicability::Unsafe),
+                "{script}"
+            );
+        }
+        assert_eq!(
+            applicability("\\tlib.plain.log('x')"),
+            Some(crate::Applicability::Safe)
+        );
     }
 
     #[test]

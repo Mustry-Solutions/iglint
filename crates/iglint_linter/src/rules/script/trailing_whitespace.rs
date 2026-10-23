@@ -124,6 +124,21 @@ mod tests {
         assert_eq!(fixed, "x = 1\n\ny = '''a  \nb'''\nz = 2\r\nw = 3");
     }
 
+    /// Whitespace outside string literals cannot be observed: Jython has
+    /// no source for scripts compiled from strings (`inspect.getsource`
+    /// fails, tracebacks show no lines; verified on Ignition 8.3's Jython)
+    /// and line numbers do not move. Dynamic code leaves the fix safe.
+    #[test]
+    fn dynamic_code_leaves_the_fix_safe() {
+        let code = "import __builtin__  \nimport inspect\nev = eval  \nexec 'x = 1'  \nprint getattr(x, n)  \nprint inspect.getsource(f), inspect.currentframe().f_lineno  \n";
+        let d = lint_module("SCR124", code);
+        assert_eq!(d.len(), 5);
+        assert!(
+            d.iter()
+                .all(|d| d.fix.as_ref().unwrap().applicability == crate::Applicability::Safe)
+        );
+    }
+
     #[test]
     fn clean_and_broken_scripts_are_not_reported() {
         assert!(lint_module("SCR124", "x = 1\ny = 2\n").is_empty());
