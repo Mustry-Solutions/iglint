@@ -160,6 +160,14 @@ The expression and property binding part:
   an undefined name) makes the fix unsafe: iglint cannot check that the
   name is not a frame builtin such as `eval` under another name, which
   could read any property. ign-lint offers a safe fix.
+* A view whose scripts call a project library function do not report any
+  of its `custom` or `params` as unused when some library module evaluates
+  computed strings or reaches a frame: such a module rebinds its names, so
+  the called function is no longer a plain function and iglint treats the
+  call as reading every property it could reach (the deliberate precision
+  cost of the frame and introspection analysis). ign-lint reports the
+  properties its text never names. The parity harness classes these as
+  expected (`VIEW015: a script calls a library function ...`).
 
 ## ExcessiveContextDataRule (`VIEW006`)
 

@@ -143,6 +143,17 @@ DYNAMIC_ACCESS = re.compile(
     r"|self\.view\)|= ?self\.view\b|getattr\("
 )
 
+# A call of a dotted name that is not rooted at a script's own objects:
+# a project library function. When any library module evaluates computed
+# strings or reaches a frame, iglint treats such a call as reading every
+# name it could reach (rounds 4 and 5), so it does not report the view's
+# containers as unused. The root excludes `self`, the Ignition globals and
+# the objects a script reaches from them.
+LIBRARY_CALL = re.compile(
+    r"(?<![\w.$])(?!(?:self|system|event|sys|fpmi|this|value|previousValue|currentValue|payload)\b)"
+    r"[A-Za-z_]\w*(?:\.\w+)+\("
+)
+
 
 def resolve(view, path):
     """The JSON value at an ign-lint node path (`custom.a.b`,
@@ -226,6 +237,8 @@ def classify(f, side, views):
                 return "VIEW015: output parameters are VIEW019's concern"
         if side == "ign-lint" and view is not None and DYNAMIC_ACCESS.search(json.dumps(view)):
             return "VIEW015: a script reads the container dynamically, which counts as reading every property"
+        if side == "ign-lint" and view is not None and LIBRARY_CALL.search(json.dumps(view)):
+            return "VIEW015: a script calls a library function whose module evaluates computed strings or reaches a frame, so iglint reads every property it could reach (rounds 4-5 precision cost)"
         if side == "iglint":
             if view is not None and _mentioned_elsewhere(view, path):
                 return "VIEW015: exact references; writes and look-alike names are not reads (bugs 21-23)"
@@ -279,6 +292,68 @@ def _propconfig_only(view, path):
     return name not in (component.get("custom") or {}) and f"custom.{name}" in (component.get("propConfig") or {})
 
 
+def _debug_off_config(flags, out, corpus):
+    """`flags` with every `--config PATH` pointing at an ign-lint
+    configuration replaced by a copy in `out` that turns `debug` off and
+    points every `debug_dir` into `out`. The real ign-lint stages scripts
+    into `debug_dir` whatever `debug` says, so a config that names a
+    `debug_dir` inside the corpus (the default `.ignition-lint/debug/`)
+    writes into the corpus; this keeps all of that in the scratch
+    directory. Configs without those keys are left untouched."""
+    debug_dir = out / "ign-lint-debug"
+
+    def sanitised(o):
+        """A copy of `o` with `debug` off and `debug_dir` in `out`; returns
+        (new, changed)."""
+        changed = False
+        if isinstance(o, dict):
+            new = {}
+            for k, v in o.items():
+                if k == "debug" and v:
+                    new[k], changed = False, True
+                elif k == "debug_dir":
+                    debug_dir.mkdir(parents=True, exist_ok=True)
+                    new[k], changed = str(debug_dir), True
+                else:
+                    nv, c = sanitised(v)
+                    new[k], changed = nv, changed or c
+            return new, changed
+        if isinstance(o, list):
+            out_list = []
+            for v in o:
+                nv, c = sanitised(v)
+                out_list.append(nv)
+                changed = changed or c
+            return out_list, changed
+        return o, False
+
+    cleaned = []
+    i = 0
+    while i < len(flags):
+        cleaned.append(flags[i])
+        if flags[i] == "--config" and i + 1 < len(flags):
+            # ign-lint resolves a relative --config against the corpus (its
+            # working directory), so resolve it there to read it.
+            path = Path(flags[i + 1])
+            if not path.is_absolute():
+                path = corpus / path
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                data = None
+            new, changed = sanitised(data) if data is not None else (None, False)
+            if changed:
+                copy = out / f"config-nodebug-{path.name}"
+                copy.write_text(json.dumps(new, indent=2), encoding="utf-8")
+                cleaned.append(str(copy))
+            else:
+                cleaned.append(flags[i + 1])
+            i += 2
+            continue
+        i += 1
+    return cleaned
+
+
 def run(cmd, cwd, log):
     with open(log, "w", encoding="utf-8") as out:
         return subprocess.run(cmd, cwd=cwd, stdout=out, stderr=subprocess.STDOUT).returncode
@@ -311,6 +386,12 @@ def main():
         if prev in ("--config", "--whitelist") and Path(f).exists():
             f = str(Path(f).resolve())
         resolved.append(f)
+    # Real ign-lint stages scripts into the `debug_dir` of its
+    # configuration (default `.ignition-lint/debug/`, inside the corpus)
+    # whatever `debug` says. Never write into the corpus: run with a
+    # scratch copy of the configuration in --out, with `debug` off and
+    # every `debug_dir` pointed into --out.
+    resolved = _debug_off_config(resolved, out, corpus)
     ign_report, ig_report = out / "ign-lint.results.txt", out / "iglint.results.txt"
     if not a.reuse:
         for report in (ign_report, ig_report):

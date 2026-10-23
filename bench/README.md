@@ -304,6 +304,14 @@ Remaining hotspots (large corpus):
 bench/parity.py ~/.cache/iglint-bench/corpora/medium -- --config bench/configs/rules-only.json --files 'projects/**/view.json'
 ```
 
+Real ign-lint stages every script into the `debug_dir` of its
+configuration (default `.ignition-lint/debug/`, inside the project)
+whatever `debug` says, so running it on a corpus writes into the corpus.
+`parity.py` never does that: it passes ign-lint a scratch copy of the
+`--config` with `debug` off and every `debug_dir` pointed into `--out`.
+Pass the project's own `--whitelist` so both linters skip the same legacy
+views (otherwise `iglint` reports on files ign-lint was told to ignore).
+
 `parity.py CORPUS [--out DIR] [--list] [--private] [--reuse] -- IGN-LINT FLAGS`
 runs ign-lint and `iglint ign-lint` with the same flags, parses both
 `--results-output` reports (multi-line messages included) and matches
@@ -339,7 +347,11 @@ added there: BIND005 checks query parameters and other binding
 expressions; NAME001 skips dataset encoding keys and checks
 `propConfig`-only component properties; VIEW015 treats script
 assignments as writes and stays silent when a script reads a property
-container dynamically.
+container dynamically or calls a library function whose module evaluates
+computed strings or reaches a frame (the frame and introspection
+analysis treats the call as reading every property it could reach, rounds
+4 and 5). The last class covers the private project's `custom`/`params`
+differences; re-running with it gives 0 unexplained.
 
 Pylint on the private project, by message code: 1,152 messages on both
 sides. ign-lint-only are `E0602` undefined names that iglint provides
