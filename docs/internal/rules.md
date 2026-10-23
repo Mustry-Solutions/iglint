@@ -46,8 +46,8 @@ All nine ign-lint rules have an equivalent. ign-lint option names are mapped
 | VIEW009 | disabled-change-script | I | yes | - | | `onChange.enabled: false` with code (dead code). |
 | VIEW010 | unknown-action-type | E | yes | - | | Event action `type` not one Ignition knows. |
 | VIEW011 | duplicate-json-key | E | yes | - | | Object has the same key twice; Ignition keeps the last. |
-| VIEW012 | property-access | W | no | - | PropertyAccessRule | Same semantics as ign-lint (configuration-driven). |
-| VIEW013 | property-persistence | W | no | - | PropertyPersistenceRule | Same semantics as ign-lint (configuration-driven). |
+| VIEW012 | property-access | W | no | U | PropertyAccessRule | Same semantics as ign-lint (configuration-driven). |
+| VIEW013 | property-persistence | W | no | U | PropertyPersistenceRule | Same semantics as ign-lint (configuration-driven). |
 | VIEW014 | param-without-direction | W | yes | - | | View param has no `paramDirection` in `propConfig`. |
 | VIEW015 | unused-custom-property | W | yes | S | UnusedCustomPropertiesRule | Custom property or view param never read anywhere it could be read (expressions, property bindings, scripts, other views' params for in/out). Exact reference matching, not substrings. |
 | VIEW017 | message-handler-never-receives | W | yes | - | | Handler with page, session and view scope all false. |
@@ -98,12 +98,12 @@ Jython builtins).
 | SCR107 | mutable-default-argument | W | yes | - | (W0102) | `def f(x=[])`. |
 | SCR108 | duplicate-dict-key | W | yes | - | (W0109) | Literal dict with the same constant key twice. |
 | SCR109 | self-assignment | W | yes | - | (W0127) | `x = x`. |
-| SCR110 | comparison-with-literal-identity | W | yes | S | (R0123) | `x is 'a'`, `x is 1`. |
+| SCR110 | comparison-with-literal-identity | W | yes | U | (R0123) | `x is 'a'`, `x is 1`. |
 | SCR111 | assert-on-tuple | W | yes | - | (W0199) | `assert (x, "msg")` is always true. |
 | SCR112 | format-string-mismatch | E | yes | - | (E1305/E1306) | `%` formatting with wrong argument count or bad format; `str.format` with missing positional/keyword. |
 | SCR113 | except-order | W | yes | - | (E0701) | Broader exception class caught before a subclass (builtin hierarchy). |
 | SCR114 | pointless-statement | W | yes | - | (W0104/W0105) | Expression statement with no effect (not docstrings, not calls). |
-| SCR115 | except-tuple-without-parentheses | E | yes | S | | `except ValueError, TypeError:` binds `TypeError` as the variable; it does not catch `TypeError`. |
+| SCR115 | except-tuple-without-parentheses | E | yes | U | | `except ValueError, TypeError:` binds `TypeError` as the variable; it does not catch `TypeError`. |
 | SCR116 | raise-string | E | yes | - | | `raise "message"` fails at run time. |
 | SCR117 | redefined-builtin | I | no | - | (W0622) | Local name shadows a builtin. |
 | SCR118 | used-before-assignment | E | yes | - | (E0601) | Local read before any assignment on every path (flow-sensitive, conservative). |

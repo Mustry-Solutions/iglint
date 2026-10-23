@@ -347,6 +347,9 @@ mod tests {
             "lib.util.ev(s)\n",
             "exec s\n",
             "import inspect\nprint inspect.currentframe()\n",
+            // Reading a line number is observing it (part B).
+            "x = sys.exc_info()[2].tb_lineno\n",
+            "import traceback\nx = traceback.format_exc()\n",
         ] {
             assert_eq!(
                 applicability(&format!("{line}{dynamic}")),
@@ -360,9 +363,16 @@ mod tests {
                 "{dynamic}"
             );
         }
+        // A plain library call and benign code: the comment line may go.
         assert_eq!(
-            applicability(&format!("{line}lib.plain.log(s)\nprint getattr(x, n)\n")),
+            applicability(&format!("{line}lib.plain.log(s)\nprint x\n")),
             crate::Applicability::Safe
+        );
+        // A reflective accessor with a computed name reads frames
+        // (route 2), so moving a line below it is unsafe.
+        assert_eq!(
+            applicability(&format!("{line}print getattr(x, n)\n")),
+            crate::Applicability::Unsafe
         );
     }
 

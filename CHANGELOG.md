@@ -46,6 +46,23 @@ from 0.1.0 on.
 
 ### Fixed
 
+- Frame and introspection detection is now a closed argument instead of a
+  list of patterns (`docs/internal/fix-safety.md`, "Threat model"). Jython
+  code can observe a caller's locals, a module's namespace, a function's
+  identity or a source line number in only three ways, and all are
+  detected, failing closed: an introspection attribute named in source or
+  in any string literal (`getattr(tb, 'tb_frame')`,
+  `attrgetter('tb_frame.f_back.f_locals')`, `co_firstlineno`,
+  `.tb_lineno`); a reflective accessor with a computed name
+  (`getattr(o, n)`, `setattr`, `attrgetter(n)`, `__getattribute__(n)`);
+  and the interpreter and reflection APIs (`compile`, `sys.exc_info`, the
+  `traceback` module, any import from `org.python.*`, `java.lang.reflect`,
+  `java.lang.Class`, `java.lang.invoke`, `javax.script`, `.getClass()`).
+  A library function or module that takes any route is no longer treated
+  as plain, so VIEW015, NAME001 and SCR102 no longer offer a safe fix
+  (nor, for VIEW015, a finding) for data a frame-reading library function
+  reaches, and SCR123 no longer deletes a line in a script that reads a
+  line number (`tb_lineno`, `traceback.format_exc`).
 - VIEW015 no longer removes properties that a library function reads into
   a local it never uses (`x = c.custom.foo`, also inside `try`), calls
   (`f = c.custom.foo; f()`) or reads through an alias of the container
@@ -79,6 +96,10 @@ from 0.1.0 on.
 - SCR112 reports `%c` with a string literal that is not one character
   (`'%c' % 'ab'`) and checks format strings concatenated with `+`
   (`('%s' + '%s') % (1,)`).
+- The rule catalogue (`docs/internal/rules.md`) Fix column is kept in
+  step with the registry by a test: `SCR110`, `SCR115`, `VIEW012` and
+  `VIEW013` were labelled wrongly (safe or none) although their fixes are
+  unsafe.
 
 - `VIEW015` no longer trusts the body of a library function that may be
   replaced at run time, so its safe fix no longer removes properties the

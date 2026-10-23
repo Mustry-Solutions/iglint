@@ -1226,6 +1226,46 @@ mod tests {
         );
     }
 
+    /// A library function that reaches the caller's frame can get `self`
+    /// and look a component up by name, even when the script hands it no
+    /// component. It is not "plain", so the rename is unsafe. (Reviewer
+    /// repro R5-C.)
+    #[test]
+    fn frame_reading_library_function_blocks_rename() {
+        let applicability = |logger: &str| {
+            let button = component(
+                "Btn",
+                "ia.input.button",
+                r#", "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": "\tlib.log.capture('x')"}}}}"#,
+            );
+            let f = Fixture::view(&root(&[
+                component("the_label", "ia.display.label", ""),
+                button,
+            ]))
+            .resource(
+                "projects/p/ignition/script-python/lib/log",
+                &[("code.py", logger)],
+            );
+            let d = f.lint_with(&[("NAME001", "convention = \"PascalCase\"")]);
+            let d = d
+                .iter()
+                .find(|d| d.message.contains("the_label"))
+                .unwrap_or_else(|| panic!("{logger}: {d:?}"));
+            d.fix.as_ref().map(|f| f.applicability)
+        };
+        for logger in [
+            "import sys\ndef capture(m):\n    try:\n        raise ValueError(m)\n    except ValueError:\n        tb = sys.exc_info()[2]\n    fr = getattr(getattr(tb, 'tb_frame'), 'f_back')\n    me = getattr(fr, 'f_locals')['self']\n    me.getSibling('the_label')\n",
+            "import sys\ndef capture(m):\n    tb = sys.exc_info()[2]\n    return getattr(tb, 'tb_' + 'frame')\n",
+            "from org.python.core import Py\ndef capture(m):\n    return getattr(Py.getFrame(), 'f_back')\n",
+        ] {
+            assert_eq!(
+                applicability(logger),
+                Some(crate::Applicability::Unsafe),
+                "{logger}"
+            );
+        }
+    }
+
     #[test]
     fn literal_name_in_script_makes_the_rename_unsafe() {
         let button = component(

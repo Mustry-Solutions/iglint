@@ -115,6 +115,18 @@ mod tests {
 
     #[test]
     fn escaped_modules_are_skipped() {
+        // The target module is passed as a value: its functions may be
+        // reached any way, but the caller itself is not introspective, so
+        // its own unused function is still reported.
+        let f = with_library(
+            library("app/main", "def go():\n    return send(core.util)\n"),
+            "core/util",
+            UTIL,
+        );
+        assert_eq!(flagged(&f.lint(&["REF012"])), vec!["go"]);
+        // A reflective accessor with a computed name makes the caller
+        // module introspective (route 2): its own names may be reached
+        // dynamically, so nothing in it is reported.
         let f = with_library(
             library(
                 "app/main",
@@ -123,8 +135,7 @@ mod tests {
             "core/util",
             UTIL,
         );
-        // Only the caller itself is unused.
-        assert_eq!(flagged(&f.lint(&["REF012"])), vec!["go"]);
+        assert!(f.lint(&["REF012"]).is_empty());
         let f = with_library(
             library("app/main", "def go(name):\n    return eval(name)\n"),
             "core/util",

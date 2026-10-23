@@ -15,12 +15,12 @@ every fix below:
 * module attributes: top-level names of a library module are used by other
   resources as `pkg.mod.name`, statically (project index) or dynamically
   (`getattr`, module used as a value, `runScript` with a computed name);
-* `__all__`, and dynamic access inside the script: `globals()`, `locals()`,
-  `vars()`, `dir()`, `eval`, `execfile`, `exec`, `sys.modules`,
-  `sys._getframe`, `__dict__`, `func_globals`, and these builtins reached
-  under another name (`__builtin__.eval`, `from __builtin__ import locals
-  as l`, `e = eval`, a library variable holding `eval`: the builtin reads
-  the frame of whoever calls it);
+* `__all__`, and dynamic access inside the script: any of the three
+  introspection routes of the "Threat model" section below (frame,
+  traceback, code, generator and function attributes named in source or in
+  a string literal; reflective accessors with a computed name; the
+  interpreter and reflection APIs), which reach a caller's locals, a
+  module's namespace, a function's identity or a source line number;
 * side effects of imports: a project library module runs its top level,
   Java classes run static initializers, some standard modules start
   threads or configure logging, dotted imports make a submodule an
@@ -34,6 +34,72 @@ every fix below:
 Regression tests named after each condition live next to the rule. Script
 behaviour was checked on IA's Jython (Ignition 8.3.3 image) by running the
 code before and after the edit.
+
+## Threat model: frame and introspection access
+
+Several fixes are safe only when a script cannot observe something an
+edit changes: a caller's locals (a renamed component, a property), a
+module's namespace (a removed import), the identity of a function, or a
+source line number (a deleted or inserted line). Patching one dynamic
+route at a time has failed five review rounds in a row, each a new route.
+This section is a *closed argument*: in Jython 2.7 (Ignition 8.3) code can
+observe those things in exactly three ways, detection
+(`iglint_python_semantic::dynamic`) covers every one, and a module that
+takes any route is treated as reading its locals and writing its globals
+in every scope (it **fails closed**). The three routes:
+
+1. **Naming an introspection attribute in source.** Frames, tracebacks,
+   code, generator and function objects expose their namespaces, their
+   identity and their line numbers only through named attributes
+   (`f_locals`, `f_globals`, `f_back`, `f_lineno`, `f_code`, `tb_frame`,
+   `tb_next`, `tb_lineno`, `gi_frame`, `func_globals`, `func_code`,
+   `__globals__`, `__code__`, every `co_*`, `__dict__`,
+   `__getattribute__`, ...). The attribute can appear as an attribute
+   access (`tb.tb_frame`) or as any string literal, including a dotted or
+   sub-segment of one (`getattr(tb, 'tb_frame')`,
+   `attrgetter('tb_frame.f_back.f_locals')`,
+   `tb.__getattribute__('tb_frame')`). Every string literal of the module
+   is scanned, matching whole identifiers / dotted segments only, so
+   ordinary prose does not trigger.
+2. **A reflective accessor with a computed name.** `getattr`, `setattr`,
+   `delattr`, `hasattr`, `attrgetter`, `methodcaller`, `__getattribute__`
+   (and `__dict__` subscripts, covered by route 1) whose attribute name is
+   not a string literal: the attribute read is unknown, so it may be an
+   introspection attribute on a frame, module or function.
+3. **An interpreter or reflection API.** `eval`, `exec`, `execfile`,
+   `compile`, `locals`, `globals`, `vars`, `dir`, `input`, `__import__`;
+   the builtins module and the module-handing modules (`__builtin__`,
+   `importlib`, `imp`); the frame-, module- and trace-reaching functions
+   of `sys`, `inspect` and `gc`, plus `sys.exc_info` and the `traceback`
+   module (they hand out tracebacks and render line numbers); and Java /
+   Jython reflection (any import from `org.python.*`, `java.lang.reflect`,
+   `java.lang.Class`, `java.lang.invoke`, `javax.script`, and
+   `.getClass()` / `Class.forName`). A frame builtin used under another
+   name reads the frame of whoever calls it, across modules (`ev = eval`
+   in one module, `m.ev('x')` in another), so a frame builtin used as a
+   value or handed out of a module is an escape for every scope.
+
+The callee check applies the same argument across resources: a library
+function or module that takes any route is not "plain" (not a bare `def`,
+class or literal constant that a rule may trust), so a script that calls
+it, or imports from it, reads and writes everything it could reach. Each
+route is verified against IA's Jython with the oracle, and the precision
+cost of the string-literal scan and the reflective-accessor rule is
+measured on the private corpus.
+
+### Line numbers
+
+Line numbers are observable **behaviour** when code reads them into a
+value: `tb_lineno`, `f_lineno`, `co_firstlineno` (route 1), and the
+`traceback` module, `sys.exc_info` and `inspect` (route 3), including
+functions that render a traceback into a string (`traceback.format_exc`).
+Detection of those routes makes a module line-number sensitive, so every
+fix that deletes or inserts source lines (`SCR123` whole-line removal,
+`SCR102` import-line removal, `SCR103`, `SCR124` only touches whitespace,
+`SCR301` inserts a header) is unsafe in such a module. The gateway's log
+of an **uncaught** exception is diagnostic output, not a value the program
+can read; a fix may move the line a traceback would print there. That is a
+deliberate decision: diagnostic log text is not behaviour.
 
 | Rule | Fix | Safe when | Otherwise |
 |---|---|---|---|
@@ -57,14 +123,16 @@ fix-all action applies unsafe fixes only when configured to.
 
 ## Dynamic code: audit of every safe fix
 
-Code that reads names without writing them can invalidate a fix: frame
-builtins (`eval`, `locals`, `vars`, `dir`, `execfile`, `exec`) reached
-under any name (`__builtin__.eval`, `from __builtin__ import locals as
-l`, `e = eval`, a library variable holding one), frames
-(`sys._getframe()`, `inspect.currentframe()`, `.f_locals`,
-`.tb_frame`), `getattr` / `setattr` with a computed name, and functions
-whose code is replaced (`f.func_code = ...`, also through an alias or a
-helper). Where they matter, the guards are shared:
+Code that reads names without writing them can invalidate a fix. The
+routes are the three of the "Threat model" section: introspection
+attributes named in source or in a string literal (`.f_locals`,
+`.tb_frame`, `'tb_frame.f_back'`, `co_*`, ...), reflective accessors with
+a computed name (`getattr(o, n)`, `attrgetter(n)`), and the interpreter
+and reflection APIs (`eval` / `locals` reached under any name such as
+`e = eval` or a library variable holding one, `sys._getframe()`,
+`inspect`, `traceback`, `sys.exc_info`, `org.python.*`, `.getClass()`),
+plus functions whose code is replaced (`f.func_code = ...`, also through
+an alias or a helper). Where they matter, the guards are shared:
 `iglint_python_semantic::dynamic` (escape routes, which make every scope
 of a module read and write names dynamically),
 `script_facts::access` (default-deny accesses of view scripts, with

@@ -1315,6 +1315,33 @@ mod tests {
         }
     }
 
+    /// A library function that reaches the caller's frame (any route of
+    /// the threat model) can read `self` and any property through it, even
+    /// when the script hands it no component. It is not "plain", so VIEW015
+    /// credits every property and reports nothing. (Reviewer repro R5-C.)
+    #[test]
+    fn frame_reading_library_function_reads_everything() {
+        for logger in [
+            // The exact reviewer repro: exc_info traceback, then the frame
+            // and locals reached through getattr string literals.
+            "import sys\ndef log(m):\n    try:\n        raise ValueError(m)\n    except ValueError:\n        tb = sys.exc_info()[2]\n    fr = getattr(getattr(tb, 'tb_frame'), 'f_back')\n    me = getattr(fr, 'f_locals')['self']\n    system.perspective.print(getattr(me.view.custom, 'b'))\n",
+            // getattr with a computed name (route 2).
+            "import sys\ndef log(m):\n    tb = sys.exc_info()[2]\n    return getattr(tb, 'tb_' + 'frame')\n",
+            // operator.attrgetter with a dotted string (route 1).
+            "import operator, sys\ndef log(m):\n    tb = sys.exc_info()[2]\n    return operator.attrgetter('tb_frame.f_back.f_back.f_locals')(tb)\n",
+            // __getattribute__ with an introspection string (route 1).
+            "import sys\ndef log(m):\n    tb = sys.exc_info()[2]\n    return tb.__getattribute__('tb_frame')\n",
+            // org.python reflection import (route 3).
+            "from org.python.core import Py\ndef log(m):\n    return getattr(Py.getFrame(), 'f_back')\n",
+        ] {
+            let d = with_library(
+                "\\tlib.util.log('x')\\n\\tprint self.view.custom.a",
+                &[("lib/util", logger)],
+            );
+            assert!(d.is_empty(), "logger {logger:?} gave {:?}", paths(&d));
+        }
+    }
+
     #[test]
     fn library_functions_a_child_project_overrides_read_everything() {
         let v = view(

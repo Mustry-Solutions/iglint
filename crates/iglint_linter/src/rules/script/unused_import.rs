@@ -593,6 +593,29 @@ mod tests {
         assert_eq!(decoded_flagged(&d), ["Thread"]);
     }
 
+    /// A module that reaches a frame (reflection import, introspection
+    /// string, `sys.exc_info`) may read its imports by name out of the
+    /// frame's locals, so no import is reported. (Reviewer repro R5-C.)
+    #[test]
+    fn frame_access_keeps_imports() {
+        let code = "from org.python.core import Py\ndef f():\n    from java.lang import System\n    return 'System' in getattr(Py.getFrame(), 'f_locals')\ndef g():\n    import json\n    try:\n        raise ValueError()\n    except ValueError:\n        tb = sys.exc_info()[2]\n    return getattr(getattr(tb, 'tb_frame'), 'f_locals')['json'].dumps(1)\n";
+        let f = library("m", code);
+        assert!(
+            f.lint(&["SCR102"]).is_empty(),
+            "{:?}",
+            flagged(&f.lint(&["SCR102"]))
+        );
+        // Each route on its own keeps a module-level import.
+        for frame in [
+            "from org.python.core import Py\n",
+            "def h():\n    return getattr(x, 'f_locals')\n",
+            "def h():\n    return x.tb_lineno\n",
+        ] {
+            let f = library("m", &format!("import json\n{frame}"));
+            assert!(f.lint(&["SCR102"]).is_empty(), "{frame}");
+        }
+    }
+
     #[test]
     fn fix_removes_names_or_statements() {
         let f = library("m", "import os, json\nimport sys\nprint json\n");

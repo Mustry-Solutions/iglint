@@ -206,4 +206,49 @@ mod tests {
             }
         }
     }
+
+    /// The rule catalogue's Fix column (`S` safe, `U` unsafe, `-` none)
+    /// must agree with each rule's [`crate::registry::FixAvailability`]: a
+    /// rule with no fix is `-`, and a rule that can fix is `S` or `U`. This
+    /// is what caught `SCR110` / `SCR115` being labelled safe although
+    /// their fixes are always unsafe. (Whether a fixable rule is `S` or
+    /// `U` is an editorial call kept in step with `docs/internal/fix-safety.md`
+    /// by hand.)
+    #[test]
+    fn catalogue_fix_column_matches_the_registry() {
+        use crate::registry::FixAvailability;
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/internal/rules.md");
+        let text = std::fs::read_to_string(path).expect("read rules.md");
+        let mut columns: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        for line in text.lines() {
+            let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+            // `| Code | Name | Sev | Def | Fix | ... |`: cells[0] is empty.
+            let (Some(&code), Some(&fix)) = (cells.get(1), cells.get(5)) else {
+                continue;
+            };
+            let is_code = code.len() >= 4
+                && code.starts_with(|c: char| c.is_ascii_uppercase())
+                && code
+                    .chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+                && code.ends_with(|c: char| c.is_ascii_digit());
+            if is_code {
+                columns.insert(code, fix);
+            }
+        }
+        for meta in ALL {
+            let fix = columns
+                .get(meta.code)
+                .unwrap_or_else(|| panic!("{} missing from docs/internal/rules.md", meta.code));
+            assert!(matches!(*fix, "S" | "U" | "-"), "{}: {fix:?}", meta.code);
+            let has_fix = *fix != "-";
+            assert_eq!(
+                has_fix,
+                meta.fix != FixAvailability::None,
+                "{}: Fix column {fix:?} disagrees with {:?}",
+                meta.code,
+                meta.fix
+            );
+        }
+    }
 }

@@ -1,35 +1,73 @@
-//! Ways code can reach the namespaces of running frames other than by
-//! naming variables: the builtins that read or write the caller's frame
-//! (`eval`, `locals`, ...) used other than by a direct call, the builtins
-//! module, frame objects and function globals.
+//! Ways code can observe a running frame's namespace, a module's
+//! namespace, a line number or the identity of a function other than by
+//! naming variables.
 //!
-//! A direct call of a frame builtin by its bare name (`locals()`,
-//! `eval(s)`) is handled precisely by the scope that makes it
-//! ([`Scope::reads_locals`](crate::Scope::reads_locals)). Every other
-//! route is an *escape*: the builtin (or a frame) may be called from any
-//! scope under any name, so analyses that need to know which names are
-//! read must assume all of them are, in every scope of the module. The
-//! routes, verified on Jython 2.7 (Ignition 8.3): a builtin used under
-//! another name reads the frame of whoever calls it, also across modules
-//! (`ev = eval` in one module, `m.ev('x')` in another reads the caller's
-//! `x`).
+//! # Closed argument
 //!
-//! | route | example |
-//! |---|---|
-//! | a frame builtin as a value | `e = eval`, `map(locals, ...)`, `f(vars)` |
-//! | a frame builtin called with `*args` / `**kwargs` | `vars(*a)` |
-//! | the builtins module | `__builtin__`, `__builtins__`, `import __builtin__`, `from __builtin__ import locals as l` |
-//! | modules that hand out modules or builtins | `import importlib`, `imp` |
-//! | functions of `sys`, `inspect` and `gc` that reach frames, every module or trace hooks, and these modules used as values | `sys._getframe`, `sys.modules`, `sys.settrace`, `from sys import modules`, `inspect.currentframe()`, `gc.get_referrers`, `getattr(sys, name)` |
-//! | frame and function attributes | `.f_locals`, `.f_globals`, `.f_back`, `.tb_frame`, `.gi_frame`, `.func_globals`, `.__globals__` |
+//! Jython 2.7 (Ignition 8.3) can reach a caller's locals, a module's
+//! globals, a source line number or a function's code/identity in exactly
+//! three ways. Detection covers every one of them and fails closed: when a
+//! module takes any route, every scope of the module is treated as reading
+//! its locals and writing its globals.
+//!
+//! 1. **Naming an introspection attribute in source.** Frame, traceback,
+//!    code, generator and function objects expose their namespaces and
+//!    line numbers only through named attributes ([`INTROSPECTION_ATTRS`]:
+//!    `f_locals`, `f_globals`, `f_back`, `f_lineno`, `f_code`, `tb_frame`,
+//!    `tb_next`, `tb_lineno`, `gi_frame`, `func_globals`, `func_code`,
+//!    `__globals__`, `__code__`, `co_*`, `__dict__`, `__getattribute__`,
+//!    ...). The attribute can be written as an attribute access
+//!    (`tb.tb_frame`) or as any string literal, including a dotted or
+//!    sub-segment of one (`getattr(tb, 'tb_frame')`,
+//!    `attrgetter('tb_frame.f_back.f_locals')`,
+//!    `tb.__getattribute__('tb_frame')`). Every string literal of the
+//!    module is scanned, matching whole identifiers / dotted segments so
+//!    ordinary prose does not trigger.
+//! 2. **A reflective accessor with a computed name**
+//!    ([`REFLECTIVE_ACCESSORS`]: `getattr`, `setattr`, `delattr`,
+//!    `hasattr`, `attrgetter`, `methodcaller`, `__getattribute__`, ...)
+//!    whose name argument is not a string literal: the attribute it reads
+//!    is unknown, so it may be an introspection attribute.
+//! 3. **An interpreter or reflection API.** `eval`, `exec`, `execfile`,
+//!    `compile`, `locals`, `globals`, `vars`, `dir`, `input`,
+//!    `__import__`; the builtins module and the module-handing modules
+//!    (`__builtin__`, `importlib`, `imp`); the frame-, module- and
+//!    trace-reaching functions of `sys`, `inspect` and `gc`
+//!    ([`PARTLY_FRAME_MODULES`]); `sys.exc_info` and the traceback module
+//!    (they hand out tracebacks and rendered line numbers); and Java /
+//!    Jython reflection ([`is_reflection_import`]: any import from
+//!    `org.python.*`, `java.lang.reflect`, `java.lang.Class`,
+//!    `java.lang.invoke`, `javax.script`, and `.getClass()` /
+//!    `Class.forName`).
+//!
+//! A frame builtin used under another name reads the frame of whoever
+//! calls it, also across modules (`ev = eval` in one module, `m.ev('x')`
+//! in another reads the caller's `x`): verified on Jython 2.7. So a bare
+//! frame builtin used as a value, or handed out of a module, is an escape
+//! for every scope.
+//!
+//! # Line numbers (part B)
+//!
+//! Line numbers are observable *behaviour* when code reads them into a
+//! value: `tb_lineno`, `f_lineno`, `co_firstlineno` (introspection
+//! attributes, route 1), the `traceback` module, `sys.exc_info` and
+//! `inspect` (route 3). Detection of those routes therefore also makes a
+//! module line-number sensitive, which makes every fix that deletes or
+//! inserts source lines unsafe in it (see `docs/internal/fix-safety.md`).
+//! The gateway's log of an *uncaught* exception is diagnostic output, not
+//! a value the program can read, so it is not behaviour: a fix may move
+//! the line a traceback would print in the log. That is a deliberate
+//! decision, documented in the threat model.
 
-use iglint_python::ast::{Expr, ExprContext, Stmt};
+use iglint_python::ast::{Expr, ExprContext, Stmt, StringValue};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
 use iglint_text::TextRange;
 use rustc_hash::FxHashMap;
 
 /// Builtins that read or write the namespaces of the frame that calls
-/// them.
+/// them, or that build or import code. `compile` and `__import__` are
+/// escapes on any use; the rest read the caller's frame and are handled
+/// precisely by the scope that calls them directly.
 pub const FRAME_BUILTINS: &[&str] = &[
     "eval",
     "execfile",
@@ -39,14 +77,38 @@ pub const FRAME_BUILTINS: &[&str] = &[
     "dir",
     "input",
     "__import__",
+    "compile",
 ];
 
-/// Modules whose every use hands out other modules or the builtins.
-const FRAME_MODULES: &[&str] = &["__builtin__", "importlib", "imp"];
+/// Frame builtins that are an escape even when called directly by their
+/// bare name: `__import__` hands out any module (the builtins too) and
+/// `compile` builds code for `exec` / `eval`.
+const INTERP_BUILTINS: &[&str] = &["__import__", "compile"];
 
-/// Modules with some functions that reach frames, every module or trace
-/// hooks: the names that do. Any other use of the module object (as a
-/// value, `getattr(sys, name)`) counts too.
+/// Reflective accessors: a call of one of these with a name argument that
+/// is not a string literal reads an attribute whose name is unknown, so it
+/// may be an introspection attribute (route 2). A string-literal name is
+/// handled by the string-literal scan of route 1.
+pub const REFLECTIVE_ACCESSORS: &[&str] = &[
+    "getattr",
+    "setattr",
+    "delattr",
+    "hasattr",
+    "attrgetter",
+    "methodcaller",
+    "__getattribute__",
+    "__getattr__",
+    "__setattr__",
+    "__delattr__",
+];
+
+/// Modules whose every use hands out other modules or the builtins, or
+/// renders tracebacks (line numbers) into values.
+const FRAME_MODULES: &[&str] = &["__builtin__", "importlib", "imp", "traceback"];
+
+/// Modules with some functions that reach frames, every module, trace
+/// hooks or tracebacks: the names that do. Any other use of the module
+/// object (as a value, `getattr(sys, name)`) counts too.
 const PARTLY_FRAME_MODULES: &[(&str, &[&str])] = &[
     (
         "sys",
@@ -58,6 +120,7 @@ const PARTLY_FRAME_MODULES: &[(&str, &[&str])] = &[
             "setprofile",
             "gettrace",
             "getprofile",
+            "exc_info",
             "exc_traceback",
             "last_traceback",
         ],
@@ -74,6 +137,7 @@ const PARTLY_FRAME_MODULES: &[(&str, &[&str])] = &[
             "getargvalues",
             "formatargvalues",
             "getmembers",
+            "getlineno",
         ],
     ),
     ("gc", &["get_referrers", "get_referents", "get_objects"]),
@@ -87,26 +151,132 @@ fn module_frame_names(module: &str) -> Option<&'static [&'static str]> {
         .map(|(_, names)| *names)
 }
 
-/// Attributes of frames, tracebacks, generators and functions that reach
-/// another frame or a module namespace.
-pub const FRAME_ATTRIBUTES: &[&str] = &[
-    "_getframe",
-    "_current_frames",
+/// Attributes of frames, tracebacks, generators, functions, methods and
+/// code objects that reach another frame or a namespace, or a source line
+/// number. Matched as attribute accesses and (route 1) as identifier or
+/// dotted segments of any string literal. The `co_*` set is every code
+/// object attribute of Jython 2.7.
+pub const INTROSPECTION_ATTRS: &[&str] = &[
+    // frame
+    "f_back",
     "f_locals",
     "f_globals",
     "f_builtins",
-    "f_back",
+    "f_lineno",
+    "f_code",
+    "f_trace",
+    "f_lasti",
+    "f_exc_type",
+    "f_exc_value",
+    "f_exc_traceback",
+    "f_restricted",
+    // traceback
     "tb_frame",
+    "tb_next",
+    "tb_lineno",
+    "tb_lasti",
+    // generator
     "gi_frame",
+    "gi_code",
+    "gi_running",
+    // function
     "func_globals",
+    "func_code",
+    "func_closure",
+    "func_defaults",
+    "func_dict",
     "__globals__",
+    "__code__",
+    "__closure__",
+    "__defaults__",
+    // method
+    "im_func",
+    "im_self",
+    "im_class",
+    "__func__",
+    "__self__",
+    // code object (every co_* of Jython 2.7)
+    "co_argcount",
+    "co_cellvars",
+    "co_code",
+    "co_consts",
+    "co_filename",
+    "co_firstlineno",
+    "co_flags",
+    "co_freevars",
+    "co_lnotab",
+    "co_name",
+    "co_names",
+    "co_nlocals",
+    "co_stacksize",
+    "co_varnames",
+    // generic introspection
+    "__dict__",
+    "__getattribute__",
     "__builtins__",
-    "settrace",
-    "setprofile",
+];
+
+/// Module functions that reach frames or tracebacks, matched as attribute
+/// accesses and in string literals (`getattr(inspect, 'currentframe')`).
+/// Kept separate from [`INTROSPECTION_ATTRS`] because these are method
+/// names rather than data attributes.
+const FRAME_METHOD_NAMES: &[&str] = &[
+    "_getframe",
+    "_current_frames",
     "currentframe",
     "getouterframes",
     "getinnerframes",
+    "getframeinfo",
+    "settrace",
+    "setprofile",
+    // Java / Jython reflection entry points
+    "getClass",
+    "forName",
+    "getDeclaredField",
+    "getDeclaredFields",
+    "getDeclaredMethod",
+    "getDeclaredMethods",
 ];
+
+/// Whether `name`, a whole identifier, is an introspection attribute or a
+/// frame-reaching method name.
+fn is_introspection_name(name: &str) -> bool {
+    INTROSPECTION_ATTRS.contains(&name) || FRAME_METHOD_NAMES.contains(&name)
+}
+
+/// Whether a string literal names an introspection attribute in one of its
+/// identifier / dotted segments (`'tb_frame'`,
+/// `'tb_frame.f_back.f_locals'`). Splits on every character that cannot be
+/// part of a Python identifier, so whole identifiers are matched and
+/// ordinary prose (`"the frame"`) is not.
+fn string_names_introspection(value: &StringValue) -> bool {
+    let text = match value.as_str() {
+        Some(text) => text,
+        None => return false,
+    };
+    text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .any(is_introspection_name)
+}
+
+/// Whether an import of `module` is a Java or Jython reflection API:
+/// anything under `org.python.*` (`Py`, `PyFrame`, `ThreadState`,
+/// `PySystemState`, `__builtin__`), `java.lang.reflect`, `java.lang.Class`,
+/// `java.lang.invoke`, `javax.script`.
+fn is_reflection_import(module: &str) -> bool {
+    module == "org.python"
+        || module.starts_with("org.python.")
+        || module == "java.lang.reflect"
+        || module.starts_with("java.lang.reflect.")
+        || module == "java.lang.invoke"
+        || module.starts_with("java.lang.invoke.")
+        || module == "javax.script"
+        || module.starts_with("javax.script.")
+}
+
+/// Whether a `from java.lang import X` names a reflection class.
+fn is_reflection_from_java_lang(module: &str, imported: &str) -> bool {
+    module == "java.lang" && matches!(imported, "Class" | "ClassLoader")
+}
 
 /// The first escape route of `body` (nested scopes included), if any.
 pub fn frame_escape(body: &[Stmt]) -> Option<TextRange> {
@@ -146,7 +316,7 @@ pub fn reads_frames(body: &[Stmt]) -> Option<TextRange> {
                 let no_args = c.args.is_empty() && c.keywords.is_empty();
                 let reads = match &*n.id {
                     "vars" | "dir" => no_args,
-                    "__import__" => false,
+                    "__import__" | "compile" => false,
                     name => FRAME_BUILTINS.contains(&name),
                 };
                 if reads {
@@ -210,6 +380,41 @@ impl Escapes {
             _ => None,
         }
     }
+
+    /// The name of a reflective accessor ([`REFLECTIVE_ACCESSORS`]) that
+    /// `func` calls, by a bare name or as an attribute (`operator.attrgetter`,
+    /// `x.__getattribute__`).
+    fn reflective_accessor(func: &Expr) -> Option<&str> {
+        let name = match func {
+            Expr::Name(n) => &*n.id,
+            Expr::Attribute(a) => a.attr.as_str(),
+            _ => return None,
+        };
+        REFLECTIVE_ACCESSORS.contains(&name).then_some(name)
+    }
+
+    /// Whether a reflective-accessor call reads an attribute whose name is
+    /// not a literal (route 2). The name argument is read positionally.
+    fn reflective_escape(c: &iglint_python::ast::ExprCall) -> bool {
+        let Some(name) = Self::reflective_accessor(&c.func) else {
+            return false;
+        };
+        // Unpacked arguments: the name could be anything.
+        if c.starargs.is_some() || c.kwargs.is_some() {
+            return true;
+        }
+        let is_literal = |e: &Expr| matches!(e, Expr::Str(_));
+        match name {
+            // `attrgetter('a', 'b')`: every argument is an attribute name.
+            "attrgetter" => !c.args.iter().all(is_literal),
+            // The name is the first argument.
+            "methodcaller" | "__getattribute__" | "__getattr__" | "__setattr__" | "__delattr__" => {
+                c.args.first().is_none_or(|a| !is_literal(a))
+            }
+            // `getattr(o, name)`, `setattr(o, name, v)`: the second.
+            _ => c.args.get(1).is_none_or(|a| !is_literal(a)),
+        }
+    }
 }
 
 impl<'a> Visitor<'a> for Escapes {
@@ -218,7 +423,7 @@ impl<'a> Visitor<'a> for Escapes {
             Stmt::Import(i) => {
                 for a in &i.names {
                     let root = a.name.id.split('.').next().unwrap_or("");
-                    if FRAME_MODULES.contains(&root) {
+                    if FRAME_MODULES.contains(&root) || is_reflection_import(&a.name.id) {
                         self.found(a.range);
                     }
                 }
@@ -226,14 +431,19 @@ impl<'a> Visitor<'a> for Escapes {
             Stmt::ImportFrom(i) => {
                 let module = i.module.as_ref().map_or("", |m| &*m.id);
                 let root = module.split('.').next().unwrap_or("");
-                if i.level == 0 && FRAME_MODULES.contains(&root) {
+                if i.level == 0 && (FRAME_MODULES.contains(&root) || is_reflection_import(module)) {
                     self.found(i.range);
                 }
-                if i.level == 0
-                    && let Some(names) = module_frame_names(module)
-                {
+                if i.level == 0 {
+                    if let Some(names) = module_frame_names(module) {
+                        for a in &i.names {
+                            if &*a.name.id == "*" || names.contains(&&*a.name.id) {
+                                self.found(a.range);
+                            }
+                        }
+                    }
                     for a in &i.names {
-                        if &*a.name.id == "*" || names.contains(&&*a.name.id) {
+                        if is_reflection_from_java_lang(module, &a.name.id) {
                             self.found(a.range);
                         }
                     }
@@ -257,14 +467,27 @@ impl<'a> Visitor<'a> for Escapes {
                 }
                 return;
             }
+            Expr::Str(s) => {
+                if string_names_introspection(&s.s) {
+                    self.found(s.range);
+                }
+                return;
+            }
             Expr::Call(c) => {
+                if Escapes::reflective_escape(c) {
+                    self.found(c.range);
+                }
                 if let Expr::Name(f) = &*c.func
                     && FRAME_BUILTINS.contains(&&*f.id)
                 {
                     // A direct call: `__import__` hands out any module
-                    // (the builtins too), the others are handled by the
-                    // calling scope unless the arguments are unpacked.
-                    if &*f.id == "__import__" || c.starargs.is_some() || c.kwargs.is_some() {
+                    // (the builtins too) and `compile` builds code; the
+                    // others are handled by the calling scope unless the
+                    // arguments are unpacked.
+                    if INTERP_BUILTINS.contains(&&*f.id)
+                        || c.starargs.is_some()
+                        || c.kwargs.is_some()
+                    {
                         self.found(c.range);
                     }
                     for a in &c.args {
@@ -285,7 +508,7 @@ impl<'a> Visitor<'a> for Escapes {
             Expr::Attribute(a) => {
                 let attr = &*a.attr.id;
                 let module = self.module(&a.value);
-                if FRAME_ATTRIBUTES.contains(&attr)
+                if is_introspection_name(attr)
                     || module
                         .and_then(module_frame_names)
                         .is_some_and(|names| names.contains(&attr))
@@ -317,6 +540,7 @@ mod tests {
     #[test]
     fn routes_are_escapes() {
         for src in [
+            // route 3: interpreter / module escapes
             "e = eval\n",
             "def f():\n    return map(locals, [1])\n",
             "f(vars)\n",
@@ -338,10 +562,37 @@ mod tests {
             "from sys import *\n",
             "getattr(sys, name)\n",
             "sys.settrace(t)\n",
+            "sys.exc_info()\n",
+            "__import__('os')\n",
+            "compile(s, '<s>', 'exec')\n",
+            "import traceback\ntraceback.format_exc()\n",
+            // route 3: Java / Jython reflection
+            "from org.python.core import Py\n",
+            "import org.python.core as core\n",
+            "from java.lang.reflect import Field\n",
+            "from java.lang import Class\n",
+            "import java.lang.invoke\n",
+            "from javax.script import ScriptEngineManager\n",
+            "x = obj.getClass()\n",
+            // route 1: introspection attributes
             "f.func_globals['a'] = 1\n",
             "f.__globals__\n",
             "tb.tb_frame.f_locals\n",
-            "__import__('os')\n",
+            "x = tb.tb_lineno\n",
+            "n = c.co_firstlineno\n",
+            "d = o.__dict__\n",
+            // route 1: introspection names in string literals
+            "getattr(tb, 'tb_frame')\n",
+            "getattr(Py.getFrame(), 'f_locals')\n",
+            "operator.attrgetter('tb_frame.f_back.f_back.f_locals')(tb)\n",
+            "tb.__getattribute__('tb_frame')\n",
+            "setattr(f, 'func_code', g)\n",
+            // route 2: reflective accessor, computed name
+            "getattr(tb, 'tb_' + 'frame')\n",
+            "getattr(o, name)\n",
+            "setattr(o, name, v)\n",
+            "operator.attrgetter(name)(o)\n",
+            "o.__getattribute__(name)\n",
         ] {
             assert!(escape(src), "{src}");
         }
@@ -353,11 +604,19 @@ mod tests {
             "x = locals()\n",
             "eval('1')\n",
             "dir(x)\n",
-            "import sys\nsys.exc_info()\nsys.path.append('a')\n",
+            "import sys\nsys.path.append('a')\n",
             "import os.path\nfrom java.lang import System\n",
             "x.modules\n",
             "import inspect\ninspect.getargspec(f)\n",
             "import gc\ngc.collect()\n",
+            // reflective accessor with a plain (non-introspection) literal
+            "getattr(o, 'value')\n",
+            "setattr(o, 'count', 1)\n",
+            "hasattr(o, 'items')\n",
+            // ordinary prose and names that merely contain a word
+            "msg = 'the frame could not be found'\n",
+            "label = 'function code'\n",
+            "x = co_worker\n",
         ] {
             assert!(!escape(src), "{src}");
         }
@@ -372,6 +631,10 @@ mod tests {
         assert!(reads("x = locals()\n"));
         assert!(reads("def f():\n    exec 'a = 1'\n"));
         assert!(reads("dir()\n"));
+        assert!(reads("import traceback\nx = traceback.format_exc()\n"));
+        assert!(reads(
+            "self.props.text = str(sys.exc_info()[2].tb_lineno)\n"
+        ));
         assert!(!reads("dir(x)\nvars(y)\n"));
     }
 }
