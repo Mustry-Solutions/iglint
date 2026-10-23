@@ -637,6 +637,45 @@ mod tests {
         );
     }
 
+    /// Removing the import before a bare string would promote the string
+    /// to the function's docstring. A `pass` is kept so it does not.
+    /// (Reviewer repro R5-G3.)
+    #[test]
+    fn import_removal_does_not_promote_a_docstring() {
+        let f = library(
+            "m",
+            "def f():\n    import os\n    'promoted docstring'\n    return f.__doc__\n",
+        );
+        let fixed = f.fixed(&[("SCR102", "")], false, &library_path(&f, "m"));
+        assert_eq!(
+            fixed,
+            "def f():\n    pass\n    'promoted docstring'\n    return f.__doc__\n"
+        );
+    }
+
+    /// When several deletions together would expose a later string as a
+    /// docstring, the post-fix safety net keeps one so `__doc__` does not
+    /// change. (Reviewer repro R5-G3, multiple deletions.)
+    #[test]
+    fn import_removal_keeps_an_import_to_avoid_docstring_promotion() {
+        let f = library("m", "import os\nimport sys\n'module docstring'\n");
+        let result = f.run(
+            &[("SCR102", "")],
+            crate::engine::FixMode::DiffOnly {
+                unsafe_fixes: false,
+            },
+        );
+        let path = library_path(&f, "m");
+        let summary = result.fixed.iter().find(|s| s.path == path).unwrap();
+        // One import stays, so the string never becomes the docstring.
+        assert!(
+            !summary.fixed.trim_start().starts_with('\'')
+                && summary.fixed.contains("'module docstring'"),
+            "{}",
+            summary.fixed
+        );
+    }
+
     #[test]
     fn fix_removes_names_or_statements() {
         let f = library("m", "import os, json\nimport sys\nprint json\n");

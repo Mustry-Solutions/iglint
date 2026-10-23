@@ -96,6 +96,13 @@ from 0.1.0 on.
 - SCR112 reports `%c` with a string literal that is not one character
   (`'%c' % 'ab'`) and checks format strings concatenated with `+`
   (`('%s' + '%s') % (1,)`).
+- Deleting a statement (SCR102 import removal and other deleting fixes) no
+  longer changes a docstring: removing the first statement of a module,
+  class or function body would promote a following bare string to the
+  body's `__doc__`. The shared deletion helper keeps a `pass`, and a
+  post-fix safety net drops any `.py` fix that changes the set of
+  docstrings, covering several deletions that together expose a later
+  string.
 - The command line `--select` now wins over `[[overrides]]` as the README
   promises: it replaces the selection everywhere, so an override's
   `select` / `extend-select` can no longer re-add a rule the command line

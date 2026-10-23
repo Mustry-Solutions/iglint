@@ -265,6 +265,16 @@ pub fn delete_statement(source: &str, body: &[Stmt], stmt: &Stmt) -> Option<Stat
     let lines = statement_line_range(source, range)?;
     if body.len() == 1 {
         Some(StatementEdit::replace(range, "pass"))
+    } else if body
+        .iter()
+        .position(|s| std::ptr::eq(s, stmt))
+        .is_some_and(|i| i == 0 && is_string_expr(&body[1]))
+    {
+        // Deleting the first statement would promote the next statement,
+        // a bare string literal, to the body's docstring (changing
+        // `__doc__`, which code can read). Keep a `pass` so the string
+        // stays a plain expression. A `pass` is never itself a docstring.
+        Some(StatementEdit::replace(range, "pass"))
     } else {
         let first = iglint_text::Ranged::range(&body[0]).start();
         Some(StatementEdit {
@@ -346,6 +356,13 @@ pub fn string_ranges(parsed: &iglint_python::Parsed) -> Vec<TextRange> {
         }
     });
     out
+}
+
+/// Whether `stmt` is a bare string-literal expression, the only statement
+/// kind that becomes a docstring when it is first in a module, class or
+/// function body.
+pub fn is_string_expr(stmt: &Stmt) -> bool {
+    matches!(stmt, Stmt::Expr(e) if matches!(&*e.value, Expr::Str(_)))
 }
 
 /// The statement list that directly contains `target`, searching the

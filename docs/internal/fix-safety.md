@@ -172,6 +172,18 @@ remaining documented assumption.
   and can raise: treating them as calls would make every expression
   effectful. That is why the `SCR103` fix that removes them is unsafe.
 
+* **Statement deletion and docstrings.** Deleting a statement must not
+  change the docstring of a module, class or function body: the first
+  statement of a body, when it is a bare string literal, is its
+  docstring (`__doc__`, which code can read). The shared deletion helper
+  (`delete_statement`) keeps a `pass` when removing the first statement
+  would promote the following string, and the post-fix safety net
+  (`engine::py_docstring_changed`) drops any fix that changes the multiset
+  of docstrings of a `.py` script, catching the cases a single deletion
+  guard cannot (several deletions exposing a later string). Removing lines
+  before a misplaced `from __future__ import` cannot make it valid without
+  the result still being a syntax error, which the health net already
+  rejects.
 * **Import side effects.** Removing an import is safe only for the JDK and
   for standard library modules verified on Jython not to start threads,
   register handlers or print (the list is `PURE_STDLIB_MODULES` in

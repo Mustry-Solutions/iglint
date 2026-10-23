@@ -186,6 +186,62 @@ fn health(
 }
 
 /// The first finding `after` has more often than `before`.
+/// For a `.py` script (a library module), whether an edit changes the
+/// docstring of the module or of any function or class body in it. A
+/// statement deletion can promote a following bare string literal to a
+/// docstring, changing `__doc__`, which code can read; the health
+/// reanalysis does not see that. Catches the cases the per-statement
+/// deletion guard cannot (several deletions exposing a later string).
+fn py_docstring_changed(path: &Path, before: &str, after: &str) -> bool {
+    use iglint_python::ast::{Expr, Stmt};
+    use iglint_python::visitor::{Visitor, walk_stmt};
+
+    if path.extension().and_then(|e| e.to_str()) != Some("py") {
+        return false;
+    }
+    let (b, a) = (
+        iglint_python::parse_module(before),
+        iglint_python::parse_module(after),
+    );
+    if !b.errors.is_empty() || !a.errors.is_empty() {
+        // Parse regressions are the health check's job.
+        return false;
+    }
+    fn first_doc(body: &[Stmt]) -> Option<String> {
+        match body.first() {
+            Some(Stmt::Expr(e)) => match &*e.value {
+                Expr::Str(s) => Some(s.s.to_string_lossy().into_owned()),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+    struct Walk(Vec<String>);
+    impl<'a> Visitor<'a> for Walk {
+        fn visit_stmt(&mut self, stmt: &'a Stmt) {
+            match stmt {
+                Stmt::FunctionDef(f) => self.0.extend(first_doc(&f.body)),
+                Stmt::ClassDef(c) => self.0.extend(first_doc(&c.body)),
+                _ => {}
+            }
+            walk_stmt(self, stmt);
+        }
+    }
+    // The sorted multiset of the actual docstrings, so promoting a bare
+    // string to a docstring (a new entry), changing one or removing one is
+    // caught, while merely adding or removing a scope (an SCR301 wrap,
+    // whose bodies have no docstring) is not.
+    let docstrings = |body: &[Stmt]| {
+        let mut w = Walk(first_doc(body).into_iter().collect());
+        for stmt in body {
+            w.visit_stmt(stmt);
+        }
+        w.0.sort();
+        w.0
+    };
+    docstrings(&b.module.body) != docstrings(&a.module.body)
+}
+
 fn new_problem(
     before: &FxHashMap<(RuleCode, String, Option<String>), u32>,
     after: &FxHashMap<(RuleCode, String, Option<String>), u32>,
@@ -563,7 +619,9 @@ pub(crate) fn fix_file(
             .get_or_insert_with(|| health(reanalyze, &current, &[]))
             .clone();
         let after = health(reanalyze, &pass_result.text, &pass_result.edits);
-        let (next, edits, after) = if new_problem(&before, &after).is_none() {
+        let pass_ok = new_problem(&before, &after).is_none()
+            && !py_docstring_changed(path, &current, &pass_result.text);
+        let (next, edits, after) = if pass_ok {
             applied.extend(pass_applied);
             (pass_result.text, pass_result.edits, after)
         } else {
@@ -584,7 +642,11 @@ pub(crate) fn fix_file(
                     continue;
                 };
                 let trial_health = health(reanalyze, &trial_text, &trial);
-                match new_problem(&before, &trial_health) {
+                let problem = new_problem(&before, &trial_health).or_else(|| {
+                    py_docstring_changed(path, &current, &trial_text)
+                        .then(|| "it would change a docstring".to_owned())
+                });
+                match problem {
                     None => {
                         kept = trial;
                         kept_text = Some(trial_text);
