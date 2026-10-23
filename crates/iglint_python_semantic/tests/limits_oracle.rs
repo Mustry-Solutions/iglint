@@ -65,7 +65,27 @@ fn source(kind: &str, n: usize) -> String {
                 .map(|c| format!("    x = [{}]\n", c.join(", ")))
                 .collect::<String>()
         ),
+        "dead-string-lines" => format!(
+            "def f():\n    return\n{}",
+            (0..n).map(|i| format!("    's{i}'\n")).collect::<String>()
+        ),
+        "dead-try-body" => format!(
+            "def f():\n    try:\n        return\n{}    finally:\n        pass\n",
+            "        pass\n".repeat(n)
+        ),
         // Code Jython does generate.
+        "live-for-break" => format!(
+            "def f():\n    for i in x:\n        break\n{}",
+            "        pass\n".repeat(n)
+        ),
+        "live-try-finally" => format!(
+            "def f():\n    try:\n        return\n    finally:\n        pass\n{}",
+            "    pass\n".repeat(n)
+        ),
+        "live-with" => format!(
+            "def f():\n    with x:\n        return\n{}",
+            "    pass\n".repeat(n)
+        ),
         "live-if" => format!(
             "def f():\n    if x:\n        return\n{}",
             "    pass\n".repeat(n)
@@ -211,6 +231,26 @@ const CASES: &[(&str, usize, bool)] = &[
     ("live-try", 10922, false),
     ("live-try", 10923, false),
     ("live-try", 10924, false),
+    ("dead-string-lines", 32766, true),
+    ("dead-string-lines", 32767, true),
+    ("dead-string-lines", 32768, true),
+    ("dead-string-lines", 32769, true),
+    ("dead-try-body", 10921, true),
+    ("dead-try-body", 10922, true),
+    ("dead-try-body", 10923, true),
+    ("dead-try-body", 10924, true),
+    ("live-for-break", 10921, false),
+    ("live-for-break", 10922, false),
+    ("live-for-break", 10923, false),
+    ("live-for-break", 10924, false),
+    ("live-try-finally", 10921, false),
+    ("live-try-finally", 10922, false),
+    ("live-try-finally", 10923, false),
+    ("live-try-finally", 10924, false),
+    ("live-with", 10921, false),
+    ("live-with", 10922, false),
+    ("live-with", 10923, false),
+    ("live-with", 10924, false),
 ];
 
 /// The sources whose only possible failure is the first-two-lines limit.
@@ -270,10 +310,15 @@ fn sizes() -> Vec<(&'static str, usize)> {
         "live-break",
         "live-try",
         "live-module",
+        "dead-try-body",
+        "live-for-break",
+        "live-try-finally",
+        "live-with",
     ] {
         around(kind, 10_923, &mut out);
     }
     around("dead-strings", 32_768, &mut out);
+    around("dead-string-lines", 32_768, &mut out);
     out.push(("live-same-line", 2_000));
     out
 }

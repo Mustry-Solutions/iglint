@@ -335,6 +335,11 @@ mod tests {
             format!("class C:\n    raise X\n{}", passes("    ")),
             format!("if x:\n    raise X\n{}", passes("    ")),
             format!("def f():\n    return\n    def g():\n{}", passes("        ")),
+            // Dead code inside a `try` body: the `try` itself goes on.
+            format!(
+                "def f():\n    try:\n        return\n{}    finally:\n        pass\n",
+                passes("        ")
+            ),
         ] {
             assert!(sizes(&dead).is_empty(), "{}", &dead[..60]);
         }
@@ -353,6 +358,19 @@ mod tests {
                 "def f():\n    if x:\n        return\n    else:\n        pass\n{}",
                 passes("    ")
             ),
+            format!(
+                "def f():\n    for i in x:\n        break\n{}",
+                passes("        ")
+            ),
+            format!(
+                "def f():\n    try:\n        return\n    finally:\n        pass\n{}",
+                passes("    ")
+            ),
+            format!("def f():\n    with x:\n        return\n{}", passes("    ")),
+            format!(
+                "def f():\n    for i in x:\n        pass\n    else:\n        return\n{}",
+                passes("    ")
+            ),
         ] {
             assert_eq!(
                 sizes(&live),
@@ -365,6 +383,11 @@ mod tests {
             .map(|i| format!("'{i}', "))
             .collect();
         assert!(sizes(&format!("def f():\n    return\n    x = [{strings}]\n")).is_empty());
+        // String statements after `return`, one per line.
+        let lines: String = (0..=CONSTANT_POOL_LIMIT / 2)
+            .map(|i| format!("    's{i}'\n"))
+            .collect();
+        assert!(sizes(&format!("def f():\n    return\n{lines}")).is_empty());
         assert_eq!(
             sizes(&format!("def f():\n    x = [{strings}]\n    return\n")),
             [CompileErrorKind::ClassTooLarge]
