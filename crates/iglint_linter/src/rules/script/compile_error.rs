@@ -35,7 +35,13 @@ with Jython's message:
   Perspective and event scripts it never is: the script is the body of a
   generated function), or names an unknown feature;
 * assignment targets Jython's parser accepts but its compiler crashes on
-  (`-a = 1`, `for f() in x:`, `except E, a + b:`).
+  (`-a = 1`, `for f() in x:`, `except E, a + b:`);
+* a `yield` lexically inside a list comprehension, or in the first
+  iterable of a set or dict comprehension (`[(yield) for i in x]`,
+  `{a for a in (yield)}`): Jython's code generator emits bytecode its own
+  verifier rejects (`java.lang.VerifyError`). A `yield` in the element,
+  filter or later iterables of a set, dict or generator comprehension, and
+  in the first iterable of a generator expression, compiles.
 
 It also reports scripts that are too large for Jython:
 
@@ -173,6 +179,36 @@ mod tests {
             format!("for ({}a) in x:\n    pass\n", "~".repeat(200)),
         ] {
             assert_eq!(lint_module("SCR002", &code).len(), 1, "{}", &code[..20]);
+        }
+    }
+
+    #[test]
+    fn yield_in_comprehension_crashes_jython() {
+        // Verified against Jython 2.7 (compile.cases `yield-comp-*`).
+        for code in [
+            "def f():\n    x = [(yield i) for i in range(3)]\n",
+            "def f():\n    x = [i for i in (yield)]\n",
+            "def f():\n    x = [i for i in range(3) if (yield i)]\n",
+            "def f():\n    x = {i for i in (yield)}\n",
+            "def f():\n    x = {i: 1 for i in (yield)}\n",
+            "def f():\n    x = ([(yield) for j in r] for i in s)\n",
+        ] {
+            let d = lint_module("SCR002", code);
+            assert_eq!(d.len(), 1, "{code}");
+            assert!(d[0].message.contains("crashes Jython's compiler"), "{code}");
+        }
+        // Positions a set, dict or generator comprehension puts in its own
+        // code object compile: element, filter and later iterables, and a
+        // generator expression's first iterable.
+        for code in [
+            "def f():\n    x = ((yield i) for i in range(3))\n",
+            "def f():\n    x = (i for i in (yield))\n",
+            "def f():\n    x = {(yield i) for i in range(3)}\n",
+            "def f():\n    x = {i: (yield i) for i in range(3)}\n",
+            "def f():\n    x = {j for i in r for j in (yield)}\n",
+            "def f():\n    x = [g() for i in r]\n    def g():\n        yield i\n",
+        ] {
+            assert!(lint_module("SCR002", code).is_empty(), "{code}");
         }
     }
 

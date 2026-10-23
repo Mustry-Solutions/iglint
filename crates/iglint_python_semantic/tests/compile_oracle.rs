@@ -6,10 +6,11 @@
 //! [`compile_errors`] together must agree with Jython: no error where
 //! Jython compiles, and Jython's error (message and position) where it
 //! does not. Jython's internal compiler failures (reported without a
-//! position) must be [`CompileErrorKind::InvalidTarget`] errors.
+//! position) must be errors whose kind is an internal crash
+//! ([`CompileErrorKind::is_internal_crash`]).
 
 use iglint_python::Locator;
-use iglint_python_semantic::{CompileErrorKind, SemanticModel, SemanticOptions, compile_errors};
+use iglint_python_semantic::{SemanticModel, SemanticOptions, compile_errors};
 
 fn cases(text: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
@@ -88,10 +89,7 @@ fn compile_errors_match_jython() {
                 }
             }
             Some((0, 0, message)) if message.starts_with("internal error") => {
-                if !errors
-                    .iter()
-                    .any(|e| e.kind == CompileErrorKind::InvalidTarget)
-                {
+                if !errors.iter().any(|e| e.kind.is_internal_crash()) {
                     failures.push(format!(
                         "{name}: Jython fails internally, we report {errors:?}"
                     ));

@@ -2799,3 +2799,114 @@ def f():
         else:
             break
         -a = 1
+### yield-comp-listcomp-elt
+def f():
+    x = [(yield i) for i in range(3)]
+### yield-comp-listcomp-first-iter
+def f():
+    x = [i for i in (yield)]
+### yield-comp-listcomp-if
+def f():
+    x = [i for i in range(3) if (yield i)]
+### yield-comp-listcomp-second-iter
+def f():
+    x = [i for i in range(3) for j in (yield)]
+### yield-comp-listcomp-second-if
+def f():
+    x = [i for i in range(3) for j in range(2) if (yield j)]
+### yield-comp-listcomp-bare-stmt
+def f():
+    [(yield) for i in range(3)]
+### yield-comp-genexp-elt-ok
+def f():
+    x = ((yield i) for i in range(3))
+### yield-comp-genexp-first-iter-ok
+def f():
+    x = (i for i in (yield))
+### yield-comp-genexp-first-iter-deep-ok
+def f():
+    x = (i for i in foo((yield)))
+### yield-comp-genexp-second-iter-ok
+def f():
+    x = (j for i in range(3) for j in (yield))
+### yield-comp-genexp-if-ok
+def f():
+    x = (i for i in range(3) if (yield i))
+### yield-comp-setcomp-elt-ok
+def f():
+    x = {(yield i) for i in range(3)}
+### yield-comp-setcomp-first-iter
+def f():
+    x = {i for i in (yield)}
+### yield-comp-setcomp-first-iter-deep
+def f():
+    x = {i for i in foo((yield))}
+### yield-comp-setcomp-second-iter-ok
+def f():
+    x = {j for i in range(3) for j in (yield)}
+### yield-comp-setcomp-if-ok
+def f():
+    x = {i for i in range(3) if (yield i)}
+### yield-comp-dictcomp-value-ok
+def f():
+    x = {i: (yield i) for i in range(3)}
+### yield-comp-dictcomp-first-iter
+def f():
+    x = {i: 1 for i in (yield)}
+### yield-comp-dictcomp-second-iter-ok
+def f():
+    x = {j: 1 for i in range(3) for j in (yield)}
+### yield-comp-listcomp-in-genexp-scope
+def f():
+    x = ([(yield) for j in range(2)] for i in range(3))
+### yield-comp-listcomp-as-genexp-first-iter
+def f():
+    x = (i for i in [(yield) for j in range(2)])
+### yield-comp-listcomp-nested-inner
+def f():
+    x = [[(yield) for j in range(2)] for i in range(3)]
+### yield-comp-listcomp-nested-outer-iter
+def f():
+    x = [[j for j in range(2)] for i in (yield)]
+### yield-comp-listcomp-in-dictcomp-value
+def f():
+    x = {i: [(yield) for j in range(2)] for i in range(3)}
+### yield-comp-listcomp-lambda-default
+def f():
+    x = [(lambda a=(yield): a) for i in range(3)]
+### yield-comp-listcomp-first-iter-genexp-inside
+def f():
+    x = [i for i in (j for j in (yield))]
+### yield-comp-listcomp-both-iters
+def f():
+    x = [i for i in (yield) for j in (yield)]
+### yield-comp-nested-def-in-listcomp-ok
+def f():
+    x = [g() for i in range(3)]
+    def g():
+        yield i
+### yield-comp-lambda-in-listcomp-ok
+def f():
+    x = [(lambda: i) for i in range(3)]
+### yield-comp-listcomp-in-generator
+def f():
+    yield 1
+    x = [(yield i) for i in range(3)]
+### yield-comp-listcomp-return-value
+def f():
+    return [(yield i) for i in range(3)]
+### yield-comp-listcomp-module-level
+x = [(yield i) for i in range(3)]
+### yield-comp-listcomp-class-level
+class C:
+    x = [(yield i) for i in range(3)]
+### yield-comp-listcomp-dead-after-return
+def f():
+    return
+    x = [(yield i) for i in range(3)]
+### yield-comp-return-direct-yield
+def f():
+    return (yield 1)
+### yield-comp-return-yield-in-call
+def f():
+    return foo((yield 1))

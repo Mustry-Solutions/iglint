@@ -48,6 +48,13 @@ pub enum CompileErrorKind {
     /// Jython's compiler crashes on the target (`-a = 1`, `for f() in x`);
     /// the code cannot be compiled.
     InvalidTarget,
+    /// A `yield` lexically inside a list comprehension, or in the first
+    /// iterable of a set or dict comprehension, makes Jython's code
+    /// generator emit bytecode its own verifier rejects
+    /// (`java.lang.VerifyError`); the script cannot be compiled. Verified
+    /// case by case against Jython 2.7 (`tests/oracle/compile.cases`,
+    /// the `yield-comp-*` cases).
+    YieldInComprehension,
     /// The first two lines reach [`crate::MARK_LIMIT`] characters
     /// (`java.io.IOException: Mark invalid`).
     MarkInvalid,
@@ -56,6 +63,18 @@ pub enum CompileErrorKind {
     MethodTooLarge,
     /// A module has more constants than a Java class can hold.
     ClassTooLarge,
+}
+
+impl CompileErrorKind {
+    /// Whether Jython reports this as an internal compiler failure (no
+    /// source position): the code generator or the bytecode verifier
+    /// crashes rather than raising a positioned `SyntaxError`.
+    pub fn is_internal_crash(self) -> bool {
+        matches!(
+            self,
+            CompileErrorKind::InvalidTarget | CompileErrorKind::YieldInComprehension
+        )
+    }
 }
 
 /// The compile-time errors of a module, in source order.
@@ -78,6 +97,7 @@ pub fn compile_errors(model: &SemanticModel<'_>) -> Vec<CompileError> {
                 in_loop: false,
                 dead: false,
                 unreachable,
+                yield_crashes: false,
             },
         );
         unreachable |= !completion(stmt).falls;
@@ -127,6 +147,15 @@ struct Ctx {
     /// verifier crashes Jython only on reachable code, so invalid targets
     /// there compile; every other error still occurs.
     unreachable: bool,
+    /// A `yield` evaluated in this position is compiled into the current
+    /// function's code object by way of a list comprehension (inlined in
+    /// Python 2) or as the first iterable of a set or dict comprehension
+    /// (evaluated in the enclosing scope). Jython's verifier then rejects
+    /// the method ([`CompileErrorKind::YieldInComprehension`]). The flag
+    /// is set while walking those positions and cleared at every new code
+    /// object (a `def`, `lambda` body or the inner scope of a
+    /// comprehension or generator expression). Verified against Jython.
+    yield_crashes: bool,
 }
 
 struct Checker<'m, 'a> {
@@ -209,6 +238,7 @@ impl<'a> Checker<'_, 'a> {
                     dead: ctx.dead,
                     // A new code object.
                     unreachable: false,
+                    yield_crashes: false,
                 };
                 self.body(&f.body, inner);
             }
@@ -224,6 +254,7 @@ impl<'a> Checker<'_, 'a> {
                     dead: ctx.dead,
                     // A new code object.
                     unreachable: false,
+                    yield_crashes: false,
                 };
                 self.body(&c.body, inner);
             }
@@ -383,6 +414,20 @@ impl<'a> Checker<'_, 'a> {
                         Some(y.anchor),
                         "'yield' outside function",
                     );
+                } else if ctx.yield_crashes && !ctx.unreachable {
+                    // Compiled into a method whose bytecode Jython's own
+                    // verifier rejects (`java.lang.VerifyError`): a `yield`
+                    // inside a list comprehension or in the first iterable
+                    // of a set or dict comprehension.
+                    self.codegen_error(
+                        ctx,
+                        CompileErrorKind::YieldInComprehension,
+                        y.range,
+                        Some(y.anchor),
+                        "a 'yield' inside a list comprehension, or in the first iterable of a \
+                         set or dict comprehension, crashes Jython's compiler (internal error); \
+                         the script cannot be compiled",
+                    );
                 }
                 self.opt_expr(y.value.as_deref(), ctx);
             }
@@ -397,17 +442,25 @@ impl<'a> Checker<'_, 'a> {
                             in_loop: false,
                             dead: ctx.dead,
                             unreachable: false,
+                            yield_crashes: false,
                         },
                     );
                 }
             }
             Expr::ListComp(e) => {
+                // A list comprehension has no scope of its own in Python 2:
+                // every part is compiled into the current function, so a
+                // `yield` anywhere in it crashes the verifier.
+                let lc = Ctx {
+                    yield_crashes: true,
+                    ..ctx
+                };
                 for g in &e.generators {
-                    self.target(&g.target, TargetContext::ListComp, ctx);
-                    self.expr(&g.iter, ctx);
-                    self.exprs(&g.ifs, ctx);
+                    self.target(&g.target, TargetContext::ListComp, lc);
+                    self.expr(&g.iter, lc);
+                    self.exprs(&g.ifs, lc);
                 }
-                self.expr(&e.elt, ctx);
+                self.expr(&e.elt, lc);
             }
             Expr::GeneratorExp(_) | Expr::SetComp(_) | Expr::DictComp(_) => {
                 let (generators, elts): (&'a [Comprehension], Vec<&'a Expr>) = match expr {
@@ -425,10 +478,24 @@ impl<'a> Checker<'_, 'a> {
                     dead: ctx.dead,
                     // A new code object.
                     unreachable: false,
+                    yield_crashes: false,
+                };
+                // The first iterable is evaluated in the enclosing scope.
+                // For a set or dict comprehension a `yield` there crashes
+                // the verifier; for a generator expression it does not, so
+                // it only inherits whatever the enclosing position already
+                // carries. Every other part is a new code object.
+                let first_iter = if matches!(expr, Expr::SetComp(_) | Expr::DictComp(_)) {
+                    Ctx {
+                        yield_crashes: true,
+                        ..ctx
+                    }
+                } else {
+                    ctx
                 };
                 for (i, g) in generators.iter().enumerate() {
                     self.target(&g.target, TargetContext::Generator, inner);
-                    self.expr(&g.iter, if i == 0 { ctx } else { inner });
+                    self.expr(&g.iter, if i == 0 { first_iter } else { inner });
                     self.exprs(&g.ifs, inner);
                 }
                 for e in elts {
@@ -1010,8 +1077,13 @@ fn collect_yields_and_returns(body: &[Stmt], out: &mut Vec<(bool, TextRange, Anc
             }
             Stmt::Return(r) => {
                 if let Some(v) = &r.value {
-                    expr(v, out);
+                    // Jython records the `return value` event before it
+                    // descends into the value, so a `yield` inside the
+                    // value counts as coming after the return (verified on
+                    // Jython: `return (yield 1)` and `return [(yield i)
+                    // for i in x]` report at the yield).
                     out.push((false, r.range, r.anchor));
+                    expr(v, out);
                 }
             }
             other => {

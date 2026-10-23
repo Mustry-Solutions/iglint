@@ -2081,3 +2081,98 @@ ok
 ### reach-te-break-else
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
+### yield-comp-listcomp-elt
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-first-iter
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-if
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-second-iter
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-second-if
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-bare-stmt
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-genexp-elt-ok
+ok
+### yield-comp-genexp-first-iter-ok
+ok
+### yield-comp-genexp-first-iter-deep-ok
+ok
+### yield-comp-genexp-second-iter-ok
+ok
+### yield-comp-genexp-if-ok
+ok
+### yield-comp-setcomp-elt-ok
+ok
+### yield-comp-setcomp-first-iter
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-setcomp-first-iter-deep
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-setcomp-second-iter-ok
+ok
+### yield-comp-setcomp-if-ok
+ok
+### yield-comp-dictcomp-value-ok
+ok
+### yield-comp-dictcomp-first-iter
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-dictcomp-second-iter-ok
+ok
+### yield-comp-listcomp-in-genexp-scope
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-as-genexp-first-iter
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-nested-inner
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-nested-outer-iter
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-in-dictcomp-value
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-lambda-default
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-first-iter-genexp-inside
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-both-iters
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-nested-def-in-listcomp-ok
+ok
+### yield-comp-lambda-in-listcomp-ok
+ok
+### yield-comp-listcomp-in-generator
+error 0 0
+internal error: java.lang.VerifyError
+### yield-comp-listcomp-return-value
+error 2 13
+'return' with argument inside generator
+### yield-comp-listcomp-module-level
+error 1 6
+'yield' outside function
+### yield-comp-listcomp-class-level
+error 2 10
+'yield' outside function
+### yield-comp-listcomp-dead-after-return
+ok
+### yield-comp-return-direct-yield
+error 2 12
+'return' with argument inside generator
+### yield-comp-return-yield-in-call
+error 2 16
+'return' with argument inside generator
