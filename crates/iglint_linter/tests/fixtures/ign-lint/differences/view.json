@@ -1,6 +1,22 @@
 {
   "differences": [
     {
+      "view": "cases/ExtensionFunctions",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "*",
+      "kind": "fix",
+      "reason": "intended: a script of the view calls names that may be project library functions, and outside a project iglint cannot check that they are not frame builtins such as `eval`, so the fix is unsafe (ign-lint: safe)"
+    },
+    {
+      "view": "cases/LineDashboard",
+      "variant": "*",
+      "rule": "UnusedCustomPropertiesRule",
+      "message": "*",
+      "kind": "fix",
+      "reason": "intended: a script of the view calls names that may be project library functions, and outside a project iglint cannot check that they are not frame builtins such as `eval`, so the fix is unsafe (ign-lint: safe)"
+    },
+    {
       "view": "cases/AllNodeTypes",
       "variant": "ecd-tight",
       "rule": "ExcessiveContextDataRule",

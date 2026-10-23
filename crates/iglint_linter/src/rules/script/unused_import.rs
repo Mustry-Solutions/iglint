@@ -770,6 +770,23 @@ mod tests {
         assert_eq!(flagged(&d), ["re"]);
     }
 
+    /// A frame builtin under another name reads the locals of whatever
+    /// scope calls it (verified on Jython: `capture()["os"].name` is
+    /// `java`): no import of the module counts as unused.
+    #[test]
+    fn frame_builtins_under_other_names_keep_imports() {
+        for code in [
+            "def f():\n    import os\n    from __builtin__ import locals as capture\n    return capture()['os'].name\n",
+            "import __builtin__\ndef f():\n    import os\n    return __builtin__.locals()['os']\n",
+            "e = eval\ndef f():\n    import os\n    return e('os')\n",
+            "def f():\n    import os\n    import sys\n    return sys._getframe(0).f_locals['os']\n",
+            "import sys\ndef f():\n    import os\n    return sys.modules['__builtin__'].eval('os')\n",
+        ] {
+            let d = lint_module("SCR102", code);
+            assert!(!flagged(&d).contains(&"os".to_owned()), "{code}: {d:?}");
+        }
+    }
+
     /// Removing an import is safe only when importing has no effect
     /// outside the module: JDK classes and listed standard library
     /// modules. Everything else runs code when imported.

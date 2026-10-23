@@ -748,7 +748,8 @@ fn components_may_escape(cx: &Checker<'_, '_>) -> bool {
     let (accesses, complete) = cx.script_property_accesses();
     !complete
         || accesses.iter().any(|a| {
-            a.target == crate::script_facts::AccessTarget::AnyComponent
+            !a.is_callee_check()
+                && a.target == crate::script_facts::AccessTarget::AnyComponent
                 && a.name.is_none()
                 && a.read
                 && a.write

@@ -73,6 +73,16 @@ pub struct PropertyAccess {
     pub via: Option<std::sync::Arc<access::LibraryCall>>,
 }
 
+impl PropertyAccess {
+    /// Whether the access is only assumed until the project index shows
+    /// that a name the script calls is not a frame builtin
+    /// ([`access::LibraryCall::is_callee_check`]). Rules that do not
+    /// resolve library calls skip these.
+    pub fn is_callee_check(&self) -> bool {
+        self.via.as_ref().is_some_and(|c| c.is_callee_check())
+    }
+}
+
 /// Facts extracted from parsed scripts.
 pub trait ScriptFacts: Sync {
     /// True when [`ScriptFacts::property_accesses`] finds every access a

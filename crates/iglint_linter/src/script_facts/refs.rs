@@ -19,6 +19,8 @@
 //! | `core.util.fmt`, `from core.util import fmt`, a module's own top-level names | library name |
 //! | a library name used as a value, `from m import *`, non-literal `__import__`/`eval`/`exec`, `execfile`, `sys.modules` | dynamic library reference |
 //! | `core.util.fmt = f`, `del core.util.fmt`, `setattr(core.util, 'fmt', f)`, `core.util.__dict__` | library store |
+//! | a library name used as a value other than as an argument of a `system.*` call (`alias = core.util.fmt`, `register(fmt)`), `core.util.fmt.func_globals`, `.__globals__` | exposed library name: other code may rebind the names of its module |
+//! | `importlib.import_module('core.util')`, `imp.load_module(...)` | dynamic library reference (the module escapes) |
 //! | `exec '...'`, `eval('...')`, `compile('...', ...)` with literal code | the references of the code |
 //! | a non-literal view path, query path or message type | dynamic reference with the literal prefix |
 
@@ -231,6 +233,20 @@ fn dynamic_code(
     call: &iglint_python::ast::ExprCall,
     refs: &mut References,
 ) {
+    if callee == "importlib.import_module" || callee.starts_with("imp.") {
+        // The module object is returned (or replaced): it escapes.
+        match call.args.first() {
+            Some(e) => match string_values(model, e) {
+                Some(values) => refs
+                    .dynamic
+                    .library
+                    .extend(values.into_iter().map(|l| l.value)),
+                None => refs.dynamic.library.push(string_prefix(model, e)),
+            },
+            None => refs.dynamic.library.push(String::new()),
+        }
+        return;
+    }
     if !matches!(
         callee,
         "eval" | "execfile" | "__import__" | "compile" | "setattr" | "delattr"
@@ -304,9 +320,16 @@ enum Role {
     Call,
     /// The base of an attribute or subscript that is not followed.
     Base,
+    /// An argument of a `system.*` call: Ignition's functions call a
+    /// function they receive but do not change it.
+    SystemArgument,
     /// Anything else: the object escapes.
     Value,
 }
+
+/// Attributes of a function or class whose reading exposes nothing.
+const HARMLESS_FUNCTION_ATTRIBUTES: &[&str] =
+    &["__name__", "func_name", "__doc__", "func_doc", "__module__"];
 
 struct Chains<'m, 'a, 'c, 'r> {
     model: &'m SemanticModel<'a>,
@@ -379,8 +402,26 @@ impl Chains<'_, '_, '_, '_> {
             // written through it.
             self.refs.library_stores.push(base.to_owned());
         }
-        if role == Role::Value {
+        // `f.func_globals` is the namespace of `f`'s module.
+        let segments: Vec<&str> = q.split('.').collect();
+        if let Some(i) = segments
+            .iter()
+            .position(|s| matches!(*s, "func_globals" | "__globals__"))
+            && i > 0
+        {
+            self.refs.library_exposed.push(segments[..i].join("."));
+        }
+        if matches!(role, Role::Value | Role::SystemArgument) {
             self.refs.dynamic.library.push(q.clone());
+        }
+        if role == Role::Value
+            && !segments
+                .last()
+                .is_some_and(|s| HARMLESS_FUNCTION_ATTRIBUTES.contains(s))
+        {
+            // Code that receives the object may replace its code or reach
+            // its module through `func_globals`.
+            self.refs.library_exposed.push(q.clone());
         }
         self.refs.library.push(q);
     }
@@ -422,11 +463,22 @@ impl Chains<'_, '_, '_, '_> {
             Expr::Attribute(a) => self.expr(&a.value, Role::Base),
             Expr::Call(c) => {
                 self.expr(&c.func, Role::Call);
+                let system = super::calls::qualified(
+                    self.model,
+                    &c.func,
+                    UnboundNames::AsGlobalEvenIfDynamic,
+                )
+                .is_some_and(|q| q.starts_with("system."));
+                let role = if system {
+                    Role::SystemArgument
+                } else {
+                    Role::Value
+                };
                 for a in &c.args {
-                    self.expr(a, Role::Value);
+                    self.expr(a, role);
                 }
                 for k in &c.keywords {
-                    self.expr(&k.value, Role::Value);
+                    self.expr(&k.value, role);
                 }
                 if let Some(s) = &c.starargs {
                     self.expr(s, Role::Value);
@@ -682,6 +734,21 @@ mod tests {
         assert_eq!(r.dynamic.library, ["core", "", "core.util", "", "k"]);
         let r = refs_of("import sys\nm = sys.modules[__name__]\n", Some("app.main"));
         assert_eq!(r.dynamic.library, ["app.main"]);
+    }
+
+    /// Library functions used as values may be changed by whoever
+    /// receives them; `func_globals` reaches the module's namespace.
+    #[test]
+    fn exposed_library_names() {
+        let r = refs_of(
+            "def handle(p):\n    pass\nalias = handle\nsystem.util.invokeAsynchronous(handle)\nprint handle.__name__\nhandle(1)\nregister(core.jobs.run)\ncore.x.f.func_globals['g'] = 1\nimport importlib\nimportlib.import_module('core.y')\n",
+            Some("core.util"),
+        );
+        assert_eq!(
+            r.library_exposed,
+            ["core.util.handle", "core.jobs.run", "core.x.f"]
+        );
+        assert!(r.dynamic.library.iter().any(|n| n == "core.y"));
     }
 
     #[test]

@@ -75,7 +75,12 @@ impl ViewRule for OutputParamNeverWritten {
         if !complete && !view.scripts.is_empty() {
             return;
         }
-        let usage = usage(view, accesses);
+        let accesses: Vec<_> = accesses
+            .iter()
+            .filter(|a| !a.is_callee_check())
+            .cloned()
+            .collect();
+        let usage = usage(view, &accesses);
         for (i, def) in view.properties.iter().enumerate() {
             if def.category != PropCategory::Params
                 || def.direction != Some(ParamDirection::Output)

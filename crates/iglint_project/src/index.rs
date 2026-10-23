@@ -5,7 +5,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::{ProjectId, ResourceId};
 use crate::kinds::{EventScriptKind, MODULE_IGNITION, MODULE_PERSPECTIVE, ResourceKind};
-use crate::library::{LibraryLookup, LibraryTree, ModuleSymbols};
+use crate::library::{LibraryLookup, LibraryTree, ModuleSymbols, SymbolKind};
 use crate::perspective::match_page_url;
 use crate::summary::{
     DynamicReferences, Facts, MessageTarget, NamedQueryFacts, ResourceSummary, SessionFacts,
@@ -114,6 +114,9 @@ struct ProjectData {
     /// Library names that resources this project sees assign or delete
     /// (`References::library_stores`).
     library_stores: FxHashSet<String>,
+    /// Library modules whose names code may rebind through an object it
+    /// receives (`References::library_exposed`).
+    exposed_modules: FxHashSet<ResourceId>,
     complete: bool,
     inheritable: bool,
     descendants: Vec<ProjectId>,
@@ -369,6 +372,7 @@ impl<'w> ProjectIndex<'w> {
         let mut dynamic: Vec<DynamicReferences> = vec![DynamicReferences::default(); n];
         let mut escaped: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut stores: Vec<FxHashSet<String>> = vec![FxHashSet::default(); n];
+        let mut exposed: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut star_imported: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         // Resources of gateway collections (tag event scripts) run with the
         // gateway scripting project, which the workspace does not name:
@@ -443,6 +447,45 @@ impl<'w> ProjectIndex<'w> {
                 }
                 dynamic[pid.index()].extend(&refs.dynamic);
                 stores[pid.index()].extend(refs.library_stores.iter().cloned());
+                for name in &refs.library_exposed {
+                    // Through imports to the module that defines the object.
+                    let mut dotted = name.clone();
+                    for _ in 0..8 {
+                        match self.resolve_library(pid, &dotted) {
+                            LibraryLookup::Symbol {
+                                resource, symbol, ..
+                            } => match &symbol.kind {
+                                // A function or class (or a method of it)
+                                // reaches the module through `func_globals`.
+                                // A variable's value, if a function, was
+                                // itself named where it was stored.
+                                SymbolKind::Function(_) | SymbolKind::Class => {
+                                    exposed[pid.index()].insert(resource);
+                                    break;
+                                }
+                                SymbolKind::Import {
+                                    target: Some(target),
+                                } => dotted = target.clone(),
+                                _ => break,
+                            },
+                            LibraryLookup::Module { resource, .. } => {
+                                exposed[pid.index()].insert(resource);
+                                break;
+                            }
+                            LibraryLookup::Package { dotted: package } => {
+                                let prefix = format!("{package}.");
+                                let library = &self.projects[pid.index()].library;
+                                for (m, resource) in library.modules() {
+                                    if m.starts_with(&prefix) {
+                                        exposed[pid.index()].insert(resource);
+                                    }
+                                }
+                                break;
+                            }
+                            _ => break,
+                        }
+                    }
+                }
                 for name in &refs.library_star_imports {
                     if let LibraryLookup::Module { resource, .. } = self.resolve_library(pid, name)
                     {
@@ -498,6 +541,7 @@ impl<'w> ProjectIndex<'w> {
             p.dynamic = d;
             p.escaped_modules = std::mem::take(&mut escaped[i]);
             p.library_stores = std::mem::take(&mut stores[i]);
+            p.exposed_modules = std::mem::take(&mut exposed[i]);
             p.star_imported_modules = std::mem::take(&mut star_imported[i]);
         }
         self.usage = usage;
@@ -806,7 +850,10 @@ impl<'w> ProjectIndex<'w> {
     /// ([`ProjectIndex::library_name_stored`]) or its module escapes
     /// ([`ProjectIndex::module_escapes`]: used as a value, reached through
     /// `sys.modules` or code run from strings, so any code may set its
-    /// attributes). Rebinding by the module itself is part of its symbols
+    /// attributes) or is exposed (a function or class of the module is
+    /// used as a value, or its `func_globals` is reached: whoever holds it
+    /// may replace its code or the module's names). Rebinding by the
+    /// module itself is part of its symbols
     /// (a rebound name is a
     /// [`SymbolKind::Variable`](crate::library::SymbolKind::Variable)).
     pub fn library_name_rebound(&self, project: ProjectId, dotted: &str) -> bool {
@@ -816,7 +863,12 @@ impl<'w> ProjectIndex<'w> {
         match self.resolve_library(project, dotted) {
             LibraryLookup::Symbol { resource, .. }
             | LibraryLookup::MissingAttribute { resource, .. }
-            | LibraryLookup::Module { resource, .. } => self.module_escapes(project, resource),
+            | LibraryLookup::Module { resource, .. } => {
+                self.module_escapes(project, resource)
+                    || self.projects[project.index()]
+                        .exposed_modules
+                        .contains(&resource)
+            }
             _ => false,
         }
     }

@@ -21,6 +21,13 @@ from 0.1.0 on.
 - SCR900 runs pylint while the native rules run and, on POSIX, forks one
   worker per CPU from a single Python process; `jobs` is the number of
   workers.
+- VIEW015 analyses script accesses default-deny: every use of a
+  component, the view, a page or session, a property container or an
+  alias of one must be one of the enumerated forms (listed in
+  `docs/internal/fix-safety.md`); anything else reads and writes
+  everything it reaches. Findings that rely on following values into
+  library functions keep being reported, but their fix is unsafe; only
+  findings the view proves on its own keep the safe fix.
 
 ### Added
 
@@ -38,6 +45,24 @@ from 0.1.0 on.
   `PylintScriptRule` (every script line `rstrip()`ed).
 
 ### Fixed
+
+- VIEW015 no longer removes properties that a library function reads into
+  a local it never uses (`x = c.custom.foo`, also inside `try`), calls
+  (`f = c.custom.foo; f()`) or reads through an alias of the container
+  (`cu = c.custom; x = cu.foo`); that a script or library function reads
+  through a method of the property wrapper used as a value
+  (`map(self.custom.get, ['foo'])`, `g = c.custom.get; g('foo')`,
+  `invokeAsynchronous(c.custom.keys)`), through a page or session, an
+  unknown member of a component or a component method used as a value;
+  that `__builtin__.eval`, `from __builtin__ import locals as l` or a
+  library variable holding `eval` read through the frame; or that a
+  library function reads after being replaced through an alias
+  (`alias = handle; alias.func_code = ...`, a helper that receives it),
+  `importlib.import_module`, `func_globals` or `__globals__`.
+- SCR102 and the other unused-name rules no longer remove imports or
+  names that a frame builtin reached under another name can read
+  (`from __builtin__ import locals as capture`, `e = eval`,
+  `__builtin__.eval`, `sys._getframe`).
 
 - `VIEW015` no longer trusts the body of a library function that may be
   replaced at run time, so its safe fix no longer removes properties the

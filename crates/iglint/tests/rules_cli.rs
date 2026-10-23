@@ -277,59 +277,72 @@ fn safe_fixes_keep_properties_of_rebound_library_functions() {
         ),
         (String::new(), format!("{new_handle}exec 'lib.util.handle = _h'\n")),
         (String::new(), format!("{new_handle}m = lib.util\nm.handle = _h\n")),
+        // Through `importlib` and function globals.
+        (
+            String::new(),
+            format!("import importlib\n{new_handle}importlib.import_module('lib.util').handle = _h\n"),
+        ),
+        (
+            "def _x():\n    pass\n".to_owned(),
+            format!("{new_handle}lib.util._x.func_globals['handle'] = _h\n"),
+        ),
+        (
+            "def _x():\n    pass\n".to_owned(),
+            format!("{new_handle}lib.util._x.__globals__['handle'] = _h\n"),
+        ),
+        // The function object changed through an alias or a helper.
+        (format!("{new_handle}alias = handle\nalias.func_code = _h.func_code\n"), String::new()),
+        (
+            format!("{new_handle}alias = handle\nsetattr(alias, 'func_code', _h.func_code)\n"),
+            String::new(),
+        ),
+        (
+            format!("{new_handle}def _patch(f):\n    f.func_code = _h.func_code\n_patch(handle)\n"),
+            String::new(),
+        ),
+        (
+            String::new(),
+            format!("{new_handle}def _patch(f):\n    f.func_code = _h.func_code\n_patch(lib.util.handle)\n"),
+        ),
     ];
     let view = "projects/p/com.inductiveautomation.perspective/views/Main/view.json";
     for (rest, other) in &rebinding {
         let dir = handed_to_library(rest, other);
-        let run = run_with(
-            dir.path(),
-            &[
-                "check",
-                "--isolated",
-                "--no-cache",
-                "--select",
-                "VIEW015",
-                "--fix",
-            ],
-            false,
-        );
-        let text = std::fs::read_to_string(dir.path().join(view)).unwrap();
-        assert!(
-            text.contains("\"used\": 42"),
-            "{rest}{other}\n{}\n{text}",
-            run.stdout
-        );
-        assert_eq!(
-            run.status,
-            ExitStatus::Success,
-            "{rest}{other}\n{}",
-            run.stdout
-        );
+        assert_fix_keeps_used(dir.path(), &format!("{rest}{other}"));
     }
-    // The function that is not rebound is followed: it reads nothing, so
-    // the property goes.
+    // A function used as a value elsewhere may be changed by whoever
+    // receives it: it is not followed, so the property counts as read.
     let dir = handed_to_library("", "def g():\n    return lib.util.handle\n");
-    let run = run_with(
+    assert_fix_keeps_used(dir.path(), "returned");
+    // The function that is not rebound is followed: it reads nothing. The
+    // finding relies on following the call into the library, so its fix
+    // is unsafe: `--fix` keeps the property, `--unsafe-fixes` removes it.
+    let dir = handed_to_library("", "");
+    let args = ["check", "--isolated", "--no-cache", "--select", "VIEW015"];
+    run_with(dir.path(), &[&args[..], &["--fix"]].concat(), false);
+    let text = std::fs::read_to_string(dir.path().join(view)).unwrap();
+    assert!(text.contains("\"used\": 42"), "{text}");
+    run_with(
         dir.path(),
-        &[
-            "check",
-            "--isolated",
-            "--no-cache",
-            "--select",
-            "VIEW015",
-            "--fix",
-        ],
+        &[&args[..], &["--fix", "--unsafe-fixes"]].concat(),
         false,
     );
-    assert_eq!(run.status, ExitStatus::Success, "{}", run.stdout);
     let text = std::fs::read_to_string(dir.path().join(view)).unwrap();
     assert!(!text.contains("used"), "{text}");
 }
 
-/// `iglint check --fix` on `dir` (a [`library_view`]) keeps `used`, and
-/// `--diff` offers no fix for it.
+/// `iglint check --fix --unsafe-fixes` on `dir` (a [`library_view`]) keeps
+/// `used`, and `--diff` offers no fix for it, not even an unsafe one: the
+/// property counts as read.
 fn assert_fix_keeps_used(dir: &Path, case: &str) {
-    let args = ["check", "--isolated", "--no-cache", "--select", "VIEW015"];
+    let args = [
+        "check",
+        "--isolated",
+        "--no-cache",
+        "--select",
+        "VIEW015",
+        "--unsafe-fixes",
+    ];
     let diff = run_with(dir, &[&args[..], &["--diff"]].concat(), false);
     assert!(!diff.stdout.contains("used"), "{case}\n{}", diff.stdout);
     let run = run_with(dir, &[&args[..], &["--fix"]].concat(), false);
@@ -410,6 +423,112 @@ fn safe_fixes_keep_properties_of_functions_replaced_by_callers() {
         let dir = library_view(script, util, other);
         assert_fix_keeps_used(dir.path(), &format!("{script}\n{util}\n{other}"));
     }
+}
+
+/// Reads of the property that the library function makes in forms the
+/// analysis must not lose: a property read into a local that is never
+/// used (also where the read only checks that it exists), a property
+/// called, read through an alias of the container, and the wrapper's
+/// methods used as values. Each variant reads `used` on Jython.
+#[test]
+fn library_reads_through_locals_and_methods_keep_the_property() {
+    for util in [
+        "def handle(c):\n    x = c.custom.used\n",
+        "def handle(c):\n    try:\n        x = c.custom.used\n    except AttributeError:\n        return False\n    return True\n",
+        "def handle(c):\n    f = c.custom.used\n    f()\n",
+        "def handle(c):\n    cu = c.custom\n    x = cu.used\n",
+        "def handle(c):\n    print map(c.custom.get, ['used'])\n",
+        "def handle(c):\n    g = c.custom.get\n    print g('used')\n",
+        "def handle(c):\n    system.util.invokeAsynchronous(c.custom.keys)\n",
+        "def handle(c):\n    print 'used' in c.custom\n",
+        "def handle(c):\n    print c.custom.get('used')\n",
+    ] {
+        let dir = library_view("\\tlib.util.handle(self)\\n", util, "");
+        assert_fix_keeps_used(dir.path(), util);
+    }
+}
+
+/// The same forms in the view script itself.
+#[test]
+fn view_reads_through_methods_keep_the_property() {
+    for script in [
+        "\\tprint map(self.custom.get, ['used'])\\n",
+        "\\tg = self.custom.get\\n\\tprint g('used')\\n",
+        "\\tsystem.util.invokeAsynchronous(self.custom.keys)\\n",
+        "\\tprint self.custom.get('used')\\n",
+        "\\tf = self.getSibling\\n",
+    ] {
+        let dir = library_view(script, "", "");
+        assert_fix_keeps_used(dir.path(), script);
+    }
+}
+
+/// Frame builtins under other names read the property through the frame:
+/// qualified (`__builtin__.eval`), imported under another name, or
+/// aliased in another library module. Each variant reads `used` on
+/// Jython.
+#[test]
+fn frame_builtins_under_other_names_keep_the_property() {
+    let cases = [
+        (
+            "\\tlib.util.handle(self)\\n",
+            "import __builtin__\ndef handle(p):\n    print __builtin__.eval('p.custom.used')\n",
+            "",
+        ),
+        (
+            "\\tlib.util.handle(self)\\n",
+            "def handle(p):\n    from __builtin__ import eval as ev\n    print ev('p.custom.used')\n",
+            "",
+        ),
+        (
+            "\\tlib.util.handle(self)\\n",
+            "import lib.other\ndef handle(p):\n    print lib.other.ev('p.custom.used')\n",
+            "ev = eval\n",
+        ),
+        (
+            "\\tprint lib.other.ev('self.custom.used')\\n",
+            "",
+            "ev = eval\n",
+        ),
+        (
+            "\\tfrom lib.other import ev\\n\\tprint ev('self.custom.used')\\n",
+            "",
+            "ev = eval\n",
+        ),
+        (
+            "\\tf = lib.other.loc\\n\\tprint f()['self'].custom.used\\n",
+            "",
+            "loc = locals\n",
+        ),
+    ];
+    for (script, util, other) in cases {
+        let dir = library_view(script, util, other);
+        assert_fix_keeps_used(dir.path(), &format!("{script}\n{util}\n{other}"));
+    }
+}
+
+/// A property the view's own scripts prove unused keeps its safe fix,
+/// also when the script calls library functions (checked to be plain
+/// functions), and `--fix` removes it.
+#[test]
+fn view_local_findings_keep_safe_fixes() {
+    let dir = library_view(
+        "\\tx = self.custom.get('other')\\n\\tlib.util.log('clicked')\\n\\timport json\\n\\tjson.dumps(1)\\n",
+        "def log(m):\n    print m\n",
+        "",
+    );
+    let args = ["check", "--isolated", "--no-cache", "--select", "VIEW015"];
+    let run = run_with(dir.path(), &[&args[..], &["--fix"]].concat(), false);
+    let view = "projects/p/com.inductiveautomation.perspective/views/Main/view.json";
+    let text = std::fs::read_to_string(dir.path().join(view)).unwrap();
+    assert!(!text.contains("used"), "{}\n{text}", run.stdout);
+    // The library name that is not a plain function makes the view keep it.
+    let dir = library_view(
+        "\\tlib.util.log('clicked')\\n",
+        "log = lib.other.make()\n",
+        "def make():\n    return eval\n",
+    );
+    assert_fix_keeps_used(dir.path(), "variable");
 }
 
 #[test]

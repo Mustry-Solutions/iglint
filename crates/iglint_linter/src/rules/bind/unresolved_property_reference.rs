@@ -317,7 +317,8 @@ fn may_be_created_by_scripts(
                 (AccessTarget::AnyComponent, RefTarget::Component(_)) => true,
                 _ => false,
             };
-            same_target
+            !a.is_callee_check()
+                && same_target
                 && a.write
                 && a.category.name() == category
                 && a.name.as_deref().is_none_or(|n| n == name)

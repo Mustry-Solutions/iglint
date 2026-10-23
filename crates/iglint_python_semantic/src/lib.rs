@@ -28,6 +28,10 @@
 //! * `from x import *` and `exec` without `in` make a scope dynamic: names
 //!   the code does not bind may exist, so unresolved names there are
 //!   [`Resolution::Dynamic`], not [`Resolution::Unresolved`].
+//! * A frame builtin, a frame or the builtins module that escapes
+//!   ([`dynamic::frame_escape`]: `e = eval`, `from __builtin__ import
+//!   locals as l`, `sys._getframe`, ...) makes every scope of the module
+//!   read its locals and write the module's globals by name.
 //! * Names fall back to the module, then to the caller's injected names
 //!   ([`SemanticOptions::injected`], Ignition's implicit globals), then to
 //!   Jython's `__builtin__` module ([`iglint_stubs::jython_builtins`]).
@@ -50,6 +54,7 @@
 //! references live in flat vectors indexed by ids.
 
 mod compile;
+pub mod dynamic;
 mod flow;
 mod limits;
 mod model;
@@ -84,7 +89,15 @@ impl<'a> SemanticModel<'a> {
     pub fn build(module: &'a Module, options: &SemanticOptions<'_>) -> SemanticModel<'a> {
         let injected: FxHashSet<&str> = options.injected.iter().copied().collect();
         let table = symbols::build(module);
-        let out = flow::Flow::new(module, table, &injected, options.unknown_globals).run();
+        let mut out = flow::Flow::new(module, table, &injected, options.unknown_globals).run();
+        if dynamic::frame_escape(&module.body).is_some() {
+            // A frame builtin, a frame or the builtins module escapes: any
+            // scope may have its names read or the module's written.
+            for scope in &mut out.scopes {
+                scope.reads_locals = true;
+                scope.writes_globals = true;
+            }
+        }
         SemanticModel {
             module,
             scopes: out.scopes,

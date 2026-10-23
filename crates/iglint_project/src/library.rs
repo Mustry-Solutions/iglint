@@ -43,6 +43,9 @@ pub struct ModuleSymbols {
     /// (`from x import *`, `exec`, writes to `globals()`): lookups of
     /// unknown names are then [`LibraryLookup::Unknown`].
     pub dynamic: bool,
+    /// Top-level variables bound only to literals (`LIMIT = 10`,
+    /// `NAMES = ['a', 'b']`): their value is never a function.
+    pub constants: Vec<String>,
 }
 
 impl ModuleSymbols {
@@ -92,7 +95,10 @@ impl Signature {
     /// for `*args` / `**kwargs` and unknown parameters.
     pub fn use_of(&self, slot: &ArgSlot) -> &ParamUse {
         const DYNAMIC: &ParamUse = &ParamUse::Dynamic;
+        const UNUSED: &ParamUse = &ParamUse::Paths(Vec::new());
         let position = match slot {
+            // Calling a function binds no value to a parameter.
+            ArgSlot::Callee => return UNUSED,
             ArgSlot::Position(i) => {
                 let named = self
                     .params
@@ -115,6 +121,11 @@ impl Signature {
 pub enum ArgSlot {
     Position(usize),
     Keyword(String),
+    /// No parameter: the callee itself is checked. A name that is not a
+    /// plain `def` function (or class) may be a builtin such as `eval` or
+    /// `locals` that reads the caller's frame, where every followed value
+    /// can be reached.
+    Callee,
 }
 
 /// What a function does with one parameter, followed like `self` in view
@@ -160,8 +171,19 @@ pub enum PathEnd {
     /// The last step is updated (`+=`).
     Update,
     /// The value is passed to `callee` (a dotted name as written: a
-    /// top-level name of the module or a library name).
+    /// top-level name of the module or a library name). With
+    /// [`ArgSlot::Callee`] and no steps, the function calls (or uses as a
+    /// value) `callee` while the parameter is live: when `callee` is not a
+    /// plain function it may read the parameter through the frame.
     Passed { callee: String, slot: ArgSlot },
+    /// The value is bound to a local name that is assigned only here and
+    /// whose every use is itself recorded as a path: the steps are
+    /// evaluated (a property container step reads that property), the
+    /// value is not lost.
+    Alias,
+    /// `'name' in value` (or `not in`): reads property `name` of a
+    /// container.
+    Contains(String),
 }
 
 /// One parameter.
@@ -451,6 +473,7 @@ mod tests {
         let format = ModuleSymbols {
             symbols: vec![sym("withUnit")],
             dynamic: false,
+            constants: Vec::new(),
         };
         let legacy = ModuleSymbols::default();
         let lookup = |r: ResourceId| match r.0 {

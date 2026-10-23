@@ -31,17 +31,33 @@ by a text search:
 * property binding paths and indirect tag binding references;
 * scripts of the view (events, transforms, change scripts, message
   handlers, custom methods, extension functions), parsed with the Jython
-  parser: `self.view.custom.x`, `self.custom.x`, `self.getSibling('A').custom.x`,
-  `self.parent.getChild('A').custom.x`, `self.custom['x']`, and local
-  aliases (`view = self.view`). A script that uses a property container in
-  a way that cannot be followed (`self.view.custom[key]`, passing `self`
-  to a function iglint cannot follow, a script that does not parse) counts
-  as reading every property it could reach, so the rule stays silent
-  rather than guess;
+  parser. The analysis is default-deny: a component, the view, a page or
+  session, a property container (`self.custom`, `self.view.params`) or a
+  local alias of one must be used in one of the enumerated forms
+  (`self.view.custom.x`, `self.custom['x']`, `self.custom.get('x')`,
+  `'x' in self.custom`, `self.getSibling('A').custom.x`,
+  `self.parent.getChild('A').custom.x`, `view = self.view`, an argument
+  of a library function, a custom method of the view, ...); any other
+  use (passed to unknown code, iterated, stored, compared, formatted,
+  `self.custom.keys` used without a call, `self.custom[key]`, a script
+  that does not parse) counts as reading and writing every property it
+  could reach, so the rule stays silent rather than guess. The list of
+  forms is in `docs/internal/fix-safety.md`;
+* builtins that read the caller's variables by name: a script that calls
+  `locals()`, `vars()`, `dir()`, `eval` or `execfile`, runs `exec`,
+  reaches frames (`sys._getframe()`, `inspect.currentframe()`,
+  `.f_locals`) or reaches such a builtin in any other way
+  (`__builtin__.eval`, `from __builtin__ import locals as l`, `e = eval`)
+  reads everything. Every library name a script calls or uses as a value
+  must be a plain `def` function (or class, or literal constant), or not
+  exist: a library variable or import may hold `eval` under another name
+  (`ev = eval` in a module, `lib.util.ev('self.custom.x')` reads the
+  caller's `self`);
 * project library functions a script passes `self`, the view or a
   property container to (`lib.util.handle(self)`, `handle(view=self.view)`):
-  the function's body is followed with the same rules (`param.view.custom.x`,
-  `param.getSibling('A').custom.y`, passing it on to other library
+  the function's body is followed with the same default-deny rules
+  (`param.view.custom.x`, `x = param.custom.y` even when `x` is never
+  used, `param.getSibling('A').custom.y`, passing it on to other library
   functions, up to 4 calls deep). A function that does not exist reads
   nothing (the call fails, which `REF002` reports). A function that uses
   the value in a way that cannot be followed (it stores the value where
@@ -53,9 +69,12 @@ by a text search:
   `exec`, `eval` or `execfile`, writes `globals()` or
   `sys.modules[__name__]`, sets its `func_code`, or may overwrite it with
   a later definition or `from x import *`; a script assigns or `setattr`s
-  it; its module is used as a value or reached through `sys.modules` or
-  code run from strings), and calls of anything but a library function
-  count as reading everything.
+  it; its module is used as a value, imported with
+  `importlib.import_module`, reached through `sys.modules` or code run
+  from strings; a function or class of its module is used as a value
+  anywhere (`alias = handle`, `register(handle)`) or its `func_globals`
+  is reached), and calls of anything but a library function count as
+  reading everything.
 
 These never count as unused:
 
@@ -89,10 +108,16 @@ that are ignored.
 ## Fix
 
 For custom properties: removes the property and its `propConfig`
-entries. Safe when nothing writes the property; unsafe when a script or a
-bidirectional binding writes it (the write recreates the property, without
-the `access` and `persistent` settings of its `propConfig`). View
-parameters are never removed automatically (callers pass them).
+entries. Safe when nothing writes the property and the view's own
+scripts prove it unread, without following values into library
+functions. Unsafe when a script or a bidirectional binding writes it (the
+write recreates the property, without the `access` and `persistent`
+settings of its `propConfig`), when the finding relies on what a library
+function does with a value of the view (code in other resources, which
+other projects or run-time changes can invalidate), and for a view linted
+outside its project whose scripts call names that may be library
+functions. View parameters are never removed automatically (callers pass
+them).
 
 ## ign-lint
 

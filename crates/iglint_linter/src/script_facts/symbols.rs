@@ -21,8 +21,12 @@
 //! function whose code or defaults the module replaces
 //! (`f.func_code = ...`, `setattr(f, name, ...)`).
 //! Rebinding from other resources (`core.util.f = ...`, the module used as
-//! a value) is known only to the project index
-//! (`ProjectIndex::library_name_rebound`).
+//! a value, a function of the module used as a value, `func_globals`) is
+//! known only to the project index (`ProjectIndex::library_name_rebound`).
+//! A module with a frame escape route
+//! ([`iglint_python_semantic::dynamic::frame_escape`]) writes its
+//! globals, so every name is a variable. Variables bound only to literals
+//! are listed as constants: they never hold a function.
 
 use iglint_project::library::{
     ModuleSymbols, Parameter, ParameterKind, Signature, Symbol, SymbolKind,
@@ -39,6 +43,7 @@ pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols 
     let rebinds = Rebinds::collect(model, ast);
     let dynamic = rebinds.anything || module.star_import.is_some();
     let mut symbols = Vec::new();
+    let mut constants = Vec::new();
     for name in module.local_names() {
         let ids = module.bindings_of(name);
         let real: Vec<_> = ids
@@ -54,6 +59,13 @@ pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols 
             || rebinds.star_imports.iter().any(|(star, in_loop)| {
                 *in_loop || real.iter().any(|b| b.range.start() < star.start())
             });
+        if !rebound
+            && real.iter().all(|b| {
+                b.kind == BindingKind::Assignment && !b.unpacked && b.value.is_some_and(is_literal)
+            })
+        {
+            constants.push((*name).to_owned());
+        }
         let kind = if real.len() > 1 || rebound {
             SymbolKind::Variable
         } else {
@@ -79,7 +91,27 @@ pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols 
             range: first.range,
         });
     }
-    ModuleSymbols { symbols, dynamic }
+    ModuleSymbols {
+        symbols,
+        dynamic,
+        constants,
+    }
+}
+
+/// An expression made of literals only (numbers, strings, `None`, `True`,
+/// `False`, containers and operators of them): never a function.
+fn is_literal(e: &Expr) -> bool {
+    match e {
+        Expr::Num(_) | Expr::Str(_) => true,
+        Expr::Name(n) => matches!(&*n.id, "None" | "True" | "False"),
+        Expr::List(l) => l.elts.iter().all(is_literal),
+        Expr::Tuple(t) => t.elts.iter().all(is_literal),
+        Expr::Set(s) => s.elts.iter().all(is_literal),
+        Expr::Dict(d) => d.keys.iter().chain(&d.values).all(is_literal),
+        Expr::UnaryOp(u) => is_literal(&u.operand),
+        Expr::BinOp(b) => is_literal(&b.left) && is_literal(&b.right),
+        _ => false,
+    }
 }
 
 /// Ways the module may rebind its own top-level names at run time that

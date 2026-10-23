@@ -150,6 +150,11 @@ The expression and property binding part:
   passed to a function, an alias) counts as reading every property of it,
   so the rule stays silent instead of guessing. ign-lint reports the
   properties that the text never names.
+* Outside a project (a lone view, as in the fixtures), a script that
+  calls a name that may be a project library function (`lib.util.f()`,
+  an undefined name) makes the fix unsafe: iglint cannot check that the
+  name is not a frame builtin such as `eval` under another name, which
+  could read any property. ign-lint offers a safe fix.
 
 ## ExcessiveContextDataRule (`VIEW006`)
 

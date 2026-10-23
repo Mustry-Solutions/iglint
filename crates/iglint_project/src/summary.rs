@@ -246,6 +246,12 @@ pub struct References {
     /// name and everything under it may differ at run time from its
     /// definition.
     pub library_stores: Vec<String>,
+    /// Dotted library names whose object reaches code that may change it
+    /// or its module: a function or class used as a value (other than an
+    /// argument of a `system.*` call), the base of `func_globals` or
+    /// `__globals__`. Every name of the module that defines it may be
+    /// rebound at run time.
+    pub library_exposed: Vec<String>,
     /// Dotted library modules the script star-imports (`from core.util
     /// import *`): every name the module exports this way is used.
     pub library_star_imports: Vec<String>,
@@ -269,6 +275,7 @@ impl References {
         self.tag_paths.extend(other.tag_paths);
         self.library.extend(other.library);
         self.library_stores.extend(other.library_stores);
+        self.library_exposed.extend(other.library_exposed);
         self.library_star_imports.extend(other.library_star_imports);
         self.messages.extend(other.messages);
         self.history_providers.extend(other.history_providers);
