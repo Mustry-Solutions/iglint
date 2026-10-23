@@ -754,6 +754,72 @@ mod tests {
         assert_eq!(fixed.lines().count(), 5, "no line moves: {fixed}");
     }
 
+    /// Reviewer round 7, finding 1: a module that uses only allowlisted
+    /// imports but reaches Java reflection (through a bean property, a
+    /// subclass of a Java class, or a reflective member named in a string)
+    /// must never have an import removed by a safe fix. The route reads the
+    /// module's globals (verified on Jython), so the reflection escape
+    /// makes the module read its globals dynamically: the import is not
+    /// reported, and no finding carries a safe fix.
+    #[test]
+    fn java_reflection_blocks_safe_import_fix() {
+        use crate::diagnostic::Applicability::Safe;
+        for code in [
+            "import math\nfrom java.util import ArrayList\nclass Bridge(ArrayList):\n    pass\ndef go():\n    return Bridge().class.classLoader\n",
+            "import math\ndef go(o):\n    return getattr(o, 'classLoader')\n",
+            "import math\ndef go(o):\n    return o.getClass().getDeclaredMethods()\n",
+        ] {
+            let f = library("m", code);
+            let d = f.lint(&["SCR102"]);
+            assert!(
+                d.iter()
+                    .all(|d| d.fix.as_ref().map(|x| x.applicability) != Some(Safe)),
+                "a safe import fix survived reflection:\n{code}\n{d:?}"
+            );
+            let out = f.run(
+                &[("SCR102", "")],
+                crate::engine::FixMode::DiffOnly {
+                    unsafe_fixes: false,
+                },
+            );
+            if let Some(s) = out.fixed.iter().find(|s| s.path == library_path(&f, "m")) {
+                assert!(s.fixed.contains("import math"), "{}", s.fixed);
+            }
+        }
+    }
+
+    /// The language server must not offer (or apply through fix-all) a
+    /// safe SCR102 quick fix for an import in a module that reaches Java
+    /// reflection through a bean property on a subclass of a Java class
+    /// (reviewer round 7, finding 1). Before the fix this module reported
+    /// `math` with a safe fix the LSP would apply; now it does not.
+    #[test]
+    fn lsp_offers_no_safe_quick_fix_through_reflection() {
+        let code = "import math\nfrom java.util import ArrayList\nclass B(ArrayList):\n    pass\ndef go():\n    return B().class\n";
+        let f = library("m", code);
+        let path = library_path(&f, "m");
+        let settings = crate::rules::test_support::settings(f.root(), &[("SCR102", "")]);
+        let mut live = crate::live::LiveWorkspace::new(settings, vec![f.root().to_path_buf()]);
+        // Safe fix-all changes nothing (the import stays).
+        assert!(
+            live.fix_all(&path, false).is_none(),
+            "safe fix-all changed the file"
+        );
+        // No reported finding yields a safe quick fix the LSP would apply.
+        let diags = live
+            .check(std::slice::from_ref(&path))
+            .remove(0)
+            .diagnostics;
+        for d in &diags {
+            if d.fix.as_ref().map(|x| x.applicability) == Some(crate::Applicability::Safe) {
+                assert!(
+                    live.fix_one(&path, d).is_none(),
+                    "a safe quick fix applied: {d:?}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn fix_removes_names_or_statements() {
         let f = library("m", "import os, json\nimport sys\nprint json.dumps(1)\n");

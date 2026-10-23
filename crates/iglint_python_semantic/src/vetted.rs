@@ -20,13 +20,21 @@
 //! (it becomes unsafe). The allowlists below are default deny: a module,
 //! Java class, builtin or module attribute that is not listed is unknown.
 //!
-//! Each entry was checked on Ignition 8.3's Jython (`oracle`): it cannot
-//! evaluate code, read a frame, or look up callables or attributes by a
-//! name taken from data. Module attributes that are modules (`re.sys`,
-//! `os.path.os`, `uuid.ctypes`, `json.decoder`, measured on Jython) and
-//! private attributes (`random._inst`) are not vetted: they lead to other
-//! modules. Module objects used as values are not vetted either (an
-//! attribute read through an alias is not checked).
+//! Each module, Java class and builtin here was checked on Ignition 8.3's
+//! Jython (`oracle`): it cannot evaluate code, read a frame, or look up
+//! callables or attributes by a name taken from data. The *attributes* of
+//! the vetted Python modules are not an allowlist in this file: they are
+//! measured inside the Ignition image by `stubs-gen/gen_vetted.py` and
+//! emitted into [`crate::generated`] as a positive list of the attributes
+//! that are a function, a class or a constant of a vetted immutable type.
+//! Everything else is unknown: a module (`os.path.os`), a `PySystemState`
+//! (`re.sys`, which Jython does not report as a `types.ModuleType`), a
+//! Java class (`base64.binascii`), a private attribute (`random._inst`) or
+//! any other object. The generator also measures the Java member names
+//! that reach reflection ([`crate::generated::JAVA_REFLECTIVE_MEMBERS`],
+//! consumed by [`crate::dynamic`]). Module objects used as values are not
+//! vetted either (an attribute read through an alias is not checked), and
+//! subclassing a Java class is unknown (its instances are Java-backed).
 
 use iglint_python::ast::{Expr, ExprContext, Stmt};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
@@ -68,23 +76,6 @@ const VETTED_MODULES: &[(&str, &[&str])] = &[
     ("textwrap", &[]),
     ("time", &[]),
     ("uuid", &[]),
-];
-
-/// Attributes of vetted modules that are modules themselves, per module
-/// (measured on Jython 2.7 with `isinstance(v, types.ModuleType)`).
-const MODULE_ATTRIBUTES: &[(&str, &[&str])] = &[
-    ("calendar", &["_locale", "datetime"]),
-    ("collections", &["_abcoll", "_heapq"]),
-    ("decimal", &["_copy", "_locale", "_numbers"]),
-    ("fractions", &["numbers", "re"]),
-    ("json", &["decoder", "encoder", "scanner"]),
-    ("base64", &["re"]),
-    ("os.path", &["genericpath", "os", "stat", "warnings"]),
-    ("random", &["_hashlib"]),
-    ("re", &["copy_reg", "sre_compile", "sre_parse"]),
-    ("string", &["_re"]),
-    ("textwrap", &["re", "string"]),
-    ("uuid", &["ctypes"]),
 ];
 
 /// `os` and `sys` hand out frames, every module, the import path or
@@ -403,18 +394,33 @@ fn module_attribute(module: &'static str, attr: &str) -> Option<Bound> {
             _ => OS_ATTRIBUTES.contains(&attr).then_some(Bound::Value),
         },
         "sys" => SYS_ATTRIBUTES.contains(&attr).then_some(Bound::Value),
+        // `__future__` features are compile-time directives (`_Feature`
+        // instances); they do nothing at run time and are always vetted.
+        "__future__" => Some(Bound::Value),
+        "os.path" if attr == "path" => Some(Bound::Module("os.path")),
         _ => {
-            let is_module = MODULE_ATTRIBUTES
-                .iter()
-                .any(|(m, attrs)| *m == module && attrs.contains(&attr));
-            if attr.starts_with('_') || is_module {
+            if attr.starts_with('_') {
                 return None;
             }
+            // The positive, machine-measured allowlist: an attribute is
+            // vetted only when the generator (inside the Ignition image)
+            // measured it as a function, a class or a constant of a vetted
+            // immutable type. A module, a `PySystemState` (`re.sys`), a
+            // Java class or anything else is unknown. The per-module
+            // denylist still removes members that look up names by data
+            // (`string.Formatter`, `operator.attrgetter`).
             let denied = VETTED_MODULES
                 .iter()
                 .find(|(m, _)| *m == module)
                 .map_or(&[][..], |(_, d)| *d);
-            (!denied.contains(&attr)).then_some(Bound::Value)
+            if denied.contains(&attr) {
+                return None;
+            }
+            crate::generated::MODULE_VETTED_ATTRS
+                .iter()
+                .find(|(m, _)| *m == module)
+                .is_some_and(|(_, attrs)| attrs.binary_search(&attr).is_ok())
+                .then_some(Bound::Value)
         }
     }
 }
@@ -609,6 +615,22 @@ impl<'a> Visitor<'a> for Walk {
                     self.out.imports.push((module.to_owned(), i.range));
                 }
             }
+            Stmt::ClassDef(c) => {
+                for base in &c.bases {
+                    // Subclassing a Java class makes the instances
+                    // Java-backed: their Java members, reflection included
+                    // (`self.class`, `super(...)` reaching Java), are
+                    // reachable, so the class is not plain unless analysed.
+                    // Fail closed. (A dotted base such as
+                    // `java.util.ArrayList` needs an import, already
+                    // flagged.)
+                    if let Expr::Name(n) = base
+                        && matches!(self.bound.get(&*n.id), Some(Bound::JavaClass(_)))
+                    {
+                        self.other(n.range);
+                    }
+                }
+            }
             _ => {}
         }
         walk_stmt(self, stmt);
@@ -723,6 +745,16 @@ mod tests {
             "x = vars(o)\n",
             "import operator\nf = operator.attrgetter(n)\n",
             "from operator import methodcaller\n",
+            // reviewer round 7, finding 1: subclassing a Java class is not
+            // plain, and the reviewer's reflection exploit uses only
+            // allowlisted imports.
+            "from java.util import ArrayList\nclass Bridge(ArrayList):\n    pass\n",
+            "from java.util import ArrayList\nclass B(ArrayList):\n    pass\nl = B().class.classLoader\n",
+            // reviewer H1: a vetted module hands out `sys` (a PySystemState
+            // in Jython), which reaches `modules` and `__builtin__`.
+            "import re\nx = re.sys.modules\n",
+            "import calendar\nx = calendar.sys\n",
+            "import os.path\nx = os.path.sys\n",
         ] {
             assert!(!unknown(src).is_empty(), "{src}");
         }
@@ -734,5 +766,50 @@ mod tests {
         assert_eq!(u.other, None);
         let names: Vec<&str> = u.imports.iter().map(|(n, _)| n.as_str()).collect();
         assert_eq!(names, ["core.util", "shared.db", ""]);
+    }
+
+    /// The generated tables (`src/generated/vetted_generated.rs`) were
+    /// produced from these exact vetted lists. If the lists change, the
+    /// generator must be rerun (`stubs-gen/run.sh --vetted`): this test
+    /// fails until `GENERATED_FROM` matches again, so the machine-measured
+    /// facts can never silently drift from the vetted inputs.
+    #[test]
+    fn generated_tables_match_vetted_inputs() {
+        let mut mods: Vec<String> = VETTED_MODULES
+            .iter()
+            .map(|(m, _)| (*m).to_owned())
+            .collect();
+        mods.push("os.path".to_owned());
+        mods.sort();
+        mods.dedup();
+        let mut sig: Vec<String> = mods.iter().map(|m| format!("mod:{m}")).collect();
+        let mut classes: Vec<String> = Vec::new();
+        for (pkg, cs) in VETTED_JAVA_CLASSES {
+            for c in *cs {
+                classes.push(format!("{pkg}.{c}"));
+            }
+        }
+        classes.sort();
+        sig.extend(classes.iter().map(|c| format!("java:{c}")));
+        let generated: Vec<&str> = crate::generated::GENERATED_FROM.to_vec();
+        assert_eq!(
+            sig, generated,
+            "vetted lists changed; rerun `stubs-gen/run.sh --vetted` to regenerate \
+             src/generated/vetted_generated.rs"
+        );
+    }
+
+    /// The generated name and attribute lists are sorted for the binary
+    /// searches that consume them.
+    #[test]
+    fn generated_lists_are_sorted() {
+        assert!(
+            crate::generated::JAVA_REFLECTIVE_MEMBERS
+                .windows(2)
+                .all(|w| w[0] < w[1])
+        );
+        for (_, attrs) in crate::generated::MODULE_VETTED_ATTRS {
+            assert!(attrs.windows(2).all(|w| w[0] < w[1]));
+        }
     }
 }

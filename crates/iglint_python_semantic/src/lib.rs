@@ -56,6 +56,7 @@
 mod compile;
 pub mod dynamic;
 mod flow;
+mod generated;
 mod limits;
 mod model;
 mod resolve;

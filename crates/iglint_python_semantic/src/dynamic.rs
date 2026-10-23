@@ -261,10 +261,20 @@ const FRAME_METHOD_NAMES: &[&str] = &[
     "defineClass",
 ];
 
-/// Whether `name`, a whole identifier, is an introspection attribute or a
-/// frame-reaching method name.
+/// Whether `name`, a whole identifier, is an introspection attribute, a
+/// frame-reaching method name, or a Java member that is or yields a
+/// reflection-bearing type (the machine-measured
+/// [`crate::generated::JAVA_REFLECTIVE_MEMBERS`]: `class`, `classLoader`,
+/// `methods`, `getDeclaredMethods`, ...). Naming any of
+/// these, on a value or in a string literal, is the first hop out of plain
+/// data into Java reflection, from which a script reaches the interpreter
+/// (`org.python.core.Py`), the frame and `eval`; we fail closed.
 fn is_introspection_name(name: &str) -> bool {
-    INTROSPECTION_ATTRS.contains(&name) || FRAME_METHOD_NAMES.contains(&name)
+    INTROSPECTION_ATTRS.contains(&name)
+        || FRAME_METHOD_NAMES.contains(&name)
+        || crate::generated::JAVA_REFLECTIVE_MEMBERS
+            .binary_search(&name)
+            .is_ok()
 }
 
 /// Whether a string literal names an introspection attribute in one of its
@@ -686,6 +696,15 @@ mod tests {
             // scanned (decoded as Latin-1), not read as empty (H2).
             "s = '{0.gi_frame.f_back.f_locals}\\xff'.format(it)\n",
             "getattr(tb, 'tb_frame\\xff')\n",
+            // route 1: Java bean-property reflection spellings (the
+            // machine-measured JAVA_REFLECTIVE_MEMBERS). Reviewer round 7
+            // finding 1: `.class` / `.classLoader` / `.methods` reach Java
+            // reflection.
+            "loader = obj.class.classLoader\n",
+            "ms = loader.class.methods\n",
+            "c = x.declaredMethods\n",
+            "getattr(o, 'classLoader')\n",
+            "s = '{0.class.classLoader}'.format(o)\n",
         ] {
             assert!(escape(src), "{src}");
         }

@@ -1438,6 +1438,30 @@ mod tests {
     /// Code that is not vetted keeps every finding of the view, with
     /// unsafe fixes: `cPickle` runs `eval` in the caller's frame
     /// (reviewer repro R6-B), a library module the script calls imports
+    /// Reviewer round 7, finding 1: a view event that reaches Java
+    /// reflection (through a bean property, a `getClass`/`getClassLoader`
+    /// call, or a reflective member named in a string) must never let a
+    /// custom property be removed by a safe fix: the reflection route can
+    /// read any property. No finding may carry a safe fix.
+    #[test]
+    fn java_reflection_blocks_view015_safe_fix() {
+        for script in [
+            "\\tr = self.getClass().getClassLoader()",
+            "\\tr = self.view.custom.class",
+            "\\tr = getattr(self, 'declaredMethods')",
+            "\\tfrom java.util import ArrayList\\n\\tclass B(ArrayList):\\n\\t\\tpass\\n\\tr = B().class",
+        ] {
+            let d = with_library(script, &[]);
+            assert!(
+                d.iter().all(|d| d
+                    .fix
+                    .as_ref()
+                    .is_none_or(|f| f.applicability == crate::Applicability::Unsafe)),
+                "a safe fix survived reflection: {script}\n{d:?}"
+            );
+        }
+    }
+
     /// something unvetted.
     #[test]
     fn unvetted_code_makes_fixes_unsafe() {

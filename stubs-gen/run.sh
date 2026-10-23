@@ -17,6 +17,10 @@
 #   stubs-gen/run.sh            full run
 #   stubs-gen/run.sh --keep     leave the container running afterwards
 #   stubs-gen/run.sh --offline  skip the gateway, reuse stubs-gen/out
+#   stubs-gen/run.sh --vetted   only regenerate the vetted-code tables
+#                               (crates/iglint_python_semantic/src/generated/
+#                               vetted_generated.rs), from gen_vetted.py; needs
+#                               no gateway, just the image's Jython
 #
 # Environment: IGLINT_STUBS_IMAGE (default inductiveautomation/ignition:8.3.3),
 # IGLINT_STUBS_PORT (default 18089), IGLINT_IGNITION_API (an existing
@@ -36,13 +40,37 @@ crate="$root/crates/iglint_stubs"
 raw="$here/out"
 keep=0
 offline=0
+vetted=0
 for arg in "$@"; do
   case "$arg" in
     --keep) keep=1 ;;
     --offline) offline=1 ;;
+    --vetted) vetted=1 ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
+
+# The vetted-code tables need only the image's Jython and reflection, not a
+# running gateway: run gen_vetted.py in a throwaway --rm container.
+if [[ $vetted -eq 1 ]]; then
+  vwork="$(mktemp -d)"
+  chmod 777 "$vwork"
+  cp "$here/gen_vetted.py" "$vwork/"
+  cp "$root/crates/iglint_python_semantic/src/vetted.rs" "$vwork/vetted.rs"
+  vcontainer="iglint-vetted-gen-$$"
+  trap 'docker rm -f "$vcontainer" >/dev/null 2>&1 || true; rm -rf "$vwork"' EXIT
+  docker run --rm --name "$vcontainer" -v "$vwork":/g --entrypoint sh "$image" -c '
+    CP=$(ls /usr/local/bin/ignition/lib/core/common/*.jar | tr "\n" ":")
+    exec /usr/local/bin/ignition/lib/runtime/jre-nix/bin/java -Xss16m -cp "$CP" \
+      -Dpython.path=/usr/local/bin/ignition/user-lib/pylib:/g \
+      -Dpython.import.site=false -Dpython.cachedir.skip=true \
+      -Dpython.console.encoding=UTF-8 \
+      org.python.util.jython /g/gen_vetted.py /g/vetted.rs /g/vetted_generated.rs'
+  cp "$vwork/vetted_generated.rs" \
+    "$root/crates/iglint_python_semantic/src/generated/vetted_generated.rs"
+  echo "wrote crates/iglint_python_semantic/src/generated/vetted_generated.rs" >&2
+  exit 0
+fi
 
 work="$(mktemp -d)"
 cleanup() {
