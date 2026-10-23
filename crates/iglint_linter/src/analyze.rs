@@ -51,6 +51,7 @@ use crate::engine::{
 };
 use crate::registry::RuleCode;
 use crate::rule::{PhaseHooks, RuleImpl, RuleSet, RuleSetCache, ScriptUnit};
+use crate::safety::ScriptText;
 
 /// Suppressions of a unit's scripts by position, with what they matched.
 type SuppressionState = FxHashMap<usize, Suppressions>;
@@ -818,6 +819,14 @@ pub(crate) fn analyze_with(
                 }
                 out
             };
+            let scripts = |text: &str| -> Vec<ScriptText> {
+                let text: Arc<str> = Arc::from(text);
+                match (file_of_target.get(&t), standalone_by_target.get(&t)) {
+                    (Some(f), _) => resource_scripts(&ws, &overrides, *f, text),
+                    (None, Some(_)) => standalone_scripts(&target.path, text),
+                    _ => Vec::new(),
+                }
+            };
             let (fix, diagnostics) = fix_file(
                 settings,
                 options,
@@ -825,6 +834,7 @@ pub(crate) fn analyze_with(
                 &source.shared_text(),
                 diagnostics,
                 &reanalyze,
+                &scripts,
             )?;
             Ok(Outcome {
                 checked: CheckedFile {
@@ -1372,6 +1382,45 @@ fn reanalyze_standalone(
     run_phase(&unit, None, &set, &set.local, &mut out);
     run_phase(&unit, Some(index), &set, &set.project, &mut out);
     out
+}
+
+/// The scripts of `text` as the content of `file`, a data file of a
+/// resource, modelled with the rest of the resource as it is (for the
+/// safe-fix net, [`crate::safety`]).
+pub(crate) fn resource_scripts(
+    ws: &Workspace,
+    overrides: &FxHashMap<FileId, Arc<str>>,
+    file: FileId,
+    text: Arc<str>,
+) -> Vec<ScriptText> {
+    let Some(rid) = ws.file(file).resource else {
+        return Vec::new();
+    };
+    let mut loaded = load(ws, rid, overrides);
+    for f in &mut loaded.files {
+        if f.file == file {
+            replace_text(f, Arc::clone(&text));
+        }
+    }
+    let model = build_model(ws, &loaded);
+    model
+        .scripts()
+        .into_iter()
+        .filter(|(f, _)| *f == file)
+        .map(|(_, s)| ScriptText::of(s))
+        .collect()
+}
+
+/// The scripts of `text` as a file outside any resource (see
+/// [`standalone_model`]).
+pub(crate) fn standalone_scripts(path: &Path, text: Arc<str>) -> Vec<ScriptText> {
+    let file = FileId(0);
+    let doc = is_json(path).then(|| JsonDocument::parse(Arc::clone(&text)));
+    let (data, _) = standalone_model(path, file, doc.as_ref(), &text);
+    data.scripts()
+        .into_iter()
+        .map(|(_, s)| ScriptText::of(s))
+        .collect()
 }
 
 /// Hash of the workspace layout: every file's path, and the text of every

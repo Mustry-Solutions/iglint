@@ -234,3 +234,19 @@ pub fn decoded_flagged(diagnostics: &[Diagnostic]) -> Vec<String> {
         })
         .collect()
 }
+
+/// The text of `rel` after `--fix` (safe fixes only) with `rules`, or the
+/// original text when nothing changes.
+pub fn safe_fixed(f: &Fixture, rules: &[&str], rel: &std::path::Path) -> String {
+    let rules: Vec<(&str, &str)> = rules.iter().map(|r| (*r, "")).collect();
+    let result = f.run(
+        &rules,
+        crate::engine::FixMode::DiffOnly {
+            unsafe_fixes: false,
+        },
+    );
+    match result.fixed.iter().find(|s| s.path == rel) {
+        Some(s) => s.fixed.clone(),
+        None => std::fs::read_to_string(rel).expect("read"),
+    }
+}

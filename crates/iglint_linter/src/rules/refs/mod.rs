@@ -49,7 +49,12 @@ pub(crate) fn external_use(cx: &crate::checker::Checker<'_, '_>, name: &str) -> 
     if index.external_symbol_usage_count(resource.id, name) > 0 {
         return ExternalUse::Used;
     }
-    if all_library_references_known(cx.workspace(), index, project, resource.id) {
+    // Code that is not vetted (`cPickle.loads` of a `c<module>` opcode,
+    // say) may read any module's names by name.
+    let unknown_code = std::iter::once(project)
+        .chain(cx.workspace().project_descendants(project))
+        .any(|p| index.has_unknown_code(p));
+    if !unknown_code && all_library_references_known(cx.workspace(), index, project, resource.id) {
         ExternalUse::Unused
     } else {
         ExternalUse::Unknown

@@ -490,6 +490,7 @@ fn index_library() {
                 symbols: vec![sym("withUnit"), sym("percent")],
                 dynamic: false,
                 constants: Vec::new(),
+                ..ModuleSymbols::default()
             });
         }
     }

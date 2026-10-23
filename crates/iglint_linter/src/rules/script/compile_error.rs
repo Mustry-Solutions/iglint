@@ -122,13 +122,24 @@ impl ScriptRule for CompileError {
         let Some(model) = semantic(cx, unit) else {
             return;
         };
+        // One finding per construct: an error inside the range of an
+        // earlier error with the same message (a recursive construct
+        // reported at each level) adds nothing.
+        let mut reported: Vec<(iglint_text::TextRange, String)> = Vec::new();
         for error in compile_errors(model) {
+            if reported
+                .iter()
+                .any(|(r, m)| *m == error.message && r.contains_range(error.range))
+            {
+                continue;
+            }
             report(
                 cx,
                 unit,
                 error.range,
                 format!("SyntaxError: {}", error.message),
             );
+            reported.push((error.range, error.message));
         }
     }
 }
@@ -148,6 +159,21 @@ mod tests {
                 "SyntaxError: 'break' outside loop"
             ]
         );
+    }
+
+    /// Recursive constructs give one finding, not one per level
+    /// (reviewer note R6-D). Chains near the depth limits are covered by
+    /// the stress tests of the binary.
+    #[test]
+    fn nested_constructs_do_not_flood() {
+        for code in [
+            format!("({}a) = 1\n", "-".repeat(200)),
+            format!("({}a) = 1\n", "not ".repeat(200)),
+            format!("{}a{} = 1\n", "-(".repeat(100), ")".repeat(100)),
+            format!("for ({}a) in x:\n    pass\n", "~".repeat(200)),
+        ] {
+            assert_eq!(lint_module("SCR002", &code).len(), 1, "{}", &code[..20]);
+        }
     }
 
     #[test]

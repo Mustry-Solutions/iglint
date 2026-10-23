@@ -255,12 +255,40 @@ impl StatementEdit {
     }
 }
 
-/// Edits that delete `stmt`, which is an element of `body`: the whole line
-/// when the statement is alone on it, replaced by `pass` when it is the
-/// only statement of its block. Deletions carry their suite, so that fixes
-/// deleting several statements of one suite never empty it in one pass
-/// (the last one is replaced by `pass` in the next pass).
-pub fn delete_statement(source: &str, body: &[Stmt], stmt: &Stmt) -> Option<StatementEdit> {
+/// The text of `range` of `source` without its last line break, and the
+/// line breaks inside it: the edit that empties the lines of `range` but
+/// keeps them (so no other line moves).
+fn blank_lines(source: &str, range: TextRange) -> (TextRange, String) {
+    let text = range.slice(source);
+    let body = text
+        .strip_suffix("\r\n")
+        .or_else(|| text.strip_suffix('\n'))
+        .or_else(|| text.strip_suffix('\r'))
+        .unwrap_or(text);
+    let mut breaks = String::new();
+    for b in body.bytes() {
+        match b {
+            b'\n' | b'\r' => breaks.push(char::from(b)),
+            _ => {}
+        }
+    }
+    (TextRange::at(range.start(), TextSize::of(body)), breaks)
+}
+
+/// Edits that delete `stmt`, which is an element of `body`, when the
+/// statement is alone on its lines; replaced by `pass` when it is the only
+/// statement of its block. With `keep_lines` (what safe fixes do) the
+/// statement's text goes and its lines stay, empty, so that no line
+/// number changes; otherwise the lines go too. Deletions carry their
+/// suite, so that fixes deleting several statements of one suite never
+/// empty it in one pass (the last one is replaced by `pass` in the next
+/// pass).
+pub fn delete_statement(
+    source: &str,
+    body: &[Stmt],
+    stmt: &Stmt,
+    keep_lines: bool,
+) -> Option<StatementEdit> {
     let range = iglint_text::Ranged::range(stmt);
     let lines = statement_line_range(source, range)?;
     if body.len() == 1 {
@@ -277,9 +305,14 @@ pub fn delete_statement(source: &str, body: &[Stmt], stmt: &Stmt) -> Option<Stat
         Some(StatementEdit::replace(range, "pass"))
     } else {
         let first = iglint_text::Ranged::range(&body[0]).start();
+        let (range, content) = if keep_lines {
+            blank_lines(source, lines)
+        } else {
+            (lines, String::new())
+        };
         Some(StatementEdit {
-            range: lines,
-            content: String::new(),
+            range,
+            content,
             suite: Some((first, u32::try_from(body.len()).ok()?)),
         })
     }

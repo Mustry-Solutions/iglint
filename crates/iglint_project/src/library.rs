@@ -46,6 +46,16 @@ pub struct ModuleSymbols {
     /// Top-level variables bound only to literals (`LIMIT = 10`,
     /// `NAMES = ['a', 'b']`): their value is never a function.
     pub constants: Vec<String>,
+    /// The module uses something that is not vetted (a module, Java
+    /// class, builtin or module attribute; see
+    /// `iglint_python_semantic::vetted`): safe fixes that depend on what
+    /// code can read do not trust it.
+    pub unknown_code: bool,
+    /// Imports of modules that are not vetted, which are fine only when
+    /// they are plain project library modules.
+    pub imports: Vec<String>,
+    /// Dotted names the module uses that may be library names.
+    pub library_names: Vec<String>,
 }
 
 impl ModuleSymbols {
@@ -474,6 +484,7 @@ mod tests {
             symbols: vec![sym("withUnit")],
             dynamic: false,
             constants: Vec::new(),
+            ..ModuleSymbols::default()
         };
         let legacy = ModuleSymbols::default();
         let lookup = |r: ResourceId| match r.0 {

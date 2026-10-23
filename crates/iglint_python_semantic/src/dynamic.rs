@@ -1,63 +1,63 @@
 //! Ways code can observe a running frame's namespace, a module's
-//! namespace, a line number or the identity of a function other than by
-//! naming variables.
+//! namespace or the identity of a function other than by naming
+//! variables.
 //!
-//! # Closed argument
+//! # Role
 //!
-//! Jython 2.7 (Ignition 8.3) can reach a caller's locals, a module's
-//! globals, a source line number or a function's code/identity in exactly
-//! three ways. Detection covers every one of them and fails closed: when a
-//! module takes any route, every scope of the module is treated as reading
-//! its locals and writing its globals.
+//! These are the routes that the analyses of iglint *understand*: when a
+//! module takes one, every scope of the module is treated as reading its
+//! locals and writing its globals (the module **fails closed**). They are
+//! not the safety argument for fixes on their own: an enumerated list of
+//! routes was defeated in six review rounds in a row. Safe fixes that
+//! depend on what code can read also require the code to be **vetted**
+//! ([`crate::vetted`]: default deny over modules, Java classes, builtins
+//! and module attributes), and the engine's post-fix net checks that safe
+//! fixes keep every line, compile status, docstring and name resolution.
+//!
+//! # Routes
 //!
 //! 1. **Naming an introspection attribute in source.** Frame, traceback,
-//!    code, generator and function objects expose their namespaces and
-//!    line numbers only through named attributes ([`INTROSPECTION_ATTRS`]:
-//!    `f_locals`, `f_globals`, `f_back`, `f_lineno`, `f_code`, `tb_frame`,
-//!    `tb_next`, `tb_lineno`, `gi_frame`, `func_globals`, `func_code`,
-//!    `__globals__`, `__code__`, `co_*`, `__dict__`, `__getattribute__`,
-//!    ...). The attribute can be written as an attribute access
-//!    (`tb.tb_frame`) or as any string literal, including a dotted or
+//!    code, generator, function and class objects expose namespaces only
+//!    through named attributes ([`INTROSPECTION_ATTRS`]: `f_locals`,
+//!    `f_globals`, `f_back`, `tb_frame`, `gi_frame`, `func_globals`,
+//!    `__globals__`, `co_*`, `__dict__`, `__subclasses__`, `__mro__`, ...)
+//!    and Java reflection methods ([`FRAME_METHOD_NAMES`]: `getClass`,
+//!    `forName`, `loadClass`, `getContextClassLoader`, ...). The name can
+//!    be an attribute access or any string literal, including a dotted or
 //!    sub-segment of one (`getattr(tb, 'tb_frame')`,
-//!    `attrgetter('tb_frame.f_back.f_locals')`,
-//!    `tb.__getattribute__('tb_frame')`). Every string literal of the
-//!    module is scanned, matching whole identifiers / dotted segments so
-//!    ordinary prose does not trigger.
-//! 2. **A reflective accessor with a computed name**
-//!    ([`REFLECTIVE_ACCESSORS`]: `getattr`, `setattr`, `delattr`,
-//!    `hasattr`, `attrgetter`, `methodcaller`, `__getattribute__`, ...)
-//!    whose name argument is not a string literal: the attribute it reads
-//!    is unknown, so it may be an introspection attribute.
+//!    `attrgetter('tb_frame.f_back.f_locals')`, `'{0.gi_frame}'.format`).
+//!    Every string literal of the module is scanned, matching whole
+//!    identifiers so that ordinary prose does not trigger.
+//! 2. **A reflective accessor with a computed name or used as a value.**
+//!    `getattr`, `setattr`, `delattr`, `hasattr`, `attrgetter`,
+//!    `methodcaller`, `__getattribute__` ([`REFLECTIVE_ACCESSORS`]) are
+//!    understood only as direct calls with a literal name (and the
+//!    literal `class`, Jython's bean property for `getClass()`, is a
+//!    route). Any other use (`get = getattr`, `map(getattr, ...)`,
+//!    `f = operator.attrgetter`) is a route: the attribute read is
+//!    unknown. So is `str.format` on a format string that is not a literal
+//!    (`fmt.format(g)`): format strings name attributes.
 //! 3. **An interpreter or reflection API.** `eval`, `exec`, `execfile`,
 //!    `compile`, `locals`, `globals`, `vars`, `dir`, `input`,
 //!    `__import__`; the builtins module and the module-handing modules
 //!    (`__builtin__`, `importlib`, `imp`); the frame-, module- and
 //!    trace-reaching functions of `sys`, `inspect` and `gc`
-//!    ([`PARTLY_FRAME_MODULES`]); `sys.exc_info` and the traceback module
-//!    (they hand out tracebacks and rendered line numbers); and Java /
-//!    Jython reflection ([`is_reflection_import`]: any import from
-//!    `org.python.*`, `java.lang.reflect`, `java.lang.Class`,
-//!    `java.lang.invoke`, `javax.script`, and `.getClass()` /
-//!    `Class.forName`).
+//!    ([`PARTLY_FRAME_MODULES`]); `sys.exc_info` and the traceback
+//!    module; and Java / Jython reflection ([`is_reflection_import`]).
 //!
 //! A frame builtin used under another name reads the frame of whoever
 //! calls it, also across modules (`ev = eval` in one module, `m.ev('x')`
 //! in another reads the caller's `x`): verified on Jython 2.7. So a bare
-//! frame builtin used as a value, or handed out of a module, is an escape
+//! frame builtin used as a value, or handed out of a module, is a route
 //! for every scope.
 //!
-//! # Line numbers (part B)
+//! # Line numbers
 //!
-//! Line numbers are observable *behaviour* when code reads them into a
-//! value: `tb_lineno`, `f_lineno`, `co_firstlineno` (introspection
-//! attributes, route 1), the `traceback` module, `sys.exc_info` and
-//! `inspect` (route 3). Detection of those routes therefore also makes a
-//! module line-number sensitive, which makes every fix that deletes or
-//! inserts source lines unsafe in it (see `docs/internal/fix-safety.md`).
-//! The gateway's log of an *uncaught* exception is diagnostic output, not
-//! a value the program can read, so it is not behaviour: a fix may move
-//! the line a traceback would print in the log. That is a deliberate
-//! decision, documented in the threat model.
+//! Line numbers are not something these routes protect: safe fixes never
+//! move a line (the engine rejects any that would), so whatever reads them
+//! (tracebacks, `warnings`, `logging`, Java stack traces) sees the same
+//! numbers after a safe fix. Routes that only expose line numbers are kept
+//! because they also reach frames.
 
 use iglint_python::ast::{Expr, ExprContext, Stmt, StringValue};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
@@ -85,10 +85,9 @@ pub const FRAME_BUILTINS: &[&str] = &[
 /// `compile` builds code for `exec` / `eval`.
 const INTERP_BUILTINS: &[&str] = &["__import__", "compile"];
 
-/// Reflective accessors: a call of one of these with a name argument that
-/// is not a string literal reads an attribute whose name is unknown, so it
-/// may be an introspection attribute (route 2). A string-literal name is
-/// handled by the string-literal scan of route 1.
+/// Reflective accessors: understood only as direct calls with a literal
+/// name (route 2); a string-literal name is handled by the string-literal
+/// scan of route 1, any other use is a route.
 pub const REFLECTIVE_ACCESSORS: &[&str] = &[
     "getattr",
     "setattr",
@@ -101,6 +100,10 @@ pub const REFLECTIVE_ACCESSORS: &[&str] = &[
     "__setattr__",
     "__delattr__",
 ];
+
+/// String methods that read the attributes and items their format string
+/// names (`'{0.f_back}'.format(frame)`).
+const FORMAT_METHODS: &[&str] = &["format", "vformat"];
 
 /// Modules whose every use hands out other modules or the builtins, or
 /// renders tracebacks (line numbers) into values.
@@ -214,6 +217,13 @@ pub const INTROSPECTION_ATTRS: &[&str] = &[
     "__dict__",
     "__getattribute__",
     "__builtins__",
+    // classes: every class of the interpreter, and the classes a class
+    // derives from (each leads to functions and their globals)
+    "__subclasses__",
+    "__mro__",
+    "__bases__",
+    "__base__",
+    "mro",
 ];
 
 /// Module functions that reach frames or tracebacks, matched as attribute
@@ -236,6 +246,19 @@ const FRAME_METHOD_NAMES: &[&str] = &[
     "getDeclaredFields",
     "getDeclaredMethod",
     "getDeclaredMethods",
+    "getDeclaredConstructor",
+    "getDeclaredConstructors",
+    "getMethod",
+    "getMethods",
+    "getField",
+    "getFields",
+    "getConstructor",
+    "getConstructors",
+    "getClassLoader",
+    "getContextClassLoader",
+    "getSystemClassLoader",
+    "loadClass",
+    "defineClass",
 ];
 
 /// Whether `name`, a whole identifier, is an introspection attribute or a
@@ -403,7 +426,13 @@ impl Escapes {
         if c.starargs.is_some() || c.kwargs.is_some() {
             return true;
         }
-        let is_literal = |e: &Expr| matches!(e, Expr::Str(_));
+        // A literal name is scanned like every string literal, except
+        // `class`: Jython exposes `getClass()` as the bean property
+        // `class`, which only a reflective accessor can name.
+        let is_literal = |e: &Expr| match e {
+            Expr::Str(s) => s.s.as_str() != Some("class"),
+            _ => false,
+        };
         match name {
             // `attrgetter('a', 'b')`: every argument is an attribute name.
             "attrgetter" => !c.args.iter().all(is_literal),
@@ -459,6 +488,7 @@ impl<'a> Visitor<'a> for Escapes {
             Expr::Name(n) => {
                 if matches!(&*n.id, "__builtin__" | "__builtins__")
                     || (n.ctx == ExprContext::Load && FRAME_BUILTINS.contains(&&*n.id))
+                    || (n.ctx == ExprContext::Load && REFLECTIVE_ACCESSORS.contains(&&*n.id))
                     || (n.ctx == ExprContext::Load && self.modules.contains_key(&*n.id))
                 {
                     // Direct calls and attribute reads are taken apart
@@ -476,6 +506,37 @@ impl<'a> Visitor<'a> for Escapes {
             Expr::Call(c) => {
                 if Escapes::reflective_escape(c) {
                     self.found(c.range);
+                }
+                let format = match &*c.func {
+                    Expr::Attribute(a) if FORMAT_METHODS.contains(&a.attr.as_str()) => Some(a),
+                    _ => None,
+                };
+                if Escapes::reflective_accessor(&c.func).is_some() || format.is_some() {
+                    // A direct call: the name argument was checked above
+                    // (a literal is scanned like every string literal).
+                    // `str.format` reads the attributes its format string
+                    // names: a computed format string is a computed name.
+                    if let Some(a) = format
+                        && !matches!(&*a.value, Expr::Str(_))
+                    {
+                        self.found(c.range);
+                    }
+                    if let Expr::Attribute(a) = &*c.func {
+                        self.visit_expr(&a.value);
+                    }
+                    for a in &c.args {
+                        self.visit_expr(a);
+                    }
+                    for k in &c.keywords {
+                        self.visit_expr(&k.value);
+                    }
+                    if let Some(s) = &c.starargs {
+                        self.visit_expr(s);
+                    }
+                    if let Some(k) = &c.kwargs {
+                        self.visit_expr(k);
+                    }
+                    return;
                 }
                 if let Expr::Name(f) = &*c.func
                     && FRAME_BUILTINS.contains(&&*f.id)
@@ -508,6 +569,14 @@ impl<'a> Visitor<'a> for Escapes {
             Expr::Attribute(a) => {
                 let attr = &*a.attr.id;
                 let module = self.module(&a.value);
+                // A reflective accessor or `format` method used as a value
+                // (direct calls returned above): `get = getattr`,
+                // `f = operator.attrgetter`, `fmt = template.format`.
+                if REFLECTIVE_ACCESSORS.contains(&attr)
+                    || (FORMAT_METHODS.contains(&attr) && !matches!(&*a.value, Expr::Str(_)))
+                {
+                    self.found(a.range);
+                }
                 if is_introspection_name(attr)
                     || module
                         .and_then(module_frame_names)
@@ -593,6 +662,22 @@ mod tests {
             "setattr(o, name, v)\n",
             "operator.attrgetter(name)(o)\n",
             "o.__getattribute__(name)\n",
+            // route 2: a reflective accessor under another name or as a
+            // value, and the `class` bean property (reviewer repro R6-E3)
+            "get = getattr\nframe = get(g, 'gi_' + 'frame')\n",
+            "f = operator.attrgetter\n",
+            "map(getattr, objs, names)\n",
+            "getattr(o, 'class')\n",
+            // route 2: format strings name attributes
+            "s = ('{0.gi_' + 'frame}').format(g)\n",
+            "s = fmt.format(g)\n",
+            "f = template.format\n",
+            "s = str.format(fmt, g)\n",
+            // route 1: class hierarchies, Java class loaders
+            "c = object.__subclasses__()\n",
+            "b = C.__mro__\n",
+            "l = Thread.currentThread().getContextClassLoader()\n",
+            "c = loader.loadClass(name)\n",
         ] {
             assert!(escape(src), "{src}");
         }
@@ -613,6 +698,8 @@ mod tests {
             "getattr(o, 'value')\n",
             "setattr(o, 'count', 1)\n",
             "hasattr(o, 'items')\n",
+            "s = '{0} of {1}'.format(a, b)\n",
+            "s = '%s' % name\n",
             // ordinary prose and names that merely contain a word
             "msg = 'the frame could not be found'\n",
             "label = 'function code'\n",

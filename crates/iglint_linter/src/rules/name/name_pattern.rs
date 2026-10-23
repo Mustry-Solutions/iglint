@@ -736,6 +736,9 @@ fn rename_fix(
     }
     let risky = count > 0
         || components_may_escape(cx, view)
+        // Code that is not vetted may look the component up in ways
+        // iglint does not know (`cPickle.loads` of an `eval` opcode).
+        || crate::rules::vetting::unit_uses_unknown_code(cx)
         || refs.meta_name_read.contains(&c.id)
         || refs.dynamic_meta_name
         || refs.dynamic_lookup
@@ -1198,6 +1201,10 @@ mod tests {
             .resource(
                 "projects/p/ignition/script-python/lib/plain",
                 &[("code.py", "def log(m):\n    pass\n")],
+            )
+            .resource(
+                "projects/p/ignition/script-python/lib/unvetted",
+                &[("code.py", "import warnings\ndef log(m):\n    pass\n")],
             );
             let d = f.lint_with(&[("NAME001", "convention = \"PascalCase\"")]);
             let d = d
@@ -1213,6 +1220,11 @@ mod tests {
             "\\tgetattr(self.parent, n)('x')",
             "\\texec s",
             "\\tfrom __builtin__ import locals as l\\n\\tl()",
+            // Code that is not vetted (reviewer repro R6-B): `cPickle`
+            // runs `eval` in the caller's frame; a library module that
+            // imports something unvetted.
+            "\\timport cPickle\\n\\tc = cPickle.loads(\\\"c__builtin__\\\\neval\\\\n(S'self.parent.getChild(\\\\\\\"the_\\\\\\\"+\\\\\\\"label\\\\\\\")'\\\\ntR.\\\")",
+            "\\tlib.unvetted.log('x')",
         ] {
             assert_eq!(
                 applicability(script),

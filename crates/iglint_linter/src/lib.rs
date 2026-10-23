@@ -13,6 +13,7 @@ pub mod options;
 pub mod registry;
 pub mod rule;
 pub mod rules;
+pub mod safety;
 pub mod script_facts;
 pub mod settings;
 pub mod stack;

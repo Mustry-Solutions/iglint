@@ -447,6 +447,9 @@ impl ViewRule for UnusedCustomProperty {
         // values into library functions.
         let local = usage(view, &local);
         let usage = usage(view, &followed);
+        // Code that is not vetted may read the property in ways iglint
+        // does not know (`cPickle.loads` of an `eval` opcode).
+        let mut unknown_code = None;
         for (i, def) in view.properties.iter().enumerate() {
             if def.name.starts_with('_') || def.name.is_empty() || is_active(view, def) {
                 continue;
@@ -466,7 +469,11 @@ impl ViewRule for UnusedCustomProperty {
             // property and the view proves it unused without following
             // values into library functions (code outside the view, which
             // other resources or run-time changes can invalidate).
-            let interprocedural = unchecked || local.is_read(i, def) || local.is_written(i, def);
+            let interprocedural = unchecked
+                || local.is_read(i, def)
+                || local.is_written(i, def)
+                || *unknown_code
+                    .get_or_insert_with(|| crate::rules::vetting::unit_uses_unknown_code(cx));
             let fix = match def.category {
                 PropCategory::Custom => fix(
                     cx,
@@ -540,22 +547,10 @@ fn fix(
     })
 }
 
-/// Whether code of `body` may read variables by name or reach frames:
-/// it reads frames itself ([`iglint_python_semantic::dynamic::reads_frames`])
-/// or calls or uses a library name that is not a plain function, class
-/// or literal constant (it may hold `eval` or `locals`), checked through
-/// the project index; without the index, any such name counts.
-pub(crate) fn may_read_frames(
-    cx: &Checker<'_, '_>,
-    model: &iglint_python_semantic::SemanticModel<'_>,
-    body: &[iglint_python::ast::Stmt],
-) -> bool {
-    iglint_python_semantic::dynamic::reads_frames(body).is_some()
-        || library_names_may_read_frames(cx, model, body)
-}
-
 /// Whether `body` calls or uses a library name that is not a plain
-/// function, class or literal constant (see [`may_read_frames`]). `model`
+/// function, class or literal constant: it may hold `eval` or `locals`,
+/// checked through the project index; without the index, any such name
+/// counts. `model`
 /// resolves the names `body` uses through their scope.
 pub(crate) fn library_names_may_read_frames(
     cx: &Checker<'_, '_>,
@@ -1438,6 +1433,42 @@ mod tests {
             applicability(&d)
         );
         assert_eq!(paths(&d).len(), 4);
+    }
+
+    /// Code that is not vetted keeps every finding of the view, with
+    /// unsafe fixes: `cPickle` runs `eval` in the caller's frame
+    /// (reviewer repro R6-B), a library module the script calls imports
+    /// something unvetted.
+    #[test]
+    fn unvetted_code_makes_fixes_unsafe() {
+        let all_unsafe = |d: &[Diagnostic]| {
+            !d.is_empty()
+                && d.iter()
+                    .all(|d| d.fix.as_ref().unwrap().applicability == crate::Applicability::Unsafe)
+        };
+        let d = with_library(
+            "\\timport cPickle\\n\\tsystem.perspective.print(cPickle.loads(\\\"c__builtin__\\\\neval\\\\n(S'self.view.custom.a'\\\\ntR.\\\"))",
+            &[],
+        );
+        assert!(all_unsafe(&d), "{d:?}");
+        let d = with_library(
+            "\\tlib.util.log('x')",
+            &[("lib/util", "import warnings\ndef log(m):\n    print m\n")],
+        );
+        assert!(all_unsafe(&d), "{d:?}");
+        // Vetted modules keep the safe fix.
+        let d = with_library(
+            "\\timport json\\n\\tlib.util.log(json.dumps(1))",
+            &[(
+                "lib/util",
+                "import math\ndef log(m):\n    print math.sqrt(m)\n",
+            )],
+        );
+        assert!(
+            d.iter()
+                .all(|d| d.fix.as_ref().unwrap().applicability == crate::Applicability::Safe),
+            "{d:?}"
+        );
     }
 
     #[test]

@@ -560,7 +560,7 @@ fn fixes_move_pylint_findings_without_running_pylint_again() {
     );
     assert_eq!(runs(&f), 1);
     assert_eq!(result.fixed.len(), 1);
-    assert_eq!(result.fixed[0].fixed, "x = undefined_e\n");
+    assert_eq!(result.fixed[0].fixed, "\nx = undefined_e\n");
     let d: Vec<&Diagnostic> = result.diagnostics.iter().collect();
     assert_eq!(d.len(), 1);
     assert_eq!(d[0].rule.code(), "SCR900");

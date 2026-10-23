@@ -52,12 +52,10 @@ return total
 ## Fix
 
 Removes the unused codes, or the whole comment when none of its codes is
-used (the whole line when the comment is alone on it). Safe, except when
-the whole comment would go and it holds more than the suppression (a
-reason, a `# pylint:` directive, a `coding:` declaration), and when a
-whole line goes in a script that reads frames (`sys._getframe()`,
-`inspect`, `eval`, `locals()`, or a library name that may hold one of
-them): line numbers move. Then unsafe.
+used. A comment alone on its line leaves the line empty, so no line number
+changes. Safe, except when the whole comment would go and it holds more
+than the suppression (a reason, a `# pylint:` directive, a `coding:`
+declaration); that fix is unsafe and removes the comment's line too.
 "#,
     ..RuleMeta::DEFAULT
 };
@@ -166,33 +164,23 @@ pub(crate) fn report_unused(
             continue;
         }
         let all_unused = s.selectors.is_empty() || unused.len() == s.selectors.len();
-        let edit = if all_unused {
-            remove_comment(source, s.comment)
-        } else {
-            rewrite_selectors(source, s.comment, &s.selectors, &unused)
-        };
         // A comment is safe to delete when it holds nothing but the
         // suppression: other text (a reason, a `# pylint:` directive) and a
         // coding declaration are not iglint's to remove.
         let comment = s.comment.slice(source);
-        // Deleting a whole line moves the code below it up: line numbers
-        // are visible to code that reads frames (`f_lineno`).
-        let removes_line = edit
-            .as_ref()
-            .is_some_and(|(r, _)| r.slice(source).contains('\n'));
-        let applicability = if (all_unused
-            && (!directive_rest(comment).trim().is_empty() || is_coding_declaration(comment)))
-            || (removes_line
-                && crate::rules::script::semantic(cx, unit).is_some_and(|model| {
-                    crate::rules::view::unused_custom_property::may_read_frames(
-                        cx,
-                        model,
-                        &unit.parsed.module.body,
-                    )
-                })) {
+        let applicability = if all_unused
+            && (!directive_rest(comment).trim().is_empty() || is_coding_declaration(comment))
+        {
             Applicability::Unsafe
         } else {
             Applicability::Safe
+        };
+        // The safe fix keeps the comment's line (empty) so that no line
+        // number changes; the unsafe one removes it.
+        let edit = if all_unused {
+            remove_comment(source, s.comment, applicability == Applicability::Safe)
+        } else {
+            rewrite_selectors(source, s.comment, &s.selectors, &unused)
         };
         let fix = edit.and_then(|e| {
             fix(
@@ -234,13 +222,21 @@ fn is_coding_declaration(comment: &str) -> bool {
         .any(|(i, m)| comment[i + m.len()..].starts_with([':', '=']))
 }
 
-/// Deletes a comment and the whitespace before it, or its whole line when
-/// it is alone on the line.
-fn remove_comment(source: &str, comment: TextRange) -> Option<(TextRange, String)> {
+/// Deletes a comment and the whitespace before it. A comment alone on its
+/// line leaves an empty line with `keep_line`, and takes its line with it
+/// otherwise.
+fn remove_comment(
+    source: &str,
+    comment: TextRange,
+    keep_line: bool,
+) -> Option<(TextRange, String)> {
     let start = comment.start().to_usize();
     let line_start = source[..start].rfind('\n').map_or(0, |i| i + 1);
     let end = comment.end().to_usize();
     if source[line_start..start].trim().is_empty() {
+        if keep_line {
+            return Some((TextRange::from(line_start..end), String::new()));
+        }
         let line_end = source[end..]
             .find('\n')
             .map_or(source.len(), |i| end + i + 1);
@@ -321,61 +317,50 @@ mod tests {
             false,
             &library_path(&f, "m"),
         );
-        assert_eq!(fixed, "import os\nprint os\nx = 1\n");
+        // The comment's own line stays, empty: no line number changes.
+        assert_eq!(fixed, "import os\nprint os\n\nx = 1\n");
     }
 
-    /// Deleting a whole line moves line numbers, which code that reads
-    /// frames sees: the fix is unsafe there, and safe for a comment after
-    /// code or in a script without frame access.
+    /// The safe fix never moves a line, so it stays safe where code reads
+    /// line numbers or frames; the unsafe fix (a comment with a reason)
+    /// removes the whole line. (Reviewer repros R6-A: `warnings`,
+    /// `logging`, Java stack traces.)
     #[test]
-    fn line_removal_is_unsafe_where_frames_are_read() {
-        let applicability = |code: &str| {
-            let f = with_library(
-                with_library(library("m", code), "lib/util", "ev = eval\n"),
-                "lib/plain",
-                "def log(m):\n    pass\n",
-            );
-            let d = f.lint(&["SCR101", "SCR123"]);
-            let d = d
-                .iter()
-                .find(|d| d.rule.code() == "SCR123")
-                .unwrap_or_else(|| panic!("{code}: {d:?}"));
-            d.fix.as_ref().unwrap().applicability
-        };
+    fn safe_removal_keeps_lines() {
+        use crate::diagnostic::Applicability::{Safe, Unsafe};
         let line = "# iglint: ignore[SCR101]\nx = 1\n";
-        for dynamic in [
+        for reader in [
             "import sys\nprint sys._getframe(0).f_lineno\n",
-            "import __builtin__\n__builtin__.eval(s)\n",
-            "lib.util.ev(s)\n",
-            "exec s\n",
-            "import inspect\nprint inspect.currentframe()\n",
-            // Reading a line number is observing it (part B).
-            "x = sys.exc_info()[2].tb_lineno\n",
+            "import warnings\nwith warnings.catch_warnings(record=True) as w:\n    warnings.warn('x')\n    print w[0].lineno\n",
+            "from java.lang import Thread\nprint Thread.currentThread().getStackTrace()[1].getLineNumber()\n",
             "import traceback\nx = traceback.format_exc()\n",
         ] {
-            assert_eq!(
-                applicability(&format!("{line}{dynamic}")),
-                crate::Applicability::Unsafe,
-                "{dynamic}"
+            let code = format!("{line}{reader}");
+            let f = library("m", &code);
+            let d = f.lint(&["SCR101", "SCR123"]);
+            let found: Vec<_> = d
+                .iter()
+                .filter(|d| d.rule.code() == "SCR123")
+                .map(|d| d.fix.as_ref().map(|f| f.applicability))
+                .collect();
+            assert_eq!(found, [Some(Safe)], "{reader}");
+            let fixed = f.fixed(
+                &[("SCR101", ""), ("SCR123", "")],
+                false,
+                &library_path(&f, "m"),
             );
-            // Only the comment goes: no line moves.
-            assert_eq!(
-                applicability(&format!("x = 1  # iglint: ignore[SCR101]\n{dynamic}")),
-                crate::Applicability::Safe,
-                "{dynamic}"
-            );
+            assert_eq!(fixed, format!("\nx = 1\n{reader}"));
         }
-        // A plain library call and benign code: the comment line may go.
-        assert_eq!(
-            applicability(&format!("{line}lib.plain.log(s)\nprint x\n")),
-            crate::Applicability::Safe
+        // The unsafe fix removes the line.
+        let f = library("m", "# iglint: ignore[SCR101] legacy\nx = 1\n");
+        let d = f.lint(&["SCR101", "SCR123"]);
+        assert_eq!(d[0].fix.as_ref().map(|f| f.applicability), Some(Unsafe));
+        let fixed = f.fixed(
+            &[("SCR101", ""), ("SCR123", "")],
+            true,
+            &library_path(&f, "m"),
         );
-        // A reflective accessor with a computed name reads frames
-        // (route 2), so moving a line below it is unsafe.
-        assert_eq!(
-            applicability(&format!("{line}print getattr(x, n)\n")),
-            crate::Applicability::Unsafe
-        );
+        assert_eq!(fixed, "x = 1\n");
     }
 
     #[test]

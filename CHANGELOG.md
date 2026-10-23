@@ -46,23 +46,45 @@ from 0.1.0 on.
 
 ### Fixed
 
-- Frame and introspection detection is now a closed argument instead of a
-  list of patterns (`docs/internal/fix-safety.md`, "Threat model"). Jython
-  code can observe a caller's locals, a module's namespace, a function's
-  identity or a source line number in only three ways, and all are
-  detected, failing closed: an introspection attribute named in source or
-  in any string literal (`getattr(tb, 'tb_frame')`,
-  `attrgetter('tb_frame.f_back.f_locals')`, `co_firstlineno`,
-  `.tb_lineno`); a reflective accessor with a computed name
-  (`getattr(o, n)`, `setattr`, `attrgetter(n)`, `__getattribute__(n)`);
-  and the interpreter and reflection APIs (`compile`, `sys.exc_info`, the
-  `traceback` module, any import from `org.python.*`, `java.lang.reflect`,
-  `java.lang.Class`, `java.lang.invoke`, `javax.script`, `.getClass()`).
-  A library function or module that takes any route is no longer treated
-  as plain, so VIEW015, NAME001 and SCR102 no longer offer a safe fix
-  (nor, for VIEW015, a finding) for data a frame-reading library function
-  reaches, and SCR123 no longer deletes a line in a script that reads a
-  line number (`tb_lineno`, `traceback.format_exc`).
+- Safe fixes now assume only vetted code (`docs/internal/fix-safety.md`,
+  "Threat model"), instead of a list of dynamic routes that six review
+  rounds each defeated. A script or library module keeps the safe fixes
+  of SCR102, VIEW015 and NAME001 only when every module, Java class,
+  builtin and module attribute it uses is on a default-deny allowlist
+  (checked on Jython: none can evaluate code, read a frame or look up
+  names from data), and every library module it imports or calls is
+  vetted too. `cPickle` (whose `c__builtin__` opcodes call `eval` or
+  `globals()` in the caller's frame), `warnings`, `logging`, `traceback`,
+  `org.python.*`, `com.inductiveautomation.*`, `java.lang.Thread`,
+  `Throwable`, `Class` and anything else not listed make those fixes
+  unsafe; findings are unchanged. Library-module imports also need every
+  resource of the project to be vetted.
+- Safe fixes never move a line: SCR102 and SCR123 empty the line of a
+  deleted statement or comment and keep it (the line-removing fix is now
+  the unsafe one). Line numbers read through `warnings`, `logging`
+  records, tracebacks or Java stack traces no longer change under
+  `--fix`.
+- A central safety net drops any safe fix that would move a line of a
+  script, change whether a script compiles (in either direction: removing
+  `import os` before a misplaced `from __future__ import division` made it
+  valid), change a docstring, the `__future__` imports, the scopes or a
+  generator, or what any remaining name resolves to (removing
+  `import math as len` after `print len(x)` in a function turned an
+  `UnboundLocalError` into a builtin call). It covers `.py` files and
+  every script embedded in view and resource JSON (two deletions in a
+  view script no longer promote a string to a docstring).
+- SCR102 no longer offers a safe fix for an import that is the only
+  binding of a name still read in its scope, or that comes before a
+  `from __future__` import.
+- Frame detection treats reflective accessors used under another name or
+  as values (`get = getattr`, `map(getattr, ...)`,
+  `operator.attrgetter` as a value), `getattr(o, 'class')`, format
+  strings that are not literals (`fmt.format(o)` reads the attributes the
+  string names), `__subclasses__`, `__mro__`, `__bases__` and Java class
+  loaders as frame routes, besides introspection attributes named in
+  source or strings, reflective accessors with computed names and the
+  interpreter and reflection APIs.
+- SCR002 reports a recursive construct once, not once per nesting level.
 - VIEW015 no longer removes properties that a library function reads into
   a local it never uses (`x = c.custom.foo`, also inside `try`), calls
   (`f = c.custom.foo; f()`) or reads through an alias of the container

@@ -15,12 +15,12 @@ every fix below:
 * module attributes: top-level names of a library module are used by other
   resources as `pkg.mod.name`, statically (project index) or dynamically
   (`getattr`, module used as a value, `runScript` with a computed name);
-* `__all__`, and dynamic access inside the script: any of the three
-  introspection routes of the "Threat model" section below (frame,
-  traceback, code, generator and function attributes named in source or in
-  a string literal; reflective accessors with a computed name; the
-  interpreter and reflection APIs), which reach a caller's locals, a
-  module's namespace, a function's identity or a source line number;
+* `__all__`, and dynamic access inside the script: the introspection
+  routes of `iglint_python_semantic::dynamic` (frame, traceback, code,
+  generator, function and class attributes named in source or in a string
+  literal; reflective accessors with a computed name or used as values;
+  computed format strings; the interpreter and reflection APIs), and any
+  code that is not vetted (see "Threat model");
 * side effects of imports: a project library module runs its top level,
   Java classes run static initializers, some standard modules start
   threads or configure logging, dotted imports make a submodule an
@@ -35,83 +35,114 @@ Regression tests named after each condition live next to the rule. Script
 behaviour was checked on IA's Jython (Ignition 8.3.3 image) by running the
 code before and after the edit.
 
-## Threat model: frame and introspection access
+## Threat model
 
-Several fixes are safe only when a script cannot observe something an
-edit changes: a caller's locals (a renamed component, a property), a
-module's namespace (a removed import), the identity of a function, or a
-source line number (a deleted or inserted line). Patching one dynamic
-route at a time has failed five review rounds in a row, each a new route.
-This section is a *closed argument*: in Jython 2.7 (Ignition 8.3) code can
-observe those things in exactly three ways, detection
-(`iglint_python_semantic::dynamic`) covers every one, and a module that
-takes any route is treated as reading its locals and writing its globals
-in every scope (it **fails closed**). The three routes:
+Six review rounds in a row found a dynamic Python route that defeated a
+safe fix, each time one that an enumerated list did not contain (frames,
+tracebacks, generators, reflection, `cPickle` opcodes that call `eval` or
+`globals()` in the caller's frame, `str.format` reading attributes,
+`warnings` and Java stack traces reading line numbers). The argument is
+therefore no longer "these are all the routes". It is:
 
-1. **Naming an introspection attribute in source.** Frames, tracebacks,
-   code, generator and function objects expose their namespaces, their
-   identity and their line numbers only through named attributes
-   (`f_locals`, `f_globals`, `f_back`, `f_lineno`, `f_code`, `tb_frame`,
-   `tb_next`, `tb_lineno`, `gi_frame`, `func_globals`, `func_code`,
-   `__globals__`, `__code__`, every `co_*`, `__dict__`,
-   `__getattribute__`, ...). The attribute can appear as an attribute
-   access (`tb.tb_frame`) or as any string literal, including a dotted or
-   sub-segment of one (`getattr(tb, 'tb_frame')`,
-   `attrgetter('tb_frame.f_back.f_locals')`,
-   `tb.__getattribute__('tb_frame')`). Every string literal of the module
-   is scanned, matching whole identifiers / dotted segments only, so
-   ordinary prose does not trigger.
-2. **A reflective accessor with a computed name.** `getattr`, `setattr`,
-   `delattr`, `hasattr`, `attrgetter`, `methodcaller`, `__getattribute__`
-   (and `__dict__` subscripts, covered by route 1) whose attribute name is
-   not a string literal: the attribute read is unknown, so it may be an
-   introspection attribute on a frame, module or function.
-3. **An interpreter or reflection API.** `eval`, `exec`, `execfile`,
-   `compile`, `locals`, `globals`, `vars`, `dir`, `input`, `__import__`;
-   the builtins module and the module-handing modules (`__builtin__`,
-   `importlib`, `imp`); the frame-, module- and trace-reaching functions
-   of `sys`, `inspect` and `gc`, plus `sys.exc_info` and the `traceback`
-   module (they hand out tracebacks and render line numbers); and Java /
-   Jython reflection (any import from `org.python.*`, `java.lang.reflect`,
-   `java.lang.Class`, `java.lang.invoke`, `javax.script`, and
-   `.getClass()` / `Class.forName`). A frame builtin used under another
-   name reads the frame of whoever calls it, across modules (`ev = eval`
-   in one module, `m.ev('x')` in another), so a frame builtin used as a
-   value or handed out of a module is an escape for every scope.
+**Safe fixes assume that the code uses only vetted modules, Java classes,
+builtins and module attributes, plus the language constructs that the
+default-deny walkers analyse. Everything else is unknown code, and unknown
+code withholds every safe fix that depends on what code can read.**
 
-The callee check applies the same argument across resources: a library
-function or module that takes any route is not "plain" (not a bare `def`,
-class or literal constant that a rule may trust), so a script that calls
-it, or imports from it, reads and writes everything it could reach. Each
-route is verified against IA's Jython with the oracle, and the precision
-cost of the string-literal scan and the reflective-accessor rule is
-measured on the private corpus.
+Three mechanisms carry it:
+
+1. **Vetted code** (`iglint_python_semantic::vetted`, default deny). A
+   script or library module keeps the safe fixes of `SCR102`, `VIEW015`
+   and `NAME001` only when every import, builtin and module attribute it
+   uses is on the allowlist below, every import that is not is a project
+   library module whose own code is vetted (transitively, also for the
+   library names it calls without importing), and no vetted module name
+   is shadowed by a project library package. For library-module imports,
+   `SCR102` also needs every resource of the project (and of projects
+   inheriting from it) to be vetted: unknown code anywhere may read any
+   module's names by name (`cPickle.loads("c<module>\n<name>\n.")`).
+   Findings are not affected: only the fixes become unsafe.
+2. **The default-deny walkers.** Within vetted code, the access analysis of
+   `VIEW015` and `NAME001` (`script_facts/access.rs`) enumerates the
+   understood uses of components and properties and treats every other
+   use as reading and writing everything; the introspection routes of
+   `iglint_python_semantic::dynamic` make every scope of a module read
+   its locals and write its globals; callee checks resolve library names
+   to plain functions, classes and literal constants.
+3. **The post-fix safety net** (`crate::safety`, run by the engine for
+   `--fix`, `--diff` and the language server's fix-all). A safe fix on
+   Python code is dropped when, for any script of the file, it moves a
+   line, changes whether the script compiles (syntax and compile errors,
+   in either direction), changes a docstring or the `__future__` imports,
+   changes the scopes (generator status, `global` declarations, `import
+   *`, `exec`, frame reads), or changes what any remaining name resolves
+   to (local, enclosing function, global, builtin, injected) or whether it
+   may be unbound. It runs on every storage format: `.py` library modules
+   and event files, and scripts in `view.json` and other resource JSON
+   (event actions, transforms, change scripts, message handlers, custom
+   methods, session and tag event scripts), each compiled with its
+   generated header; `every_check_runs_for_every_script_kind` enumerates
+   them.
+
+### Vetted code
+
+Each entry was checked on Ignition 8.3's Jython: it cannot evaluate code,
+read a frame, or look up callables or attributes by a name taken from data.
+Callables passed as values (`json.loads(s, object_hook=f)`, `re.sub(p, f,
+s)`, `system.util.invokeAsynchronous(f)`) are fine: a frame builtin used
+as a value is itself a route.
+
+| Allowed | Reason and exceptions |
+|---|---|
+| `math`, `cmath`, `time`, `datetime`, `calendar`, `random`, `itertools`, `heapq`, `bisect`, `base64`, `binascii`, `hashlib`, `struct`, `textwrap`, `decimal`, `fractions`, `uuid`, `re`, `json`, `os.path` | Pure computation on their arguments. Attributes that are modules (measured with `isinstance(v, types.ModuleType)`: `re.sre_compile`, `os.path.os`, `uuid.ctypes`, `json.decoder`, `calendar.datetime`, ...) and private attributes are not vetted: they lead to other modules. Module objects used as values are not vetted. |
+| `string` | Except `Formatter`, which reads the attributes its format string names (verified). `Template` only looks names up in the mapping it is given (verified: `${x.y}` is rejected). |
+| `collections` | `namedtuple` runs generated code in a namespace of its own and rejects type and field names that are not identifiers (verified). |
+| `operator` | Except `attrgetter` and `methodcaller`, which look attributes up by name (verified). |
+| `os` | Only path and file functions and constants (`path`, `sep`, `getcwd`, `listdir`, `stat`, `environ`, `getenv`, `makedirs`, `remove`, `rename`, `walk`, ...). Not processes or anything else. |
+| `sys` (also as Ignition's implicit global) | Only `version`, `version_info`, `hexversion`, `platform`, `maxint`, `maxsize`, `maxunicode`, `byteorder`, `float_info`, `stdout`, `stderr`, `exit`, `getdefaultencoding`, `getfilesystemencoding`, `getrecursionlimit`. Not `_getframe`, `modules`, `exc_info`, `path` (it decides which module an import loads), trace hooks. |
+| `system` (Ignition's scripting API) | No `system.*` function of 8.3 evaluates Python code or resolves a callable by name in the caller's frame (checked against the generated stubs): functions that take callables call the value, message handlers are looked up among the project's handlers, not in the caller. |
+| `__future__` | Compile-time only. |
+| `java.util` (except `ServiceLoader` and the resource bundles, which load classes by name), `java.util.concurrent` (and `atomic`, `locks`), `java.util.function`, `java.util.regex`, `java.util.stream`, `java.math`, `java.text`, `java.time` (and `chrono`, `format`, `temporal`), `java.nio.charset` | Data structures and formatting; no reflection. |
+| `java.lang`: `Math`, `StrictMath`, `String`, `StringBuilder`, `StringBuffer`, the boxed number types, `Boolean`, `Character`, `Number`, `System` (except `load`, `loadLibrary`, `mapLibraryName`, security managers, `inheritedChannel`), `Exception` and common runtime exceptions | Not `Class`, `ClassLoader`, `Thread`, `Throwable`, `Runtime`, `Process*`, reflection, `invoke` or `StackWalker`. The exception classes hand out only stack traces (class, method, file and line), which safe fixes never change. |
+| `java.io`: readers, writers, file and byte streams, `File`, `IOException` | Not object streams: deserialization instantiates classes named by the data. |
+| `java.net`: `URL`, `URI`, `URLEncoder`, `URLDecoder`, `InetAddress`, `HttpURLConnection`, common exceptions | Not class loaders. |
+| Builtins: every builtin except those below; every exception class | Not `eval`, `execfile`, `compile`, `__import__`, `reload`, `input` (it evaluates what it reads), `locals`, `globals`, `vars`, `dir`, `help` (it imports modules by name). `getattr`, `setattr`, `delattr` and `hasattr` only as direct calls with a literal name (route 2 of `dynamic`). |
+
+Everything else is unknown: `cPickle`, `pickle`, `copy_reg`, `shelve`,
+`marshal`, `warnings`, `logging`, `traceback`, `inspect`, `timeit`, `code`,
+`codeop`, `runpy`, `pkgutil`, `doctest`, `pdb`, `profile`, `trace`,
+`unittest`, `socket`, `xml`, `org.python.*`, `com.inductiveautomation.*`
+(Ignition's script manager can run code), relative imports, `import
+java...` of whole packages, and any Java class or module not listed. The
+list is a precision trade-off, not a claim that those are harmful: adding
+an entry needs the same check on Jython.
 
 ### Line numbers
 
-Line numbers are observable **behaviour** when code reads them into a
-value: `tb_lineno`, `f_lineno`, `co_firstlineno` (route 1), and the
-`traceback` module, `sys.exc_info` and `inspect` (route 3), including
-functions that render a traceback into a string (`traceback.format_exc`).
-Detection of those routes makes a module line-number sensitive, so every
-fix that deletes or inserts source lines (`SCR123` whole-line removal,
-`SCR102` import-line removal, `SCR103`, `SCR124` only touches whitespace,
-`SCR301` inserts a header) is unsafe in such a module. The gateway's log
-of an **uncaught** exception is diagnostic output, not a value the program
-can read; a fix may move the line a traceback would print there. That is a
-deliberate decision: diagnostic log text is not behaviour.
+Line numbers are invariant under safe fixes. A safe fix that deletes a
+whole statement (`SCR102`) or a whole-line comment (`SCR123`) removes the
+text and keeps the line break (an empty line, or `pass` where a block or a
+docstring needs it); the line-removing variant is the unsafe fix. The
+safety net rejects any safe fix to Python source that changes the number
+of lines or the line of any text it does not edit, measured on the decoded
+script for JSON-embedded scripts and with `\r\n`, `\n` and `\r` each
+counting as one line break. So whatever reads line numbers (tracebacks,
+`tb_lineno`, `f_lineno`, `warnings`, `logging` records, Java stack traces
+through `Thread.currentThread().getStackTrace()` or a caught exception)
+sees the same numbers after `--fix`, and detecting those readers is no
+longer needed for safety.
 
 | Rule | Fix | Safe when | Otherwise |
 |---|---|---|---|
-| `NAME001` | Rename a component and every reference to it in the view | No reference to the component at all; no script reads `meta.name`; no script looks children up with a computed name or has a string literal equal to the name; every script parses; and no script of the view hands a component to code outside the view (library call, message payload, `getGlobals()`, an opaque call such as `locals()`), reaches a frame builtin in any way, calls an unnamed value or calls a library name that is not a plain function, class or literal constant: a library function that receives a component, or `eval` under another name, can call `getChild('Name')` itself | Unsafe when references exist or a component may escape; no fix when a lookup cannot be rewritten or the new name is taken |
+| `NAME001` | Rename a component and every reference to it in the view | No reference to the component at all; no script reads `meta.name`; no script looks children up with a computed name or has a string literal equal to the name; every script parses; and no script of the view hands a component to code outside the view (library call, message payload, `getGlobals()`, an opaque call such as `locals()`), reaches a frame builtin in any way, calls an unnamed value or calls a library name that is not a plain function, class or literal constant: a library function that receives a component, or `eval` under another name, can call `getChild('Name')` itself; and every script of the view uses only vetted code (see "Threat model") | Unsafe when references exist, a component may escape or a script uses code that is not vetted (`cPickle.loads` of an `eval` opcode); no fix when a lookup cannot be rewritten or the new name is taken |
 | `VIEW012` | Set, add or remove `access` in `propConfig` | Never: the access mode decides whether the browser receives the property and whether it may write it | Unsafe |
 | `VIEW013` | Set `persistent: false` (and remove the stored value) | No stored value: the property starts out absent either way | Unsafe when a stored value is removed: scripts and expressions that run before the binding delivers (query bindings are asynchronous) see a different value |
-| `VIEW015` | Remove an unused custom property and its `propConfig` entries | Nothing reads or writes the property, and the view's own scripts prove it: resolved reads and writes cover expressions, bindings (bidirectional ones write) and scripts, analysed default-deny (every use of a component, the view, a page or session, a property container or an alias of one must be one of the forms listed under "`VIEW015`: understood forms" below; anything else reads and writes everything it reaches); a script that reads frames or reaches a frame builtin in any way reads everything, and every library name a script calls or uses as a value is checked to be a plain function, class or literal constant (or missing); properties with a binding or change script are never reported | Unsafe when a script, a library function it calls or a bidirectional binding writes the property (the write recreates it at run time without the `access` and `persistent` settings of the removed `propConfig` entry); unsafe when the finding relies on following a value into library functions (inter-procedural: the function's body, a function that does not exist, the depth limit); unsafe for a view linted outside its project whose scripts call names that may be library functions |
-| `SCR102` | Remove unused import names or statements | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); a top-level library import is provably unused by other resources; and every removed import is effect-free: `java.*` / `javax.*`, or a plain `import x` / non-package `from x import y` of a standard module on the verified list, with no project library package of that name; and the module calls no library name that may be a frame builtin | Unsafe (project library modules, third-party and non-JDK Java packages, `socket`, `logging`, dotted imports, relative imports, unknown project, a library name that is not a plain function, class or literal constant) |
+| `VIEW015` | Remove an unused custom property and its `propConfig` entries | Nothing reads or writes the property, and the view's own scripts prove it: resolved reads and writes cover expressions, bindings (bidirectional ones write) and scripts, analysed default-deny (every use of a component, the view, a page or session, a property container or an alias of one must be one of the forms listed under "`VIEW015`: understood forms" below; anything else reads and writes everything it reaches); a script that reads frames or reaches a frame builtin in any way reads everything, and every library name a script calls or uses as a value is checked to be a plain function, class or literal constant (or missing); properties with a binding or change script are never reported | Unsafe when a script, a library function it calls or a bidirectional binding writes the property (the write recreates it at run time without the `access` and `persistent` settings of the removed `propConfig` entry); unsafe when the finding relies on following a value into library functions (inter-procedural: the function's body, a function that does not exist, the depth limit); unsafe for a view linted outside its project whose scripts call names that may be library functions; unsafe when a script of the view, or a library module it imports or calls, uses code that is not vetted |
+| `SCR102` | Remove unused import names or statements; the safe fix keeps the emptied lines, the unsafe fix removes them | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); a top-level library import is provably unused by other resources and no resource of the project uses code that is not vetted; every removed import is effect-free: `java.*` / `javax.*`, or a plain `import x` / non-package `from x import y` of a standard module on the verified list, with no project library package of that name; the module uses only vetted code and calls no library name that may be a frame builtin; the import is not the only binding of a name still read in its scope or a nested scope; and it does not come before a `from __future__` import | Unsafe (project library modules, third-party and non-JDK Java packages, `socket`, `logging`, dotted imports, relative imports, unknown project, a library name that is not a plain function, class or literal constant, code that is not vetted, a name that would resolve differently, a misplaced future import that would become valid) |
 | `SCR103` | Remove `x = value`, or only `x = ` when the value calls or binds something | Never | Unsafe: the value may be wanted under another name, and a removed attribute or subscript read, operator, comparison, `in` or `%` formatting can raise or run code (getters, special methods). The statement is removed only when the value calls nothing (no call, no backticks, which call `repr`, no `yield`) and binds nothing (no list comprehension, whose variables Python 2 leaks), so no pointless statement (`SCR114`) is left |
 | `SCR110` | `is` to `==`, `is not` to `!=` | Never: the result changes whenever identity and equality differ (`int('1000') is 1000` is `False` in Jython), and `==` calls `__eq__` / Java `equals` | Unsafe |
 | `SCR115` | `except A, B:` to `except (A, B):` | Never: the handler then catches `B` and no longer rebinds the name | Unsafe. The finding itself requires `B` to resolve (ignoring the handler) to a class statement, a capitalized `from` import or a builtin exception, and the handler body not to read it |
-| `SCR123` | Remove unused suppression codes or the whole comment | Only codes are removed (the rest of the comment stays), or the comment holds nothing but the suppression. Comments do not run | Unsafe when the whole comment would go and it also holds a reason, a `# pylint:` directive or a `coding:` declaration, or when a whole line goes in a script that reads frames (line numbers move) |
+| `SCR123` | Remove unused suppression codes or the whole comment (a comment alone on its line leaves the line empty) | Only codes are removed (the rest of the comment stays), or the comment holds nothing but the suppression. Comments do not run, and no line moves | Unsafe when the whole comment would go and it also holds a reason, a `# pylint:` directive or a `coding:` declaration; that fix removes the line |
 | `SCR124` | Remove trailing whitespace | The script parses, the whitespace is outside string literals and outside the generated header (a backslash continuation followed by spaces is a syntax error, so it is never touched) | No finding when the script does not parse |
 | `SCR206` | Remove a `shared.` / `project.` prefix | Never: in Ignition 7 the two prefixes named different libraries | Unsafe |
 | `SCR301` | Rewrite or insert the event script header | Never: code may rely on the written parameters or defaults | Unsafe |
@@ -119,15 +150,19 @@ deliberate decision: diagnostic log text is not behaviour.
 
 Rules not listed offer no fix. The language server uses the same
 applicability: unsafe code actions are titled `(unsafe)`, and the
-fix-all action applies unsafe fixes only when configured to.
+fix-all action applies unsafe fixes only when configured to. Every safe
+fix also passes the post-fix safety net (see "Threat model"); a safe fix
+that fails it is not applied and is reported as skipped.
 
 ## Dynamic code: audit of every safe fix
 
 Code that reads names without writing them can invalidate a fix. The
-routes are the three of the "Threat model" section: introspection
+routes are those of `iglint_python_semantic::dynamic`: introspection
 attributes named in source or in a string literal (`.f_locals`,
-`.tb_frame`, `'tb_frame.f_back'`, `co_*`, ...), reflective accessors with
-a computed name (`getattr(o, n)`, `attrgetter(n)`), and the interpreter
+`.tb_frame`, `'tb_frame.f_back'`, `co_*`, `__subclasses__`, ...),
+reflective accessors with a computed name or used as values
+(`getattr(o, n)`, `get = getattr`, `attrgetter(n)`), format strings that
+are not literals (`fmt.format(o)`), and the interpreter
 and reflection APIs (`eval` / `locals` reached under any name such as
 `e = eval` or a library variable holding one, `sys._getframe()`,
 `inspect`, `traceback`, `sys.exc_info`, `org.python.*`, `.getClass()`),
@@ -137,19 +172,20 @@ an alias or a helper). Where they matter, the guards are shared:
 of a module read and write names dynamically),
 `script_facts::access` (default-deny accesses of view scripts, with
 callee checks of library names), and
-`unused_custom_property::{resolve_callee_checks, may_read_frames,
+`unused_custom_property::{resolve_callee_checks,
 library_names_may_read_frames}` (callee checks resolved through the
 project index: a library name that is not a plain function, class or
 literal constant may hold `eval`; outside a project every such name
-counts). Each rule has a regression test with the patterns.
+counts), and `rules::vetting` (code that is not vetted withholds the safe
+fix). Each rule has a regression test with the patterns.
 
 | Rule | What dynamic code could do | Guard |
 |---|---|---|
-| `NAME001` | look the old name up (`eval("self.getChild('Old')")`, a library function receiving `self` whose code is replaced, `getattr(self, n)`) | Unsafe when a component may escape: accesses read everything for frame routes, `exec`, values passed to unknown code, calls of unnamed values, and callee checks that do not resolve to plain functions (`dynamic_code_makes_the_rename_unsafe`) |
+| `NAME001` | look the old name up (`eval("self.getChild('Old')")`, a library function receiving `self` whose code is replaced, `getattr(self, n)`) | Unsafe when a component may escape: accesses read everything for frame routes, `exec`, values passed to unknown code, calls of unnamed values, and callee checks that do not resolve to plain functions, and code that is not vetted (`dynamic_code_makes_the_rename_unsafe`) |
 | `VIEW013` | nothing: scripts cannot see the `persistent` flag, and without a stored value the property starts out absent either way | None needed (`dynamic_scripts_do_not_change_the_fix`) |
-| `VIEW015` | read or write any property | Default-deny accesses, frame routes, callee checks, rebinding through exposure and `func_globals`; inter-procedural findings unsafe (`dynamic_patterns_read_everything` and the tests above) |
-| `SCR102` | read the import by name (`lib.util.ev('os')`, `capture()['os']`, `getattr(me, n)` on the module itself) | Scopes with escape routes or frame builtins are dynamic (no finding); a computed `getattr` on a module object keeps module imports; a library name that may be a frame builtin makes the fix unsafe (`library_frame_builtins_and_computed_getattr`, `frame_builtins_under_other_names_keep_imports`) |
-| `SCR123` | see line numbers move when a whole comment line goes (`f_lineno`, frames of tracebacks) | Unsafe when a line is deleted in a script that reads frames or calls a library name that may hold a frame builtin; removing only the comment keeps lines (`line_removal_is_unsafe_where_frames_are_read`) |
+| `VIEW015` | read or write any property | Default-deny accesses, frame routes, callee checks, rebinding through exposure and `func_globals`; inter-procedural findings unsafe; code that is not vetted makes the fix unsafe (`dynamic_patterns_read_everything`, `unvetted_code_makes_fixes_unsafe`) |
+| `SCR102` | read the import by name (`lib.util.ev('os')`, `capture()['os']`, `getattr(me, n)` on the module itself) | Scopes with escape routes or frame builtins are dynamic (no finding); a computed `getattr` on a module object keeps module imports; a library name that may be a frame builtin, or code that is not vetted, makes the fix unsafe (`library_frame_builtins_and_computed_getattr`, `frame_builtins_under_other_names_keep_imports`, `review_round_six_repros`) |
+| `SCR123` | nothing: comments do not run, and the safe fix keeps every line, so line numbers (`f_lineno`, tracebacks, `warnings`, Java stack traces) do not move | None needed (`safe_removal_keeps_lines`) |
 | `SCR124`, `SCR900` | nothing: trailing whitespace outside string literals is not in any value, line numbers do not move, and Jython has no source for scripts compiled from strings (`inspect.getsource` raises `IOError`, tracebacks show no source lines; verified on Ignition 8.3's Jython) | None needed (`dynamic_code_leaves_the_fix_safe`) |
 
 Values that do not come from a name: calling the result of a call or an
@@ -178,12 +214,19 @@ remaining documented assumption.
   docstring (`__doc__`, which code can read). The shared deletion helper
   (`delete_statement`) keeps a `pass` when removing the first statement
   would promote the following string, and the post-fix safety net
-  (`engine::py_docstring_changed`) drops any fix that changes the multiset
-  of docstrings of a `.py` script, catching the cases a single deletion
-  guard cannot (several deletions exposing a later string). Removing lines
-  before a misplaced `from __future__ import` cannot make it valid without
-  the result still being a syntax error, which the health net already
-  rejects.
+  (`crate::safety`) drops any safe fix that changes the multiset of
+  docstrings of any script, `.py` or embedded in JSON, catching the cases
+  a single deletion guard cannot (several deletions exposing a later
+  string). `engine::py_docstring_changed` applies the same check to
+  unsafe fixes of `.py` files.
+* **Statement deletion and `from __future__`.** Deleting the statements
+  before a misplaced `from __future__` import can make it valid: `import
+  os` followed by `from __future__ import division` is a SyntaxError, and
+  without the first line it compiles and `1/2` is `0.5` (verified on
+  Jython). An earlier version of this document claimed the opposite. A
+  deletion before a `__future__` import is therefore unsafe in `SCR102`,
+  and the safety net rejects any safe fix that changes whether a script
+  compiles, in either direction.
 * **Import side effects.** Removing an import is safe only for the JDK and
   for standard library modules verified on Jython not to start threads,
   register handlers or print (the list is `PURE_STDLIB_MODULES` in

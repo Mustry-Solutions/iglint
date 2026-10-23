@@ -76,32 +76,44 @@ def onMessageReceived(self, payload):
 Removes the unused names from the import statement, or the statement when
 none of its names is used (replaced by `pass` when it is the only
 statement of its block; when every statement of a block is removed, the
-last one becomes `pass`).
+last one becomes `pass`). The safe fix empties the statement's lines and
+keeps them, so no line number changes; the unsafe fix removes the lines.
 
-Safe only when importing cannot do anything outside the importing
-module, so that removing the import cannot change what runs:
+Safe only when all of these hold:
 
-* Java classes and packages of the JDK (`java.*`, `javax.*`);
-* plain `import x` of a standard library module that is known to have no
-  import-time effects in Jython 2.7 (`os`, `re`, `json`, `datetime`,
-  `math`, `time`, ...), and `from x import y` of such a module when it is
-  not a package;
+* importing cannot do anything outside the importing module, so that
+  removing the import cannot change what runs: Java classes of the JDK
+  (`java.*`, `javax.*`), or a plain `import x` of a standard library
+  module that is known to have no import-time effects in Jython 2.7
+  (`os`, `re`, `json`, `datetime`, `math`, `time`, ...), or
+  `from x import y` of such a module when it is not a package; and no
+  library package of the project (or of a project inheriting from it)
+  has the same top-level name;
+* the module uses only vetted code: every module, Java class, builtin
+  and module attribute it uses is on iglint's allowlist, and every
+  library module it imports or calls is vetted too (see
+  `docs/internal/fix-safety.md`). Anything else may read the module's
+  names in ways iglint does not know (`cPickle.loads` can call
+  `globals()` in the caller's frame);
+* the module calls no library name that is not a plain function, class
+  or literal constant (it may be `eval` or `locals` under another name);
+* the import is not the only binding of a name that is still read in its
+  scope or a scope nested in it (`print len(x)` before `import math as
+  len` in a function raises `UnboundLocalError`; without the import it
+  calls the builtin);
+* the import does not come before a `from __future__` import.
 
-and, for both, when no library package of the project (or of a project
-inheriting from it) has the same top-level name, and the module calls no
-library name that is not a plain function, class or literal constant
-(it may be `eval` or `locals` under another name, which reads the
-caller's names). Unsafe otherwise:
-importing a project library module runs its top level, other Java
-classes run static initializers, some standard modules start threads
-(`socket`) or configure logging (`logging`), and a dotted import makes the
-submodule an attribute of its package for every other script. Also
-unsafe for top-level imports of library modules when iglint cannot see
-every use of the module's names (the module is used as a value,
-references are computed at run time, the project is inheritable or has
-scripts iglint does not model, or the file is linted outside its
-project). The one remaining effect of a safe fix: an import that would
-have failed (a class missing from the JDK) no longer fails.
+Unsafe otherwise: importing a project library module runs its top level,
+other Java classes run static initializers, some standard modules start
+threads (`socket`) or configure logging (`logging`), and a dotted import
+makes the submodule an attribute of its package for every other script.
+Also unsafe for top-level imports of library modules when iglint cannot
+see every use of the module's names (the module is used as a value,
+references are computed at run time, a resource of the project uses code
+that is not vetted, the project is inheritable or has scripts iglint does
+not model, or the file is linted outside its project). The one remaining
+effect of a safe fix: an import that would have failed (a class missing
+from the JDK) no longer fails.
 
 Top-level names of a library module are attributes of the module: an
 import that another resource uses as `pkg.mod.name` is not reported, nor
@@ -391,14 +403,21 @@ impl ScriptRule for UnusedImport {
         let library = unit.script.kind == ScriptKind::LibraryModule;
         let text = source(unit);
         // A library name the module calls may be `eval` or `locals` under
-        // another name: it reads the caller's names, imports included.
+        // another name: it reads the caller's names, imports included. Code
+        // that is not vetted may read them in ways iglint does not know.
         let mut frames = None;
         for (stmt, mut unused) in unused_imports(model, library) {
             // Top-level names of a library module are its attributes: other
             // resources may use them as `pkg.mod.name`.
             let mut applicability = if unused.iter().all(|id| removal_is_pure(cx, model, *id))
+                && !unused.iter().any(|id| still_referenced(model, *id))
+                && !before_future_import(&unit.parsed.module.body, stmt)
                 && !*frames.get_or_insert_with(|| {
                     crate::rules::view::unused_custom_property::library_names_may_read_frames(
+                        cx,
+                        model,
+                        &unit.parsed.module.body,
+                    ) || crate::rules::vetting::uses_unknown_code(
                         cx,
                         model,
                         &unit.parsed.module.body,
@@ -453,7 +472,8 @@ impl ScriptRule for UnusedImport {
                         .join(", ")
                 )
             };
-            let edit = removal(model, text, stmt, &unused);
+            let keep_lines = applicability == Applicability::Safe;
+            let edit = removal(model, text, stmt, &unused, keep_lines);
             let fix = edit.and_then(|e| statement_fix(cx, unit, message, applicability, e));
             for id in &unused {
                 let b = model.binding(*id);
@@ -469,6 +489,41 @@ impl ScriptRule for UnusedImport {
             }
         }
     }
+}
+
+/// Whether removing the import binding `id` may change what another
+/// reference of its name resolves to: it is the only binding of the name
+/// in its scope, and the name is read in that scope or a scope nested in
+/// it. (A read before the import raises `UnboundLocalError` in a function;
+/// without the import the name is a global or a builtin.)
+fn still_referenced(model: &SemanticModel<'_>, id: BindingId) -> bool {
+    let b = model.binding(id);
+    if model.scope(b.scope).bindings_of(b.name).len() > 1 {
+        return false;
+    }
+    let inside = |mut scope: ScopeId| loop {
+        if scope == b.scope {
+            return true;
+        }
+        match model.scope(scope).parent {
+            Some(parent) => scope = parent,
+            None => return false,
+        }
+    };
+    model
+        .references()
+        .any(|(_, r)| r.name == b.name && inside(r.scope))
+}
+
+/// Whether `stmt` comes before a `from __future__` import of the module
+/// (deleting it could make a misplaced future import valid).
+fn before_future_import(body: &[Stmt], stmt: &Stmt) -> bool {
+    let at = stmt.range().start();
+    body.iter().any(|s| {
+        s.range().start() > at
+            && matches!(s, Stmt::ImportFrom(f)
+                if f.module.as_ref().is_some_and(|m| m.as_str() == "__future__"))
+    })
 }
 
 /// Whether a resource of the project star-imports the library module being
@@ -516,6 +571,7 @@ fn removal(
     text: &str,
     stmt: &Stmt,
     unused: &[BindingId],
+    keep_lines: bool,
 ) -> Option<StatementEdit> {
     let aliases = match stmt {
         Stmt::Import(StmtImport { names, .. }) => names,
@@ -537,7 +593,7 @@ fn removal(
     }
     if kept.is_empty() {
         let body = containing_body(&model.module.body, stmt)?;
-        return delete_statement(text, body, stmt);
+        return delete_statement(text, body, stmt, keep_lines);
     }
     let new = match stmt {
         Stmt::Import(_) => format!("import {}", kept.join(", ")),
@@ -678,9 +734,10 @@ mod tests {
 
     #[test]
     fn fix_removes_names_or_statements() {
-        let f = library("m", "import os, json\nimport sys\nprint json\n");
+        let f = library("m", "import os, json\nimport sys\nprint json.dumps(1)\n");
         let fixed = f.fixed(&[("SCR102", "")], false, &library_path(&f, "m"));
-        assert_eq!(fixed, "import json\nprint json\n");
+        // The safe fix keeps the line of a removed statement.
+        assert_eq!(fixed, "import json\n\nprint json.dumps(1)\n");
         let f = library("m", "def f():\n    import os\n");
         let fixed = f.fixed(&[("SCR102", "")], false, &library_path(&f, "m"));
         assert_eq!(fixed, "def f():\n    pass\n");
@@ -706,30 +763,31 @@ mod tests {
         let cases = [
             (
                 "def f():\n    import os\n    import sys\n",
-                "def f():\n    pass\n",
+                "def f():\n\n    pass\n",
             ),
             (
                 "def f(x):\n    if x:\n        import os\n        import sys\n    else:\n        import re\n        import json\n    return x\n",
-                "def f(x):\n    if x:\n        pass\n    else:\n        pass\n    return x\n",
+                "def f(x):\n    if x:\n\n        pass\n    else:\n\n        pass\n    return x\n",
             ),
             (
-                "def f():\n    try:\n        import os\n        import sys\n    except ValueError:\n        import re\n        import json\n    finally:\n        import glob\n        import math\n",
-                "def f():\n    try:\n        pass\n    except ValueError:\n        pass\n    finally:\n        pass\n",
+                "def f():\n    try:\n        import os\n        import sys\n    except ValueError:\n        import re\n        import json\n    finally:\n        import bisect\n        import math\n",
+                "def f():\n    try:\n\n        pass\n    except ValueError:\n\n        pass\n    finally:\n\n        pass\n",
             ),
             (
-                "def f(xs, l):\n    for x in xs:\n        import os\n        import sys\n    else:\n        import re\n        import json\n    while xs:\n        import glob\n        import math\n    with l:\n        import time\n        import string\n",
-                "def f(xs, l):\n    for x in xs:\n        pass\n    else:\n        pass\n    while xs:\n        pass\n    with l:\n        pass\n",
+                "def f(xs, l):\n    for x in xs:\n        import os\n        import sys\n    else:\n        import re\n        import json\n    while xs:\n        import bisect\n        import math\n    with l:\n        import time\n        import string\n",
+                "def f(xs, l):\n    for x in xs:\n\n        pass\n    else:\n\n        pass\n    while xs:\n\n        pass\n    with l:\n\n        pass\n",
             ),
             (
-                "def f():\n    class C:\n        import os\n        import sys\n    def g():\n        import re\n        import json\n        import glob\n    return C, g\n",
+                "def f():\n    class C:\n        import os\n        import sys\n    def g():\n        import re\n        import json\n        import bisect\n    return C, g\n",
                 // Class bodies are left alone: their names are attributes.
-                "def f():\n    class C:\n        import os\n        import sys\n    def g():\n        pass\n    return C, g\n",
+                "def f():\n    class C:\n        import os\n        import sys\n    def g():\n\n\n        pass\n    return C, g\n",
             ),
         ];
         for (code, expected) in cases {
             let f = library("m", code);
             let fixed = f.fixed(&[("SCR102", "")], false, &library_path(&f, "m"));
             assert_eq!(fixed, expected, "{code}");
+            assert_eq!(fixed.lines().count(), code.lines().count(), "{code}");
             let result = f.run(
                 &[("SCR001", ""), ("SCR002", "")],
                 crate::engine::FixMode::None,
@@ -742,14 +800,14 @@ mod tests {
     fn removing_every_statement_of_a_view_script_leaves_pass() {
         let f = view(ViewScript::Action, "\timport os\n\timport sys\n\timport re");
         let fixed = f.fixed(&[("SCR102", "")], false, &view_path(&f));
-        assert!(fixed.contains(r#""script": "\tpass""#), "{fixed}");
+        assert!(fixed.contains(r#""script": "\n\n\tpass""#), "{fixed}");
         let f = view(
             ViewScript::Method,
             "\tif a:\n\t\timport os\n\t\timport sys\n\treturn b",
         );
         let fixed = f.fixed(&[("SCR102", "")], false, &view_path(&f));
         assert!(
-            fixed.contains(r#""script": "\tif a:\n\t\tpass\n\treturn b""#),
+            fixed.contains(r#""script": "\tif a:\n\n\t\tpass\n\treturn b""#),
             "{fixed}"
         );
     }
@@ -774,7 +832,7 @@ mod tests {
             false,
             &library_path(&f, "sem/unusedimp"),
         );
-        assert_eq!(fixed, "import os\n");
+        assert_eq!(fixed, "import os\n\n");
     }
 
     /// `from pkg.mod import *` binds every name the module exports in the
@@ -964,7 +1022,11 @@ mod tests {
             ("import os", Safe),
             ("import json", Safe),
             ("from java.util import ArrayList", Safe),
-            ("import javax.swing", Safe),
+            // Not vetted: may resolve names from data.
+            ("import javax.swing", Unsafe),
+            ("import cPickle", Unsafe),
+            ("import warnings", Unsafe),
+            ("from java.lang import Thread", Unsafe),
             ("from re import compile", Safe),
             // Runs project code or registers things.
             ("import helpers", Unsafe),
@@ -998,5 +1060,65 @@ mod tests {
             applicability(&f.lint(&["SCR102"])),
             [Some(Unsafe), Some(Unsafe)]
         );
+    }
+
+    /// Reviewer repros R6: line numbers read through `warnings`, a
+    /// `logging` handler and Java stack traces; `cPickle` reading the
+    /// module's globals; a removal that makes a misplaced `__future__`
+    /// import valid; a removal that changes what a name resolves to; a
+    /// reflective accessor under another name. None of them may change
+    /// under `--fix`.
+    #[test]
+    fn review_round_six_repros() {
+        use crate::diagnostic::Applicability::Unsafe;
+        let header = "# iglint: ignore[SCR101]\nimport os\n";
+        for (name, code, reported) in [
+            ("warn", format!("{header}import warnings\ndef where():\n    with warnings.catch_warnings(record=True) as w:\n        warnings.simplefilter('always')\n        warnings.warn('x')\n        return w[0].lineno\n"), true),
+            ("logh", format!("{header}import logging\nclass H(logging.Handler):\n    def emit(self, record):\n        self.line = record.lineno\n"), true),
+            ("thread", format!("{header}from java.lang import Thread\ndef where():\n    for e in Thread.currentThread().getStackTrace():\n        if '<module:thread>' in str(e):\n            return e.getLineNumber()\n"), true),
+            ("throw", format!("{header}from java.lang import Throwable\ndef where():\n    return Throwable().getStackTrace()[0].getLineNumber()\n"), true),
+            ("pick", "import os\nimport cPickle\ndef where():\n\treturn cPickle.loads(\"c__builtin__\\nglobals\\n(tR.\").get(\"os\")\n".to_owned(), true),
+            ("fut", "import os\nfrom __future__ import division\ndef where():\n\treturn 1/2\n".to_owned(), true),
+            ("unbound", "def f():\n    try:\n        print len([1])\n    except UnboundLocalError:\n        print 'unbound'\n    import math as len\n".to_owned(), true),
+            ("alias", "import os\nget = getattr\ng = (x for x in [])\nframe = get(g, 'gi_' + 'frame')\nnamespace = get(frame, 'f_' + 'globals')\nprint namespace['os'].name\n".to_owned(), false),
+        ] {
+            let f = library(&format!("lib/{name}"), &code);
+            let d = f.lint(&["SCR102"]);
+            assert_eq!(!d.is_empty(), reported, "{name}: {d:?}");
+            for d in &d {
+                assert_eq!(d.fix.as_ref().map(|f| f.applicability), Some(Unsafe), "{name}");
+            }
+            let path = library_path(&f, &format!("lib/{name}"));
+            let fixed = safe_fixed(&f, &["SCR101", "SCR102", "SCR123"], &path);
+            // Safe fixes may empty lines, never remove or move them, and
+            // leave every import in place here.
+            assert_eq!(fixed.lines().count(), code.lines().count(), "{name}");
+            for (a, b) in code.lines().zip(fixed.lines()) {
+                if a != b {
+                    assert!(b.is_empty() && a.starts_with('#'), "{name}: {a:?} -> {b:?}");
+                }
+            }
+        }
+        // With unsafe fixes the import goes, with its line.
+        let f = library("m", "import os\nimport cPickle\nx = cPickle.dumps(1)\n");
+        let fixed = f.fixed(&[("SCR102", "")], true, &library_path(&f, "m"));
+        assert_eq!(fixed, "import cPickle\nx = cPickle.dumps(1)\n");
+    }
+
+    /// Two deletions that together promote a string to a docstring in a
+    /// view script: the safe-fix net keeps the second import (reviewer
+    /// repro R6-E2).
+    #[test]
+    fn combined_deletions_keep_docstrings_in_view_scripts() {
+        let f = view(
+            ViewScript::Action,
+            "\tdef f():\n\t\timport os\n\t\timport sys\n\t\t'promoted'\n\t\treturn f.__doc__\n\tprint f()\n",
+        );
+        let fixed = safe_fixed(&f, &["SCR102"], &view_path(&f));
+        assert!(
+            fixed.contains(r"\t\timport sys\n\t\t\u0027promoted\u0027"),
+            "{fixed}"
+        );
+        assert!(!fixed.contains("import os"), "{fixed}");
     }
 }

@@ -769,6 +769,30 @@ impl LiveWorkspace {
                     None => self.analyze_standalone(&index, &path, text, Vec::new(), forced),
                 }
             };
+        let scripts = |text: &str| -> Vec<crate::safety::ScriptText> {
+            let text: Arc<str> = Arc::from(text);
+            match self.by_path.get(&path) {
+                Some(f) => {
+                    let Some(rid) = self.ws.file(*f).resource else {
+                        return Vec::new();
+                    };
+                    let mut loaded = self.load_current(rid);
+                    for lf in &mut loaded.files {
+                        if lf.file == *f {
+                            crate::analyze::replace_text(lf, Arc::clone(&text));
+                        }
+                    }
+                    let model = build_model(&self.ws, &loaded);
+                    model
+                        .scripts()
+                        .into_iter()
+                        .filter(|(file, _)| file == f)
+                        .map(|(_, s)| crate::safety::ScriptText::of(s))
+                        .collect()
+                }
+                None => crate::analyze::standalone_scripts(&path, text),
+            }
+        };
         let result = fix_file(
             &self.settings,
             &options,
@@ -776,6 +800,7 @@ impl LiveWorkspace {
             &source.shared_text(),
             diagnostics,
             &reanalyze,
+            &scripts,
         );
         self.summaries = index.into_summaries();
         let (summary, _) = result.ok()?;

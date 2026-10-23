@@ -275,6 +275,43 @@ fn too_deep_scripts_are_findings() {
     }
 }
 
+/// A deep chain is one finding, not one per level (reviewer note R6-D).
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
+)]
+fn deep_chains_do_not_flood() {
+    let mut inputs = too_deep_python();
+    inputs.extend(deep_python());
+    inputs.extend([
+        ("not 200000", format!("x = {}1\n", "not ".repeat(200_000))),
+        ("unary target", format!("({}a) = 1\n", "-".repeat(CHAIN))),
+        ("not target", format!("({}a) = 1\n", "not ".repeat(CHAIN))),
+        (
+            "for target",
+            format!("for ({}a) in x:\n    pass\n", "~".repeat(CHAIN)),
+        ),
+    ]);
+    for (name, source) in inputs {
+        // The view holds the body in four scripts.
+        for (dir, scripts) in [(module(&source), 1), (view_script(&source), 4)] {
+            let args = [
+                "--no-cache",
+                "--select",
+                "SCR001,SCR002",
+                "--output-format",
+                "concise",
+            ];
+            let shown = stdout(&iglint(dir.path(), &args));
+            let findings = shown.lines().filter(|l| l.contains(": SCR00")).count();
+            // Distinct problems of one script (too deep, too long a line)
+            // are separate findings; a flood is one per level.
+            assert!(findings <= 3 * scripts, "{name}: {findings} findings");
+        }
+    }
+}
+
 #[test]
 #[cfg_attr(
     debug_assertions,

@@ -91,10 +91,14 @@ pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols 
             range: first.range,
         });
     }
+    let unknown = iglint_python_semantic::vetted::unknown_code(&ast.body);
     ModuleSymbols {
         symbols,
         dynamic,
         constants,
+        unknown_code: unknown.other.is_some(),
+        imports: unknown.imports.into_iter().map(|(name, _)| name).collect(),
+        library_names: super::access::library_names_used(model, &ast.body),
     }
 }
 

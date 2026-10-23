@@ -301,7 +301,13 @@ fn check_reports_sorted_diagnostics_and_errors() {
 fn safe_fixes_are_written_and_preserve_line_endings() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
-    let file = write(root, "a.py", "unused_var = 1\r\nunusedProp\r\nbadName\r\n");
+    // Comments: the fake fixes rename words, and a safe fix that renamed
+    // Python names would fail the safe-fix net (names resolve differently).
+    let file = write(
+        root,
+        "a.py",
+        "# unused_var = 1\r\n# unusedProp\r\n# badName\r\n",
+    );
     let result = check(
         &settings(root),
         std::slice::from_ref(&file),
@@ -309,7 +315,7 @@ fn safe_fixes_are_written_and_preserve_line_endings() {
     );
     assert_eq!(
         std::fs::read_to_string(&file).unwrap(),
-        "_ = 1\r\nunusedProp\r\nBadName\r\n"
+        "# _ = 1\r\n# unusedProp\r\n# BadName\r\n"
     );
     assert_eq!(result.fixed.len(), 1);
     let summary = &result.fixed[0];
@@ -326,7 +332,7 @@ fn safe_fixes_are_written_and_preserve_line_endings() {
 fn unsafe_fixes_diff_only_and_filters() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
-    let file = write(root, "a.py", "unusedProp unused_var\n");
+    let file = write(root, "a.py", "# unusedProp unused_var\n");
 
     let result = check(
         &settings(root),
@@ -335,9 +341,9 @@ fn unsafe_fixes_diff_only_and_filters() {
     );
     assert_eq!(
         std::fs::read_to_string(&file).unwrap(),
-        "unusedProp unused_var\n"
+        "# unusedProp unused_var\n"
     );
-    assert_eq!(result.fixed[0].fixed, "usedProp _\n");
+    assert_eq!(result.fixed[0].fixed, "# usedProp _\n");
     assert!(!result.fixed[0].written);
     assert!(result.diagnostics.is_empty());
 
@@ -350,7 +356,7 @@ fn unsafe_fixes_diff_only_and_filters() {
     );
     assert_eq!(
         std::fs::read_to_string(&file).unwrap(),
-        "usedProp unused_var\n"
+        "# usedProp unused_var\n"
     );
     assert_eq!(
         result.fixed[0].skipped[0].reason,
@@ -372,9 +378,9 @@ fn stdin_is_linted_and_fixed_without_writing() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
     let mut options = options(FixMode::Safe);
-    options.stdin = Some((root.join("x/code.py"), "unused_var\n".to_owned()));
+    options.stdin = Some((root.join("x/code.py"), "# unused_var\n".to_owned()));
     let result = check(&settings(root), &[], &options);
-    assert_eq!(result.stdin_output.as_deref(), Some("_\n"));
+    assert_eq!(result.stdin_output.as_deref(), Some("# _\n"));
     assert!(!root.join("x/code.py").exists());
 
     options.fix_mode = FixMode::None;

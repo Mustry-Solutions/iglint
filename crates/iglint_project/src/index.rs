@@ -117,6 +117,10 @@ struct ProjectData {
     /// Library modules whose names code may rebind through an object it
     /// receives (`References::library_exposed`).
     exposed_modules: FxHashSet<ResourceId>,
+    /// A resource this project sees uses code that is not vetted
+    /// (`References::unknown_code`, or an unvetted import that is not a
+    /// library module of the project).
+    unknown_code: bool,
     complete: bool,
     inheritable: bool,
     descendants: Vec<ProjectId>,
@@ -374,6 +378,7 @@ impl<'w> ProjectIndex<'w> {
         let mut stores: Vec<FxHashSet<String>> = vec![FxHashSet::default(); n];
         let mut exposed: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut star_imported: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
+        let mut unknown_code: Vec<bool> = vec![false; n];
         // Resources of gateway collections (tag event scripts) run with the
         // gateway scripting project, which the workspace does not name:
         // their references count for every project.
@@ -427,6 +432,18 @@ impl<'w> ProjectIndex<'w> {
                         }
                         _ => {}
                     }
+                }
+                if refs.unknown_code
+                    || refs.unvetted_imports.iter().any(|name| {
+                        !matches!(
+                            self.resolve_library(pid, name),
+                            LibraryLookup::Module { .. }
+                                | LibraryLookup::Package { .. }
+                                | LibraryLookup::Symbol { .. }
+                        )
+                    })
+                {
+                    unknown_code[pid.index()] = true;
                 }
                 for name in &refs.dynamic.library {
                     let library = &self.projects[pid.index()].library;
@@ -543,6 +560,7 @@ impl<'w> ProjectIndex<'w> {
             p.library_stores = std::mem::take(&mut stores[i]);
             p.exposed_modules = std::mem::take(&mut exposed[i]);
             p.star_imported_modules = std::mem::take(&mut star_imported[i]);
+            p.unknown_code = unknown_code[i];
         }
         self.usage = usage;
         self.symbol_usage = symbol_usage;
@@ -807,6 +825,13 @@ impl<'w> ProjectIndex<'w> {
     /// (including gateway resources).
     pub fn dynamic_references(&self, project: ProjectId) -> &DynamicReferences {
         &self.projects[project.index()].dynamic
+    }
+
+    /// Whether a resource `project` sees uses code that is not vetted
+    /// (see `iglint_python_semantic::vetted`): such code may read the
+    /// namespace of any library module by name.
+    pub fn has_unknown_code(&self, project: ProjectId) -> bool {
+        self.projects[project.index()].unknown_code
     }
 
     /// Whether every top-level name of a library module may be used by

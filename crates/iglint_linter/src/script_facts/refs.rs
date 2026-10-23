@@ -54,6 +54,10 @@ pub fn collect(model: &SemanticModel<'_>, ctx: &FactsContext<'_>, refs: &mut Ref
         }
         dynamic_code(model, ctx, &site.callee, site.call, refs);
     }
+    let unknown = iglint_python_semantic::vetted::unknown_code(body);
+    refs.unknown_code |= unknown.other.is_some();
+    refs.unvetted_imports
+        .extend(unknown.imports.into_iter().map(|(name, _)| name));
     let mut chains = Chains { model, ctx, refs };
     chains.visit_module(model.module);
     // Imports make names attributes of the importing module.

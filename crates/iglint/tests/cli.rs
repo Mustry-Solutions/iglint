@@ -204,17 +204,19 @@ fn exit_status_threshold() {
 fn fixes() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), "project.json", "{}\n");
-    let file = write(dir.path(), "a.py", "unused_var\nunusedProp\n");
+    // A comment: a safe fix that renamed a Python name would fail the
+    // safe-fix net.
+    let file = write(dir.path(), "a.py", "# unused_var\nunusedProp\n");
 
     let diff = run(dir.path(), &["--isolated", "--diff"]);
     assert_eq!(diff.status, ExitStatus::Failure);
     assert_eq!(
         diff.stdout,
-        "--- a/a.py\n+++ b/a.py\n@@ -1,2 +1,2 @@\n-unused_var\n+_\n unusedProp\n\nWould fix 1 issue(s) in 1 file(s).\n"
+        "--- a/a.py\n+++ b/a.py\n@@ -1,2 +1,2 @@\n-# unused_var\n+# _\n unusedProp\n\nWould fix 1 issue(s) in 1 file(s).\n"
     );
     assert_eq!(
         std::fs::read_to_string(&file).unwrap(),
-        "unused_var\nunusedProp\n"
+        "# unused_var\nunusedProp\n"
     );
 
     let fixed = run(
@@ -228,7 +230,7 @@ fn fixes() {
         ],
     );
     assert_eq!(fixed.status, ExitStatus::Failure);
-    assert_eq!(std::fs::read_to_string(&file).unwrap(), "_\nunusedProp\n");
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "# _\nunusedProp\n");
     assert!(fixed.stdout.contains("Fixed 1 issue."), "{}", fixed.stdout);
     assert!(
         fixed.stdout.contains("a.py:2:1: VIEW001"),
@@ -239,7 +241,7 @@ fn fixes() {
     let only = run(dir.path(), &["--isolated", "--fix-only", "--unsafe-fixes"]);
     assert_eq!(only.status, ExitStatus::Success);
     assert_eq!(only.stdout, "Fixed 1 issue(s) (0 remaining).\n");
-    assert_eq!(std::fs::read_to_string(&file).unwrap(), "_\nusedProp\n");
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "# _\nusedProp\n");
 }
 
 /// `--diff` output applies with GNU `patch -p1` and with `git apply` when
@@ -252,7 +254,7 @@ fn diff_applies_with_patch_and_git_for_any_path() {
     let source = |dir: &Path| {
         write(dir, "project.json", "{}\n");
         for name in names {
-            write(dir, name, "unused_var\nunusedProp\n");
+            write(dir, name, "# unused_var\nunusedProp\n");
         }
     };
     let dir = tempfile::tempdir().unwrap();
@@ -296,7 +298,7 @@ fn diff_applies_with_patch_and_git_for_any_path() {
         for name in names {
             assert_eq!(
                 std::fs::read_to_string(target.path().join(name)).unwrap(),
-                "_\nunusedProp\n",
+                "# _\nunusedProp\n",
                 "{tool}: {name}"
             );
         }
@@ -542,9 +544,9 @@ fn stdin_filename() {
             "--output-format",
             "concise",
         ],
-        "unused_var\nundefined_thing\n",
+        "# unused_var\nundefined_thing\n",
     );
-    assert_eq!(fixed.stdout, "_\nundefined_thing\n");
+    assert_eq!(fixed.stdout, "# _\nundefined_thing\n");
     assert!(
         fixed.stderr.contains("projects/p/x.py:2:1: SCR101"),
         "{}",

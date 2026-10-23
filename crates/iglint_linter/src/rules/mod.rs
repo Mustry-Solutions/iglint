@@ -21,6 +21,7 @@ pub mod style;
 pub mod tag;
 #[cfg(test)]
 pub mod test_support;
+pub mod vetting;
 pub mod view;
 
 macro_rules! rules {

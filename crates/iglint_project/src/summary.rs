@@ -263,6 +263,13 @@ pub struct References {
     pub databases: Vec<String>,
     /// References computed at run time.
     pub dynamic: DynamicReferences,
+    /// A script uses something that is not vetted (see
+    /// `iglint_python_semantic::vetted`): it may read the namespace of any
+    /// module by name.
+    pub unknown_code: bool,
+    /// Imports of modules that are not vetted; any that is not a project
+    /// library module counts as [`References::unknown_code`].
+    pub unvetted_imports: Vec<String>,
 }
 
 impl References {
@@ -281,6 +288,8 @@ impl References {
         self.history_providers.extend(other.history_providers);
         self.databases.extend(other.databases);
         self.dynamic.extend(&other.dynamic);
+        self.unknown_code |= other.unknown_code;
+        self.unvetted_imports.extend(other.unvetted_imports);
     }
 }
 

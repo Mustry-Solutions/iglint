@@ -206,7 +206,7 @@ fn removal(
     };
     if !super::pointless_statement::has_effect(&a.value) {
         let body = containing_body(&model.module.body, stmt)?;
-        return delete_statement(text, body, stmt);
+        return delete_statement(text, body, stmt, false);
     }
     let prefix = TextRange::new(target.range.start(), a.value.range().start());
     // Only `x = ` (possibly with parentheses around the value).

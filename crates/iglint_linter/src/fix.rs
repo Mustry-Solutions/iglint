@@ -42,6 +42,8 @@ pub(crate) struct Pass {
     pub fixes: Vec<(AppliedFix, Vec<TextEdit>)>,
     /// For each of `fixes`: the rule and message of its finding.
     pub diagnostics: Vec<(crate::registry::RuleCode, String)>,
+    /// For each of `fixes`: whether it is a safe fix.
+    pub safe: Vec<bool>,
 }
 
 /// One fix pass over `text`: takes the fixes `wanted` accepts, in position
@@ -101,6 +103,7 @@ pub(crate) fn apply_pass(
     let mut deleted: FxHashMap<u32, u32> = FxHashMap::default();
     let mut fixes = Vec::new();
     let mut fixed_diagnostics = Vec::new();
+    let mut safe = Vec::new();
     let mut any = false;
     for (diagnostic, edits) in candidates {
         let fix = diagnostic.fix.as_ref().expect("candidate has a fix");
@@ -115,6 +118,7 @@ pub(crate) fn apply_pass(
             applied.push(applied_fix.clone());
             fixes.push((applied_fix, edits));
             fixed_diagnostics.push((diagnostic.rule, diagnostic.message.clone()));
+            safe.push(fix.applicability == Applicability::Safe);
             continue;
         }
         // Each deletion decided alone that its suite keeps other statements;
@@ -134,6 +138,7 @@ pub(crate) fn apply_pass(
             applied.push(applied_fix.clone());
             fixes.push((applied_fix, edits));
             fixed_diagnostics.push((diagnostic.rule, diagnostic.message.clone()));
+            safe.push(fix.applicability == Applicability::Safe);
         }
         // Overlapping fixes are retried in the next pass, after the text
         // has been re-analysed.
@@ -147,6 +152,7 @@ pub(crate) fn apply_pass(
         edits: accepted,
         fixes,
         diagnostics: fixed_diagnostics,
+        safe,
     })
 }
 

@@ -16,6 +16,7 @@ use crate::diagnostic::{Diagnostic, SourceFile};
 use crate::discovery::{self, FileKind, SkipReason};
 use crate::fix;
 use crate::registry::RuleCode;
+use crate::safety::{self, ScriptFacts, ScriptText, Scripts};
 use crate::settings::{LinterSettings, ProjectSettings};
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -122,7 +123,8 @@ pub struct SkippedFix {
     pub message: String,
     pub reason: String,
     /// The fix was dropped because applying it made the file worse (a
-    /// script stopped compiling or the JSON stopped parsing).
+    /// script stopped compiling or the JSON stopped parsing), or because
+    /// a safe fix failed the safe-fix net ([`crate::safety`]).
     pub harmful: bool,
 }
 
@@ -527,8 +529,16 @@ fn lint_one(
             Reanalysis::Health => analyzer(&fixed_source, kind, health_settings()),
         }
     };
-    let (fix_summary, diagnostics) =
-        fix_file(settings, options, path, &text, diagnostics, &reanalyze)?;
+    let scripts = |text: &str| crate::analyze::standalone_scripts(path, Arc::from(text));
+    let (fix_summary, diagnostics) = fix_file(
+        settings,
+        options,
+        path,
+        &text,
+        diagnostics,
+        &reanalyze,
+        &scripts,
+    )?;
 
     Ok(Outcome {
         checked: CheckedFile {
@@ -554,7 +564,11 @@ fn lint_one(
 /// script, JSON that no longer parses: findings of [`health_settings`]
 /// that were not there before) is redone one fix at a time, dropping
 /// every fix that makes it worse; dropped fixes are reported as skipped
-/// and not retried. The file is never written worse than it was.
+/// and not retried. The file is never written worse than it was. Safe
+/// fixes also pass the safe-fix net ([`crate::safety`]) on the scripts of
+/// the file (`scripts` lists them for a text): a safe fix that would move
+/// a line, change whether a script compiles, a docstring or what a name
+/// resolves to is dropped the same way.
 pub(crate) fn fix_file(
     settings: &ProjectSettings,
     options: &CheckOptions,
@@ -562,6 +576,7 @@ pub(crate) fn fix_file(
     text: &Arc<str>,
     mut diagnostics: Vec<Diagnostic>,
     reanalyze: &Reanalyze<'_>,
+    scripts: &Scripts<'_>,
 ) -> Result<(Option<FixSummary>, Vec<Diagnostic>), FileError> {
     if !options.fix_mode.is_fixing() {
         return Ok((None, diagnostics));
@@ -601,6 +616,8 @@ pub(crate) fn fix_file(
     let mut skipped = Vec::new();
     let mut harmful: Vec<SkippedFix> = Vec::new();
     let mut current_health: Option<FxHashMap<_, _>> = None;
+    // The scripts of `current` and what they do, for the safe-fix net.
+    let mut current_scripts: Option<(Vec<ScriptText>, Vec<ScriptFacts>)> = None;
     for pass in 0..options.max_fix_passes.max(1) {
         let mut pass_skipped = Vec::new();
         let mut pass_applied = Vec::new();
@@ -618,18 +635,60 @@ pub(crate) fn fix_file(
         let before = current_health
             .get_or_insert_with(|| health(reanalyze, &current, &[]))
             .clone();
+        if pass_result.safe.iter().any(|s| *s) && current_scripts.is_none() {
+            let found = scripts(&current);
+            let facts = found.iter().map(ScriptFacts::of).collect();
+            current_scripts = Some((found, facts));
+        }
+        // Why the safe fixes with `safe_edits` (in `current`'s
+        // coordinates) change a script, if they do.
+        let safe_problem = |safe_edits: &[TextEdit]| -> Option<String> {
+            if safe_edits.is_empty() {
+                return None;
+            }
+            let (before_scripts, before_facts) = current_scripts.as_ref()?;
+            let Ok(after) = iglint_text::apply_edits(&current, safe_edits) else {
+                return Some("its edits overlap".to_owned());
+            };
+            let mut sorted = safe_edits.to_vec();
+            sorted.sort_by_key(|e| e.range);
+            safety::safe_fix_problem(
+                path,
+                &current,
+                before_scripts,
+                before_facts,
+                &sorted,
+                &scripts(&after),
+            )
+        };
+        let safe_edits: Vec<TextEdit> = pass_result
+            .fixes
+            .iter()
+            .zip(&pass_result.safe)
+            .filter(|(_, safe)| **safe)
+            .flat_map(|((_, edits), _)| edits.iter().cloned())
+            .collect::<FxHashSet<_>>()
+            .into_iter()
+            .collect();
         let after = health(reanalyze, &pass_result.text, &pass_result.edits);
         let pass_ok = new_problem(&before, &after).is_none()
-            && !py_docstring_changed(path, &current, &pass_result.text);
+            && !py_docstring_changed(path, &current, &pass_result.text)
+            && safe_problem(&safe_edits).is_none();
         let (next, edits, after) = if pass_ok {
             applied.extend(pass_applied);
             (pass_result.text, pass_result.edits, after)
         } else {
             // One fix at a time, keeping those that do not make it worse.
             let mut kept: Vec<TextEdit> = Vec::new();
+            let mut kept_safe: Vec<TextEdit> = Vec::new();
             let mut kept_text = None;
             let mut kept_health = before.clone();
-            for (fixed, (applied_fix, edits)) in pass_result.fixes.into_iter().enumerate() {
+            for (fixed, ((applied_fix, edits), safe)) in pass_result
+                .fixes
+                .into_iter()
+                .zip(pass_result.safe)
+                .enumerate()
+            {
                 // The same edits as a fix already kept (one fix reported
                 // for several findings).
                 if !edits.is_empty() && edits.iter().all(|e| kept.contains(e)) {
@@ -641,14 +700,26 @@ pub(crate) fn fix_file(
                 let Ok(trial_text) = iglint_text::apply_edits(&current, &trial) else {
                     continue;
                 };
+                let mut trial_safe = kept_safe.clone();
+                if safe {
+                    trial_safe.extend(edits.iter().cloned());
+                }
                 let trial_health = health(reanalyze, &trial_text, &trial);
-                let problem = new_problem(&before, &trial_health).or_else(|| {
-                    py_docstring_changed(path, &current, &trial_text)
-                        .then(|| "it would change a docstring".to_owned())
-                });
+                let problem = new_problem(&before, &trial_health)
+                    .or_else(|| {
+                        py_docstring_changed(path, &current, &trial_text)
+                            .then(|| "it would change a docstring".to_owned())
+                    })
+                    .map(|p| format!("the fix makes the file worse ({p})"))
+                    .or_else(|| {
+                        safe.then(|| safe_problem(&trial_safe))
+                            .flatten()
+                            .map(|p| format!("the safe fix could change what the code does ({p})"))
+                    });
                 match problem {
                     None => {
                         kept = trial;
+                        kept_safe = trial_safe;
                         kept_text = Some(trial_text);
                         kept_health = trial_health;
                         applied.push(applied_fix);
@@ -663,7 +734,7 @@ pub(crate) fn fix_file(
                         harmful.push(SkippedFix {
                             rule: applied_fix.rule,
                             message: applied_fix.message,
-                            reason: format!("the fix makes the file worse ({problem})"),
+                            reason: problem,
                             harmful: true,
                         });
                     }
@@ -681,6 +752,7 @@ pub(crate) fn fix_file(
         };
         current = next;
         current_health = Some(after);
+        current_scripts = None;
         diagnostics = reanalyze(&current, &edits, Reanalysis::Lint);
         if pass + 1 == options.max_fix_passes.max(1) {
             skipped = pass_skipped;
