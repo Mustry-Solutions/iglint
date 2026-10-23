@@ -173,8 +173,8 @@ regenerating.
   proxies), `argslist` (reflected functions), `getColumnTypes` (datasets),
   `getScriptManager` (the gateway context) and `type` (alarm properties).
   `iglint_python_semantic::dynamic` treats any of them, named on a value
-  or as an identifier in a string literal, as introspective and fails
-  closed. Jython's lookups by name on such Java-backed values (`invoke`,
+  or as an identifier in a string literal in a sink position (see "String
+  sinks" below), as introspective and fails closed. Jython's lookups by name on such Java-backed values (`invoke`,
   `__findattr__`, `__findattr_ex__`) are reflective accessors, understood
   only with a literal name.
 
@@ -200,13 +200,15 @@ regenerating.
   common in Ignition, stay plain.
 
   The precision cost is measured on the private corpus (its revision of
-  2026-10-21, measured on 2026-10-23; the numbers depend on the revision): the extended list (145 names, 43 before) appears as an
-  attribute or a string literal segment in 168 of 1,491 scripts (45
-  before), mostly through `type` and `module` in string literals; findings
-  drop by 42 (VIEW015 179 to 151, SCR103 34 to 27, REF012 19 to 15, SCR102
-  5 to 4, BIND005 48 to 47, VIEW019 2 to 1), and safe fixes are unchanged
-  (the corpus already holds unknown code, so its SCR102 and VIEW015 fixes
-  were unsafe before).
+  2026-10-21, measured on 2026-10-23; the numbers depend on the
+  revision). With the string sinks below, against main: findings 5,372 to
+  5,378; VIEW015 179 to 178 (one finding lost, 56 unsafe fixes as
+  before), SCR103 34 to 39 and REF012 19 to 21 (findings that literals
+  such as `'class'` used to hide), every other rule unchanged; safe fixes
+  unchanged (the corpus holds unknown code, so its SCR102 and VIEW015
+  fixes were unsafe before). Scanning every string literal instead would
+  have cost 42 findings (VIEW015 179 to 151), mostly through `type` and
+  `module` in literals that are data.
 * **Vetted module attributes, measured positively.** `sys` in Jython is a
   `PySystemState`, not a `types.ModuleType`, so `re.sys`, `calendar.sys`
   and `os.path.sys` slipped past a "deny the module attributes" rule and
@@ -217,6 +219,42 @@ regenerating.
   (`base64.binascii`) or any other object, is unknown. `vetted.rs` consults
   this positive list; the per-module denylist still removes members that
   look names up from data (`string.Formatter`, `operator.attrgetter`).
+
+### String sinks
+
+A string literal names a member at run time only in a sink, so only
+literals in sink positions are scanned for introspection attributes
+(`tb_frame`, `f_locals`, ...) and the generated reflective names; any
+other literal is data (`{'type': 'popup'}`, a log message that says
+"module"). The sinks, verified on Jython:
+
+* the name arguments of a direct call of a reflective accessor:
+  `getattr`, `hasattr`, `setattr`, `delattr`, `__getattribute__`,
+  `__getattr__`, `__setattr__`, `__delattr__`, Jython's `__findattr__`,
+  `__findattr_ex__` and `invoke`, `operator.methodcaller` and every
+  argument of `operator.attrgetter` (dotted names included);
+* the receiver of `format` and `vformat`, called or used as a value
+  (`'{0.f_back}'.format(g)`, `str` and `unicode` alike);
+* code: the literal argument of `eval`, `execfile` and `input`, and the
+  body of an `exec` statement.
+
+The argument: every other way to look a member up from a string is an
+escape whatever its argument, so no literal can reach a member without
+passing through a sink position. A sink with a name or format string that
+is not a literal at the call is an escape, and so is a sink used as a
+value (`get = getattr`, `f = fmt.format`, `map(getattr, ...)`), called on
+something else (`str.format(fmt, x)`, `object.__getattribute__(o, n)`,
+`string.Formatter().format(...)`) or with unpacked arguments. A literal
+that flows into a sink through a variable, a concatenation, `join`, `%`,
+slicing, a container or a function return is not a literal at the sink,
+so the sink is computed. `vars(o)` is an escape (verified:
+`vars(Object)['getClass'](x)` is `x.getClass()`), `__dict__` is an
+introspection attribute, and `compile` and `__import__` are escapes. Not
+sinks, verified: `%` formatting and `string.Template` look keys up with
+`__getitem__` (`'%(x)s' % o` needs a mapping), and `format(o, spec)`
+takes a format spec, not field names. `dynamic::tests::string_sinks`
+enumerates each sink with a literal introspection name, a plain literal
+and every kind of computed argument, and the non-sinks.
 
 ### Byte strings
 
@@ -340,7 +378,7 @@ as skipped, and not offered as a quick fix
 
 Code that reads names without writing them can invalidate a fix. The
 routes are those of `iglint_python_semantic::dynamic`: introspection
-attributes named in source or in a string literal (`.f_locals`,
+attributes named in source or in a string literal in a sink position (`.f_locals`,
 `.tb_frame`, `'tb_frame.f_back'`, `co_*`, `__subclasses__`, ...),
 reflective accessors with a computed name or used as values
 (`getattr(o, n)`, `get = getattr`, `attrgetter(n)`), format strings that

@@ -1285,16 +1285,18 @@ mod tests {
         assert_eq!(fixed, "import cPickle\nx = cPickle.dumps(1)\n");
     }
 
-    /// A string literal naming a member that reaches reflection on some
-    /// type a script can hold (`module` is `java.lang.Class.getModule`'s
-    /// bean name) makes the module dynamic: its module-level imports are
-    /// no longer reported (reviewer round 8, finding 1).
+    /// A string literal names a member only in a sink position (reviewer
+    /// round 8, finding 1): a docstring that mentions `module` (the bean
+    /// name of `java.lang.Class.getModule`) is data, the same word as a
+    /// `getattr` name makes the module dynamic, and its module-level
+    /// imports are no longer reported.
     #[test]
-    fn literals_naming_reflective_members_make_the_module_dynamic() {
+    fn literals_name_members_only_in_sinks() {
         let d = library("m", "import os\n'module docstring'\n").lint(&["SCR102"]);
-        assert!(d.is_empty(), "{d:?}");
-        let d = library("m", "import os\n'the docstring'\n").lint(&["SCR102"]);
         assert_eq!(d.len(), 1, "{d:?}");
+        let d =
+            library("m", "import os\nimport math\nm = getattr(math, 'module')\n").lint(&["SCR102"]);
+        assert!(d.is_empty(), "{d:?}");
     }
 
     /// Reviewer round 8 (Codex) blocker: vetting resolved names in the

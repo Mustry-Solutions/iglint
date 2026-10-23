@@ -72,7 +72,12 @@ from 0.1.0 on.
   (`ScriptManager`, `PySystemState`, frames, modules). It grows from 43 to
   145 names (`module`, `argslist`, `getColumnTypes`, `getScriptManager`,
   `type`, ...), each with the member it was found on. Jython's lookups by
-  name (`invoke`, `__findattr__`) are reflective accessors.
+  name (`invoke`, `__findattr__`) are reflective accessors. String
+  literals are scanned for these names and the introspection attributes
+  only in sink positions (accessor names, literal format strings, code
+  for `eval` and `exec`); a sink with any other argument, and `vars(o)`,
+  is an escape. Literals that are data (`{'type': 'popup'}`) no longer
+  hide findings.
 - The vetted-code guard resolves names through the semantic model's
   scopes, flow-insensitively, instead of in the order its walk met the
   imports. A function defined before `import re` that reads `re.sys` (and

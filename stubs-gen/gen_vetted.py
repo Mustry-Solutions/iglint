@@ -711,9 +711,9 @@ def main():
     lines.append('/// Member names (Java method, Jython bean-property and field')
     lines.append('/// spellings) whose declared type mentions a reflection or')
     lines.append('/// interpreter type, over every type a script can hold. Naming any of')
-    lines.append('/// these, on any value or in any string literal, is a route out of')
-    lines.append('/// plain data and is treated as introspective. Each entry names one')
-    lines.append('/// member it was found on. Sorted for binary search.')
+    lines.append('/// these, on any value or in a string literal in a sink position, is a')
+    lines.append('/// route out of plain data and is treated as introspective. Each entry')
+    lines.append('/// names one member it was found on. Sorted for binary search.')
     lines.append('pub(crate) const JAVA_REFLECTIVE_MEMBERS: &[&str] = &[')
     for name, where in members:
         lines.append('    %s, // %s' % (rust_str(name), where))

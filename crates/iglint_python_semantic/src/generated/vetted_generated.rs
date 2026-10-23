@@ -108,9 +108,9 @@ pub(crate) const GENERATED_FROM: &[&str] = &[
 /// Member names (Java method, Jython bean-property and field
 /// spellings) whose declared type mentions a reflection or
 /// interpreter type, over every type a script can hold. Naming any of
-/// these, on any value or in any string literal, is a route out of
-/// plain data and is treated as introspective. Each entry names one
-/// member it was found on. Sorted for binary search.
+/// these, on any value or in a string literal in a sink position, is a
+/// route out of plain data and is treated as introspective. Each entry
+/// names one member it was found on. Sorted for binary search.
 pub(crate) const JAVA_REFLECTIVE_MEMBERS: &[&str] = &[
     "COMPONENT_LIST_TYPE_TOKEN", // com.inductiveautomation.perspective.common.config.ComponentConfig.COMPONENT_LIST_TYPE_TOKEN
     "SERIALIZATION_WHITELIST", // com.inductiveautomation.ignition.common.Path.SERIALIZATION_WHITELIST

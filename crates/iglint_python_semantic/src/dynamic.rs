@@ -26,8 +26,9 @@
 //!    be an attribute access or any string literal, including a dotted or
 //!    sub-segment of one (`getattr(tb, 'tb_frame')`,
 //!    `attrgetter('tb_frame.f_back.f_locals')`, `'{0.gi_frame}'.format`).
-//!    Every string literal of the module is scanned, matching whole
-//!    identifiers so that ordinary prose does not trigger.
+//!    String literals are scanned in sink positions only (see "String
+//!    sinks"), matching whole identifiers so that ordinary prose does not
+//!    trigger.
 //! 2. **A reflective accessor with a computed name or used as a value.**
 //!    `getattr`, `setattr`, `delattr`, `hasattr`, `attrgetter`,
 //!    `methodcaller`, `__getattribute__`, and Jython's `__findattr__` and
@@ -51,6 +52,33 @@
 //! in another reads the caller's `x`): verified on Jython 2.7. So a bare
 //! frame builtin used as a value, or handed out of a module, is a route
 //! for every scope.
+//!
+//! # String sinks
+//!
+//! Where a string literal can name a member at run time, verified on
+//! Jython (the literal is scanned for introspection names only there):
+//!
+//! * the name arguments of a direct reflective-accessor call
+//!   ([`REFLECTIVE_ACCESSORS`]: `getattr`, `hasattr`, `setattr`, `delattr`,
+//!   `__getattribute__`, `__getattr__`, `__findattr__`, `__findattr_ex__`,
+//!   `invoke`, `operator.attrgetter` (every argument, dotted names
+//!   included), `operator.methodcaller`);
+//! * the receiver of `format` / `vformat` (`'{0.f_back}'.format(g)`, also
+//!   as a value, `str` and `unicode` alike);
+//! * code: the literal argument of `eval`, `execfile`, `input` and the
+//!   body of an `exec` statement.
+//!
+//! Everything else that could look a member up from a string is an escape
+//! whatever its argument: a sink with a computed name or format string, or
+//! used as a value (`get = getattr`, `f = fmt.format`, `str.format(fmt,
+//! x)`, `object.__getattribute__(o, n)`), `string.Formatter` (its receiver
+//! is not a literal), `vars(o)` (a member dictionary), `__dict__` (named),
+//! `compile` and `__import__`. Not sinks (verified): `%` formatting and
+//! `string.Template` look keys up with `__getitem__` (`'%(x)s' % o` needs
+//! a mapping), and `format(o, spec)` takes a format spec, not field names.
+//! A literal that reaches a sink through a variable, a concatenation,
+//! `join`, `%`, slicing, a container or a function return is not a
+//! literal there, so the sink is computed and an escape.
 //!
 //! # Line numbers
 //!
@@ -469,9 +497,34 @@ impl Escapes {
     }
 }
 
+impl Escapes {
+    /// A string literal in a sink position (see "String sinks" in the
+    /// module documentation): it names members, so it is scanned for
+    /// introspection names.
+    fn sink(&mut self, e: &Expr) {
+        if let Expr::Str(s) = e
+            && string_names_introspection(&s.s)
+        {
+            self.found(s.range);
+        }
+    }
+
+    /// The name arguments of a direct reflective-accessor call.
+    fn accessor_names<'e>(name: &str, c: &'e iglint_python::ast::ExprCall) -> Vec<&'e Expr> {
+        match name {
+            "attrgetter" => c.args.iter().collect(),
+            "methodcaller" | "__getattribute__" | "__getattr__" | "__setattr__" | "__delattr__"
+            | "__findattr__" | "__findattr_ex__" | "invoke" => c.args.first().into_iter().collect(),
+            _ => c.args.get(1).into_iter().collect(),
+        }
+    }
+}
+
 impl<'a> Visitor<'a> for Escapes {
     fn visit_stmt(&mut self, stmt: &'a Stmt) {
         match stmt {
+            // Code in a literal names whatever it reads.
+            Stmt::Exec(e) => self.sink(&e.body),
             Stmt::Import(i) => {
                 for a in &i.names {
                     let root = a.name.id.split('.').next().unwrap_or("");
@@ -520,12 +573,10 @@ impl<'a> Visitor<'a> for Escapes {
                 }
                 return;
             }
-            Expr::Str(s) => {
-                if string_names_introspection(&s.s) {
-                    self.found(s.range);
-                }
-                return;
-            }
+            // A string literal names a member only in a sink position
+            // (scanned there); anywhere else it is data. See
+            // "String sinks" in the module documentation.
+            Expr::Str(_) => return,
             Expr::Call(c) => {
                 if Escapes::reflective_escape(c) {
                     self.found(c.range);
@@ -534,6 +585,14 @@ impl<'a> Visitor<'a> for Escapes {
                     Expr::Attribute(a) if FORMAT_METHODS.contains(&a.attr.as_str()) => Some(a),
                     _ => None,
                 };
+                if let Some(name) = Escapes::reflective_accessor(&c.func) {
+                    for arg in Escapes::accessor_names(name, c) {
+                        self.sink(arg);
+                    }
+                }
+                if let Some(a) = format {
+                    self.sink(&a.value);
+                }
                 if Escapes::reflective_accessor(&c.func).is_some() || format.is_some() {
                     // A direct call: the name argument was checked above
                     // (a literal is scanned like every string literal).
@@ -568,11 +627,21 @@ impl<'a> Visitor<'a> for Escapes {
                     // (the builtins too) and `compile` builds code; the
                     // others are handled by the calling scope unless the
                     // arguments are unpacked.
+                    // `vars(o)` is the namespace of `o` as a dictionary:
+                    // its keys are member names (verified:
+                    // `vars(Object)['getClass'](x)` is `x.getClass()`).
                     if INTERP_BUILTINS.contains(&&*f.id)
                         || c.starargs.is_some()
                         || c.kwargs.is_some()
+                        || (&*f.id == "vars" && !c.args.is_empty())
                     {
                         self.found(c.range);
+                    }
+                    // `eval('tb.tb_frame')`: the code names members.
+                    if matches!(&*f.id, "eval" | "execfile" | "input")
+                        && let Some(code) = c.args.first()
+                    {
+                        self.sink(code);
                     }
                     for a in &c.args {
                         self.visit_expr(a);
@@ -599,6 +668,10 @@ impl<'a> Visitor<'a> for Escapes {
                     || (FORMAT_METHODS.contains(&attr) && !matches!(&*a.value, Expr::Str(_)))
                 {
                     self.found(a.range);
+                }
+                // `f = '{0.gi_frame}'.format`: the literal is a format string.
+                if FORMAT_METHODS.contains(&attr) {
+                    self.sink(&a.value);
                 }
                 if is_introspection_name(attr)
                     || module
@@ -760,6 +833,98 @@ mod tests {
         }
     }
 
+    /// Reviewer round 8, finding 1 (narrowed string scan): a string literal
+    /// is scanned only in a sink position. Every sink with a literal
+    /// introspection name is an escape, with a plain literal name it is
+    /// not, and with a name that is not a literal at the call (a variable,
+    /// concatenation, `join`, `%`, slicing, a container, a function
+    /// return) it is an escape whatever the string. Literals outside sinks
+    /// are data.
+    #[test]
+    fn string_sinks() {
+        // (sink with `{}` for the name argument, literal plain name works)
+        let sinks: &[(&str, bool)] = &[
+            ("getattr(o, {})", true),
+            ("hasattr(o, {})", true),
+            ("setattr(o, {}, 1)", true),
+            ("delattr(o, {})", true),
+            ("o.__getattribute__({})", true),
+            ("o.__getattr__({})", true),
+            ("o.__findattr__({})", true),
+            ("o.__findattr_ex__({})", true),
+            ("o.invoke({})", true),
+            ("operator.attrgetter({})(o)", true),
+            ("operator.attrgetter('a', {})(o)", true),
+            ("operator.methodcaller({})(o)", true),
+        ];
+        let flows = [
+            "n",
+            "'tb_' + 'frame'",
+            "''.join(['tb_', 'frame'])",
+            "'%s' % 'tb_frame'",
+            "'xtb_frame'[1:]",
+            "['tb_frame'][0]",
+            "{'k': 'tb_frame'}['k']",
+            "name()",
+        ];
+        for (sink, plain_ok) in sinks {
+            let with = |arg: &str| format!("x = {}\n", sink.replace("{}", arg));
+            assert!(escape(&with("'tb_frame'")), "{}", with("'tb_frame'"));
+            assert!(
+                escape(&with("'f_back.f_locals'")),
+                "{}",
+                with("'f_back.f_locals'")
+            );
+            assert!(escape(&with("'classLoader'")), "{}", with("'classLoader'"));
+            if *plain_ok {
+                assert!(!escape(&with("'value'")), "{}", with("'value'"));
+            }
+            for flow in flows {
+                assert!(escape(&with(flow)), "{}", with(flow));
+            }
+        }
+        // Format strings: a literal receiver is scanned, also as a value;
+        // any other receiver is computed.
+        for src in [
+            "s = '{0.gi_frame}'.format(g)\n",
+            "s = u'{0.f_back}'.format(g)\n",
+            "f = '{0.f_back}'.format\n",
+            "s = '{0.f_back}'.vformat(g)\n",
+            "s = str.format('{0.x}', g)\n",
+            "s = fmt.format(g)\n",
+            "s = ('{0.' + 'x}').format(g)\n",
+            "s = string.Formatter().format('{0.x}', g)\n",
+            "s = ''.join(['{0.', 'f_back}']).format(g)\n",
+        ] {
+            assert!(escape(src), "{src}");
+        }
+        assert!(!escape("s = '{0.value} {1}'.format(a, b)\n"));
+        // Code literals.
+        for src in [
+            "x = eval('tb.tb_frame')\n",
+            "exec 'x = tb.tb_frame'\n",
+            "def f():\n    exec 'x = o.classLoader' in {}\n",
+        ] {
+            assert!(escape(src), "{src}");
+        }
+        // Member dictionaries are escapes whatever the key.
+        assert!(escape("f = vars(Object)['getClass']\n"));
+        assert!(escape("f = Object.__dict__['value']\n"));
+        // Not sinks (verified on Jython): data, `%` mappings, templates,
+        // format specs.
+        for src in [
+            "names = ['tb_frame', 'f_locals', 'classLoader', 'type', 'module']\n",
+            "d = {'type': 'popup', 'module': 'x'}\n",
+            "log('the frame f_locals of the module')\n",
+            "s = '%(f_locals)s' % d\n",
+            "s = string.Template('$f_locals').substitute(d)\n",
+            "s = format(x, 'f_back')\n",
+            "self.props.kind = 'module'\n",
+        ] {
+            assert!(!escape(src), "{src}");
+        }
+    }
+
     #[test]
     fn direct_calls_read_frames() {
         let reads = |src: &str| {
@@ -773,6 +938,8 @@ mod tests {
         assert!(reads(
             "self.props.text = str(sys.exc_info()[2].tb_lineno)\n"
         ));
-        assert!(!reads("dir(x)\nvars(y)\n"));
+        assert!(!reads("dir(x)\n"));
+        // `vars(o)` is a member dictionary (`vars(Object)['getClass']`).
+        assert!(reads("vars(y)\n"));
     }
 }
