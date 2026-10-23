@@ -28,7 +28,9 @@ arguments, with Jython 2.7's rules (verified on Jython):
   A single non-tuple literal counts as one value.
 * `str.format`: a single `{` or `}`, mixing `{}` and `{0}`, conversions
   other than `!r` and `!s`, positional fields beyond the arguments given,
-  and keyword fields that are not passed.
+  and keyword fields that are not passed. A numeric field too large for a
+  Java `int` (`{2147483648}`) is a keyword field, which only `**kwargs`
+  can pass.
 
 Only literal format strings with literal arguments (or literal argument
 lists) are checked; anything computed, `*args` and `**kwargs` are left
@@ -302,7 +304,9 @@ fn field_spec(
         }
         *auto = Some(false);
     }
-    // `Integer.parseInt`: an index when it fits in an int, else a keyword.
+    // `Integer.parseInt`: an index when it fits in an int, else a keyword
+    // (`{2147483648}` and `{+2147483648}` are looked up in the keyword
+    // arguments, still with manual numbering; verified on Jython).
     if !head.is_empty() {
         let digits = head.strip_prefix(['+', '-']).unwrap_or(head);
         let numeric = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
@@ -312,12 +316,6 @@ fn field_spec(
                 // A negative index fails with a Java exception, or not.
                 Err(_) => return Err(Bad::Unknown),
             },
-            Err(_) if numeric && !head.starts_with(['+', '-']) => {
-                return Err(format!(
-                    "field `{{{head}}}` is too large for an index, so it is looked up as a keyword (KeyError)"
-                )
-                .into());
-            }
             _ => {
                 if !spec.keywords.iter().any(|k| k == head) {
                     spec.keywords.push(head.to_owned());
@@ -501,6 +499,14 @@ fn check_format_call(format: &str, call: &iglint_python::ast::ExprCall) -> Optio
     if call.kwargs.is_none() {
         for k in &spec.keywords {
             if !call.keywords.iter().any(|kw| &*kw.arg.id == k) {
+                let digits = k.strip_prefix(['+', '-']).unwrap_or(k);
+                if !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) {
+                    // No keyword argument written in a call can have this
+                    // name; only `**kwargs` can pass it.
+                    return Some(format!(
+                        "Format field `{{{k}}}` is too large for an index, so it is looked up as a keyword argument, which is not given (KeyError)"
+                    ));
+                }
                 return Some(format!(
                     "Format string uses keyword argument `{k}`, which is not given"
                 ));
@@ -635,10 +641,32 @@ m = u"%d%%" % (5,)
     /// Each case was run on Jython 2.7 (Ignition 8.3.3).
     #[test]
     fn brace_grammar_matches_jython() {
-        // Indexes that do not fit in an int are keywords: KeyError.
-        assert!(brace_error("{18446744073709551615}").contains("KeyError"));
-        assert!(brace_error("{2147483648}").contains("KeyError"));
+        // Indexes that do not fit in an int are keywords.
+        assert_eq!(
+            parse_braces("{18446744073709551615}").unwrap().keywords,
+            ["18446744073709551615"]
+        );
+        assert_eq!(
+            parse_braces("{2147483648}").unwrap().keywords,
+            ["2147483648"]
+        );
+        assert_eq!(
+            parse_braces("{02147483648}").unwrap().keywords,
+            ["02147483648"]
+        );
         assert_eq!(parse_braces("{2147483647}").unwrap().positional, 2147483648);
+        assert_eq!(
+            parse_braces("{0000000002147483647}").unwrap().positional,
+            2147483648
+        );
+        // Also with attributes and indexes after it, and in a nested
+        // format spec; an index inside brackets is not a field.
+        let spec = parse_braces("{2147483648.x} {0[2147483649]} {0:{2147483650}}").unwrap();
+        assert_eq!(spec.keywords, ["2147483648", "2147483650"]);
+        assert_eq!(spec.positional, 1);
+        // Still manual numbering.
+        assert!(brace_error("{:{2147483648}}").contains("cannot switch"));
+        assert!(brace_error("{2147483648}{}").contains("cannot switch"));
         // A sign makes an index without switching to manual numbering.
         assert_eq!(parse_braces("{+0}{}").unwrap().positional, 1);
         assert_eq!(parse_braces("{-0}{}").unwrap().positional, 1);
@@ -672,10 +700,30 @@ m = u"%d%%" % (5,)
         assert_eq!(parse_braces("{\u{661}}").unwrap_err(), Bad::Unknown);
     }
 
+    /// Verified on Jython: an index too large for an int is a keyword,
+    /// which only `**kwargs` can supply.
     #[test]
-    fn huge_indexes_do_not_overflow() {
+    fn huge_indexes_are_keywords() {
         let d = lint_module("SCR112", "x = \"{18446744073709551615}\".format(1)\n");
         assert_eq!(d.len(), 1);
+        assert!(d[0].message.contains("KeyError"), "{}", d[0].message);
+        for ok in [
+            "x = '{2147483648}'.format(**{'2147483648': 1})\n",
+            "x = '{2147483648.x}'.format(**kw)\n",
+            "x = '{0:{2147483648}}'.format(1, **kw)\n",
+            "x = '{+2147483648}'.format(**kw)\n",
+            "x = '{0[2147483648]}'.format(d)\n",
+            "x = '{2147483647}'.format(*args)\n",
+        ] {
+            assert!(lint_module("SCR112", ok).is_empty(), "{ok}");
+        }
+        for bad in [
+            "x = '{2147483648.x}'.format(o)\n",
+            "x = '{0:{2147483648}}'.format(1, w=5)\n",
+            "x = u'{02147483648}'.format()\n",
+        ] {
+            assert_eq!(lint_module("SCR112", bad).len(), 1, "{bad}");
+        }
         assert!(lint_module("SCR112", "x = '%lls' % 'x'\n").len() == 1);
         assert!(lint_module("SCR112", "x = '%*%' % (1,)\n").is_empty());
     }
