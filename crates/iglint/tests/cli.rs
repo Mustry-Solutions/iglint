@@ -242,6 +242,67 @@ fn fixes() {
     assert_eq!(std::fs::read_to_string(&file).unwrap(), "_\nusedProp\n");
 }
 
+/// `--diff` output applies with GNU `patch -p1` and with `git apply` when
+/// paths hold spaces or characters git quotes. Skipped for a tool that is
+/// not installed.
+#[cfg(unix)]
+#[test]
+fn diff_applies_with_patch_and_git_for_any_path() {
+    let names = ["a.py", "My View/a.py", "Q\"x/b\\c.py", "é v/a.py"];
+    let source = |dir: &Path| {
+        write(dir, "project.json", "{}\n");
+        for name in names {
+            write(dir, name, "unused_var\nunusedProp\n");
+        }
+    };
+    let dir = tempfile::tempdir().unwrap();
+    source(dir.path());
+    let diff = run(dir.path(), &["--isolated", "--diff"]);
+    let patch = diff.stdout.split("\nWould fix").next().unwrap().to_owned();
+    assert!(patch.contains("--- a/My View/a.py\t\n"), "{patch}");
+    assert!(patch.contains("--- \"a/Q\\\"x/b\\\\c.py\"\n"), "{patch}");
+    let tools: [(&str, &[&str]); 2] = [("patch", &["-p1", "-s", "-t"]), ("git", &["apply"])];
+    for (tool, args) in tools {
+        let target = tempfile::tempdir().unwrap();
+        source(target.path());
+        let mut child = match std::process::Command::new(tool)
+            .args(args)
+            .current_dir(target.path())
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(_) => {
+                eprintln!("{tool} not found: skipped");
+                continue;
+            }
+        };
+        use std::io::Write as _;
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(patch.as_bytes())
+            .unwrap();
+        let out = child.wait_with_output().unwrap();
+        assert!(
+            out.status.success(),
+            "{tool}: {}{}\n{patch}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        for name in names {
+            assert_eq!(
+                std::fs::read_to_string(target.path().join(name)).unwrap(),
+                "_\nunusedProp\n",
+                "{tool}: {name}"
+            );
+        }
+    }
+}
+
 #[test]
 fn unsafe_fix_hint() {
     let dir = tempfile::tempdir().unwrap();

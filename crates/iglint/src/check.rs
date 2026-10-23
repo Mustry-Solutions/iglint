@@ -159,8 +159,40 @@ fn unified_diff(path: &str, old: &str, new: &str) -> String {
     similar::TextDiff::from_lines(old, new)
         .unified_diff()
         .context_radius(3)
-        .header(&format!("a/{path}"), &format!("b/{path}"))
+        .header(&diff_name("a/", path), &diff_name("b/", path))
         .to_string()
+}
+
+/// A file name for a `---` / `+++` line that `patch` and `git apply` both
+/// read back: quoted like git when it holds `"`, `\` or control
+/// characters, followed by a tab (as `diff -u` writes before the
+/// timestamp) when it holds spaces, which otherwise end the name for GNU
+/// patch.
+fn diff_name(prefix: &str, path: &str) -> String {
+    let name = format!("{prefix}{path}");
+    if name
+        .chars()
+        .any(|c| c == '"' || c == '\\' || c.is_ascii_control())
+    {
+        let mut quoted = String::from("\"");
+        for c in name.chars() {
+            match c {
+                '"' => quoted.push_str("\\\""),
+                '\\' => quoted.push_str("\\\\"),
+                '\t' => quoted.push_str("\\t"),
+                '\n' => quoted.push_str("\\n"),
+                '\r' => quoted.push_str("\\r"),
+                c if c.is_ascii_control() => quoted.push_str(&format!("\\{:03o}", c as u32)),
+                c => quoted.push(c),
+            }
+        }
+        quoted.push('"');
+        quoted
+    } else if name.contains(' ') {
+        format!("{name}\t")
+    } else {
+        name
+    }
 }
 
 /// Runs `iglint check` (or `iglint baseline` when `write_baseline`).

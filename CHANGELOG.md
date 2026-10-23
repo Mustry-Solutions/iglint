@@ -82,6 +82,10 @@ from 0.1.0 on.
   code that read them later. Backticks count as a call of `repr`, for
   `SCR103` and `SCR114` (which no longer reports backtick or list
   comprehension statements).
+- `--diff` output applies with GNU `patch -p1` when a path holds spaces
+  (`views/My View/...`): the file name is followed by a tab, as `diff -u`
+  writes it. Paths with `"`, `\` or control characters are quoted like
+  git does. Both `patch` and `git apply` accept the result.
 - `SCR112` treats a `.format` field too large for a Java `int`
   (`{2147483648}`, also `{2147483648.x}` and in nested specs) as the
   keyword it is in Jython: no finding when `**kwargs` may supply it.
