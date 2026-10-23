@@ -24,8 +24,9 @@ arguments, with Jython 2.7's rules (verified on Jython):
 * `%`: unsupported conversion characters (`%q`, Python 3's `%a`), a
   trailing `%`, a tuple with too many or too few values for the
   placeholders (`*` widths count), `%(name)s` with a tuple or a single
-  value instead of a dict, and `%(name)s` keys missing from a dict literal.
-  A single non-tuple literal counts as one value.
+  value instead of a dict, `%(name)s` keys missing from a dict literal,
+  and `%c` with a string literal that is not one character (`'%c' %
+  'ab'`). A single non-tuple literal counts as one value.
 * `str.format`: a single `{` or `}`, mixing `{}` and `{0}`, conversions
   other than `!r` and `!s`, positional fields beyond the arguments given,
   and keyword fields that are not passed. A numeric field too large for a
@@ -36,8 +37,9 @@ arguments, with Jython 2.7's rules (verified on Jython):
   (`{0:2147483648}`) fails for a literal argument and with `!r` or `!s`
   (other objects may have their own `__format__`).
 
-Only literal format strings with literal arguments (or literal argument
-lists) are checked; anything computed is left alone. `*args` and
+Only literal format strings (also concatenated with `+`: `('%s' +
+'%s') % (1,)`) with literal arguments (or literal argument lists) are
+checked; anything computed is left alone. `*args` and
 `**kwargs` count when they are literals (`*(1,)`, `**{'a': 1}`). Extra
 arguments to `.format` are allowed (Python ignores them).
 
@@ -87,6 +89,11 @@ struct PercentSpec {
     positional: usize,
     /// `%(key)` names.
     keys: Vec<String>,
+    /// The conversion of each positional value, in order (`None` for a
+    /// `*` width or precision).
+    conversions: Vec<Option<char>>,
+    /// The conversion of each `%(key)` placeholder.
+    key_conversions: Vec<(String, char)>,
 }
 
 /// Why a format string cannot be checked.
@@ -193,12 +200,19 @@ fn parse_percent(s: &str) -> Result<PercentSpec, Bad> {
         if matches!(c, 'h' | 'l' | 'L') {
             c = pop(&mut i)?;
         }
+        spec.conversions.extend(std::iter::repeat_n(None, stars));
         match c {
             // Prints `%`; `*` values are still taken.
             '%' => spec.positional += stars,
             'd' | 'i' | 'o' | 'u' | 'x' | 'X' | 'e' | 'E' | 'f' | 'F' | 'g' | 'G' | 'c' | 'r'
             | 's' => {
                 spec.positional += stars + usize::from(!keyed);
+                if keyed {
+                    let key = spec.keys.last().cloned().unwrap_or_default();
+                    spec.key_conversions.push((key, c));
+                } else {
+                    spec.conversions.push(Some(c));
+                }
             }
             other => {
                 if maybe_java_digit(other) {
@@ -480,6 +494,33 @@ fn string_of(e: &Expr) -> Option<String> {
     }
 }
 
+/// A string literal, or a concatenation of string literals with `+`
+/// (`('%s' + '%s')`), which Jython evaluates before formatting.
+fn folded_string(e: &Expr) -> Option<String> {
+    match e {
+        Expr::BinOp(b) if b.op == Operator::Add => {
+            Some(folded_string(&b.left)? + &folded_string(&b.right)?)
+        }
+        _ => string_of(e),
+    }
+}
+
+/// Whether `%c` fails on the literal `e`: a string literal that is not
+/// exactly one character (`TypeError: %c requires int or char`, verified
+/// on Jython). Byte strings with non-ASCII bytes are not judged (their
+/// length depends on the source encoding).
+fn bad_char(e: &Expr) -> bool {
+    match e {
+        Expr::Str(s) => match &s.s {
+            StringValue::Unicode(u) => u.chars().count() != 1,
+            StringValue::Bytes(b) => b.is_ascii() && b.len() != 1,
+        },
+        _ => false,
+    }
+}
+
+const BAD_CHAR: &str = "`%c` requires an int or a single character (Jython raises TypeError)";
+
 fn plural(n: usize, word: &str) -> String {
     if n == 1 {
         format!("{n} {word}")
@@ -496,7 +537,7 @@ impl ScriptRule for FormatString {
         let mut found: Vec<(TextRange, String)> = Vec::new();
         walk_exprs(&unit.parsed.module.body, &mut |e| match e {
             Expr::BinOp(b) if b.op == Operator::Mod => {
-                let Some(format) = string_of(&b.left) else {
+                let Some(format) = folded_string(&b.left) else {
                     return;
                 };
                 if let Some(problem) = check_percent(&format, &b.right) {
@@ -508,7 +549,7 @@ impl ScriptRule for FormatString {
                 if &*a.attr.id != "format" {
                     return;
                 }
-                let Some(format) = string_of(&a.value) else {
+                let Some(format) = folded_string(&a.value) else {
                     return;
                 };
                 if let Some(problem) = check_format_call(&format, c) {
@@ -546,6 +587,13 @@ fn check_percent(format: &str, right: &Expr) -> Option<String> {
                     plural(spec.positional, "value"),
                     given
                 ))
+            } else if spec
+                .conversions
+                .iter()
+                .zip(&t.elts)
+                .any(|(c, e)| *c == Some('c') && bad_char(e))
+            {
+                Some(BAD_CHAR.into())
             } else {
                 None
             }
@@ -559,15 +607,22 @@ fn check_percent(format: &str, right: &Expr) -> Option<String> {
                 given.push(string_of(k)?);
             }
             let missing: Vec<&String> = spec.keys.iter().filter(|k| !given.contains(k)).collect();
-            missing
-                .first()
-                .map(|k| format!("Format key `{k}` is missing from the dict"))
+            if let Some(k) = missing.first() {
+                return Some(format!("Format key `{k}` is missing from the dict"));
+            }
+            // The value of a key is the last one written for it.
+            let value = |key: &str| given.iter().rposition(|k| k == key).map(|i| &d.values[i]);
+            spec.key_conversions
+                .iter()
+                .any(|(k, c)| *c == 'c' && value(k).is_some_and(bad_char))
+                .then(|| BAD_CHAR.into())
         }
         Expr::Str(_) | Expr::Num(_) | Expr::List(_) | Expr::ListComp(_) => {
             if !spec.keys.is_empty() {
                 return Some("`%(key)` format requires a mapping".into());
             }
             match spec.positional {
+                1 if spec.conversions == [Some('c')] && bad_char(right) => Some(BAD_CHAR.into()),
                 1 => None,
                 0 => Some("Not all arguments converted during string formatting: the format string has no placeholder".into()),
                 n => Some(format!("Not enough arguments for format string: it needs {n}, 1 given")),
@@ -728,6 +783,41 @@ m = u"%d%%" % (5,)
             lines(&d).into_iter().map(|(l, _)| l).collect::<Vec<_>>(),
             [1, 2, 3, 4, 5, 6, 7]
         );
+    }
+
+    /// Each case was run on Jython 2.7 (Ignition 8.3.3): the first group
+    /// raises `TypeError`, the second formats.
+    #[test]
+    fn char_conversions_and_concatenated_formats() {
+        let failing = r#"a = '%c' % 'ab'
+b = '%c' % ''
+c = '%5c' % 'ab'
+d = '%c%s' % ('ab', 1)
+e = '%(a)c' % {'a': 'ab'}
+f = u'%c' % u'ab'
+g = '%*c' % (3, 'ab')
+h = ('%s' + '%s') % (1,)
+i = ('%s' + '%s' + '%s') % (1, 2)
+j = ('{}' + '{}').format(1)
+"#;
+        let d = lint_module("SCR112", failing);
+        assert_eq!(
+            lines(&d).into_iter().map(|(l, _)| l).collect::<Vec<_>>(),
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        );
+        assert!(d[0].message.contains("`%c`"), "{}", d[0].message);
+        let fine = r#"a = '%c' % 'a'
+b = '%c' % u'\xe9'
+c = '%c' % 65
+d = '%c' % '\n'
+e = ('%s' + u'%s') % (1, 2)
+f = '%%c' % ()
+g = '%c' % u'\U0001F600'
+h = '%c' % x
+i = ('%s' + s) % (1,)
+"#;
+        let d = lint_module("SCR112", fine);
+        assert!(d.is_empty(), "{d:?}");
     }
 
     fn percent_error(format: &str) -> String {

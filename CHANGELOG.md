@@ -67,6 +67,9 @@ from 0.1.0 on.
   code that Jython generates but never runs into (after `break`, a
   `try` whose body and handlers or whose `finally` do not complete, a
   loop whose `else` does not complete).
+- SCR112 reports `%c` with a string literal that is not one character
+  (`'%c' % 'ab'`) and checks format strings concatenated with `+`
+  (`('%s' + '%s') % (1,)`).
 
 - `VIEW015` no longer trusts the body of a library function that may be
   replaced at run time, so its safe fix no longer removes properties the
