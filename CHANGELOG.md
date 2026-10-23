@@ -89,6 +89,13 @@ from 0.1.0 on.
 - `REF009` reports a Python file that is not the resource's script once,
   on the file, instead of a second time on `resource.json` as an
   unlisted file (listing it would not make the gateway load it).
+- `SCR112` reports `.format` calls Jython always fails on that it
+  missed: a negative field index (`'{-1}'.format(1, 2)`,
+  `ArrayIndexOutOfBoundsException`), a format spec width or precision too
+  large for a Java `int` (`'{0:2147483648}'.format(1)`, `ValueError`) for
+  literal arguments and `!r` / `!s` fields, and missing arguments when
+  `*args` or `**kwargs` are literals (`'{0}{1}'.format(*(1,))`,
+  `'{a}'.format(1, **{})`).
 - `SCR112` treats a `.format` field too large for a Java `int`
   (`{2147483648}`, also `{2147483648.x}` and in nested specs) as the
   keyword it is in Jython: no finding when `**kwargs` may supply it.

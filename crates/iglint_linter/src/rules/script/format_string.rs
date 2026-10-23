@@ -30,11 +30,16 @@ arguments, with Jython 2.7's rules (verified on Jython):
   other than `!r` and `!s`, positional fields beyond the arguments given,
   and keyword fields that are not passed. A numeric field too large for a
   Java `int` (`{2147483648}`) is a keyword field, which only `**kwargs`
-  can pass.
+  can pass. A negative index (`{-1}`) always fails
+  (`ArrayIndexOutOfBoundsException`; `{-0}` is index 0). A format spec
+  whose width or precision is too large for a Java `int`
+  (`{0:2147483648}`) fails for a literal argument and with `!r` or `!s`
+  (other objects may have their own `__format__`).
 
 Only literal format strings with literal arguments (or literal argument
-lists) are checked; anything computed, `*args` and `**kwargs` are left
-alone. Extra arguments to `.format` are allowed (Python ignores them).
+lists) are checked; anything computed is left alone. `*args` and
+`**kwargs` count when they are literals (`*(1,)`, `**{'a': 1}`). Extra
+arguments to `.format` are allowed (Python ignores them).
 
 ## Why is this bad?
 
@@ -217,6 +222,73 @@ struct BraceSpec {
     /// Highest positional index used, plus one.
     positional: usize,
     keywords: Vec<String>,
+    /// Fields whose literal format spec has a width or precision too large
+    /// for a Java `int`.
+    oversized: Vec<Oversized>,
+}
+
+/// A field whose format spec has a width or precision that Jython's
+/// standard format spec parser (used by `str`, numbers, containers and
+/// every object without its own `__format__`) cannot read: `ValueError:
+/// For input string`.
+#[derive(Debug, PartialEq)]
+struct Oversized {
+    /// The argument formatted, when it is the field itself (no `.attr` or
+    /// `[key]` after the name).
+    argument: Option<FieldArg>,
+    /// `!r` or `!s`: the value is a string, so the standard parser runs
+    /// whatever the argument is.
+    converted: bool,
+    spec: String,
+}
+
+#[derive(Debug, PartialEq)]
+enum FieldArg {
+    Index(usize),
+    Keyword(String),
+}
+
+/// Whether a format spec (`[[fill]align][sign][#][0][width][,][.precision]
+/// [type]`) has a width or precision beyond `i32::MAX`, which
+/// `Integer.parseInt` rejects (verified on Jython, leading zeros
+/// included). `None` when it holds a non-ASCII digit (not modelled).
+fn spec_number_too_large(spec: &str) -> Option<bool> {
+    if spec.chars().any(maybe_java_digit) {
+        return None;
+    }
+    let chars: Vec<char> = spec.chars().collect();
+    let mut i = 0;
+    let align = |c: Option<&char>| matches!(c, Some('<' | '>' | '=' | '^'));
+    if align(chars.get(1)) {
+        i = 2;
+    } else if align(chars.first()) {
+        i = 1;
+    }
+    for flag in [&['+', '-', ' '][..], &['#'], &['0']] {
+        if chars.get(i).is_some_and(|c| flag.contains(c)) {
+            i += 1;
+        }
+    }
+    let number = |i: &mut usize| -> bool {
+        let start = *i;
+        while chars.get(*i).is_some_and(char::is_ascii_digit) {
+            *i += 1;
+        }
+        let digits: String = chars[start..*i].iter().collect();
+        let digits = digits.trim_start_matches('0');
+        digits.len() > 10 || (digits.len() == 10 && digits > "2147483647")
+    };
+    if number(&mut i) {
+        return Some(true);
+    }
+    if chars.get(i) == Some(&',') {
+        i += 1;
+    }
+    if chars.get(i) == Some(&'.') {
+        i += 1;
+        return Some(number(&mut i));
+    }
+    Some(false)
 }
 
 /// Parses a `str.format` string like Jython's `MarkupIterator` and
@@ -287,6 +359,7 @@ fn field_spec(
     }
     // Numbering is manual when the name starts with a digit, automatic
     // when it is empty; `{+0}` and `{-0}` are neither.
+    let mut argument = None;
     if head.is_empty() {
         if *auto == Some(false) {
             return Err(
@@ -296,6 +369,7 @@ fn field_spec(
         *auto = Some(true);
         *next_auto += 1;
         spec.positional = spec.positional.max(*next_auto);
+        argument = Some(FieldArg::Index(*next_auto - 1));
     } else if head.starts_with(|c: char| c.is_ascii_digit()) {
         if *auto == Some(true) {
             return Err(
@@ -312,19 +386,33 @@ fn field_spec(
         let numeric = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
         match head.parse::<i32>() {
             Ok(index) if numeric => match usize::try_from(index) {
-                Ok(index) => spec.positional = spec.positional.max(index.saturating_add(1)),
-                // A negative index fails with a Java exception, or not.
-                Err(_) => return Err(Bad::Unknown),
+                Ok(index) => {
+                    spec.positional = spec.positional.max(index.saturating_add(1));
+                    argument = Some(FieldArg::Index(index));
+                }
+                // Jython indexes the argument array with it, whatever the
+                // arguments are (also with `**kwargs` that have the key).
+                Err(_) => {
+                    return Err(format!(
+                        "field `{{{head}}}` is a negative index (ArrayIndexOutOfBoundsException)"
+                    )
+                    .into());
+                }
             },
             _ => {
                 if !spec.keywords.iter().any(|k| k == head) {
                     spec.keywords.push(head.to_owned());
                 }
+                argument = Some(FieldArg::Keyword(head.to_owned()));
             }
         }
     }
     field_rest(&name[first_end..])?;
+    if first_end < name.len() {
+        argument = None;
+    }
     let mut rest = &field[name_end..];
+    let converted = rest.starts_with('!');
     if let Some(r) = rest.strip_prefix('!') {
         let mut chars = r.chars();
         match chars.next() {
@@ -337,13 +425,19 @@ fn field_spec(
             return Err("expected ':' after conversion specifier".into());
         }
     }
-    if let Some(format_spec) = rest.strip_prefix(':')
-        && format_spec.contains('{')
-    {
-        if depth >= 1 {
-            return Err("Max string recursion exceeded".into());
+    if let Some(format_spec) = rest.strip_prefix(':') {
+        if format_spec.contains('{') {
+            if depth >= 1 {
+                return Err("Max string recursion exceeded".into());
+            }
+            parse_braces_into(format_spec, spec, auto, next_auto, depth + 1)?;
+        } else if spec_number_too_large(format_spec) == Some(true) {
+            spec.oversized.push(Oversized {
+                argument,
+                converted,
+                spec: format_spec.to_owned(),
+            });
         }
-        parse_braces_into(format_spec, spec, auto, next_auto, depth + 1)?;
     }
     Ok(())
 }
@@ -489,16 +583,45 @@ fn check_format_call(format: &str, call: &iglint_python::ast::ExprCall) -> Optio
         Err(Bad::Error(e)) => return Some(format!("Bad `format` string: {e}")),
         Err(Bad::Unknown) => return None,
     };
-    if call.starargs.is_none() && spec.positional > call.args.len() {
+    // The positional arguments, with a literal `*(...)` / `*[...]`.
+    let positional: Option<Vec<&Expr>> = match call.starargs.as_deref() {
+        None => Some(call.args.iter().collect()),
+        Some(Expr::Tuple(t)) => Some(call.args.iter().chain(&t.elts).collect()),
+        Some(Expr::List(l)) => Some(call.args.iter().chain(&l.elts).collect()),
+        Some(_) => None,
+    };
+    if let Some(positional) = &positional
+        && spec.positional > positional.len()
+    {
         return Some(format!(
             "Format string uses {} but only {} given",
             plural(spec.positional, "positional argument"),
-            call.args.len()
+            positional.len()
         ));
     }
-    if call.kwargs.is_none() {
+    // The keyword arguments, with a literal `**{...}` whose keys are
+    // string literals.
+    let keywords: Option<Vec<(String, &Expr)>> = match call.kwargs.as_deref() {
+        None => Some(Vec::new()),
+        Some(Expr::Dict(d)) => d
+            .keys
+            .iter()
+            .zip(&d.values)
+            .map(|(k, v)| string_of(k).map(|k| (k, v)))
+            .collect(),
+        Some(_) => None,
+    };
+    let keywords = keywords.map(|mut all| {
+        all.extend(
+            call.keywords
+                .iter()
+                .map(|k| (k.arg.id.to_string(), &k.value)),
+        );
+        all
+    });
+    if let Some(keywords) = &keywords {
         for k in &spec.keywords {
-            if !call.keywords.iter().any(|kw| &*kw.arg.id == k) {
+            if !keywords.iter().any(|(name, _)| name == k) {
                 let digits = k.strip_prefix(['+', '-']).unwrap_or(k);
                 if !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) {
                     // No keyword argument written in a call can have this
@@ -511,6 +634,34 @@ fn check_format_call(format: &str, call: &iglint_python::ast::ExprCall) -> Optio
                     "Format string uses keyword argument `{k}`, which is not given"
                 ));
             }
+        }
+    }
+    for o in &spec.oversized {
+        let value = match &o.argument {
+            Some(FieldArg::Index(i)) => positional.as_ref().and_then(|p| p.get(*i).copied()),
+            Some(FieldArg::Keyword(k)) => keywords
+                .as_ref()
+                .and_then(|kw| kw.iter().find(|(name, _)| name == k).map(|(_, v)| *v)),
+            None => None,
+        };
+        // Literals format with the standard parser; other objects may
+        // have their own `__format__` (`datetime` takes `strftime` codes).
+        let standard = value.is_some_and(|v| {
+            matches!(
+                v,
+                Expr::Num(_)
+                    | Expr::Str(_)
+                    | Expr::List(_)
+                    | Expr::Tuple(_)
+                    | Expr::Dict(_)
+                    | Expr::Set(_)
+            )
+        });
+        if o.converted || standard {
+            return Some(format!(
+                "Format spec `{}` has a width or precision too large for a Java `int` (ValueError)",
+                o.spec
+            ));
         }
     }
     None
@@ -553,7 +704,7 @@ mod tests {
         assert!(parse_braces("{0!a}").is_err());
         assert!(parse_braces("{0[]}").is_err());
         assert_eq!(parse_braces("{00}").unwrap().positional, 1);
-        assert_eq!(parse_braces("{-1}").unwrap_err(), Bad::Unknown);
+        assert!(brace_error("{-1}").contains("negative index"));
     }
 
     #[test]
@@ -725,6 +876,57 @@ m = u"%d%%" % (5,)
             assert_eq!(lint_module("SCR112", bad).len(), 1, "{bad}");
         }
         assert!(lint_module("SCR112", "x = '%lls' % 'x'\n").len() == 1);
+    }
+
+    /// Verified on Jython: a negative index raises
+    /// `ArrayIndexOutOfBoundsException` whatever the arguments (`{-0}` and
+    /// `{+1}` are indexes 0 and 1); a width or precision too large for an
+    /// int raises `ValueError` for literals and with `!r` / `!s` (not for a
+    /// `datetime`, whose `__format__` takes `strftime` codes); literal
+    /// `*args` and `**kwargs` are counted. Not modelled, so not reported
+    /// although Jython raises: a spec applied to an attribute or item of
+    /// the argument (`{0.real:2147483648}`) or built from another field.
+    #[test]
+    fn negative_indexes_large_specs_and_literal_star_arguments() {
+        for bad in [
+            "x = '{-1}'.format(1, 2)\n",
+            "x = u'{-1}'.format(**{'-1': 5})\n",
+            "x = '{-2147483648.real}'.format(*args)\n",
+            "x = '{0:2147483648}'.format(1)\n",
+            "x = '{0:.2147483648}'.format(1.0)\n",
+            "x = '{:x<02147483648}'.format('a')\n",
+            "x = '{a:-2147483648}'.format(a=[1])\n",
+            "x = '{0:,.0000000000002147483648}'.format(1)\n",
+            "x = '{0!r:2147483648}'.format(d)\n",
+            "x = '{0:2147483648}'.format(*(1,))\n",
+            "x = '{a:2147483648}'.format(**{'a': 'x'})\n",
+            "x = '{0}{1}'.format(*(1,))\n",
+            "x = '{0}{1}'.format(*[])\n",
+            "x = '{a}'.format(1, **{})\n",
+            "x = '{a}'.format(**{'b': 1})\n",
+            "x = '{2147483648}'.format(**{})\n",
+        ] {
+            assert_eq!(lint_module("SCR112", bad).len(), 1, "{bad}");
+        }
+        for ok in [
+            "x = '{-0}{+1}'.format(1, 2)\n",
+            "x = '{0:2147483647}'.format(d)\n",
+            "x = '{0:2147483648}'.format(d)\n",
+            "x = '{0.real:2147483648}'.format(1)\n",
+            "x = '{0:{1}}'.format(1, 2147483648)\n",
+            "x = '{0:2147483647.2147483647}'.format(d)\n",
+            "x = '{0}{1}'.format(1, *(2,))\n",
+            "x = '{a}'.format(**{'a': 1})\n",
+            "x = '{a}'.format(**{k: 1})\n",
+            "x = '{0}{1}'.format(*xs)\n",
+        ] {
+            assert!(lint_module("SCR112", ok).is_empty(), "{ok}");
+        }
+        assert_eq!(spec_number_too_large("2147483647"), Some(false));
+        assert_eq!(spec_number_too_large("02147483648"), Some(true));
+        assert_eq!(spec_number_too_large("<2147483648"), Some(true));
+        assert_eq!(spec_number_too_large("%Y-%m-%d"), Some(false));
+        assert_eq!(spec_number_too_large("\u{663}"), None);
         assert!(lint_module("SCR112", "x = '%*%' % (1,)\n").is_empty());
     }
 }
