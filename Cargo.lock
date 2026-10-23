@@ -574,6 +574,7 @@ dependencies = [
  "clap",
  "glob",
  "iglint_config",
+ "iglint_json",
  "iglint_linter",
  "iglint_server",
  "iglint_text",

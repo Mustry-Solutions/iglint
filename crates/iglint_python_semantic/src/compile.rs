@@ -48,6 +48,14 @@ pub enum CompileErrorKind {
     /// Jython's compiler crashes on the target (`-a = 1`, `for f() in x`);
     /// the code cannot be compiled.
     InvalidTarget,
+    /// The first two lines reach [`crate::MARK_LIMIT`] characters
+    /// (`java.io.IOException: Mark invalid`).
+    MarkInvalid,
+    /// A module, class or function body is larger than a Java method can
+    /// hold.
+    MethodTooLarge,
+    /// A module has more constants than a Java class can hold.
+    ClassTooLarge,
 }
 
 /// The compile-time errors of a module, in source order.

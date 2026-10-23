@@ -337,13 +337,38 @@ fn duplicate_keys_are_preserved() {
 
 #[test]
 fn nesting_limit() {
-    let deep = "[".repeat(600) + &"]".repeat(600);
-    assert_eq!(
-        parse(&deep).unwrap_err().kind,
-        ParseErrorKind::NestingTooDeep
-    );
-    let ok_depth = "[".repeat(500) + &"]".repeat(500);
-    assert!(parse(&ok_depth).is_ok());
+    // Unlimited by default, like Gson, without recursion: parsed, walked
+    // and dropped on a small stack.
+    std::thread::Builder::new()
+        .stack_size(256 * 1024)
+        .spawn(|| {
+            let n = 1_000_000;
+            let arrays = "[".repeat(n) + "1" + &"]".repeat(n);
+            let objects = r#"{"a": "#.repeat(n) + "[1, {}]" + &"}".repeat(n);
+            let mixed = r#"[{"a": "#.repeat(n) + "1" + &"}]".repeat(n);
+            for (text, depth, count) in [
+                (arrays, n + 1, n + 1),
+                (objects, n + 2, n + 3),
+                (mixed, 2 * n + 1, 2 * n + 1),
+            ] {
+                let value = parse(&text).unwrap();
+                let mut deepest = 0;
+                let mut visited = 0;
+                value.walk(|path, _| {
+                    deepest = deepest.max(path.len() + 1);
+                    visited += 1;
+                    true
+                });
+                assert_eq!(deepest, depth);
+                assert_eq!(visited, count);
+                let truncated = &text[..text.len() - 1];
+                assert!(parse(truncated).is_err());
+                drop(value);
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
     let opts = ParseOptions {
         max_depth: 3,
         ..ParseOptions::default()

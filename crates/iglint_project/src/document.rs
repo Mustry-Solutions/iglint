@@ -2,7 +2,19 @@
 
 use std::sync::Arc;
 
-use iglint_json::{ParseError, Value};
+use iglint_json::{ParseError, ParseOptions, Value};
+
+/// The deepest nesting of arrays and objects that iglint analyses. A
+/// deeper file is a [`iglint_json::ParseErrorKind::NestingTooDeep`] error.
+///
+/// Gson parses any depth, but Perspective cannot use such a view: its view
+/// loader builds components recursively and its property trees copy values
+/// recursively, and both overflow a gateway thread's 1 MiB stack at 1,200
+/// to 3,300 levels (measured on 8.3.3, see
+/// `docs/internal/ignition-format.md`). The limit is far above that, so
+/// that only views Ignition cannot open are reported, and it keeps the
+/// recursive consumers of the tree within their stacks.
+pub const MAX_JSON_DEPTH: usize = 8_192;
 
 type JsonResult<'a> = Result<Value<'a>, ParseError>;
 
@@ -25,9 +37,14 @@ pub struct JsonDocument(JsonCell);
 
 impl JsonDocument {
     /// Parses `text`. Parse errors are kept, not returned: an invalid file is
-    /// still a document of the workspace.
+    /// still a document of the workspace. Nesting deeper than
+    /// [`MAX_JSON_DEPTH`] is an error.
     pub fn parse(text: Arc<str>) -> Self {
-        JsonDocument(JsonCell::new(text, |t| iglint_json::parse(t)))
+        let options = ParseOptions {
+            max_depth: MAX_JSON_DEPTH,
+            ..ParseOptions::default()
+        };
+        JsonDocument(JsonCell::new(text, |t| iglint_json::parse_with(t, options)))
     }
 
     /// The file text.
@@ -73,5 +90,15 @@ mod tests {
         assert!(doc.error().is_some());
         let doc = JsonDocument::parse(Arc::from("{\"a\": 1}"));
         assert_eq!(doc.root().unwrap().get("a").unwrap().as_i64(), Some(1));
+    }
+
+    #[test]
+    fn depth_limit() {
+        let nested = |n: usize| Arc::from("[".repeat(n) + &"]".repeat(n));
+        assert!(JsonDocument::parse(nested(MAX_JSON_DEPTH)).root().is_some());
+        let doc = JsonDocument::parse(nested(MAX_JSON_DEPTH + 1));
+        let error = doc.error().unwrap();
+        assert_eq!(error.kind, iglint_json::ParseErrorKind::NestingTooDeep);
+        assert_eq!(error.range.start().to_usize(), MAX_JSON_DEPTH);
     }
 }

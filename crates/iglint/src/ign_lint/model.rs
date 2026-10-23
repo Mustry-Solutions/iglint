@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::sync::LazyLock;
 
+use iglint_json::{Object, Value as JsonValue, ValueKind};
 use regex::Regex;
 use serde_json::{Map, Value, json};
 
@@ -63,13 +64,33 @@ impl Flat {
     }
 }
 
-fn is_java_date(object: &Map<String, Value>) -> bool {
-    object.len() == 2
-        && object
-            .get("$")
-            .and_then(Value::as_array)
+/// Members of a JSON object as Python's `dict` sees them: duplicate keys
+/// keep the position of the first and the value of the last.
+fn dict_members<'v, 'a>(object: &'v Object<'a>) -> Vec<(&'v str, &'v JsonValue<'a>)> {
+    if object.duplicate_keys().is_empty() {
+        return object.iter().map(|m| (m.key(), &m.value)).collect();
+    }
+    let mut members: Vec<(&str, &JsonValue<'a>)> = Vec::new();
+    let mut index: HashMap<&str, usize> = HashMap::new();
+    for m in object.iter() {
+        match index.get(m.key()) {
+            Some(&i) => members[i].1 = &m.value,
+            None => {
+                index.insert(m.key(), members.len());
+                members.push((m.key(), &m.value));
+            }
+        }
+    }
+    members
+}
+
+fn is_java_date(members: &[(&str, &JsonValue<'_>)]) -> bool {
+    let get = |key: &str| members.iter().find(|(k, _)| *k == key).map(|(_, v)| *v);
+    members.len() == 2
+        && get("$")
+            .and_then(JsonValue::as_array)
             .is_some_and(|a| a.len() == 3)
-        && object.get("$ts").is_some_and(Value::is_number)
+        && get("$ts").is_some_and(|v| v.as_number().is_some())
 }
 
 fn python_truthy(value: &Value) -> bool {
@@ -80,6 +101,31 @@ fn python_truthy(value: &Value) -> bool {
         Value::String(s) => !s.is_empty(),
         Value::Array(a) => !a.is_empty(),
         Value::Object(o) => !o.is_empty(),
+    }
+}
+
+/// Python truthiness of a parsed JSON value.
+pub fn json_truthy(value: &JsonValue<'_>) -> bool {
+    match &value.kind {
+        ValueKind::Null => false,
+        ValueKind::Bool(b) => *b,
+        ValueKind::Number(n) => n.as_f64().is_some_and(|f| f != 0.0),
+        ValueKind::String(s) => !s.value().is_empty(),
+        ValueKind::Array(a) => !a.is_empty(),
+        ValueKind::Object(o) => !o.is_empty(),
+    }
+}
+
+/// A leaf (scalar or empty container) as a `serde_json` value, with the
+/// number semantics of `serde_json` (and Python's `json`).
+fn leaf(value: &JsonValue<'_>) -> Value {
+    match &value.kind {
+        ValueKind::Null => Value::Null,
+        ValueKind::Bool(b) => Value::Bool(*b),
+        ValueKind::Number(n) => serde_json::from_str(n.raw()).unwrap_or(Value::Null),
+        ValueKind::String(s) => Value::String(s.value().to_owned()),
+        ValueKind::Array(_) => Value::Array(Vec::new()),
+        ValueKind::Object(_) => Value::Object(Map::new()),
     }
 }
 
@@ -94,60 +140,152 @@ pub fn python_str(value: &Value) -> String {
     }
 }
 
-fn join(path: &str, key: &str) -> String {
-    if path.is_empty() {
-        key.to_owned()
-    } else {
-        format!("{path}.{key}")
+/// Python `str()` of a `meta.name` value. Containers print as
+/// `serde_json` would print them, without recursion.
+fn name_str(value: &JsonValue<'_>) -> String {
+    if !matches!(value.kind, ValueKind::Array(_) | ValueKind::Object(_)) {
+        return python_str(&leaf(value));
     }
+    enum Step<'v, 'a> {
+        Value(&'v JsonValue<'a>),
+        Key(&'v str),
+        Text(&'static str),
+    }
+    let mut out = String::new();
+    let mut pending = vec![Step::Value(value)];
+    while let Some(step) = pending.pop() {
+        let value = match step {
+            Step::Text(text) => {
+                out.push_str(text);
+                continue;
+            }
+            Step::Key(key) => {
+                out.push_str(&Value::from(key).to_string());
+                continue;
+            }
+            Step::Value(value) => value,
+        };
+        match &value.kind {
+            ValueKind::Array(a) => {
+                out.push('[');
+                pending.push(Step::Text("]"));
+                for (i, e) in a.iter().enumerate().rev() {
+                    pending.push(Step::Value(e));
+                    if i > 0 {
+                        pending.push(Step::Text(","));
+                    }
+                }
+            }
+            ValueKind::Object(o) => {
+                out.push('{');
+                pending.push(Step::Text("}"));
+                let members = dict_members(o);
+                for (i, (key, value)) in members.into_iter().enumerate().rev() {
+                    pending.push(Step::Value(value));
+                    pending.push(Step::Text(":"));
+                    pending.push(Step::Key(key));
+                    if i > 0 {
+                        pending.push(Step::Text(","));
+                    }
+                }
+            }
+            _ => out.push_str(&leaf(value).to_string()),
+        }
+    }
+    out
 }
 
-/// Flattens a parsed `view.json` (section 2).
-pub fn flatten(data: &Value) -> Flat {
+/// Appends `.key` to `path` (just `key` at the top).
+fn join(path: &mut String, key: &str) {
+    if !path.is_empty() {
+        path.push('.');
+    }
+    path.push_str(key);
+}
+
+/// The items of an array or object being flattened.
+enum Items<'v, 'a> {
+    Members(std::vec::IntoIter<(&'v str, &'v JsonValue<'a>)>),
+    Elements(std::iter::Enumerate<std::slice::Iter<'v, JsonValue<'a>>>),
+}
+
+/// Flattens a parsed `view.json` (section 2). ign-lint recurses (and
+/// crashes at about 500 levels, see `docs/compat/ign-lint-differences.md`);
+/// this walks with an explicit stack and one path buffer, so any depth is
+/// flattened in time and memory linear in the input.
+pub fn flatten(data: &JsonValue<'_>) -> Flat {
     let mut flat = Flat::default();
-    flatten_into(data, "", &mut flat);
-    flat
-}
-
-fn flatten_into(data: &Value, path: &str, flat: &mut Flat) {
-    match data {
-        Value::Object(object) => {
-            if is_java_date(object) {
-                flat.insert(format!("{path}._JavaDate"), object["$ts"].clone());
-                return;
-            }
-            let mut path = path.to_owned();
-            // A non-object `meta` makes ign-lint crash; here it is ordinary data.
-            if let Some(name) = object
-                .get("meta")
-                .and_then(Value::as_object)
-                .and_then(|m| m.get("name"))
-                .filter(|n| python_truthy(n))
-            {
-                path = join(&path, &python_str(name));
-            }
-            for (key, value) in object {
-                let child = join(&path, key);
-                match value {
-                    Value::Object(o) if o.is_empty() => flat.insert(child, value.clone()),
-                    Value::Array(a) if a.is_empty() => flat.insert(child, value.clone()),
-                    Value::Object(_) | Value::Array(_) => flatten_into(value, &child, flat),
-                    _ => flat.insert(child, value.clone()),
+    let mut path = String::new();
+    // Open containers: their items and the length of their path.
+    let mut stack: Vec<(Items<'_, '_>, usize)> = Vec::new();
+    let mut next = Some(data);
+    loop {
+        if let Some(container) = next.take() {
+            match &container.kind {
+                ValueKind::Object(object) => {
+                    let members = dict_members(object);
+                    if is_java_date(&members) {
+                        let ts = members.iter().find(|(k, _)| *k == "$ts").map(|(_, v)| *v);
+                        path.push_str("._JavaDate");
+                        flat.insert(path.clone(), ts.map_or(Value::Null, leaf));
+                    } else {
+                        // A non-object `meta` makes ign-lint crash; here it
+                        // is ordinary data.
+                        let name = members
+                            .iter()
+                            .rev()
+                            .find(|(k, _)| *k == "meta")
+                            .and_then(|(_, m)| m.as_object())
+                            .map(dict_members)
+                            .and_then(|m| m.into_iter().find(|(k, _)| *k == "name"))
+                            .map(|(_, n)| n)
+                            .filter(|n| json_truthy(n));
+                        if let Some(name) = name {
+                            join(&mut path, &name_str(name));
+                        }
+                        stack.push((Items::Members(members.into_iter()), path.len()));
+                    }
                 }
+                ValueKind::Array(items) => {
+                    stack.push((Items::Elements(items.iter().enumerate()), path.len()));
+                }
+                _ => {}
             }
         }
-        Value::Array(items) => {
-            for (i, item) in items.iter().enumerate() {
-                let child = format!("{path}[{i}]");
-                match item {
-                    Value::Object(o) if o.is_empty() => {}
-                    Value::Array(a) if a.is_empty() => {}
-                    Value::Object(_) | Value::Array(_) => flatten_into(item, &child, flat),
-                    _ => flat.insert(child, item.clone()),
+        let Some((items, base)) = stack.last_mut() else {
+            return flat;
+        };
+        path.truncate(*base);
+        let in_object = matches!(items, Items::Members(_));
+        let item = match items {
+            Items::Members(members) => members.next().map(|(key, value)| {
+                join(&mut path, key);
+                value
+            }),
+            Items::Elements(elements) => elements.next().map(|(i, value)| {
+                use std::fmt::Write as _;
+                let _ = write!(path, "[{i}]");
+                value
+            }),
+        };
+        let Some(value) = item else {
+            stack.pop();
+            continue;
+        };
+        match &value.kind {
+            ValueKind::Object(o) if o.is_empty() => {
+                if in_object {
+                    flat.insert(path.clone(), leaf(value));
                 }
             }
+            ValueKind::Array(a) if a.is_empty() => {
+                if in_object {
+                    flat.insert(path.clone(), leaf(value));
+                }
+            }
+            ValueKind::Object(_) | ValueKind::Array(_) => next = Some(value),
+            _ => flat.insert(path.clone(), leaf(value)),
         }
-        _ => {}
     }
 }
 
@@ -1024,7 +1162,7 @@ mod tests {
 
     #[test]
     fn flatten_leaves() {
-        let data: Value = serde_json::from_str(
+        let data = iglint_json::parse(
             r#"{"a": 1, "b": {"c": "x", "d": null, "e": true}, "empty": {}, "list": [],
                 "arr": [1, {}, [], {"k": 2}, [3]],
                 "date": {"$": ["ts", 192, 5], "$ts": 7},
@@ -1058,7 +1196,7 @@ mod tests {
 
     #[test]
     fn flatten_injects_component_names() {
-        let data: Value = serde_json::from_str(
+        let data = iglint_json::parse(
             r#"{"root": {"meta": {"name": "root"}, "type": "ia.container.flex",
                 "children": [{"meta": {"name": "Button"}, "props": {"text": "Go"}}],
                 "custom": {"ghost": {"meta": {"name": "Ghost"}, "x": 1}}}}"#,
@@ -1076,10 +1214,10 @@ mod tests {
                 "root.root.custom.ghost.Ghost.x",
             ]
         );
-        let top: Value = serde_json::from_str(r#"[1, {"a": 2}]"#).unwrap();
+        let top = iglint_json::parse(r#"[1, {"a": 2}]"#).unwrap();
         assert_eq!(keys(&flatten(&top)), vec!["[0]", "[1].a"]);
         // A non-object meta is ordinary data here (ign-lint crashes).
-        let bad: Value = serde_json::from_str(r#"{"meta": "x", "b": 1}"#).unwrap();
+        let bad = iglint_json::parse(r#"{"meta": "x", "b": 1}"#).unwrap();
         assert_eq!(keys(&flatten(&bad)), vec!["meta", "b"]);
     }
 
@@ -1094,7 +1232,7 @@ mod tests {
 
     #[test]
     fn model_of_a_small_view() {
-        let data: Value = serde_json::from_str(
+        let data = iglint_json::parse(
             r#"{
               "custom": {"a": 1, "hidden": 2, "_priv": 3},
               "params": {"p": [1, 2]},

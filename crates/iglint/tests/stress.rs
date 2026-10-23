@@ -4,7 +4,8 @@
 //! Every input must either be linted normally or produce a "nested too
 //! deeply" finding, never crash the process. The limits are explained in
 //! `iglint_python` (`MAX_DEPTH`, the expression nesting limit),
-//! `iglint_expression::MAX_DEPTH` and the JSON nesting limit.
+//! `iglint_expression::MAX_DEPTH` and `iglint_project::MAX_JSON_DEPTH`
+//! (JSON of any depth is parsed; deeper than that is a `VIEW001` finding).
 //!
 //! The inputs are large, so these tests run in release mode only:
 //!
@@ -329,45 +330,191 @@ fn deep_expressions() {
     }
 }
 
+/// JSON levels iglint analyses (`iglint_project::MAX_JSON_DEPTH`).
+const JSON_DEPTH: usize = 8_192;
+
+/// Views nested `n` levels in different places, the JSON depth each
+/// reaches, as (name, view.json, JSON depth).
+fn deep_views(n: usize) -> Vec<(&'static str, String, usize)> {
+    let array = |n: usize| format!("{}1{}", "[".repeat(n), "]".repeat(n));
+    let object = |n: usize| format!("{}1{}", r#"{"a": "#.repeat(n), "}".repeat(n));
+    let components = |n: usize| {
+        let mut open = String::new();
+        for i in 0..n {
+            open.push_str(&format!(
+                r#"{{"type": "ia.container.flex", "meta": {{"name": "C{i}"}}, "children": ["#
+            ));
+        }
+        format!(
+            r#"{open}{{"type": "ia.display.label", "meta": {{"name": "L"}}, "props": {{"text": "x"}}}}{}"#,
+            "]}".repeat(n)
+        )
+    };
+    let view = |custom: &str, root: &str| {
+        format!(r#"{{"custom": {{"c": {custom}}}, "params": {{}}, "props": {{}}, "root": {root}}}"#)
+    };
+    let flex = r#"{"type": "ia.container.flex", "meta": {"name": "root"}}"#;
+    let props = |value: &str| {
+        format!(
+            r#"{{"type": "ia.container.flex", "meta": {{"name": "root"}}, "props": {{"style": {{"x": {value}}}}}, "custom": {{"c": {value}}}}}"#
+        )
+    };
+    let binding = |value: &str| {
+        format!(
+            r#"{{"type": "ia.container.flex", "meta": {{"name": "root"}}, "propConfig": {{"props.x": {{"binding": {{"type": "property", "config": {{"path": "view.custom.c"}}, "transforms": [{{"type": "map", "inputType": "scalar", "outputType": "scalar", "mappings": [{{"input": {value}, "output": {value}}}], "fallback": {value}}}]}}}}}}}}"#
+        )
+    };
+    vec![
+        ("custom array", view(&array(n), flex), n + 2),
+        ("custom object", view(&object(n), flex), n + 2),
+        ("props", view("1", &props(&object(n))), n + 5),
+        ("binding", view("1", &binding(&array(n))), n + 11),
+        ("components", view("1", &components(n / 2)), n + 3),
+    ]
+}
+
+/// A rule configuration that makes `iglint ign-lint` build its node model
+/// and run rules that walk properties.
+const RULE_CONFIG: &str = r#"{"UnusedCustomPropertiesRule": {"enabled": true}, "PylintScriptRule": {"enabled": true}, "NamePatternRule": {"enabled": true}, "ExcessiveContextDataRule": {"enabled": true}, "PropertyAccessRule": {"enabled": true}}"#;
+
 #[test]
 #[cfg_attr(
     debug_assertions,
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn deep_json() {
-    let array = |n: usize| format!("{}1{}", "[".repeat(n), "]".repeat(n));
-    let object = |n: usize| format!("{}1{}", r#"{"a": "#.repeat(n), "}".repeat(n));
-    let components = |n: usize| {
-        let mut component = r#"{"type": "ia.display.label", "meta": {"name": "L"}}"#.to_owned();
-        for i in 0..n {
-            component = format!(
-                r#"{{"type": "ia.container.flex", "meta": {{"name": "C{i}"}}, "children": [{component}]}}"#
-            );
+    // Gson reads any depth: iglint lints views up to its limit, in check
+    // and ign-lint mode (ign-lint itself crashes from about 500 levels).
+    for n in [600, JSON_DEPTH - 16] {
+        for (name, json, depth) in deep_views(n) {
+            assert!(depth <= JSON_DEPTH, "{name}");
+            let dir = view_json(&json);
+            let shown = stdout(&iglint(dir.path(), ALL));
+            assert!(!shown.contains("VIEW001"), "{name} {n}: {shown}");
+            assert!(!shown.contains("too deep"), "{name} {n}: {shown}");
+            write(dir.path(), "rule_config.json", RULE_CONFIG);
+            let output = iglint(dir.path(), &["ign-lint", "--files", "**/view.json"]);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(!stderr.contains("Invalid JSON"), "{name} {n}: {stderr}");
+            assert!(stdout(&output).contains("Files processed: 1"), "{name} {n}");
         }
-        component
-    };
-    let view = |custom: &str, root: &str| {
-        format!(r#"{{"custom": {{"c": {custom}}}, "params": {{}}, "props": {{}}, "root": {root}}}"#)
-    };
-    let flex = r#"{"type": "ia.container.flex", "meta": {"name": "root"}}"#;
-    for (json, too_deep) in [
-        (view(&array(500), flex), false),
-        (view(&object(500), flex), false),
-        (view("1", &components(250)), false),
-        (view(&array(200_000), flex), true),
-        (view(&object(200_000), flex), true),
-        (view("1", &components(100_000)), true),
-    ] {
-        let dir = view_json(&json);
-        let shown = stdout(&iglint(dir.path(), ALL));
-        assert_eq!(shown.contains("nesting too deep"), too_deep, "{shown}");
+    }
+    // Deeper is one VIEW001 finding (Perspective cannot open such a view),
+    // and invalid JSON in ign-lint mode.
+    for n in [JSON_DEPTH + 16, 200_000] {
+        for (name, json, _) in deep_views(n) {
+            let dir = view_json(&json);
+            let shown = stdout(&iglint(dir.path(), ALL));
+            assert_eq!(
+                shown.matches("nesting too deep").count(),
+                1,
+                "{name} {n}: {shown}"
+            );
+            write(dir.path(), "rule_config.json", RULE_CONFIG);
+            let output = iglint(dir.path(), &["ign-lint", "--files", "**/view.json"]);
+            assert_eq!(output.status.code(), Some(1));
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(stderr.contains("Invalid JSON"), "{name} {n}: {stderr}");
+        }
+    }
+}
+
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
+)]
+fn deep_tags() {
+    for (n, too_deep) in [(JSON_DEPTH / 2 - 8, false), (100_000, true)] {
+        let mut tags = r#"{"name": "T", "tagType": "AtomicTag", "valueSource": "expr", "expression": "now()"}"#
+            .to_owned();
+        for i in 0..n {
+            tags = format!(r#"{{"name": "F{i}", "tagType": "Folder", "tags": [{tags}]}}"#);
+        }
+        let dir = project();
         write(
             dir.path(),
-            "rule_config.json",
-            r#"{"UnusedCustomPropertiesRule": {"enabled": true}, "PylintScriptRule": {"enabled": true}, "NamePatternRule": {"enabled": true}}"#,
+            "gw/core/config-mode.json",
+            r#"{"title": "core"}"#,
         );
-        iglint(dir.path(), &["ign-lint", "--files", "**/view.json"]);
+        let provider = "gw/core/ignition/tag-provider/default";
+        write(
+            dir.path(),
+            &format!("{provider}/config.json"),
+            r#"{"profile": {"type": "STANDARD"}, "settings": {}}"#,
+        );
+        write(
+            dir.path(),
+            &format!("{provider}/resource.json"),
+            &MANIFEST.replace("[]", r#"["config.json"]"#),
+        );
+        let folder = "gw/core/ignition/tag-definition/default";
+        write(
+            dir.path(),
+            &format!("{folder}/tags.json"),
+            &format!(r#"{{"tags": [{tags}]}}"#),
+        );
+        write(
+            dir.path(),
+            &format!("{folder}/unary-resource.json"),
+            &MANIFEST.replace("[]", r#"["tags.json"]"#),
+        );
+        let shown = stdout(&iglint(dir.path(), ALL));
+        assert_eq!(shown.contains("nesting too deep"), too_deep, "{n}: {shown}");
     }
+}
+
+/// Scripts whose first two lines Jython cannot read (the 100,000
+/// character `Mark invalid` limit), and long lines it can.
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
+)]
+fn long_lines() {
+    // How many scripts Jython cannot read.
+    let mark = |source: &str, expected: usize, view: bool| {
+        let dir = if view {
+            view_script(source)
+        } else {
+            module(source)
+        };
+        let shown = stdout(&iglint(dir.path(), ALL));
+        assert_eq!(
+            shown.matches("Mark invalid").count(),
+            expected,
+            "{}: {}",
+            &source[..40.min(source.len())],
+            &shown[..shown.len().min(2000)]
+        );
+    };
+    // A module: line 1 plus line 2 (`x = 1`, 5) and line 1's newline.
+    let comment = |n: usize| format!("x = 1 # {}\nx = 1\n", "a".repeat(n));
+    mark(&comment(99_985), 0, false);
+    mark(&comment(99_986), 1, false);
+    let list = |n: usize| format!("x = [{}1]\n", "1, ".repeat(n));
+    mark(&list(33_330), 0, false);
+    mark(&list(33_331), 1, false);
+    // Lines from 3 on have no limit.
+    let third = |text: &str| format!("x = 1\ny = 2\nz = u'{text}'\n");
+    mark(&third(&"\u{e9}a".repeat(200_000)), 0, false);
+    // View scripts: the generated header is line 1, so the limit for the
+    // first body line (`\tx = 1 # ...`, 9 + n) depends on the header:
+    // `def m(self):` (12), `def runAction(self, event):` (27),
+    // `def onMessageReceived(self, payload):` (37) and
+    // `def transform(self, value, quality, timestamp):` (47) fail from
+    // n = 99,990 - header.
+    let body = |n: usize| format!("x = 1 # {}\npass\n", "b".repeat(n));
+    mark(&body(99_942), 0, true);
+    mark(&body(99_943), 1, true);
+    mark(&body(99_962), 2, true);
+    mark(&body(99_963), 3, true);
+    mark(&body(99_978), 4, true);
+    mark(&third(&"a".repeat(500_000)), 0, true);
+    // A body too large for one Java method.
+    let dir = module(&format!("def f():\n{}", "    pass\n".repeat(11_000)));
+    let shown = stdout(&iglint(dir.path(), ALL));
+    assert!(shown.contains("Module or method too large"), "{shown}");
 }
 
 #[test]
@@ -597,5 +744,17 @@ fn language_server_survives_deep_documents() {
             .contains("nested too deeply")),
         "{diagnostics:?}"
     );
+    for (n, too_deep) in [(JSON_DEPTH - 16, false), (200_000, true)] {
+        for (name, json, _) in deep_views(n) {
+            let diagnostics = server.edit(&view_path, &json);
+            let found = diagnostics.iter().any(|d| {
+                d["message"]
+                    .as_str()
+                    .unwrap_or("")
+                    .contains("nesting too deep")
+            });
+            assert_eq!(found, too_deep, "{name} {n}: {diagnostics:?}");
+        }
+    }
     server.stop();
 }

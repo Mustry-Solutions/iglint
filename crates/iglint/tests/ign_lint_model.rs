@@ -29,7 +29,8 @@ fn every_fixture_view_models() {
     assert_eq!(views.len(), 24);
     let mut checked = 0;
     for view in views {
-        let data: Value = serde_json::from_str(&std::fs::read_to_string(&view).unwrap()).unwrap();
+        let text = std::fs::read_to_string(&view).unwrap();
+        let data = iglint_json::parse(&text).unwrap();
         let model = ViewModel::build(&flatten(&data));
         assert!(
             model.components.iter().any(|c| c.path == "root.root"),

@@ -26,6 +26,7 @@ pub use diagnostic::{
 };
 pub use discovery::FileKind;
 pub use engine::{CheckOptions, CheckResult, FixMode, check};
+pub use iglint_project::MAX_JSON_DEPTH;
 pub use registry::{
     Category, FixAvailability, OptionMeta, OptionType, Registry, RuleCode, RuleMeta, Selector,
 };

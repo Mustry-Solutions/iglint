@@ -51,11 +51,13 @@
 
 mod compile;
 mod flow;
+mod limits;
 mod model;
 mod resolve;
 mod symbols;
 
 pub use compile::{CompileError, CompileErrorKind, compile_errors};
+pub use limits::{MARK_LIMIT, mark_limit_error, size_errors};
 pub use model::*;
 pub use resolve::UnboundNames;
 

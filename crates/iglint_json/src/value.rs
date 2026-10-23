@@ -184,6 +184,26 @@ impl<'a> Value<'a> {
     }
 }
 
+/// The children of a container that [`Value::walk`] has yet to visit.
+enum Pending<'v, 'a> {
+    Members(std::slice::Iter<'v, Member<'a>>),
+    Elements(std::iter::Enumerate<std::slice::Iter<'v, Value<'a>>>),
+}
+
+impl<'v, 'a> Pending<'v, 'a> {
+    /// The children of `value`, when it has any.
+    fn of(value: &'v Value<'a>) -> Option<Self> {
+        match &value.kind {
+            ValueKind::Object(o) if !o.is_empty() => Some(Pending::Members(o.members.iter())),
+            ValueKind::Array(a) if !a.is_empty() => {
+                Some(Pending::Elements(a.elements.iter().enumerate()))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Document order walk with an explicit stack, so that any depth works.
 fn walk_inner<'a, F>(value: &Value<'a>, path: &mut Vec<PathSegment>, f: &mut F)
 where
     F: FnMut(&[PathSegment], &Value<'a>) -> bool,
@@ -191,22 +211,64 @@ where
     if !f(path, value) {
         return;
     }
-    match &value.kind {
-        ValueKind::Object(o) => {
-            for m in &o.members {
-                path.push(PathSegment::Key(m.key.value().to_owned()));
-                walk_inner(&m.value, path, f);
-                path.pop();
+    let mut stack: Vec<Pending<'_, 'a>> = Pending::of(value).into_iter().collect();
+    while let Some(top) = stack.last_mut() {
+        let next = match top {
+            Pending::Members(members) => members
+                .next()
+                .map(|m| (PathSegment::Key(m.key.value().to_owned()), &m.value)),
+            Pending::Elements(elements) => elements.next().map(|(i, e)| (PathSegment::Index(i), e)),
+        };
+        match next {
+            Some((segment, child)) => {
+                path.push(segment);
+                let children = if f(path, child) {
+                    Pending::of(child)
+                } else {
+                    None
+                };
+                match children {
+                    Some(children) => stack.push(children),
+                    None => {
+                        path.pop();
+                    }
+                }
+            }
+            None => {
+                stack.pop();
+                if !stack.is_empty() {
+                    path.pop();
+                }
             }
         }
-        ValueKind::Array(a) => {
-            for (i, e) in a.elements.iter().enumerate() {
-                path.push(PathSegment::Index(i));
-                walk_inner(e, path, f);
-                path.pop();
-            }
-        }
+    }
+}
+
+/// Moves the children of `value` that have children of their own to
+/// `pending`.
+fn take_children<'a>(value: &mut Value<'a>, pending: &mut Vec<Value<'a>>) {
+    match &mut value.kind {
+        ValueKind::Array(a) => a.take_nested(pending),
+        ValueKind::Object(o) => o.take_nested(pending),
         _ => {}
+    }
+}
+
+/// Whether the value is an array or object with at least one item.
+fn has_children(value: &Value<'_>) -> bool {
+    match &value.kind {
+        ValueKind::Array(a) => !a.is_empty(),
+        ValueKind::Object(o) => !o.is_empty(),
+        _ => false,
+    }
+}
+
+/// Frees the values in `pending` and everything below them without
+/// recursion.
+fn drop_all(mut pending: Vec<Value<'_>>) {
+    while let Some(mut value) = pending.pop() {
+        take_children(&mut value, &mut pending);
+        // `value` is dropped here with only leaf children left.
     }
 }
 
@@ -383,6 +445,25 @@ impl<'a> Array<'a> {
     }
 }
 
+impl<'a> Array<'a> {
+    /// Moves the elements out when one of them has children.
+    fn take_nested(&mut self, pending: &mut Vec<Value<'a>>) {
+        if self.elements.iter().any(has_children) {
+            pending.append(&mut self.elements);
+        }
+    }
+}
+
+/// Arrays and objects are freed without recursion, so that a tree of any
+/// depth can be dropped.
+impl Drop for Array<'_> {
+    fn drop(&mut self) {
+        let mut pending = Vec::new();
+        self.take_nested(&mut pending);
+        drop_all(pending);
+    }
+}
+
 impl<'s, 'a> IntoIterator for &'s Array<'a> {
     type Item = &'s Value<'a>;
     type IntoIter = std::slice::Iter<'s, Value<'a>>;
@@ -481,6 +562,23 @@ impl<'a> Object<'a> {
         self.members.windows(2).all(|w| {
             compare_utf16(w[0].key.value(), w[1].key.value()) != std::cmp::Ordering::Greater
         })
+    }
+}
+
+impl<'a> Object<'a> {
+    /// Moves the member values out when one of them has children.
+    fn take_nested(&mut self, pending: &mut Vec<Value<'a>>) {
+        if self.members.iter().any(|m| has_children(&m.value)) {
+            pending.extend(self.members.drain(..).map(|m| m.value));
+        }
+    }
+}
+
+impl Drop for Object<'_> {
+    fn drop(&mut self) {
+        let mut pending = Vec::new();
+        self.take_nested(&mut pending);
+        drop_all(pending);
     }
 }
 

@@ -1,6 +1,6 @@
 //! SCR002 compile-error.
 
-use iglint_python_semantic::compile_errors;
+use iglint_python_semantic::{compile_errors, mark_limit_error, size_errors};
 
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
@@ -37,9 +37,23 @@ with Jython's message:
 * assignment targets Jython's parser accepts but its compiler crashes on
   (`-a = 1`, `for f() in x:`, `except E, a + b:`).
 
+It also reports scripts that are too large for Jython:
+
+* the first two lines together are 100,000 characters or longer (UTF-16
+  code units, line ends included; in Perspective and event scripts the
+  first line is the generated `def` header). Jython reads them ahead to
+  look for an encoding declaration and fails with
+  `java.io.IOException: Mark invalid`. Longer lines further down are fine;
+* a module, class or function body with more than 10,922 lines that start
+  a statement (`Module or method too large`: one body is one Java method of
+  at most 64 KiB). Jython already fails at about 3,000 to 9,400 lines,
+  depending on the statements; iglint only reports sizes that cannot
+  compile whatever the statements are;
+* a module with more than 32,767 distinct string literals (`Class too
+  large`: one module is one Java class, with at most 65,535 constants).
+
 Every case was checked against Ignition's Jython with full compilation;
-iglint reports nothing that Jython compiles. A method too large for the
-JVM (`Method code too large!`, very long modules) is not detected.
+iglint reports nothing that Jython compiles.
 
 ## Why is this bad?
 
@@ -78,6 +92,16 @@ struct CompileError;
 
 impl ScriptRule for CompileError {
     fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
+        let source = &unit.script.source;
+        // Jython fails while reading, before it parses.
+        if let Some(error) = mark_limit_error(source) {
+            report(cx, unit, error.range, error.message);
+        }
+        if unit.parsed.errors.is_empty() {
+            for error in size_errors(&unit.parsed.module, source) {
+                report(cx, unit, error.range, error.message);
+            }
+        }
         let Some(model) = semantic(cx, unit) else {
             return;
         };
@@ -151,6 +175,33 @@ mod tests {
         let d = lint_module("SCR002", "for f() in x:\n    pass\n");
         assert_eq!(flagged(&d), ["f()"]);
         assert!(d[0].message.contains("internal error"));
+    }
+
+    #[test]
+    fn size_limits() {
+        // The first two lines, measured as Jython reads them.
+        let long = format!("#{}\nx=1\n", "a".repeat(99_994));
+        assert!(lint_module("SCR002", &long).is_empty());
+        let too_long = format!("#{}\nx=1\n", "a".repeat(99_995));
+        let d = lint_module("SCR002", &too_long);
+        assert_eq!(d.len(), 1);
+        assert!(d[0].message.contains("Mark invalid"), "{}", d[0].message);
+        // Further down any length compiles.
+        let later = format!("x = 1\ny = 2\nz = '{}'\n", "a".repeat(300_000));
+        assert!(lint_module("SCR002", &later).is_empty());
+        // In a view script the header is line 1.
+        let body = format!("\t#{}\n\tpass", "b".repeat(99_969));
+        assert!(view(ViewScript::Action, &body).lint(&["SCR002"]).is_empty());
+        let body = format!("\t#{}\n\tpass", "b".repeat(99_970));
+        assert_eq!(view(ViewScript::Action, &body).lint(&["SCR002"]).len(), 1);
+        // A body too large for one Java method.
+        let d = lint_module(
+            "SCR002",
+            &format!("def f():\n{}", "    pass\n".repeat(11_000)),
+        );
+        assert_eq!(flagged(&d), ["f"]);
+        assert!(d[0].message.contains("too large"));
+        assert!(lint_module("SCR002", &"x = 1\n".repeat(3_000)).is_empty());
     }
 
     #[test]

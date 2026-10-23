@@ -20,6 +20,12 @@ Reports resource files (`view.json`, `style.json`, `config.json`,
 `tags.json`, `resource.json`, `project.json`, ...) that are not valid JSON,
 at the first syntax error.
 
+Arrays and objects nested more than 8,192 levels deep are reported too.
+Gson parses any depth, but Perspective cannot open such a view: its view
+loader and property trees recurse and overflow a gateway thread's stack at
+1,200 to 3,300 levels (measured on Ignition 8.3.3). iglint does not
+analyse files nested this deeply.
+
 ## Why is this bad?
 
 The gateway cannot load a resource whose JSON does not parse: the view,

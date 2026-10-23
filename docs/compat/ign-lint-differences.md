@@ -28,6 +28,15 @@ finding).
 
 * An invalid JSON file is reported (`VIEW001`) and the other files are still
   linted; ign-lint aborts (bug 25).
+* Deeply nested views are linted. ign-lint flattens a view recursively and
+  aborts the whole run with a `RecursionError` traceback (exit 1) from
+  about 500 levels of JSON nesting (250 nested components); from about
+  10,000 levels already Python's `json` module fails the same way.
+  `iglint ign-lint` lints views of any depth up to iglint's limit of 8,192
+  levels (`VIEW001`), and treats deeper files like invalid JSON, as
+  ign-lint treats every file it cannot read: the run stops with exit
+  code 1. Before, `iglint ign-lint` rejected views nested more than 128
+  levels as invalid JSON.
 * Fixes edit the original text in place; ign-lint re-serialises the whole
   file and drops the final newline (bug 31).
 * View-level event scripts and component extension functions are scripts

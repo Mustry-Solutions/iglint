@@ -728,17 +728,6 @@ fn shown(cwd: &Path, actual: &Path, given: &str) -> String {
         .unwrap_or_else(|_| given.to_owned())
 }
 
-fn python_truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(b) => *b,
-        Value::Number(n) => n.as_f64().is_some_and(|f| f != 0.0),
-        Value::String(s) => !s.is_empty(),
-        Value::Array(a) => !a.is_empty(),
-        Value::Object(o) => !o.is_empty(),
-    }
-}
-
 fn prepare(cwd: &Path, display: String, need_model: bool) -> Prepared {
     let absolute = absolute(&cwd.join(&display));
     let mut timing = FileTiming::default();
@@ -749,9 +738,25 @@ fn prepare(cwd: &Path, display: String, need_model: bool) -> Prepared {
         Err(error) => FileState::Invalid(error.to_string()),
         Ok(text) => {
             let flatten_start = Instant::now();
-            match serde_json::from_str::<Value>(&text) {
-                Err(error) => FileState::Invalid(error.to_string()),
-                Ok(value) if !python_truthy(&value) => FileState::Empty,
+            // Strict like Python's `json` without its `NaN` extension (as
+            // before). ign-lint itself fails at about 500 levels; files
+            // deeper than iglint analyses are invalid here as in `check`
+            // (see `docs/compat/ign-lint-differences.md`).
+            let options = iglint_json::ParseOptions {
+                max_depth: iglint_linter::MAX_JSON_DEPTH,
+                ..iglint_json::ParseOptions::strict()
+            };
+            match iglint_json::parse_with(&text, options)
+                .map_err(|e| e.to_string())
+                .and_then(|value| {
+                    if text.starts_with('\u{FEFF}') {
+                        Err("unexpected UTF-8 byte order mark".to_owned())
+                    } else {
+                        Ok(value)
+                    }
+                }) {
+                Err(error) => FileState::Invalid(error),
+                Ok(value) if !model::json_truthy(&value) => FileState::Empty,
                 Ok(_) if !need_model => FileState::Ready(None),
                 Ok(value) => {
                     let flat = model::flatten(&value);

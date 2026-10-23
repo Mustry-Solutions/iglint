@@ -61,7 +61,7 @@ pub mod workspace;
 
 use rayon::prelude::*;
 
-pub use document::JsonDocument;
+pub use document::{JsonDocument, MAX_JSON_DEPTH};
 pub use expression::{EmbeddedExpression, ExpressionKind};
 pub use ids::*;
 pub use index::{HandlerSite, Lookup, PageMatch, ProjectIndex, SentMessage};

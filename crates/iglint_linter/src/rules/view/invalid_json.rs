@@ -1,7 +1,8 @@
 //! VIEW001 invalid-json.
 
-use iglint_project::ProjectId;
+use iglint_json::ParseErrorKind;
 use iglint_project::model::ModelData;
+use iglint_project::{MAX_JSON_DEPTH, ProjectId};
 use iglint_text::TextRange;
 
 use crate::checker::Checker;
@@ -21,6 +22,12 @@ pub static META: RuleMeta = RuleMeta {
 Reports resource files (`view.json`, `style.json`, `config.json`,
 `tags.json`, `resource.json`, `project.json`, ...) that are not valid JSON,
 at the first syntax error.
+
+Arrays and objects nested more than 8,192 levels deep are reported too.
+Gson parses any depth, but Perspective cannot open such a view: its view
+loader and property trees recurse and overflow a gateway thread's stack at
+1,200 to 3,300 levels (measured on Ignition 8.3.3). iglint does not
+analyse files nested this deeply.
 
 ## Why is this bad?
 
@@ -74,14 +81,38 @@ fn strip_range(message: &str) -> &str {
     }
 }
 
+/// The finding's message for a parse error message.
+fn message(error: &str) -> String {
+    if error == ParseErrorKind::NestingTooDeep.to_string() {
+        format!(
+            "Invalid JSON: nesting too deep (more than {} levels of arrays and objects); Perspective's view loader and property trees overflow the stack long before (measured at 1,200 to 3,300 levels)",
+            fmt_thousands(MAX_JSON_DEPTH)
+        )
+    } else {
+        format!("Invalid JSON: {error}")
+    }
+}
+
+/// `8192` as `8,192`.
+fn fmt_thousands(n: usize) -> String {
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
+}
+
 impl ResourceRule for InvalidJson {
     fn check_resource(&self, cx: &mut Checker<'_, '_>, _data: &ModelData<'_>) {
         let errors = cx.unit().errors;
         for e in errors {
             // I/O errors are reported by the engine; their files have no
             // text and are not in the file table, so the report is dropped.
-            let message = format!("Invalid JSON: {}", strip_range(&e.message));
-            cx.report_in(e.file, e.range, message);
+            cx.report_in(e.file, e.range, message(strip_range(&e.message)));
         }
         if let Some(resource) = cx.resource()
             && let Some(e) = resource.manifest.doc.error()
@@ -89,7 +120,7 @@ impl ResourceRule for InvalidJson {
             cx.report_in(
                 resource.manifest.file,
                 e.range,
-                format!("Invalid JSON: {}", e.kind),
+                message(&e.kind.to_string()),
             );
         }
     }
@@ -100,7 +131,7 @@ impl ProjectRule for InvalidJson {
         let p = cx.workspace().project(project);
         if let Some(e) = p.manifest.doc.error() {
             let range: TextRange = e.range;
-            cx.report_in(p.manifest.file, range, format!("Invalid JSON: {}", e.kind));
+            cx.report_in(p.manifest.file, range, message(&e.kind.to_string()));
         }
     }
 }
@@ -118,6 +149,25 @@ mod tests {
             vec![("VIEW001".into(), "Invalid JSON: trailing comma".into())]
         );
         assert_eq!(flagged(&d), vec![","]);
+    }
+
+    #[test]
+    fn nesting_beyond_the_limit() {
+        let deep = |n: usize| {
+            format!(
+                r#"{{"custom": {{"c": {}1{}}}, "root": {{"type": "ia.container.flex", "meta": {{"name": "root"}}}}}}"#,
+                "[".repeat(n),
+                "]".repeat(n)
+            )
+        };
+        assert!(Fixture::view(&deep(8_000)).lint(&["VIEW001"]).is_empty());
+        let d = Fixture::view(&deep(9_000)).lint(&["VIEW001"]);
+        assert_eq!(d.len(), 1);
+        assert!(
+            d[0].message
+                .contains("nesting too deep (more than 8,192 levels")
+        );
+        assert_eq!(flagged(&d), vec!["["]);
     }
 
     #[test]

@@ -16,8 +16,9 @@ pub struct ParseOptions {
     /// Accept `NaN`, `Infinity` and `-Infinity` as numbers. Gson writes them
     /// when special floating point serialization is enabled.
     pub allow_special_floats: bool,
-    /// Maximum nesting depth of arrays and objects. Deeper input is an error
-    /// rather than a stack overflow.
+    /// Maximum nesting depth of arrays and objects; deeper input is an
+    /// error. Unlimited by default, like Gson: the parser keeps open
+    /// containers on the heap, not on the call stack.
     pub max_depth: usize,
 }
 
@@ -25,7 +26,7 @@ impl Default for ParseOptions {
     fn default() -> Self {
         ParseOptions {
             allow_special_floats: true,
-            max_depth: 512,
+            max_depth: usize::MAX,
         }
     }
 }
@@ -150,7 +151,6 @@ pub fn parse_with(text: &str, options: ParseOptions) -> Result<Value<'_>, ParseE
         bytes: text.as_bytes(),
         pos: 0,
         options,
-        depth: 0,
         elements: Vec::new(),
         members: Vec::new(),
     };
@@ -172,7 +172,6 @@ struct Parser<'a> {
     bytes: &'a [u8],
     pos: usize,
     options: ParseOptions,
-    depth: usize,
     /// Elements and members of the arrays and objects being parsed, nested
     /// ones on top. Each container takes its own off the top into a vector
     /// of exactly the right size: no growth while parsing, no spare
@@ -255,11 +254,98 @@ impl<'a> Parser<'a> {
         self.bytes.get(self.pos).copied()
     }
 
+    /// Parses one value. Arrays and objects are parsed with an explicit
+    /// stack of open containers, so any nesting depth is accepted without
+    /// recursion (Gson accepts any depth too).
     fn value(&mut self) -> Result<Value<'a>, ParseError> {
+        let mut open: Vec<Open<'a>> = Vec::new();
+        loop {
+            // Parse a value, or open a container and go on with its first
+            // item.
+            let mut done = match self.peek() {
+                Some(b'[') => {
+                    let start = self.pos;
+                    self.enter(open.len())?;
+                    self.pos += 1;
+                    self.skip_ws();
+                    let first = self.elements.len();
+                    if self.peek() == Some(b']') {
+                        self.pos += 1;
+                        self.finish_array(start, first)
+                    } else {
+                        open.push(Open::Array { start, first });
+                        continue;
+                    }
+                }
+                Some(b'{') => {
+                    let start = self.pos;
+                    self.enter(open.len())?;
+                    self.pos += 1;
+                    self.skip_ws();
+                    let first = self.members.len();
+                    if self.peek() == Some(b'}') {
+                        self.pos += 1;
+                        self.finish_object(start, first)
+                    } else {
+                        let key = self.key()?;
+                        open.push(Open::Object { start, first, key });
+                        continue;
+                    }
+                }
+                _ => self.scalar()?,
+            };
+            // Hand the finished value to its container; close every
+            // container that ends here.
+            loop {
+                let Some(top) = open.last_mut() else {
+                    return Ok(done);
+                };
+                self.skip_ws();
+                match top {
+                    Open::Array { start, first } => {
+                        self.elements.push(done);
+                        match self.peek() {
+                            Some(b',') => {
+                                self.comma(b']')?;
+                                break;
+                            }
+                            Some(b']') => {
+                                self.pos += 1;
+                                let (start, first) = (*start, *first);
+                                open.pop();
+                                done = self.finish_array(start, first);
+                            }
+                            _ => return Err(self.unexpected(Expected::CommaOrCloseBracket)),
+                        }
+                    }
+                    Open::Object { start, first, key } => match self.peek() {
+                        Some(b',') => {
+                            self.comma(b'}')?;
+                            let next = self.key()?;
+                            let key = std::mem::replace(key, next);
+                            self.members.push(Member { key, value: done });
+                            break;
+                        }
+                        Some(b'}') => {
+                            self.pos += 1;
+                            let (start, first) = (*start, *first);
+                            let Some(Open::Object { key, .. }) = open.pop() else {
+                                unreachable!("the top is an object");
+                            };
+                            self.members.push(Member { key, value: done });
+                            done = self.finish_object(start, first);
+                        }
+                        _ => return Err(self.unexpected(Expected::CommaOrCloseBrace)),
+                    },
+                }
+            }
+        }
+    }
+
+    /// A string, number or literal.
+    fn scalar(&mut self) -> Result<Value<'a>, ParseError> {
         let start = self.pos;
         match self.peek() {
-            Some(b'{') => self.object(),
-            Some(b'[') => self.array(),
             Some(b'"') => {
                 let s = self.string()?;
                 Ok(Value {
@@ -433,105 +519,72 @@ impl<'a> Parser<'a> {
         Ok(JsonString::new(range(start, self.pos), raw, value))
     }
 
-    fn enter(&mut self) -> Result<(), ParseError> {
-        self.depth += 1;
-        if self.depth > self.options.max_depth {
+    /// Checks the depth of a container opened inside `open` others.
+    fn enter(&self, open: usize) -> Result<(), ParseError> {
+        if open >= self.options.max_depth {
             return Err(self.error_at(self.pos, self.pos + 1, ParseErrorKind::NestingTooDeep));
         }
         Ok(())
     }
 
-    fn array(&mut self) -> Result<Value<'a>, ParseError> {
-        let start = self.pos;
-        self.enter()?;
+    /// Consumes the `,` at the current position; an error when `close`
+    /// follows.
+    fn comma(&mut self, close: u8) -> Result<(), ParseError> {
+        let comma = self.pos;
         self.pos += 1;
-        let first = self.elements.len();
         self.skip_ws();
-        if self.peek() == Some(b']') {
-            self.pos += 1;
-        } else {
-            loop {
-                let value = self.value()?;
-                self.elements.push(value);
-                self.skip_ws();
-                match self.peek() {
-                    Some(b',') => {
-                        let comma = self.pos;
-                        self.pos += 1;
-                        self.skip_ws();
-                        if self.peek() == Some(b']') {
-                            return Err(self.error_at(
-                                comma,
-                                comma + 1,
-                                ParseErrorKind::TrailingComma,
-                            ));
-                        }
-                    }
-                    Some(b']') => {
-                        self.pos += 1;
-                        break;
-                    }
-                    _ => return Err(self.unexpected(Expected::CommaOrCloseBracket)),
-                }
-            }
+        if self.peek() == Some(close) {
+            return Err(self.error_at(comma, comma + 1, ParseErrorKind::TrailingComma));
         }
-        self.depth -= 1;
-        let elements = self.elements.split_off(first);
-        Ok(Value {
-            range: range(start, self.pos),
-            kind: ValueKind::Array(Array { elements }),
-        })
+        Ok(())
     }
 
-    fn object(&mut self) -> Result<Value<'a>, ParseError> {
-        let start = self.pos;
-        self.enter()?;
-        self.pos += 1;
-        let first = self.members.len();
-        self.skip_ws();
-        if self.peek() == Some(b'}') {
-            self.pos += 1;
-        } else {
-            loop {
-                if self.peek() != Some(b'"') {
-                    return Err(self.unexpected(Expected::Key));
-                }
-                let key = self.string()?;
-                self.skip_ws();
-                if self.peek() != Some(b':') {
-                    return Err(self.unexpected(Expected::Colon));
-                }
-                self.pos += 1;
-                self.skip_ws();
-                let value = self.value()?;
-                self.members.push(Member { key, value });
-                self.skip_ws();
-                match self.peek() {
-                    Some(b',') => {
-                        let comma = self.pos;
-                        self.pos += 1;
-                        self.skip_ws();
-                        if self.peek() == Some(b'}') {
-                            return Err(self.error_at(
-                                comma,
-                                comma + 1,
-                                ParseErrorKind::TrailingComma,
-                            ));
-                        }
-                    }
-                    Some(b'}') => {
-                        self.pos += 1;
-                        break;
-                    }
-                    _ => return Err(self.unexpected(Expected::CommaOrCloseBrace)),
-                }
-            }
+    /// An object key and its `:`, up to the start of the value.
+    fn key(&mut self) -> Result<JsonString<'a>, ParseError> {
+        if self.peek() != Some(b'"') {
+            return Err(self.unexpected(Expected::Key));
         }
-        self.depth -= 1;
+        let key = self.string()?;
+        self.skip_ws();
+        if self.peek() != Some(b':') {
+            return Err(self.unexpected(Expected::Colon));
+        }
+        self.pos += 1;
+        self.skip_ws();
+        Ok(key)
+    }
+
+    /// The array that started at `start`, after its `]`.
+    fn finish_array(&mut self, start: usize, first: usize) -> Value<'a> {
+        let elements = self.elements.split_off(first);
+        Value {
+            range: range(start, self.pos),
+            kind: ValueKind::Array(Array { elements }),
+        }
+    }
+
+    /// The object that started at `start`, after its `}`.
+    fn finish_object(&mut self, start: usize, first: usize) -> Value<'a> {
         let members = self.members.split_off(first);
-        Ok(Value {
+        Value {
             range: range(start, self.pos),
             kind: ValueKind::Object(Object { members }),
-        })
+        }
     }
+}
+
+/// An array or object whose items are being parsed.
+enum Open<'a> {
+    Array {
+        start: usize,
+        /// Index of its first element in `Parser::elements`.
+        first: usize,
+    },
+    Object {
+        start: usize,
+        /// Index of its first member in `Parser::members`.
+        first: usize,
+        /// The key of the member whose value is being parsed.
+        key: JsonString<'a>,
+    },
 }

@@ -20,6 +20,7 @@ path = "src/main.rs"
 [dependencies]
 mimalloc = { version = "0.1", default-features = false }
 iglint_config.workspace = true
+iglint_json.workspace = true
 iglint_linter.workspace = true
 iglint_server.workspace = true
 iglint_text.workspace = true

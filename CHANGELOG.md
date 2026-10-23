@@ -99,6 +99,21 @@ from 0.1.0 on.
   SCR001 "expression nested too deeply" (Ignition's Jython fails much
   earlier on such code). Expressions may now nest 2,000 levels instead of
   100, which is more than Jython accepts on a gateway thread.
+- JSON nested deeper than 512 levels is no longer reported as invalid
+  (`VIEW001` "nesting too deep"): Gson reads any depth. iglint parses,
+  walks and frees JSON of any depth without recursion and analyses files
+  nested up to 8,192 levels; `VIEW001` reports deeper ones, which
+  Perspective cannot open (its view loader and property trees overflow
+  the stack at 1,200 to 3,300 levels). `VIEW006` measures deep `custom`
+  data in linear memory.
+- `iglint ign-lint` no longer rejects views nested more than 128 levels
+  deep as invalid JSON; it lints them like `iglint check` (ign-lint
+  itself crashes from about 500 levels).
+- `SCR002` reports scripts Jython cannot load because they are too large:
+  first two lines of 100,000 characters or more (`Mark invalid`; exact),
+  bodies with more than 10,922 statement lines (`Module or method too
+  large`) and modules with more than 32,767 distinct string literals
+  (`Class too large`). Thresholds in `docs/internal/ignition-format.md`.
 - The text output no longer slows down quadratically with many findings
   on one very long line (a script in a view is one JSON line): 100,000
   findings took 74 s, now 0.3 s.

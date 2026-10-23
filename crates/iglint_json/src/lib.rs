@@ -34,6 +34,8 @@
 //! Ignition: a leading byte order mark is skipped and Gson's `NaN`,
 //! `Infinity` and `-Infinity` are accepted as numbers (disable with
 //! [`ParseOptions::strict`]). It never panics; errors carry a byte range.
+//! Like Gson it accepts any nesting depth: parsing, [`Value::walk`] and
+//! dropping a tree use explicit stacks, not recursion.
 //!
 //! ## Ignition's formatting
 //!

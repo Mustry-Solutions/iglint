@@ -540,8 +540,54 @@ Jython runtime facts that rules rely on (checked with IA's Jython 2.7.3):
   assignments to `__debug__`, misplaced `from __future__`), and crashes on
   some assignment targets its parser accepts (`-a = 1`, `for f() in x`):
   see `crates/iglint_python_semantic/tests/oracle/compile.cases`, recorded
-  with `oracle/run-oracle.sh --compile`. Very long modules fail with `Method
-  code too large!` (not modelled).
+  with `oracle/run-oracle.sh --compile`.
+
+#### Size limits [oracle]
+
+Measured with `oracle/run-oracle.sh --compile` (full `compile()` of a
+unicode source, the call above), recorded in
+`crates/iglint_python_semantic/tests/limits_oracle.rs`. All of them fail
+in `compile()`, so the script never loads; the errors are Java exceptions,
+not `SyntaxError`s. They are the same with the default 1 MiB thread stack
+and with `-Xss16m`.
+
+* **First two lines: 100,000 characters.** While it looks for an
+  encoding declaration, Jython reads the first two lines of the source
+  (with `"\n\n"` appended) through a `BufferedReader` marked with a
+  read-ahead limit of 100,000 (`MARK_LIMIT`, checked by reflection) and
+  then resets it. Counted in UTF-16 code units (an astral character counts
+  2), the source fails with `java.io.IOException: Mark invalid` exactly
+  when the terminator of line 2 starts at index 100,000 or later. `\n`,
+  `\r` and `\r\n` end a line; a `\r\n` after line 1 counts 2. Examples:
+  a single line of up to 99,998 characters compiles (99,999 fails); a
+  99,995-character comment followed by `x=1` fails. In Perspective and
+  event scripts line 1 is the generated header, so the header plus the
+  first body line are limited: with `def runAction(self, event):` a first
+  body line of 99,971 characters (tab included) compiles, 99,972 fails.
+  Lines from 3 on have no limit: 1,000,000-character string literals
+  (`str` and `unicode`, any characters and escapes), identifiers, a
+  1,000,000-character comment and 100,000-digit numbers compile. There is
+  no 65,535-byte limit on a string constant. `SCR002` reports this limit
+  exactly.
+* **Method too large.** The module body, each function body and each
+  class body compile to one Java method of at most 65,535 bytes of
+  bytecode (`java.lang.RuntimeException: Module or method too large in
+  <file>`). Each source line that starts a statement updates the frame's
+  line number (at least 6 bytes from line 6 on; statements sharing a line
+  update it once; `global` generates nothing). Largest bodies that still
+  compile: 9,379 lines of `pass`, 4,689 of `x`, 3,282 of `x = 1` in a
+  function (3,126 in a module), 2,746 distinct `xN = N`, 1,728 empty
+  `def`s, a 9,352-term `1+1+...`, a call with 5,965 arguments. The size
+  depends on Jython's code generator, so `SCR002` reports only what cannot
+  compile whatever the statements are: more than 10,922 statement lines in
+  one body (all bodies of 10,921 to 10,924 lines tested fail).
+* **Class too large.** A module compiles to one Java class with at most
+  65,535 constant pool entries (`org.python.objectweb.asm.
+  ClassTooLargeException: Class too large`). A distinct string constant
+  takes two entries: 32,593 distinct string literals compile, 32,594 fail.
+  Distinct integers outside the 16-bit range take one (about 64,740 fit).
+  `SCR002` reports more than 32,767 distinct string literals (`str` and
+  `unicode` literals of the same text count once).
 
 ---
 
@@ -558,6 +604,26 @@ The Designer writes `view.json` with Gson [corpus]:
   escapes and the decoded-offset map in `iglint_json` is mandatory.
 * Hand-edited files (or files from other tools) may use raw characters,
   other key orders and a trailing newline. Both must parse.
+
+Nesting depth [gw]: Gson (2.8.9, and IA's 2.10.1 fork that Perspective
+uses) parses arrays and objects of any depth;
+`ViewConfig.fromProjectResource` with Perspective's shared Gson read views
+with `custom` and `props` values nested 300,000 levels deep. Using such a
+view fails, measured on 8.3.3 on threads with the default 1 MiB stack:
+
+* components nested in `children` are built recursively: the loader
+  overflows the stack (`StackOverflowError`) at about 2,100 nested
+  components (about 1,200 on a cold JVM);
+* a property tree (`PropertyTree`, what a view's `custom` and `props`
+  become) copies values recursively: it overflows at about 1,470 nested
+  objects or 3,260 nested arrays (about 490 and 1,000 on a cold JVM);
+* in a browser session, a view whose `custom` held an object nested 400
+  levels deep did not render (256 rendered), without a gateway log entry.
+
+The thresholds vary with JIT state and stack contents, so there is no
+exact limit. iglint parses any depth without recursion but analyses files
+nested at most 8,192 levels (`iglint_project::MAX_JSON_DEPTH`), far above
+every failure observed; deeper files are reported by `VIEW001`.
 
 ### 6.2 Top level
 
