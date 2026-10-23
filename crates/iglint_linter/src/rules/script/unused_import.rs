@@ -353,21 +353,29 @@ const PURE_STDLIB_MODULES: &[&str] = &[
 const PURE_STDLIB_PACKAGES: &[&str] = &["json", "xml"];
 
 /// Whether removing the import of `binding` cannot change what the
-/// program does: Java classes of the JDK (`java.*`, `javax.*`), and the
-/// standard library modules above when no library package of the project
-/// (or of a project inheriting from it) has the same name. Importing
-/// anything else runs code (project library modules and third-party
-/// packages execute their top level, other Java classes run static
-/// initializers) or, for dotted imports, makes the submodule an attribute
-/// of its package for every other script.
+/// program does: it needs positive evidence that the import succeeds and
+/// has no effect. Java classes measured to exist in the image (public
+/// top-level classes of the vetted Java packages and of the packages of
+/// the vetted classes, `iglint_python_semantic::vetted::java_class_exists`)
+/// and those packages; the standard library modules above that were
+/// measured to import in the image, and for `from m import n` a name `n`
+/// measured to be an attribute of `m`; in both cases only when no library
+/// package of the project (or of a project inheriting from it) has the
+/// same name. Importing anything else may fail (a removed import that
+/// failed changes what the script does, even when the caller catches the
+/// error), runs code (project library modules and third-party packages
+/// execute their top level, other Java classes run static initializers)
+/// or, for dotted imports, makes the submodule an attribute of its package
+/// for every other script.
 fn removal_is_pure(cx: &Checker<'_, '_>, model: &SemanticModel<'_>, binding: BindingId) -> bool {
+    use iglint_python_semantic::vetted::{
+        java_class_exists, java_package_exists, module_has_attribute, module_imports,
+    };
     let b = model.binding(binding);
     let Some(stmt) = b.stmt else { return false };
+    let Some(alias) = b.alias else { return false };
     let (module, from) = match stmt {
-        Stmt::Import(_) => match b.alias {
-            Some(a) => (a.name.as_str(), false),
-            None => return false,
-        },
+        Stmt::Import(_) => (alias.name.as_str(), false),
         Stmt::ImportFrom(s) if s.level == 0 => match &s.module {
             Some(m) => (m.as_str(), true),
             None => return false,
@@ -383,14 +391,27 @@ fn removal_is_pure(cx: &Checker<'_, '_>, model: &SemanticModel<'_>, binding: Bin
         None => true,
     };
     if top == "java" || top == "javax" {
-        return !shadowed();
+        // The full name of what is imported: a class or a package.
+        let full = if from {
+            format!("{module}.{}", alias.name.as_str())
+        } else {
+            module.to_owned()
+        };
+        let exists = java_package_exists(&full)
+            || full
+                .rsplit_once('.')
+                .is_some_and(|(package, class)| java_class_exists(package, class));
+        return exists && !shadowed();
     }
     let pure = if module.contains('.') {
         false
     } else if from {
         PURE_STDLIB_MODULES.contains(&module)
+            && module_imports(module)
+            && module_has_attribute(module, alias.name.as_str())
     } else {
-        PURE_STDLIB_MODULES.contains(&module) || PURE_STDLIB_PACKAGES.contains(&module)
+        (PURE_STDLIB_MODULES.contains(&module) || PURE_STDLIB_PACKAGES.contains(&module))
+            && module_imports(module)
     };
     pure && !shadowed()
 }
@@ -1032,20 +1053,16 @@ mod tests {
     }
 
     /// When the module is used as a value, any of its names may be used:
-    /// still reported, but the fix is unsafe.
+    /// a top-level import is not reported (reviewer round 9, finding 2).
     #[test]
-    fn library_imports_of_escaping_modules_have_unsafe_fixes() {
+    fn library_imports_of_escaping_modules_are_used() {
         let f = with_library(
             library("sem/unusedimp", "import os\n"),
             "sem/user",
             "def f(name):\n    return getattr(sem.unusedimp, name)\n",
         );
         let d = f.lint(&["SCR102"]);
-        assert_eq!(flagged(&d), ["os"]);
-        assert_eq!(
-            d[0].fix.as_ref().map(|f| f.applicability),
-            Some(crate::diagnostic::Applicability::Unsafe)
-        );
+        assert!(d.is_empty(), "{d:?}");
         // Function-level imports are not attributes of the module, but the
         // computed `getattr` on the module object can reach reflection
         // (`getattr(mod, 'class')`) and from there any frame, so the
@@ -1192,6 +1209,75 @@ mod tests {
         );
     }
 
+    /// Reviewer round 9 (Opus) finding 2: another module reads a library
+    /// module's import through the module object: a literal `getattr` or
+    /// `hasattr` name is a static use, and the module used as a value (a
+    /// default argument, a container, the globals dictionary, `sys.modules`
+    /// reached through a vetted module) makes every top-level name count
+    /// as used. No finding in either case.
+    #[test]
+    fn imports_read_through_the_module_object_elsewhere_are_used() {
+        for user in [
+            "def f():\n    return getattr(a.b, \"json\").dumps(1)\n",
+            "def f():\n    return hasattr(a.b, \"json\")\n",
+            "def g(m=a.b):\n    return m.json\n",
+            "def f():\n    return [x.json for x in [a.b]]\n",
+            "def f():\n    import re\n    return re.sys.modules[\"a.b\"].json\n",
+            "m = a.b\ndef f():\n    return m.json\n",
+        ] {
+            let f = with_library(library("a/b", "import json\n"), "c/d", user);
+            let d: Vec<_> = f
+                .lint(&["SCR102"])
+                .into_iter()
+                .filter(|d| d.file.path().ends_with("a/b/code.py"))
+                .collect();
+            assert!(d.is_empty(), "{user}: {d:?}");
+        }
+        // Through the globals dictionary, read in another module.
+        let f = with_library(
+            with_library(
+                library("a/b", "import json\n"),
+                "c/d",
+                "system.util.getGlobals()[\"m\"] = a.b\n",
+            ),
+            "e/f",
+            "def f():\n    return system.util.getGlobals()[\"m\"].json\n",
+        );
+        let d: Vec<_> = f
+            .lint(&["SCR102"])
+            .into_iter()
+            .filter(|d| d.file.path().ends_with("a/b/code.py"))
+            .collect();
+        assert!(d.is_empty(), "{d:?}");
+        // Unrelated literal names still leave the import unused.
+        let f = with_library(
+            library("a/b", "import json\n"),
+            "c/d",
+            "def f():\n    return getattr(a.b, \"other\")\n",
+        );
+        let d: Vec<_> = f
+            .lint(&["SCR102"])
+            .into_iter()
+            .filter(|d| d.file.path().ends_with("a/b/code.py"))
+            .collect();
+        assert_eq!(d.len(), 1, "{d:?}");
+    }
+
+    /// Reviewer round 9 (Codex) blocker: removing `from java.util import
+    /// MissingReviewClass` turns a failed call into a successful one when
+    /// the caller catches the `ImportError` (verified on Jython: `failed`
+    /// before, `succeeded` after). Without positive evidence that the
+    /// import succeeds the fix is unsafe.
+    #[test]
+    fn removing_an_import_that_fails_is_unsafe() {
+        let code = "def f():\n    from java.util import MissingReviewClass\ntry:\n    f()\nexcept Exception:\n    print \"failed\"\nelse:\n    print \"succeeded\"\n";
+        let d = library("m", code).lint(&["SCR102"]);
+        assert_eq!(
+            applicability(&d),
+            [Some(crate::diagnostic::Applicability::Unsafe)]
+        );
+    }
+
     /// Removing an import is safe only when importing has no effect
     /// outside the module: JDK classes and listed standard library
     /// modules. Everything else runs code when imported.
@@ -1221,6 +1307,13 @@ mod tests {
             ("import xml.dom.minidom", Unsafe),
             ("from json import decoder", Unsafe),
             ("from . import sibling", Unsafe),
+            // An import that fails: removing it changes the program when
+            // the caller catches the error (reviewer round 9, Codex).
+            ("from java.util import MissingReviewClass", Unsafe),
+            ("import java.util.MissingReviewClass", Unsafe),
+            ("from json import MissingReviewName", Unsafe),
+            ("from os import missing_review_name", Unsafe),
+            ("from os import getcwd", Safe),
         ];
         for (import, expected) in cases {
             let f = library("m", &format!("def f():\n    {import}\n    return 1\n"));

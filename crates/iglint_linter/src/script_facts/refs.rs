@@ -432,6 +432,55 @@ impl Chains<'_, '_, '_, '_> {
         let Some(q) = self.dotted(e) else {
             return;
         };
+        self.record_dotted(q, role);
+    }
+
+    /// `getattr(chain, 'name', ...)` or `hasattr(chain, 'name')` with the
+    /// builtin and a literal name: the use of `chain.name` (a static
+    /// reference, like the attribute written out), not of the object
+    /// `chain` as a value. `role`: how the result of the call is used.
+    fn literal_getattr(&mut self, c: &iglint_python::ast::ExprCall, role: Role) -> bool {
+        let Expr::Name(f) = &*c.func else {
+            return false;
+        };
+        let has = match &*f.id {
+            "getattr" => false,
+            "hasattr" => true,
+            _ => return false,
+        };
+        let builtin = self
+            .model
+            .reference_at(f.range)
+            .is_some_and(|r| r.resolution == Resolution::Builtin);
+        let (Some(object), Some(Expr::Str(name))) = (c.args.first(), c.args.get(1)) else {
+            return false;
+        };
+        let Some(name) = name.s.as_str() else {
+            return false;
+        };
+        if !builtin
+            || !is_chain(object)
+            || c.starargs.is_some()
+            || c.kwargs.is_some()
+            || !c.keywords.is_empty()
+            || c.args.len() > if has { 2 } else { 3 }
+        {
+            return false;
+        }
+        let Some(base) = self.dotted(object) else {
+            return false;
+        };
+        self.record_dotted(
+            format!("{base}.{name}"),
+            if has { Role::Base } else { role },
+        );
+        for a in &c.args[2..] {
+            self.expr(a, Role::Value);
+        }
+        true
+    }
+
+    fn record_dotted(&mut self, q: String, role: Role) {
         if let Some(base) = q.strip_suffix(".__dict__") {
             // The namespace of a module (or a function's attributes) may be
             // written through it.
@@ -496,6 +545,7 @@ impl Chains<'_, '_, '_, '_> {
                 }
             }
             Expr::Attribute(a) => self.expr(&a.value, Role::Base),
+            Expr::Call(c) if self.literal_getattr(c, role) => {}
             Expr::Call(c) => {
                 self.expr(&c.func, Role::Call);
                 let system = super::calls::qualified(
@@ -552,7 +602,17 @@ impl Chains<'_, '_, '_, '_> {
         }
         named
             && super::calls::qualified(self.model, e, UnboundNames::AsGlobalEvenIfDynamic)
-                .is_some_and(|q| q == "sys.modules" || q.starts_with("sys.modules."))
+                .is_some_and(|q| {
+                    // `sys` itself, or reached through a module that holds
+                    // it (`re.sys.modules`).
+                    let at = q
+                        .find("sys.modules")
+                        .filter(|i| *i == 0 || q[..*i].ends_with('.'));
+                    at.is_some_and(|i| {
+                        let rest = &q[i + "sys.modules".len()..];
+                        rest.is_empty() || rest.starts_with('.')
+                    })
+                })
     }
 }
 

@@ -5,7 +5,10 @@
 #[rustfmt::skip]
 mod vetted_generated;
 
-pub(crate) use vetted_generated::{JAVA_REFLECTIVE_MEMBERS, MODULE_VETTED_ATTRS};
+pub(crate) use vetted_generated::{
+    JAVA_PACKAGE_CLASSES, JAVA_REFLECTIVE_MEMBERS, MODULE_ATTRS, MODULE_VETTED_ATTRS,
+    PERSPECTIVE_DELEGATE_MEMBERS, PERSPECTIVE_MEMBERS, PERSPECTIVE_PROPERTY_TYPES,
+};
 
 #[cfg(test)]
 pub(crate) use vetted_generated::GENERATED_FROM;

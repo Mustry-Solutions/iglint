@@ -109,6 +109,9 @@ struct ProjectData {
     /// Library modules whose every top-level name may be used (a module
     /// used as a value, `from m import *`).
     escaped_modules: FxHashSet<ResourceId>,
+    /// Escaped modules that some resource uses as a value (not only
+    /// star-imports).
+    value_modules: FxHashSet<ResourceId>,
     /// Library modules that a resource this project sees star-imports.
     star_imported_modules: FxHashSet<ResourceId>,
     /// Library names that resources this project sees assign or delete
@@ -379,6 +382,7 @@ impl<'w> ProjectIndex<'w> {
         let mut sends: Vec<FxHashMap<String, Vec<SentMessage>>> = vec![FxHashMap::default(); n];
         let mut dynamic: Vec<DynamicReferences> = vec![DynamicReferences::default(); n];
         let mut escaped: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
+        let mut value_modules: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut stores: Vec<FxHashSet<String>> = vec![FxHashSet::default(); n];
         let mut exposed: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut star_imported: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
@@ -469,6 +473,18 @@ impl<'w> ProjectIndex<'w> {
                     let prefix = match self.resolve_library(pid, name) {
                         LibraryLookup::Module { resource, .. } => {
                             escaped[pid.index()].insert(resource);
+                            // A star import records the module once; any
+                            // other dynamic reference is a use as a value.
+                            let star = refs
+                                .library_star_imports
+                                .iter()
+                                .filter(|m| *m == name)
+                                .count();
+                            let dynamic =
+                                refs.dynamic.library.iter().filter(|m| *m == name).count();
+                            if dynamic > star {
+                                value_modules[pid.index()].insert(resource);
+                            }
                             continue;
                         }
                         LibraryLookup::Package { dotted } => format!("{dotted}."),
@@ -576,6 +592,7 @@ impl<'w> ProjectIndex<'w> {
             }
             p.dynamic = d;
             p.escaped_modules = std::mem::take(&mut escaped[i]);
+            p.value_modules = std::mem::take(&mut value_modules[i]);
             p.library_stores = std::mem::take(&mut stores[i]);
             p.exposed_modules = std::mem::take(&mut exposed[i]);
             p.star_imported_modules = std::mem::take(&mut star_imported[i]);
@@ -881,6 +898,17 @@ impl<'w> ProjectIndex<'w> {
     pub fn module_escapes(&self, project: ProjectId, module: ResourceId) -> bool {
         self.projects[project.index()]
             .escaped_modules
+            .contains(&module)
+    }
+
+    /// Whether a resource of `project` uses the library module as a value
+    /// (`m = core.util`, a default argument, a container, `getGlobals()`,
+    /// `sys.modules['core.util']`, a computed `getattr` on it), so that it
+    /// may read any of the module's names. Star imports alone do not count
+    /// ([`ProjectIndex::module_star_imported`]).
+    pub fn module_used_as_value(&self, project: ProjectId, module: ResourceId) -> bool {
+        self.projects[project.index()]
+            .value_modules
             .contains(&module)
     }
 

@@ -7,7 +7,7 @@
 # See stubs-gen/run.sh for the command and docs/internal/fix-safety.md
 # ("Machine-measured facts") for the argument.
 #
-# It emits two tables:
+# It emits these tables:
 #
 #   JAVA_REFLECTIVE_MEMBERS: the member names (Java method names and the
 #   Jython bean-property and field spellings) whose declared type mentions
@@ -25,6 +25,18 @@
 #   immutable vetted type). Every other attribute (a module, a
 #   PySystemState such as `re.sys`, a Java package or class, or anything
 #   else) is unknown code.
+#
+#   MODULE_ATTRS and JAVA_PACKAGE_CLASSES: every attribute of every vetted
+#   module (and os, sys) that imports, and the public top-level classes of
+#   the vetted Java packages (and of the packages of the vetted classes):
+#   an import is known to succeed only when it names one of them (SCR102's
+#   safe removal, and vetting of Java classes, need that evidence).
+#
+#   PERSPECTIVE_MEMBERS, PERSPECTIVE_PROPERTY_TYPES and
+#   PERSPECTIVE_DELEGATE_MEMBERS: the members of the objects Perspective
+#   hands to scripts (component, view, page and session SafetyWrappers),
+#   with the kind of their declared type, so that the access analysis can
+#   classify every member that may reach other views.
 #
 # usage: jython gen_vetted.py VETTED_RS SYSTEM_JSON OUT_RS
 
@@ -578,6 +590,8 @@ def java_reflective_members(java_classes, packages, system_json):
     for n in ['class', 'getClass', '__class__'] + EXPLICIT_REFLECTION_API:
         names.setdefault(n, 'explicit')
     stats = {
+        'loader': loader,
+        'classes': class_names(jars),
         'build': build,
         'seeds': len(set(seeds)),
         'scanned': len(closure.scanned),
@@ -663,6 +677,150 @@ def classify(val):
     return 'other'
 
 
+# --- Perspective script objects ------------------------------------------------
+#
+# The objects Perspective hands to scripts (`self`, `self.view`, `self.page`,
+# `self.session`, the `session` and `page` parameters of session and page
+# events) are PyDelegateObjects over a SafetyWrapper: Python sees the
+# property trees named by PropertyType (`props`, `custom`, ...), custom
+# methods and the script-callable methods of the component's model delegate
+# (components only), then the public Java members of the SafetyWrapper. The
+# linter's access analysis (script_facts/access.rs) classifies every member
+# measured here: a member of a page or session that hands out views, pages
+# or components reaches other views. Kinds, from the declared type:
+#
+#   host     a Page or Session
+#   element  a View, ViewModel, Component, ComponentModel or PerspectiveElement
+#            (or a supertype of one other than Object), or a collection of them
+#   tree     a PropertyTree
+#   object   Object or PyObject (classified by hand in access.rs)
+#   value    anything else (strings, numbers, void, data)
+
+PERSPECTIVE_WRAPPERS = [
+    ('component', 'com.inductiveautomation.perspective.gateway.script.ComponentModelScriptWrapper$SafetyWrapper'),
+    ('page', 'com.inductiveautomation.perspective.gateway.script.PageScriptWrapper$SafetyWrapper'),
+    ('session', 'com.inductiveautomation.perspective.gateway.script.SessionScriptWrapper$SafetyWrapper'),
+    ('view', 'com.inductiveautomation.perspective.gateway.script.ViewModelScriptWrapper$SafetyWrapper'),
+]
+PERSPECTIVE_PROPERTY_TYPE = 'com.inductiveautomation.perspective.common.api.PropertyType'
+PERSPECTIVE_DELEGATE = 'com.inductiveautomation.perspective.gateway.api.ComponentModelDelegate'
+PERSPECTIVE_HOSTS = [
+    'com.inductiveautomation.perspective.gateway.api.Page',
+    'com.inductiveautomation.perspective.gateway.api.Session',
+]
+PERSPECTIVE_ELEMENTS = [
+    'com.inductiveautomation.perspective.gateway.api.View',
+    'com.inductiveautomation.perspective.gateway.model.ViewModel',
+    'com.inductiveautomation.perspective.gateway.api.Component',
+    'com.inductiveautomation.perspective.gateway.model.ComponentModel',
+    'com.inductiveautomation.perspective.gateway.api.PerspectiveElement',
+]
+PERSPECTIVE_TREES = ['com.inductiveautomation.perspective.gateway.property.PropertyTree']
+KIND_ORDER = ['value', 'object', 'tree', 'host', 'element']
+
+
+def perspective_kind(closure, types, hosts, elements, trees):
+    obj = closure.load('java.lang.Object')
+    pyobj = closure.load('org.python.core.PyObject')
+    kinds = ['value']
+    for t in types:
+        if any(Class.isAssignableFrom(h, t) for h in hosts):
+            kinds.append('host')
+        elif t != obj and any(Class.isAssignableFrom(e, t) or Class.isAssignableFrom(t, e)
+                              for e in elements + hosts):
+            kinds.append('element')
+        elif any(Class.isAssignableFrom(r, t) for r in trees):
+            kinds.append('tree')
+        elif t == obj or (pyobj is not None and Class.isAssignableFrom(pyobj, t)):
+            kinds.append('object')
+    return max(kinds, key=KIND_ORDER.index)
+
+
+def perspective_members(loader, all_classes):
+    closure = Closure(loader)
+    hosts = [closure.load(n) for n in PERSPECTIVE_HOSTS]
+    elements = [closure.load(n) for n in PERSPECTIVE_ELEMENTS]
+    trees = [closure.load(n) for n in PERSPECTIVE_TREES]
+    if None in hosts + elements + trees:
+        raise Exception('a Perspective type does not load')
+
+    def members(c, skip):
+        out = {}
+        for m in Class.getMethods(c):
+            if Class.getName(m.getDeclaringClass()) in skip:
+                continue
+            types = closure.types_of(m.getReturnType(), m.getGenericReturnType())
+            kind = perspective_kind(closure, types, hosts, elements, trees)
+            names = [m.getName()]
+            b = bean(m.getName(), len(m.getParameterTypes()))
+            if b:
+                names.append(b)
+            for n in names:
+                old = out.get(n, 'value')
+                out[n] = max([old, kind], key=KIND_ORDER.index)
+        return out
+
+    wrappers = []
+    for short, name in PERSPECTIVE_WRAPPERS:
+        c = closure.load(name)
+        if c is None:
+            raise Exception('%s does not load' % name)
+        for n, k in sorted(members(c, ['java.lang.Object']).items()):
+            wrappers.append((short, n, k))
+    ptype = closure.load(PERSPECTIVE_PROPERTY_TYPE)
+    property_types = sorted(str(e) for e in ptype.getEnumConstants())
+    base = closure.load(PERSPECTIVE_DELEGATE)
+    delegates = {}
+    for n in all_classes:
+        c = closure.load(n)
+        if c is None or c == base:
+            continue
+        try:
+            if not Class.isAssignableFrom(base, c) or not Modifier.isPublic(Class.getModifiers(c)):
+                continue
+            found = members(c, ['java.lang.Object', PERSPECTIVE_DELEGATE])
+        except (Exception, JavaThrowable):
+            continue
+        for m, k in found.items():
+            delegates[m] = max([delegates.get(m, 'value'), k], key=KIND_ORDER.index)
+    return wrappers, property_types, sorted(delegates.items())
+
+
+# --- what an import finds -------------------------------------------------------
+
+def java_package_classes(java_classes, packages, all_classes, loader):
+    """The public top-level classes of every vetted Java package and of the
+    packages of the vetted Java classes: an import of a class outside
+    these lists may fail."""
+    wanted = set(packages) | set(c.rsplit('.', 1)[0] for c in java_classes)
+    closure = Closure(loader)
+    out = {}
+    for n in all_classes:
+        if '$' in n or '.' not in n:
+            continue
+        pkg, simple = n.rsplit('.', 1)
+        if pkg not in wanted:
+            continue
+        c = closure.load(n)
+        if c is None or not Modifier.isPublic(Class.getModifiers(c)):
+            continue
+        out.setdefault(pkg, []).append(simple)
+    return [(p, sorted(out.get(p, []))) for p in sorted(wanted)]
+
+
+def module_attrs(modules):
+    """Every attribute of every vetted module (and `os`, `sys`) that
+    imports in the image: `from m import n` of anything else fails."""
+    out = []
+    for name in sorted(set(modules) | set(['os', 'sys'])):
+        try:
+            mod = import_module(name)
+        except Exception:
+            continue
+        out.append((name, sorted(set(dir(mod)))))
+    return out
+
+
 # --- emitting the generated Rust -------------------------------------------
 
 def rust_str_list(items, indent):
@@ -679,11 +837,16 @@ def main():
     modules, java_classes, packages = read_inputs(vetted_rs)
     members, stats = java_reflective_members(java_classes, packages, system_json)
     attrs = module_vetted_attrs(modules)
+    wrappers, property_types, delegates = perspective_members(stats['loader'], stats['classes'])
+    package_classes = java_package_classes(java_classes, packages, stats['classes'],
+                                           stats['loader'])
+    all_attrs = module_attrs(modules)
 
     signature = (['mod:%s' % m for m in modules]
                  + ['java:%s' % c for c in sorted(java_classes)]
                  + ['pkg:%s' % p for p in sorted(packages)]
-                 + ['stubs:%s' % stats['build']])
+                 + ['stubs:%s' % stats['build']]
+                 + ['perspective:%s=%s' % (short, name) for short, name in PERSPECTIVE_WRAPPERS])
 
     lines = []
     lines.append('// @generated by stubs-gen/gen_vetted.py; do not edit by hand.')
@@ -728,6 +891,51 @@ def main():
         if vetted:
             lines.append(rust_str_list(vetted, 8))
         lines.append('    ]),')
+    lines.append('];')
+    lines.append('')
+    lines.append('/// Every attribute (`dir()`) of every vetted module, `os` and `sys`')
+    lines.append('/// that imports in the image: an import of a module or name that is')
+    lines.append('/// not here may fail. Sorted.')
+    lines.append('pub(crate) const MODULE_ATTRS: &[(&str, &[&str])] = &[')
+    for name, names in all_attrs:
+        lines.append('    (%s, &[' % rust_str(name))
+        if names:
+            lines.append(rust_str_list(names, 8))
+        lines.append('    ]),')
+    lines.append('];')
+    lines.append('')
+    lines.append('/// The public top-level classes of every vetted Java package and of the')
+    lines.append('/// packages of the vetted Java classes. Sorted.')
+    lines.append('pub(crate) const JAVA_PACKAGE_CLASSES: &[(&str, &[&str])] = &[')
+    for pkg, classes in package_classes:
+        lines.append('    (%s, &[' % rust_str(pkg))
+        if classes:
+            lines.append(rust_str_list(classes, 8))
+        lines.append('    ]),')
+    lines.append('];')
+    lines.append('')
+    lines.append('/// The members of the Perspective script objects (component, page,')
+    lines.append('/// session and view SafetyWrappers), in the Java method and bean')
+    lines.append('/// spellings, with the kind of their declared type: `host` (a page or')
+    lines.append('/// session), `element` (views, components), `tree` (a property tree),')
+    lines.append('/// `object` (`Object` or `PyObject`) or `value`. Sorted.')
+    lines.append('pub(crate) const PERSPECTIVE_MEMBERS: &[(&str, &str, &str)] = &[')
+    for w, n, k in wrappers:
+        lines.append('    (%s, %s, %s),' % (rust_str(w), rust_str(n), rust_str(k)))
+    lines.append('];')
+    lines.append('')
+    lines.append('/// The property tree names every Perspective script object resolves')
+    lines.append('/// before its members (`PropertyType`).')
+    lines.append('pub(crate) const PERSPECTIVE_PROPERTY_TYPES: &[&str] = &[')
+    lines.append(rust_str_list(property_types, 4))
+    lines.append('];')
+    lines.append('')
+    lines.append('/// The script-callable members of every component model delegate')
+    lines.append('/// (component-specific methods such as `refreshData`), with the kind')
+    lines.append('/// of their declared type. Sorted.')
+    lines.append('pub(crate) const PERSPECTIVE_DELEGATE_MEMBERS: &[(&str, &str)] = &[')
+    for n, k in delegates:
+        lines.append('    (%s, %s),' % (rust_str(n), rust_str(k)))
     lines.append('];')
     lines.append('')
     open(out_rs, 'wb').write(('\n'.join(lines) + '\n').encode('utf-8'))

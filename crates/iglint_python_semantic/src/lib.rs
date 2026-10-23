@@ -60,6 +60,7 @@ mod flow;
 mod generated;
 mod limits;
 mod model;
+pub mod perspective;
 mod resolve;
 mod symbols;
 pub mod vetted;

@@ -30,13 +30,14 @@ use iglint_project::{Container, ProjectId, Workspace};
 /// Whether code outside a library module may use a top-level name of it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ExternalUse {
-    /// Another resource references `pkg.mod.name`.
+    /// Another resource references `pkg.mod.name`, or uses the module as a
+    /// value (and may read any of its names).
     Used,
     /// Not referenced, and every reference in the project is known.
     Unused,
-    /// Cannot be ruled out: the module is used as a value, references are
-    /// computed at run time, the project is inheritable or has scripts
-    /// iglint does not model, or the project is unknown.
+    /// Cannot be ruled out: references are computed at run time, the
+    /// project is inheritable or has scripts iglint does not model, or the
+    /// project is unknown.
     Unknown,
 }
 
@@ -47,6 +48,15 @@ pub(crate) fn external_use(cx: &crate::checker::Checker<'_, '_>, name: &str) -> 
         return ExternalUse::Unknown;
     };
     if index.external_symbol_usage_count(resource.id, name) > 0 {
+        return ExternalUse::Used;
+    }
+    // The module is used as a value somewhere (`m = core.util`, a default
+    // argument, a container, `getGlobals()`, `sys.modules['core.util']`):
+    // whoever holds it may read any of its names, so each counts as used.
+    if std::iter::once(project)
+        .chain(cx.workspace().project_descendants(project))
+        .any(|p| index.module_used_as_value(p, resource.id))
+    {
         return ExternalUse::Used;
     }
     // Code that is not vetted (`cPickle.loads` of a `c<module>` opcode,

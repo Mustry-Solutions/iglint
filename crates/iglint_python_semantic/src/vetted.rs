@@ -536,6 +536,11 @@ fn java_class(package: &str, class: &str) -> Option<&'static str> {
     let qualified = |list: &'static [(&'static str, &'static [&'static str])]| {
         list.iter().find(|(p, _)| *p == package)
     };
+    // Only classes measured to exist in the image: an import of any other
+    // name fails, which is not something a safe fix may change.
+    if !java_class_exists(package, class) {
+        return None;
+    }
     if let Some((_, classes)) = qualified(VETTED_JAVA_CLASSES)
         && let Some(c) = classes.iter().find(|c| **c == class)
     {
@@ -543,11 +548,51 @@ fn java_class(package: &str, class: &str) -> Option<&'static str> {
     }
     if let Some((p, denied)) = qualified(VETTED_JAVA_PACKAGES)
         && !denied.contains(&class)
-        && class.chars().next().is_some_and(char::is_uppercase)
     {
         return Some(denied_members_key(p, class));
     }
     None
+}
+
+/// Whether `package.class` is a public top-level class of a measured Java
+/// package ([`crate::generated::JAVA_PACKAGE_CLASSES`]: every vetted
+/// package and the packages of the vetted classes), so that importing it
+/// succeeds.
+pub fn java_class_exists(package: &str, class: &str) -> bool {
+    crate::generated::JAVA_PACKAGE_CLASSES
+        .iter()
+        .find(|(p, _)| *p == package)
+        .is_some_and(|(_, classes)| classes.binary_search(&class).is_ok())
+}
+
+/// Whether `package` is a measured Java package (or a parent of one), so
+/// that `import package` succeeds.
+pub fn java_package_exists(package: &str) -> bool {
+    crate::generated::JAVA_PACKAGE_CLASSES
+        .iter()
+        .any(|(p, classes)| {
+            !classes.is_empty()
+                && (*p == package
+                    || p.strip_prefix(package)
+                        .is_some_and(|rest| rest.starts_with('.')))
+        })
+}
+
+/// Whether the Python module `module` imported in the image when the
+/// tables were measured (the vetted modules, `os` and `sys`).
+pub fn module_imports(module: &str) -> bool {
+    crate::generated::MODULE_ATTRS
+        .iter()
+        .any(|(m, _)| *m == module)
+}
+
+/// Whether `module` (measured, [`module_imports`]) has attribute `name`,
+/// so that `from module import name` succeeds.
+pub fn module_has_attribute(module: &str, name: &str) -> bool {
+    crate::generated::MODULE_ATTRS
+        .iter()
+        .find(|(m, _)| *m == module)
+        .is_some_and(|(_, attrs)| attrs.binary_search(&name).is_ok())
 }
 
 /// The key of `package.class` in [`JAVA_DENIED_MEMBERS`], or `java` for
@@ -1264,6 +1309,12 @@ mod tests {
         // The Java closure is seeded with the types `system.*` returns,
         // from the stubs: regenerate when they change.
         sig.push(format!("stubs:{}", iglint_stubs::IGNITION_BUILD));
+        // The Perspective script objects whose members are measured.
+        sig.extend(
+            crate::perspective::WRAPPER_CLASSES
+                .iter()
+                .map(|(short, class)| format!("perspective:{short}={class}")),
+        );
         let generated: Vec<&str> = crate::generated::GENERATED_FROM.to_vec();
         assert_eq!(
             sig, generated,
@@ -1281,8 +1332,50 @@ mod tests {
                 .windows(2)
                 .all(|w| w[0] < w[1])
         );
-        for (_, attrs) in crate::generated::MODULE_VETTED_ATTRS {
+        for (_, attrs) in crate::generated::MODULE_VETTED_ATTRS
+            .iter()
+            .chain(crate::generated::MODULE_ATTRS)
+            .chain(crate::generated::JAVA_PACKAGE_CLASSES)
+        {
             assert!(attrs.windows(2).all(|w| w[0] < w[1]));
         }
+    }
+
+    /// Every vetted Java class and every vetted module was measured to
+    /// exist in the image, so the allowlists name nothing an import cannot
+    /// find; every vetted package has classes.
+    #[test]
+    fn vetted_names_exist_in_the_image() {
+        for (pkg, classes) in VETTED_JAVA_CLASSES {
+            for c in *classes {
+                assert!(java_class_exists(pkg, c), "{pkg}.{c} is not in the image");
+            }
+        }
+        for (pkg, _) in VETTED_JAVA_PACKAGES {
+            assert!(java_package_exists(pkg), "{pkg} has no measured class");
+        }
+        for (m, _) in VETTED_MODULES {
+            assert!(module_imports(m), "{m} does not import");
+        }
+        assert!(module_imports("os") && module_imports("sys"));
+        assert!(module_has_attribute("json", "dumps"));
+        assert!(!module_has_attribute("json", "MissingReviewName"));
+        assert!(java_class_exists("java.util", "ArrayList"));
+        assert!(!java_class_exists("java.util", "MissingReviewClass"));
+        assert!(java_package_exists("java") && java_package_exists("java.util"));
+        assert!(!java_package_exists("java.missing"));
+    }
+
+    /// An import of a class that does not exist in a vetted package fails
+    /// at run time: it is not vetted (the import, and so its removal, is
+    /// observable).
+    #[test]
+    fn missing_java_classes_are_not_vetted() {
+        let found = unknown("from java.util import MissingReviewClass\n");
+        assert!(found.other.is_some(), "{found:?}");
+        let found = unknown("from java.util import ArrayList\nArrayList()\n");
+        assert!(found.is_empty(), "{found:?}");
+        let found = unknown("import java.util.MissingReviewClass\n");
+        assert!(!found.is_empty(), "{found:?}");
     }
 }
