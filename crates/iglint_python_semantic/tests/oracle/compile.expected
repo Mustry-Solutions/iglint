@@ -1848,3 +1848,98 @@ ok
 ### star-genexp-two-gens-free
 error 2 4
 import * is not allowed in function 'f' because it contains a nested function with free variables
+### dead-code-module-raise-break
+error 2 0
+'break' outside loop
+### dead-code-func-break-dead-in-if
+ok
+### dead-code-func-continue-dead
+ok
+### dead-code-class-dead-return
+ok
+### dead-code-func-dead-yield-in-nongen
+error 3 4
+'return' with argument inside generator
+### dead-code-func-dead-import-star
+ok
+### dead-code-func-dead-exec-nested
+error 1 0
+unqualified exec is not allowed in function 'f' because it contains a function with free variables
+### dead-code-except-not-last
+ok
+### dead-code-del-cell
+ok
+### dead-code-assign-debug
+error 3 4
+can not assign to __debug__
+### dead-code-invalid-assign
+ok
+### dead-code-invalid-for
+ok
+### dead-code-invalid-listcomp
+ok
+### dead-code-dup-arg
+error 3 13
+duplicate argument name found: a
+### dead-code-param-global
+error 4 8
+name 'a' is local and global
+### dead-code-future
+error 3 4
+from __future__ imports must occur at the beginning of the file
+### dead-code-future-unknown
+error 3 4
+from __future__ imports must occur at the beginning of the file
+### dead-code-yield-class
+ok
+### dead-code-yield-module-nested
+ok
+### dead-code-return-module-nested
+ok
+### dead-code-break-module-nested
+ok
+### dead-code-continue-class
+ok
+### dead-code-lambda-yield
+ok
+### dead-code-genexp-invalid
+ok
+### dead-code-nested-func-yield-return
+error 5 8
+'return' with argument inside generator
+### dead-code-nested-func-break
+ok
+### dead-code-except-not-last-module
+ok
+### dead-break-outside-loop
+ok
+### dead-return-module
+error 2 0
+'return' outside function
+### dead-yield-return-value
+error 4 4
+'return' with argument inside generator
+### dead-continue-finally
+error 7 12
+'continue' not supported inside 'finally' clause
+### live-star-dead-nested-function
+error 2 4
+import * is not allowed in function 'f' because it contains a nested function with free variables
+### dead-after-if-else-return
+ok
+### live-after-if-return
+error 4 4
+'break' outside loop
+### live-after-try-return
+error 6 4
+'break' outside loop
+### live-after-loop-break
+error 5 4
+'break' outside loop
+### dead-after-continue
+ok
+### live-module-after-raise
+error 2 0
+'break' outside loop
+### dead-in-view-body
+ok

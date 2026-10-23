@@ -52,6 +52,15 @@ It also reports scripts that are too large for Jython:
 * a module with more than 32,767 distinct string literals (`Class too
   large`: one module is one Java class, with at most 65,535 constants).
 
+Jython generates no code for the rest of a block after `return`, `raise`,
+`continue` or an `if`/`else` whose every branch ends that way (but not
+after `break`, a loop, `try` or `with`, and not for the module's own
+statements). That dead code counts for neither size limit, and the errors
+above that Jython's code generator raises (`return`, `yield`, `break` and
+`continue` in the wrong place, `import *`, a bare `except:` that is not
+last, `del` of a variable a nested function uses, invalid targets) are not
+reported in it.
+
 Every case was checked against Ignition's Jython with full compilation;
 iglint reports nothing that Jython compiles.
 
@@ -202,6 +211,33 @@ mod tests {
         assert_eq!(flagged(&d), ["f"]);
         assert!(d[0].message.contains("too large"));
         assert!(lint_module("SCR002", &"x = 1\n".repeat(3_000)).is_empty());
+        // Dead code generates nothing (Jython compiles these).
+        let dead = format!("def f():\n    return\n{}", "    pass\n".repeat(12_000));
+        assert!(lint_module("SCR002", &dead).is_empty());
+        let body = format!("\treturn\n{}", "\tpass\n".repeat(12_000));
+        assert!(view(ViewScript::Action, &body).lint(&["SCR002"]).is_empty());
+    }
+
+    /// Verified on Jython: its code generator never sees dead code.
+    #[test]
+    fn dead_code_compiles() {
+        for dead in [
+            "def f():\n    return\n    break\n",
+            "def f():\n    raise E\n    continue\n",
+            "def f():\n    if x:\n        return\n    else:\n        raise E\n    break\n",
+            "class C:\n    raise E\n    return\n",
+            "if x:\n    raise E\n    yield 1\n",
+        ] {
+            assert!(lint_module("SCR002", dead).is_empty(), "{dead}");
+        }
+        for live in [
+            "def f():\n    if x:\n        return\n    break\n",
+            "def f():\n    while x:\n        break\n    break\n",
+            "raise E\nbreak\n",
+            "def f():\n    return 1\n    yield 2\n",
+        ] {
+            assert_eq!(lint_module("SCR002", live).len(), 1, "{live}");
+        }
     }
 
     #[test]

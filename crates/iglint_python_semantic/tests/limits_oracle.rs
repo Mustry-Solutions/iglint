@@ -38,6 +38,48 @@ fn source(kind: &str, n: usize) -> String {
         "if" => format!("if x:\n{}", "    pass\n".repeat(n)),
         "view-body" => format!("{HEADER}{}", "\tpass\n".repeat(n)),
         "global" => format!("def f():\n{}    pass\n", "    global x\n".repeat(n)),
+        // Code after a statement that ends a suite: Jython generates none.
+        "dead-return" => format!("def f():\n    return\n{}", "    pass\n".repeat(n)),
+        "dead-raise" => format!("def f():\n    raise X\n{}", "    pass\n".repeat(n)),
+        "dead-continue" => format!(
+            "def f():\n    for i in x:\n        continue\n{}",
+            "        pass\n".repeat(n)
+        ),
+        "dead-if-else" => format!(
+            "def f():\n    if x:\n        return\n    elif y:\n        raise X\n    else:\n        return\n{}",
+            "    pass\n".repeat(n)
+        ),
+        "dead-class" => format!("class C:\n    raise X\n{}", "    pass\n".repeat(n)),
+        "dead-nested" => format!("if x:\n    raise X\n{}", "    pass\n".repeat(n)),
+        "dead-view" => format!("{HEADER}\treturn\n{}", "\tpass\n".repeat(n)),
+        "dead-def" => format!(
+            "def f():\n    return\n    def g():\n{}",
+            "        pass\n".repeat(n)
+        ),
+        "dead-strings" => format!(
+            "def f():\n    return\n{}",
+            (0..n)
+                .map(|i| format!("'s{i}'"))
+                .collect::<Vec<_>>()
+                .chunks(1000)
+                .map(|c| format!("    x = [{}]\n", c.join(", ")))
+                .collect::<String>()
+        ),
+        // Code Jython does generate.
+        "live-if" => format!(
+            "def f():\n    if x:\n        return\n{}",
+            "    pass\n".repeat(n)
+        ),
+        "live-break" => format!(
+            "def f():\n    while x:\n        break\n{}",
+            "        pass\n".repeat(n)
+        ),
+        "live-try" => format!(
+            "def f():\n    try:\n        return\n    except:\n        return\n{}",
+            "    pass\n".repeat(n)
+        ),
+        "live-module" => format!("raise X\n{}", "pass\n".repeat(n)),
+        "live-same-line" => "pass; ".repeat(n * 10) + "\n",
         "strings" => (0..n)
             .map(|i| format!("'s{i}'"))
             .collect::<Vec<_>>()
@@ -116,6 +158,59 @@ const CASES: &[(&str, usize, bool)] = &[
     ("view-body", 10922, false),
     ("view-body", 10923, false),
     ("view-body", 10924, false),
+    ("dead-class", 10921, true),
+    ("dead-class", 10922, true),
+    ("dead-class", 10923, true),
+    ("dead-class", 10924, true),
+    ("dead-continue", 10921, true),
+    ("dead-continue", 10922, true),
+    ("dead-continue", 10923, true),
+    ("dead-continue", 10924, true),
+    ("dead-def", 10921, true),
+    ("dead-def", 10922, true),
+    ("dead-def", 10923, true),
+    ("dead-def", 10924, true),
+    ("dead-if-else", 10921, true),
+    ("dead-if-else", 10922, true),
+    ("dead-if-else", 10923, true),
+    ("dead-if-else", 10924, true),
+    ("dead-nested", 10921, true),
+    ("dead-nested", 10922, true),
+    ("dead-nested", 10923, true),
+    ("dead-nested", 10924, true),
+    ("dead-raise", 10921, true),
+    ("dead-raise", 10922, true),
+    ("dead-raise", 10923, true),
+    ("dead-raise", 10924, true),
+    ("dead-return", 10921, true),
+    ("dead-return", 10922, true),
+    ("dead-return", 10923, true),
+    ("dead-return", 10924, true),
+    ("dead-strings", 32766, true),
+    ("dead-strings", 32767, true),
+    ("dead-strings", 32768, true),
+    ("dead-strings", 32769, true),
+    ("dead-view", 10921, true),
+    ("dead-view", 10922, true),
+    ("dead-view", 10923, true),
+    ("dead-view", 10924, true),
+    ("live-break", 10921, false),
+    ("live-break", 10922, false),
+    ("live-break", 10923, false),
+    ("live-break", 10924, false),
+    ("live-if", 10921, false),
+    ("live-if", 10922, false),
+    ("live-if", 10923, false),
+    ("live-if", 10924, false),
+    ("live-module", 10921, false),
+    ("live-module", 10922, false),
+    ("live-module", 10923, false),
+    ("live-module", 10924, false),
+    ("live-same-line", 2000, false),
+    ("live-try", 10921, false),
+    ("live-try", 10922, false),
+    ("live-try", 10923, false),
+    ("live-try", 10924, false),
 ];
 
 /// The sources whose only possible failure is the first-two-lines limit.
@@ -162,6 +257,24 @@ fn sizes() -> Vec<(&'static str, usize)> {
     }
     out.push(("global", 30_000));
     around("strings", 32_768, &mut out);
+    for kind in [
+        "dead-return",
+        "dead-raise",
+        "dead-continue",
+        "dead-if-else",
+        "dead-class",
+        "dead-nested",
+        "dead-view",
+        "dead-def",
+        "live-if",
+        "live-break",
+        "live-try",
+        "live-module",
+    ] {
+        around(kind, 10_923, &mut out);
+    }
+    around("dead-strings", 32_768, &mut out);
+    out.push(("live-same-line", 2_000));
     out
 }
 

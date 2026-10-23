@@ -2200,3 +2200,199 @@ def f():
 def f():
     from os import *
     return list(a for a in q for b in r)
+### dead-code-module-raise-break
+raise X
+break
+### dead-code-func-break-dead-in-if
+def f():
+    if x:
+        return
+        break
+### dead-code-func-continue-dead
+def f():
+    return
+    continue
+### dead-code-class-dead-return
+class C:
+    raise X
+    return
+### dead-code-func-dead-yield-in-nongen
+def f():
+    return 1
+    yield 2
+### dead-code-func-dead-import-star
+def f():
+    return
+    from os import *
+    def g():
+        return x
+### dead-code-func-dead-exec-nested
+def f():
+    return
+    exec 'x'
+    def g():
+        return y
+### dead-code-except-not-last
+def f():
+    return
+    try:
+        pass
+    except:
+        pass
+    except E:
+        pass
+### dead-code-del-cell
+def f():
+    x = 1
+    def g():
+        return x
+    return
+    del x
+### dead-code-assign-debug
+def f():
+    return
+    __debug__ = 1
+### dead-code-invalid-assign
+def f():
+    return
+    -a = 1
+### dead-code-invalid-for
+def f():
+    return
+    for f() in x:
+        pass
+### dead-code-invalid-listcomp
+def f():
+    return
+    [1 for f() in x]
+### dead-code-dup-arg
+def f():
+    return
+    def g(a, a):
+        pass
+### dead-code-param-global
+def f():
+    return
+    def g(a):
+        global a
+### dead-code-future
+def f():
+    return
+    from __future__ import division
+### dead-code-future-unknown
+def f():
+    return
+    from __future__ import nope
+### dead-code-yield-class
+class C:
+    raise X
+    yield 1
+### dead-code-yield-module-nested
+if x:
+    raise X
+    yield 1
+### dead-code-return-module-nested
+if x:
+    raise X
+    return
+### dead-code-break-module-nested
+if x:
+    raise X
+    break
+### dead-code-continue-class
+class C:
+    raise X
+    continue
+### dead-code-lambda-yield
+def f():
+    return
+    lambda: (yield)
+### dead-code-genexp-invalid
+def f():
+    return
+    (1 for -a in x)
+### dead-code-nested-func-yield-return
+def f():
+    return
+    def g():
+        yield 1
+        return 2
+### dead-code-nested-func-break
+def f():
+    return
+    def g():
+        break
+### dead-code-except-not-last-module
+if x:
+    raise X
+    try:
+        pass
+    except:
+        pass
+    except E:
+        pass
+### dead-break-outside-loop
+def f():
+    return
+    break
+### dead-return-module
+raise X
+return
+### dead-yield-return-value
+def f():
+    yield 1
+    return
+    return 2
+### dead-continue-finally
+def f():
+    for i in x:
+        try:
+            pass
+        finally:
+            return
+            continue
+### live-star-dead-nested-function
+def f():
+    from os import *
+    return
+    def g():
+        return x
+### dead-after-if-else-return
+def f():
+    if x:
+        return
+    else:
+        raise E
+    break
+### live-after-if-return
+def f():
+    if x:
+        return
+    break
+### live-after-try-return
+def f():
+    try:
+        return
+    except:
+        return
+    break
+### live-after-loop-break
+def f():
+    for i in x:
+        break
+        del_ = 1
+    break
+### dead-after-continue
+def f():
+    for i in x:
+        continue
+        yield_ = 1
+    return
+    break
+### live-module-after-raise
+raise X
+break
+### dead-in-view-body
+def runAction(self, event):
+	return
+	break

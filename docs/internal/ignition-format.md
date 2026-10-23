@@ -572,15 +572,41 @@ and with `-Xss16m`.
 * **Method too large.** The module body, each function body and each
   class body compile to one Java method of at most 65,535 bytes of
   bytecode (`java.lang.RuntimeException: Module or method too large in
-  <file>`). Each source line that starts a statement updates the frame's
-  line number (at least 6 bytes from line 6 on; statements sharing a line
-  update it once; `global` generates nothing). Largest bodies that still
-  compile: 9,379 lines of `pass`, 4,689 of `x`, 3,282 of `x = 1` in a
-  function (3,126 in a module), 2,746 distinct `xN = N`, 1,728 empty
-  `def`s, a 9,352-term `1+1+...`, a call with 5,965 arguments. The size
-  depends on Jython's code generator, so `SCR002` reports only what cannot
-  compile whatever the statements are: more than 10,922 statement lines in
-  one body (all bodies of 10,921 to 10,924 lines tested fail).
+  <file>`). Each statement updates the frame's line number (at least 6
+  bytes from line 6 on, also for statements sharing a line: 11,000 `pass`
+  on one line fail, 9,000 compile; `global` generates nothing). Largest
+  bodies that still compile: 9,379 lines of `pass`, 4,689 of `x`, 3,282 of
+  `x = 1` in a function (3,126 in a module), 2,746 distinct `xN = N`,
+  1,728 empty `def`s, a 9,352-term `1+1+...`, a call with 5,965 arguments.
+  The size depends on Jython's code generator, so `SCR002` reports only
+  what cannot compile whatever the statements are: more than 10,922
+  statement lines in one body (all bodies of 10,921 to 10,924 lines
+  tested fail). Lines count, not statements, which keeps the bound below
+  the real size.
+* **Dead code generates nothing.** Jython's code generator stops
+  compiling a suite after a statement that ends it: `return`, `raise`,
+  `continue`, and an `if` with an `else` (also at the end of an `elif`
+  chain) whose every branch ends that way. `break`, loops, `try` (even
+  when the body and every handler return), `with`, `while 1:` and
+  `assert False` do not end a suite, and `if 1: return` without `else`
+  does not either (no constant folding). The cut applies to function and
+  class bodies and to the suites of compound statements, also at module
+  level, but not to the module's own statement list: `raise X` followed by
+  10,921 lines of `pass` at module level fails, inside a function it
+  compiles. Nothing after the cut counts: not its lines, not the bodies of
+  `def`s in it (a dead `def g():` with 10,924 lines compiles), not its
+  string constants (40,000 distinct literals after `return` compile).
+  `SCR002` counts only what is generated. Errors of the code generator
+  are not raised for dead code either: `'break' outside loop`,
+  `'continue' not properly in loop`, `'return'` and `'yield'` outside
+  function (in a class body), `default 'except:' must be last`, `can not
+  delete variable ... referenced in nested scope`, `import * is not
+  allowed in function ...`, and the compiler crashes on invalid targets
+  (`-a = 1`). Errors of the symbol table pass still are: `'return' with
+  argument inside generator`, `unqualified exec is not allowed ...`,
+  duplicate arguments, `name 'x' is local and global`, `can not assign to
+  __debug__` and misplaced `from __future__` imports. The cases are in
+  `crates/iglint_python_semantic/tests/oracle/compile.cases`.
 * **Class too large.** A module compiles to one Java class with at most
   65,535 constant pool entries (`org.python.objectweb.asm.
   ClassTooLargeException: Class too large`). A distinct string constant

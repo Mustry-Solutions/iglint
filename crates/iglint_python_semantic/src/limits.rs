@@ -11,22 +11,28 @@
 //!   exact. No other line, literal or identifier has a length limit.
 //! * Every code unit (the module body, each function and class body)
 //!   becomes one Java method, limited to 65,535 bytes of bytecode
-//!   (`Module or method too large`). Each source line that starts a
-//!   statement costs at least 6 bytes (the frame's line number update), so
-//!   more than 10,922 such lines (from line 6 on) cannot compile. Jython
-//!   fails earlier (9,379 lines of `pass` fit, 3,282 of `x = 1`); between
-//!   the two nothing is reported.
+//!   (`Module or method too large`). Each statement costs at least 6
+//!   bytes (the frame's line number update), so more than 10,922 lines
+//!   with statements (from line 6 on) cannot compile. Jython fails earlier
+//!   (9,379 lines of `pass` fit, 3,282 of `x = 1`); between the two
+//!   nothing is reported.
+//! * Jython generates no code for the rest of a suite after a statement
+//!   that ends it (`ends_suite`): those statements, the
+//!   `def`s among them and their string constants count for neither
+//!   limit. The module's own statement list is compiled whole.
 //! * A module becomes one Java class, limited to 65,535 constant pool
 //!   entries (`Class too large`). Each distinct string constant takes at
 //!   least two (the string and its UTF-8 text), so more than 32,767
 //!   distinct string literals cannot compile (Jython fails at 32,594).
 
 use iglint_python::ast::*;
-use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
+use iglint_python::visitor::{Visitor, walk_expr};
 use iglint_text::{LineIndex, Ranged, TextRange, TextSize};
 use rustc_hash::FxHashSet;
 
-use crate::compile::{CompileError, CompileErrorKind};
+use crate::compile::{
+    CompileError, CompileErrorKind, ends_suite, for_each_child_body, for_each_stmt_expr,
+};
 
 /// Jython's read-ahead limit while it looks for an encoding declaration,
 /// in UTF-16 code units.
@@ -108,7 +114,7 @@ pub fn size_errors<'a>(module: &'a Module, source: &str) -> Vec<CompileError> {
     while let Some((body, owner)) = units.pop() {
         let mut lines = FxHashSet::default();
         let mut crossing = None;
-        let mut pending: Vec<&'a Stmt> = body.iter().rev().collect();
+        let mut pending: Vec<&'a Stmt> = emitted(body, owner.is_none()).iter().rev().collect();
         while let Some(stmt) = pending.pop() {
             let line = index.line_of(stmt.range().start()) + 1;
             // `global` may generate no code.
@@ -120,35 +126,16 @@ pub fn size_errors<'a>(module: &'a Module, source: &str) -> Vec<CompileError> {
             {
                 crossing = Some(stmt);
             }
-            let mut nested = |body: &'a [Stmt]| pending.extend(body.iter().rev());
             match stmt {
                 Stmt::FunctionDef(s) => units.push((&s.body, Some(stmt))),
                 Stmt::ClassDef(s) => units.push((&s.body, Some(stmt))),
-                Stmt::For(s) => {
-                    nested(&s.orelse);
-                    nested(&s.body);
-                }
-                Stmt::While(s) => {
-                    nested(&s.orelse);
-                    nested(&s.body);
-                }
-                Stmt::If(s) => {
-                    nested(&s.orelse);
-                    nested(&s.body);
-                }
-                Stmt::With(s) => nested(&s.body),
-                Stmt::TryExcept(s) => {
-                    nested(&s.orelse);
-                    for handler in s.handlers.iter().rev() {
-                        nested(&handler.body);
+                other => {
+                    let mut suites: Vec<&'a [Stmt]> = Vec::new();
+                    for_each_child_body(other, &mut |b| suites.push(b));
+                    for suite in suites.into_iter().rev() {
+                        pending.extend(emitted(suite, false).iter().rev());
                     }
-                    nested(&s.body);
                 }
-                Stmt::TryFinally(s) => {
-                    nested(&s.finalbody);
-                    nested(&s.body);
-                }
-                _ => {}
             }
         }
         if let Some(stmt) = crossing {
@@ -174,7 +161,7 @@ pub fn size_errors<'a>(module: &'a Module, source: &str) -> Vec<CompileError> {
         }
     }
     let mut strings = Strings::default();
-    strings.visit_module(module);
+    strings.suite(&module.body, true);
     if strings.distinct.len() * 2 > CONSTANT_POOL_LIMIT
         && let Some(range) = strings.crossing
     {
@@ -200,11 +187,42 @@ struct Strings {
     crossing: Option<TextRange>,
 }
 
-impl<'a> Visitor<'a> for Strings {
-    fn visit_stmt(&mut self, stmt: &'a Stmt) {
-        walk_stmt(self, stmt);
+impl Strings {
+    /// The constants of the statements of a suite that Jython generates
+    /// code for.
+    fn suite(&mut self, body: &[Stmt], whole: bool) {
+        for stmt in emitted(body, whole) {
+            match stmt {
+                Stmt::FunctionDef(f) => {
+                    f.decorator_list.iter().for_each(|e| self.visit_expr(e));
+                    f.args.defaults.iter().for_each(|e| self.visit_expr(e));
+                }
+                Stmt::ClassDef(c) => {
+                    c.decorator_list.iter().for_each(|e| self.visit_expr(e));
+                    c.bases.iter().for_each(|e| self.visit_expr(e));
+                }
+                other => for_each_stmt_expr(other, &mut |e| self.visit_expr(e)),
+            }
+            let mut suites = Vec::new();
+            for_each_child_body(stmt, &mut |b| suites.push(b));
+            for suite in suites {
+                self.suite(suite, false);
+            }
+        }
     }
+}
 
+/// The statements of a suite that Jython generates code for: all of the
+/// module's own (`whole`), otherwise those up to the first that ends the
+/// suite ([`ends_suite`]).
+fn emitted(body: &[Stmt], whole: bool) -> &[Stmt] {
+    match body.iter().position(ends_suite) {
+        Some(i) if !whole => &body[..=i],
+        _ => body,
+    }
+}
+
+impl<'a> Visitor<'a> for Strings {
     fn visit_expr(&mut self, expr: &'a Expr) {
         if let Expr::Str(s) = expr {
             let text = match &s.s {
@@ -279,7 +297,8 @@ mod tests {
         let limit = METHOD_LIMIT / LINE_COST + CHEAP_LINES;
         assert!(sizes(&lines(limit)).is_empty());
         assert_eq!(sizes(&lines(limit + 1)), [CompileErrorKind::MethodTooLarge]);
-        // Statements on one line count once; `global` not at all.
+        // Statements on one line count once (a lower bound: Jython pays for
+        // each); `global` not at all.
         assert!(sizes(&"pass; ".repeat(3 * limit)).is_empty());
         assert!(sizes(&format!("def f():\n{}", "    global x\n".repeat(2 * limit))).is_empty());
         // Function bodies are their own methods; nested blocks are not.
@@ -295,6 +314,60 @@ mod tests {
         assert_eq!(
             sizes(&format!("if x:\n{half}else:\n{half}")),
             [CompileErrorKind::MethodTooLarge]
+        );
+    }
+
+    #[test]
+    fn dead_code_is_not_generated() {
+        let limit = METHOD_LIMIT / LINE_COST + CHEAP_LINES;
+        let passes = |indent: &str| format!("{indent}pass\n").repeat(limit + 1);
+        for dead in [
+            format!("def f():\n    return\n{}", passes("    ")),
+            format!("def f():\n    raise X\n{}", passes("    ")),
+            format!(
+                "def f():\n    for i in x:\n        continue\n{}",
+                passes("        ")
+            ),
+            format!(
+                "def f():\n    if x:\n        return\n    elif y:\n        raise X\n    else:\n        return\n{}",
+                passes("    ")
+            ),
+            format!("class C:\n    raise X\n{}", passes("    ")),
+            format!("if x:\n    raise X\n{}", passes("    ")),
+            format!("def f():\n    return\n    def g():\n{}", passes("        ")),
+        ] {
+            assert!(sizes(&dead).is_empty(), "{}", &dead[..60]);
+        }
+        for live in [
+            format!("raise X\n{}", passes("")),
+            format!("def f():\n    if x:\n        return\n{}", passes("    ")),
+            format!(
+                "def f():\n    while x:\n        break\n{}",
+                passes("        ")
+            ),
+            format!(
+                "def f():\n    try:\n        return\n    except:\n        return\n{}",
+                passes("    ")
+            ),
+            format!(
+                "def f():\n    if x:\n        return\n    else:\n        pass\n{}",
+                passes("    ")
+            ),
+        ] {
+            assert_eq!(
+                sizes(&live),
+                [CompileErrorKind::MethodTooLarge],
+                "{}",
+                &live[..60]
+            );
+        }
+        let strings: String = (0..=CONSTANT_POOL_LIMIT / 2)
+            .map(|i| format!("'{i}', "))
+            .collect();
+        assert!(sizes(&format!("def f():\n    return\n    x = [{strings}]\n")).is_empty());
+        assert_eq!(
+            sizes(&format!("def f():\n    x = [{strings}]\n    return\n")),
+            [CompileErrorKind::ClassTooLarge]
         );
     }
 

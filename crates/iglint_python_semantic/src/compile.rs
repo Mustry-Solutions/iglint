@@ -66,13 +66,18 @@ pub fn compile_errors(model: &SemanticModel<'_>) -> Vec<CompileError> {
         free: propagated_free(model),
     };
     c.future(&model.module.body);
-    c.body(
-        &model.module.body,
-        Ctx {
-            scope: ScopeId::MODULE,
-            in_loop: false,
-        },
-    );
+    // The module's own statements are all compiled, even after a `raise`
+    // (verified on Jython); suites inside them are not.
+    for stmt in &model.module.body {
+        c.stmt(
+            stmt,
+            Ctx {
+                scope: ScopeId::MODULE,
+                in_loop: false,
+                dead: false,
+            },
+        );
+    }
     for (id, scope) in model.scopes() {
         if scope.kind.is_function_like() {
             c.generator_returns(id);
@@ -109,6 +114,10 @@ fn propagated_free<'a>(model: &SemanticModel<'a>) -> Vec<FxHashSet<&'a str>> {
 struct Ctx {
     scope: ScopeId,
     in_loop: bool,
+    /// Jython generates no code for the statement (see [`ends_suite`]):
+    /// errors its code generator raises do not occur, errors of its
+    /// symbol table pass still do.
+    dead: bool,
 }
 
 struct Checker<'m, 'a> {
@@ -149,9 +158,26 @@ impl<'a> Checker<'_, 'a> {
         self.model.scope(scope).kind.is_function_like()
     }
 
-    fn body(&mut self, body: &'a [Stmt], ctx: Ctx) {
+    /// A suite: Jython generates no code after a statement that ends it.
+    fn body(&mut self, body: &'a [Stmt], mut ctx: Ctx) {
         for stmt in body {
             self.stmt(stmt, ctx);
+            ctx.dead |= ends_suite(stmt);
+        }
+    }
+
+    /// An error of Jython's code generator, which does not run for dead
+    /// code.
+    fn codegen_error(
+        &mut self,
+        ctx: Ctx,
+        kind: CompileErrorKind,
+        range: TextRange,
+        anchor: Option<Anchor>,
+        message: impl Into<String>,
+    ) {
+        if !ctx.dead {
+            self.error(kind, range, anchor, message);
         }
     }
 
@@ -168,6 +194,7 @@ impl<'a> Checker<'_, 'a> {
                 let inner = Ctx {
                     scope,
                     in_loop: false,
+                    dead: ctx.dead,
                 };
                 self.body(&f.body, inner);
             }
@@ -180,12 +207,14 @@ impl<'a> Checker<'_, 'a> {
                 let inner = Ctx {
                     scope,
                     in_loop: false,
+                    dead: ctx.dead,
                 };
                 self.body(&c.body, inner);
             }
             Stmt::Return(s) => {
                 if !self.is_function(ctx.scope) {
-                    self.error(
+                    self.codegen_error(
+                        ctx,
                         CompileErrorKind::ReturnOutsideFunction,
                         s.range,
                         Some(s.anchor),
@@ -259,7 +288,8 @@ impl<'a> Checker<'_, 'a> {
                 let last = s.handlers.len().saturating_sub(1);
                 for (i, h) in s.handlers.iter().enumerate() {
                     if h.type_.is_none() && i != last {
-                        self.error(
+                        self.codegen_error(
+                            ctx,
                             CompileErrorKind::DefaultExceptNotLast,
                             h.range,
                             Some(h.anchor),
@@ -290,7 +320,8 @@ impl<'a> Checker<'_, 'a> {
             Stmt::Expr(s) => self.expr(&s.value, ctx),
             Stmt::Break(s) => {
                 if !ctx.in_loop {
-                    self.error(
+                    self.codegen_error(
+                        ctx,
                         CompileErrorKind::BreakOutsideLoop,
                         s.range,
                         Some(s.anchor),
@@ -300,7 +331,8 @@ impl<'a> Checker<'_, 'a> {
             }
             Stmt::Continue(s) => {
                 if !ctx.in_loop {
-                    self.error(
+                    self.codegen_error(
+                        ctx,
                         CompileErrorKind::ContinueOutsideLoop,
                         s.range,
                         Some(s.anchor),
@@ -328,7 +360,8 @@ impl<'a> Checker<'_, 'a> {
         match expr {
             Expr::Yield(y) => {
                 if !self.is_function(ctx.scope) {
-                    self.error(
+                    self.codegen_error(
+                        ctx,
                         CompileErrorKind::YieldOutsideFunction,
                         y.range,
                         Some(y.anchor),
@@ -346,6 +379,7 @@ impl<'a> Checker<'_, 'a> {
                         Ctx {
                             scope,
                             in_loop: false,
+                            dead: ctx.dead,
                         },
                     );
                 }
@@ -371,6 +405,7 @@ impl<'a> Checker<'_, 'a> {
                 let inner = Ctx {
                     scope,
                     in_loop: false,
+                    dead: ctx.dead,
                 };
                 for (i, g) in generators.iter().enumerate() {
                     self.target(&g.target, TargetContext::Generator, inner);
@@ -413,7 +448,8 @@ impl<'a> Checker<'_, 'a> {
             Expr::Subscript(_) => walk_children(target, &mut |child| self.expr(child, ctx)),
             other => {
                 if crashes_compiler(other, context) {
-                    self.error(
+                    self.codegen_error(
+                        ctx,
                         CompileErrorKind::InvalidTarget,
                         other.range(),
                         None,
@@ -508,7 +544,8 @@ impl<'a> Checker<'_, 'a> {
                     .iter()
                     .any(|c| self.free[c.index()].contains(&*n.id));
                 if captured {
-                    self.error(
+                    self.codegen_error(
+                        ctx,
                         CompileErrorKind::DeleteCellVariable,
                         n.range,
                         Some(n.anchor),
@@ -719,7 +756,7 @@ fn collect_nested_futures<'a>(stmt: &'a Stmt, out: &mut Vec<&'a StmtImportFrom>)
 
 /// Calls `f` with every statement list directly inside `stmt` (including
 /// function and class bodies).
-fn for_each_child_body<'a>(stmt: &'a Stmt, f: &mut dyn FnMut(&'a [Stmt])) {
+pub(crate) fn for_each_child_body<'a>(stmt: &'a Stmt, f: &mut dyn FnMut(&'a [Stmt])) {
     match stmt {
         Stmt::FunctionDef(s) => f(&s.body),
         Stmt::ClassDef(s) => f(&s.body),
@@ -763,6 +800,26 @@ fn collect_globals<'a>(body: &'a [Stmt], out: &mut Vec<&'a StmtGlobal>) {
     }
 }
 
+/// Whether Jython stops generating code for the rest of a suite after
+/// `stmt` (its `CodeCompiler.suite` returns at the first statement whose
+/// code "exits"): `return`, `raise`, `continue`, and an `if` with an
+/// `else` (or `elif` chain ending in one) whose every branch ends that
+/// way. Not `break`, loops, `try`, `with` or `assert False`, and not the
+/// module's own statement list; function and class bodies and the suites
+/// of compound statements are cut. Verified with
+/// `oracle/run-oracle.sh --compile` (see `tests/limits_oracle.rs`).
+pub(crate) fn ends_suite(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Return(_) | Stmt::Raise(_) | Stmt::Continue(_) => true,
+        Stmt::If(s) => {
+            !s.orelse.is_empty() && s.body.iter().any(ends_suite) && s.orelse.iter().any(ends_suite)
+        }
+        _ => false,
+    }
+}
+
+/// The first `from x import *` of a function body that Jython generates
+/// code for.
 fn first_star_import(body: &[Stmt]) -> Option<&Stmt> {
     for stmt in body {
         match stmt {
@@ -779,6 +836,9 @@ fn first_star_import(body: &[Stmt]) -> Option<&Stmt> {
                     return found;
                 }
             }
+        }
+        if ends_suite(stmt) {
+            break;
         }
     }
     None
@@ -847,7 +907,7 @@ fn collect_yields_and_returns(body: &[Stmt], out: &mut Vec<(bool, TextRange, Anc
 
 /// Calls `f` with the expressions directly in `stmt` (not in nested
 /// statements), in evaluation order.
-fn for_each_stmt_expr<'a>(stmt: &'a Stmt, f: &mut dyn FnMut(&'a Expr)) {
+pub(crate) fn for_each_stmt_expr<'a>(stmt: &'a Stmt, f: &mut dyn FnMut(&'a Expr)) {
     match stmt {
         Stmt::Delete(s) => s.targets.iter().for_each(&mut *f),
         Stmt::Assign(s) => {
