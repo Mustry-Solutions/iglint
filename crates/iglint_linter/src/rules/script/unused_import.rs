@@ -718,7 +718,7 @@ mod tests {
     /// change. (Reviewer repro R5-G3, multiple deletions.)
     #[test]
     fn import_removal_keeps_an_import_to_avoid_docstring_promotion() {
-        let f = library("m", "import os\nimport sys\n'module docstring'\n");
+        let f = library("m", "import os\nimport sys\n'the docstring'\n");
         let result = f.run(
             &[("SCR102", "")],
             crate::engine::FixMode::DiffOnly {
@@ -730,7 +730,7 @@ mod tests {
         // One import stays, so the string never becomes the docstring.
         assert!(
             !summary.fixed.trim_start().starts_with('\'')
-                && summary.fixed.contains("'module docstring'"),
+                && summary.fixed.contains("'the docstring'"),
             "{}",
             summary.fixed
         );
@@ -1234,7 +1234,7 @@ mod tests {
         for (name, code, reported) in [
             ("warn", format!("{header}import warnings\ndef where():\n    with warnings.catch_warnings(record=True) as w:\n        warnings.simplefilter('always')\n        warnings.warn('x')\n        return w[0].lineno\n"), true),
             ("logh", format!("{header}import logging\nclass H(logging.Handler):\n    def emit(self, record):\n        self.line = record.lineno\n"), true),
-            ("thread", format!("{header}from java.lang import Thread\ndef where():\n    for e in Thread.currentThread().getStackTrace():\n        if '<module:thread>' in str(e):\n            return e.getLineNumber()\n"), true),
+            ("thread", format!("{header}from java.lang import Thread\ndef where():\n    for e in Thread.currentThread().getStackTrace():\n        if '<thread>' in str(e):\n            return e.getLineNumber()\n"), true),
             ("throw", format!("{header}from java.lang import Throwable\ndef where():\n    return Throwable().getStackTrace()[0].getLineNumber()\n"), true),
             ("pick", "import os\nimport cPickle\ndef where():\n\treturn cPickle.loads(\"c__builtin__\\nglobals\\n(tR.\").get(\"os\")\n".to_owned(), true),
             ("fut", "import os\nfrom __future__ import division\ndef where():\n\treturn 1/2\n".to_owned(), true),
@@ -1262,6 +1262,18 @@ mod tests {
         let f = library("m", "import os\nimport cPickle\nx = cPickle.dumps(1)\n");
         let fixed = f.fixed(&[("SCR102", "")], true, &library_path(&f, "m"));
         assert_eq!(fixed, "import cPickle\nx = cPickle.dumps(1)\n");
+    }
+
+    /// A string literal naming a member that reaches reflection on some
+    /// type a script can hold (`module` is `java.lang.Class.getModule`'s
+    /// bean name) makes the module dynamic: its module-level imports are
+    /// no longer reported (reviewer round 8, finding 1).
+    #[test]
+    fn literals_naming_reflective_members_make_the_module_dynamic() {
+        let d = library("m", "import os\n'module docstring'\n").lint(&["SCR102"]);
+        assert!(d.is_empty(), "{d:?}");
+        let d = library("m", "import os\n'the docstring'\n").lint(&["SCR102"]);
+        assert_eq!(d.len(), 1, "{d:?}");
     }
 
     /// Reviewer round 8 (Codex) blocker: vetting resolved names in the

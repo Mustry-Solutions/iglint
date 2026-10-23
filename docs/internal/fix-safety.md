@@ -103,36 +103,110 @@ Three mechanisms carry it:
 Two parts of the vetted-code guard are measured, not hand-listed, because a
 name list for either was defeated. They are generated inside the Ignition
 8.3.3 image by `stubs-gen/gen_vetted.py` (run `stubs-gen/run.sh --vetted`,
-which needs only the image's Jython and reflection, not a gateway) into
-`crates/iglint_python_semantic/src/generated/vetted_generated.rs`. The test
-`generated_tables_match_vetted_inputs` fails if the vetted module list or
-Java class list changes without regenerating.
+which needs only the image's Jython, jars and reflection, not a gateway)
+into `crates/iglint_python_semantic/src/generated/vetted_generated.rs`. The
+test `generated_tables_match_vetted_inputs` fails if the vetted module
+list, the Java class or package lists or the stubs build changes without
+regenerating.
 
-* **Java reflection, a closed argument.** In Jython every value is a
-  `java.lang.Object` and exposes `getClass()`, spelled `.class` or
-  `__class__` as a bean property; from a `Class` a script reaches its
-  `ClassLoader`, `methods`, `fields` and constructors, and from those
-  `org.python.core.Py`, `getSystemState()`, the module table,
-  `__builtin__` and `eval` (verified on Jython: subclassing `ArrayList`
-  and reading `.class` reads the module's globals). The argument is not a
-  list of bad names; it is: **a script cannot reach a reflection object
-  without, as its first hop from a plain value, naming a member whose
-  declared type is reflection-bearing** (`Class`, `ClassLoader`,
-  `java.lang.reflect.*`, `java.lang.invoke.*`). The generator enumerates
-  exactly those first-hop members over the types a plain value can hold
-  (`Object`, `Throwable`, `Thread` and every vetted Java class), in both
-  the Java method and the Jython bean / field spellings, into
-  `JAVA_REFLECTIVE_MEMBERS`. `iglint_python_semantic::dynamic` treats any
-  of them, named on a value or as an identifier in a string literal, as
-  introspective and fails closed; this covers values returned by
-  `system.*` (any `.class` on them is caught) without enumerating their
-  types. `StackTraceElement` and `Thread` are deliberately not
-  reflection-bearing: a stack-trace element gives only line numbers and
-  class-name strings (a name becomes a class only through `Class.forName`,
-  which is flagged, and line numbers are protected by line preservation),
-  and a `Thread` is plain until its `ClassLoader` is named
-  (`getContextClassLoader`, which is flagged). So `Thread.currentThread()`
-  and reading a stack trace, both common in Ignition, stay plain.
+* **Java reflection and the interpreter, a closed argument.** A Java
+  value in Jython exposes its public Java members, `getClass()` included,
+  spelled `.class` or `__class__` as a bean property; from a `Class` a
+  script reaches its `ClassLoader`, `methods`, `fields` and constructors,
+  and from those `org.python.core.Py`, `getSystemState()`, the module
+  table, `__builtin__` and `eval` (verified on Jython: subclassing
+  `ArrayList` and reading `.class` reads the module's globals). Python
+  values do not: Jython types that declare `@ExposedType` show only their
+  exposed members (verified: `[].getClass`, `str.getProxyType` and
+  `(lambda: 1).toString` raise `AttributeError`), and their introspection
+  attributes are `INTROSPECTION_ATTRS`. The argument is not a list of bad
+  names; it is: **a script cannot reach a stop type without, as its first
+  hop from a value it holds, naming a member whose declared type mentions
+  one**. The stop types are Java reflection (`Class`, `ClassLoader`,
+  `Module`, `ModuleLayer`, `Package`, `java.lang.reflect.*`,
+  `java.lang.invoke.*`), Jython's reflection handles (`ReflectedArgs`,
+  reflected fields, bean properties and events) and the interpreter
+  (`PySystemState`, frames, tracebacks, code, modules and their
+  namespaces, `PythonInterpreter`, `javax.script` engines, Ignition's
+  `ScriptManager`). The generator computes those first hops as a
+  transitive fixed point over the public members (methods, no-argument
+  getters as bean properties, fields; inherited and static ones included)
+  of every type a script can hold, starting from:
+  1. `java.lang.Object`, `Throwable` and `Thread`, and the two stop types
+     a script holds without any hop: a Java class named in source (or
+     `type(x)` of a Java value) is a class proxy that exposes
+     `java.lang.Class`'s methods (verified: `String.getMethods()` works),
+     and a Java method named without calling it (`String.valueOf`,
+     `system.tag.readBlocking`) is a reflected function that exposes its
+     `argslist` (verified); their members are scanned too;
+  2. every vetted Java class and every public class of every vetted
+     package;
+  3. the Java types that `system.*` functions return and `system.*`
+     objects have, in every scope, as recorded in
+     `crates/iglint_stubs/data/system.json` from a live gateway; a
+     Python-level name there (`list`, `Dataset`, `any`, ...) stands for
+     every Java type `stubs-gen/normalize.py` writes as that name, and the
+     `system.bacnet.*` classes for every public class of
+     `com.serotonin.bacnet4j.type`;
+  4. the objects Ignition hands to scripts: every public class of the
+     Perspective script package (`self`, view, page and session wrappers,
+     property trees, event objects, message payloads), the Jython maps of
+     `ignition.common.script.abc`, qualified values and quality codes, the
+     tag event script package, Vision's script wrappers and `java.awt.event`,
+     and the dataset, logger, alarm event, tag change event,
+     `PropertyChangeEvent`, WebDev (`HttpServletRequest`, `...Response`,
+     `HttpSession`, `GatewayContext`) and SFC chart scope classes listed in
+     `INJECTED_CLASSES`.
+
+  From each type the closure follows every type a member's declared type
+  mentions (the erasure, generic type arguments, wildcard and type
+  variable bounds, array elements), declared exception types (an `except`
+  clause catches them), the argument types of the abstract methods of
+  interface parameters (a Python callable passed for one is called with
+  them) and public member classes. A member declared `Object` stays
+  `Object`. Expansion stops at the stop types; every member whose type
+  mentions one is recorded, in the Java method and the bean / field
+  spellings, into `JAVA_REFLECTIVE_MEMBERS`, with one declaring member per
+  name as provenance. For 8.3.3 that is 960 seed types and 2,636 scanned
+  types (15 Jython types skipped as above, none that fails to load);
+  among the names are `module`, `interfaces` and `classes` (class
+  proxies), `argslist` (reflected functions), `getColumnTypes` (datasets),
+  `getScriptManager` (the gateway context) and `type` (alarm properties).
+  `iglint_python_semantic::dynamic` treats any of them, named on a value
+  or as an identifier in a string literal, as introspective and fails
+  closed. Jython's lookups by name on such Java-backed values (`invoke`,
+  `__findattr__`, `__findattr_ex__`) are reflective accessors, understood
+  only with a literal name.
+
+  What the closure does not cover, precisely: members that only a run-time
+  subclass declares (Jython resolves members on the run-time class; the
+  closure follows declared types, and a value typed `Object` or held in a
+  `Map` or `List` typed `Object` contributes nothing); classes that are
+  not in the image (third-party modules, jars in `user-lib/pylib`, classes
+  generated at run time); arguments that `system.*` functions pass to
+  Python callbacks declared as `PyObject`; and Java methods that look a
+  member up, or run code, from a string argument without a stop type in
+  their signature (a review of the closure for `run*`, `exec*`, `eval*`,
+  `compile*`, `invoke*`, `call*` and `parse*` methods taking a string
+  found SQL and named-query runners, path and version parsers, gateway
+  network service calls and Jython's `invoke`, besides `ScriptManager`,
+  which is a stop type).
+  `StackTraceElement` and `Thread` are deliberately not stop types: a
+  stack-trace element gives only line numbers and class-name strings (a
+  name becomes a class only through `Class.forName`, which is flagged, and
+  line numbers are protected by line preservation), and a `Thread` is
+  plain until its `ClassLoader` is named (`getContextClassLoader`, which
+  is flagged). So `Thread.currentThread()` and reading a stack trace, both
+  common in Ignition, stay plain.
+
+  The precision cost is measured on the private corpus (2026-10-23
+  revision): the extended list (145 names, 43 before) appears as an
+  attribute or a string literal segment in 168 of 1,491 scripts (45
+  before), mostly through `type` and `module` in string literals; findings
+  drop by 42 (VIEW015 179 to 151, SCR103 34 to 27, REF012 19 to 15, SCR102
+  5 to 4, BIND005 48 to 47, VIEW019 2 to 1), and safe fixes are unchanged
+  (the corpus already holds unknown code, so its SCR102 and VIEW015 fixes
+  were unsafe before).
 * **Vetted module attributes, measured positively.** `sys` in Jython is a
   `PySystemState`, not a `types.ModuleType`, so `re.sys`, `calendar.sys`
   and `os.path.sys` slipped past a "deny the module attributes" rule and

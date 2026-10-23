@@ -1036,6 +1036,15 @@ mod tests {
         }
         classes.sort();
         sig.extend(classes.iter().map(|c| format!("java:{c}")));
+        let mut packages: Vec<String> = VETTED_JAVA_PACKAGES
+            .iter()
+            .map(|(p, _)| format!("pkg:{p}"))
+            .collect();
+        packages.sort();
+        sig.extend(packages);
+        // The Java closure is seeded with the types `system.*` returns,
+        // from the stubs: regenerate when they change.
+        sig.push(format!("stubs:{}", iglint_stubs::IGNITION_BUILD));
         let generated: Vec<&str> = crate::generated::GENERATED_FROM.to_vec();
         assert_eq!(
             sig, generated,

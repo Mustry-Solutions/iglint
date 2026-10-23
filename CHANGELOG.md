@@ -46,6 +46,18 @@ from 0.1.0 on.
 
 ### Fixed
 
+- The machine-measured Java reflection table now covers every type a
+  script can hold: a transitive fixed point over the public members of
+  `Object`, `Throwable`, `Thread`, class proxies and reflected functions,
+  the vetted classes and packages, the types `system.*` returns in every
+  scope and the objects Ignition hands to scripts (Perspective wrappers
+  and events, datasets, qualified values, loggers, tag, alarm, WebDev,
+  Vision and SFC objects), through return, field, generic, exception and
+  callback types, stopping at reflection and interpreter types
+  (`ScriptManager`, `PySystemState`, frames, modules). It grows from 43 to
+  145 names (`module`, `argslist`, `getColumnTypes`, `getScriptManager`,
+  `type`, ...), each with the member it was found on. Jython's lookups by
+  name (`invoke`, `__findattr__`) are reflective accessors.
 - The vetted-code guard resolves names through the semantic model's
   scopes, flow-insensitively, instead of in the order its walk met the
   imports. A function defined before `import re` that reads `re.sys` (and

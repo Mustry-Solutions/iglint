@@ -30,7 +30,8 @@
 //!    identifiers so that ordinary prose does not trigger.
 //! 2. **A reflective accessor with a computed name or used as a value.**
 //!    `getattr`, `setattr`, `delattr`, `hasattr`, `attrgetter`,
-//!    `methodcaller`, `__getattribute__` ([`REFLECTIVE_ACCESSORS`]) are
+//!    `methodcaller`, `__getattribute__`, and Jython's `__findattr__` and
+//!    `invoke` ([`REFLECTIVE_ACCESSORS`]) are
 //!    understood only as direct calls with a literal name (and the
 //!    literal `class`, Jython's bean property for `getClass()`, is a
 //!    route). Any other use (`get = getattr`, `map(getattr, ...)`,
@@ -99,6 +100,12 @@ pub const REFLECTIVE_ACCESSORS: &[&str] = &[
     "__getattr__",
     "__setattr__",
     "__delattr__",
+    // Jython's `PyObject` lookups by name, visible as Java members on
+    // values whose class does not declare `@ExposedType`: `__findattr__`
+    // and `__findattr_ex__` read an attribute, `invoke` calls a method.
+    "__findattr__",
+    "__findattr_ex__",
+    "invoke",
 ];
 
 /// String methods that read the attributes and items their format string
@@ -262,13 +269,14 @@ const FRAME_METHOD_NAMES: &[&str] = &[
 ];
 
 /// Whether `name`, a whole identifier, is an introspection attribute, a
-/// frame-reaching method name, or a Java member that is or yields a
-/// reflection-bearing type (the machine-measured
+/// frame-reaching method name, or a Java member whose declared type
+/// mentions a reflection or interpreter type, on any type a script can
+/// hold (the machine-measured
 /// [`crate::generated::JAVA_REFLECTIVE_MEMBERS`]: `class`, `classLoader`,
-/// `methods`, `getDeclaredMethods`, ...). Naming any of
-/// these, on a value or in a string literal, is the first hop out of plain
-/// data into Java reflection, from which a script reaches the interpreter
-/// (`org.python.core.Py`), the frame and `eval`; we fail closed.
+/// `methods`, `module`, `argslist`, `getScriptManager`, ...). Naming any
+/// of these, on a value or in a string literal, is the first hop out of
+/// plain data into Java reflection or the interpreter, from which a script
+/// reaches `org.python.core.Py`, the frame and `eval`; we fail closed.
 fn is_introspection_name(name: &str) -> bool {
     INTROSPECTION_ATTRS.contains(&name)
         || FRAME_METHOD_NAMES.contains(&name)
@@ -451,7 +459,8 @@ impl Escapes {
             // `attrgetter('a', 'b')`: every argument is an attribute name.
             "attrgetter" => !c.args.iter().all(is_literal),
             // The name is the first argument.
-            "methodcaller" | "__getattribute__" | "__getattr__" | "__setattr__" | "__delattr__" => {
+            "methodcaller" | "__getattribute__" | "__getattr__" | "__setattr__" | "__delattr__"
+            | "__findattr__" | "__findattr_ex__" | "invoke" => {
                 c.args.first().is_none_or(|a| !is_literal(a))
             }
             // `getattr(o, name)`, `setattr(o, name, v)`: the second.
@@ -705,6 +714,20 @@ mod tests {
             "c = x.declaredMethods\n",
             "getattr(o, 'classLoader')\n",
             "s = '{0.class.classLoader}'.format(o)\n",
+            // Reviewer round 8 finding 1: the closure over every type a
+            // script can hold. A class proxy exposes java.lang.Class
+            // (`ArrayList.interfaces`, `.module`); a reflected function
+            // its `argslist`; Perspective wrappers reach the gateway's
+            // script manager; Jython's lookups by name.
+            "from java.util import ArrayList\nm = ArrayList.module\n",
+            "from java.util import ArrayList\ni = ArrayList.getInterfaces()\n",
+            "m = system.tag.readBlocking.argslist\n",
+            "sm = self.session.getGatewayContext().getScriptManager()\n",
+            "t = ds.getColumnTypes()\n",
+            "c = qv.value.getClass()\n",
+            "a = self.props.invoke(name)\n",
+            "a = self.props.__findattr__(name)\n",
+            "f = self.props.invoke\n",
         ] {
             assert!(escape(src), "{src}");
         }
@@ -727,6 +750,7 @@ mod tests {
             "hasattr(o, 'items')\n",
             "s = '{0} of {1}'.format(a, b)\n",
             "s = '%s' % name\n",
+            "a = self.props.invoke('refresh')\n",
             // ordinary prose and names that merely contain a word
             "msg = 'the frame could not be found'\n",
             "label = 'function code'\n",
