@@ -308,7 +308,8 @@ pub(crate) fn analyze_with(
     let presummaries: Vec<Option<ResourceSummary>> = match context_base {
         Some(_) => models
             .par_iter()
-            .map(|m| Some(summarize_with_scripts(&ws, m, &UnitCache::default())))
+            .zip(loaded.par_iter())
+            .map(|(m, l)| Some(summarize_with_scripts(&ws, m, l, &UnitCache::default())))
             .collect(),
         None => (0..models.len()).map(|_| None).collect(),
     };
@@ -415,11 +416,12 @@ pub(crate) fn analyze_with(
             .par_iter()
             .zip(precached.into_par_iter())
             .zip(presummaries.into_par_iter())
-            .map(|((model, precached), presummary)| {
+            .zip(loaded.par_iter())
+            .map(|(((model, precached), presummary), l)| {
                 let rid = model.resource.id;
                 let cache = UnitCache::default();
                 let summary =
-                    presummary.unwrap_or_else(|| summarize_with_scripts(&ws, model, &cache));
+                    presummary.unwrap_or_else(|| summarize_with_scripts(&ws, model, l, &cache));
                 if !linted[rid.index()] {
                     return (summary, None);
                 }
@@ -1138,6 +1140,7 @@ pub(crate) fn run_phase(
 pub(crate) fn summarize_with_scripts(
     ws: &Workspace,
     model: &ResourceModel<'_>,
+    loaded: &LoadedResource,
     cache: &UnitCache,
 ) -> ResourceSummary {
     let mut summary = summarize(model);
@@ -1157,6 +1160,8 @@ pub(crate) fn summarize_with_scripts(
             module,
         };
         add_script_references(&model.data, cache, &ctx, &mut summary);
+        crate::script_facts::code_sources::run_script_code(model, &ctx, &mut summary);
+        crate::script_facts::code_sources::unread_code(model, loaded, &mut summary);
     }
     summary
 }

@@ -34,6 +34,7 @@ use crate::rule::ScriptUnit;
 pub mod access;
 pub mod api;
 pub mod calls;
+pub mod code_sources;
 pub mod refs;
 pub mod symbols;
 

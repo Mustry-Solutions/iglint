@@ -494,8 +494,19 @@ fn expression_refs<'e>(
                 continue;
             };
             if call.is("runScript") {
-                refs.library
-                    .push(s.split('(').next().unwrap_or(s).trim().to_owned());
+                // A dotted name is a library reference; any other literal
+                // is code, which the script layer analyses.
+                let name = s.trim();
+                let dotted = !name.is_empty()
+                    && name.split('.').all(|p| {
+                        p.chars()
+                            .next()
+                            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                            && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                    });
+                if dotted {
+                    refs.library.push(name.to_owned());
+                }
             } else if call.is("tag") {
                 let p = iglint_expression::parse_tag_path(s, iglint_text::TextSize::ZERO);
                 if literal_tag_path(&p) {

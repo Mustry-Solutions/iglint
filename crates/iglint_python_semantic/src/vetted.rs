@@ -36,7 +36,7 @@
 //! vetted either (an attribute read through an alias is not checked), and
 //! subclassing a Java class is unknown (its instances are Java-backed).
 
-use iglint_python::ast::{Alias, Expr, ExprContext, ExprName, Stmt, StmtImportFrom};
+use iglint_python::ast::{Alias, Expr, ExprContext, ExprName, Operator, Stmt, StmtImportFrom};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
 use iglint_text::TextRange;
 
@@ -252,6 +252,105 @@ const JAVA_DENIED_MEMBERS: &[(&str, &[&str])] = &[(
         "inheritedChannel",
     ],
 )];
+
+/// `system.*` functions and objects that store or run code from run-time
+/// values, or hand out the script context: never vetted. See the audit in
+/// `docs/internal/fix-safety.md` ("`system.*` functions that run code").
+const SYSTEM_RUNS_CODE: &[&str] = &[
+    "system.alarm.SERIALIZER",
+    "system.eam.runTask",
+    "system.groups.loadFromFile",
+    "system.project.requestScan",
+    "system.system.WRAPPED_CONTEXT",
+    "system.system.execute",
+    "system.tag.addTag",
+    "system.tag.configure",
+    "system.tag.configureManagedProvider",
+    "system.tag.configureManagedTag",
+    "system.tag.copy",
+    "system.tag.editAlarmConfig",
+    "system.tag.editTag",
+    "system.tag.editTags",
+    "system.tag.importTags",
+    "system.tag.loadFromFile",
+    "system.util.WRAPPED_CONTEXT",
+    "system.util.execute",
+    "system.vision.updateProject",
+];
+
+/// `system.tag` writes: a path may name a configuration property
+/// (`Tag.expression`, `Tag.eventScripts`) and store code. Vetted only as
+/// direct calls whose paths are value writes ([`value_write_paths`]).
+const SYSTEM_TAG_WRITES: &[&str] = &[
+    "system.tag.write",
+    "system.tag.writeAll",
+    "system.tag.writeAllSynchronous",
+    "system.tag.writeAsync",
+    "system.tag.writeBlocking",
+    "system.tag.writeSynchronous",
+    "system.tag.writeToTag",
+    "system.tag.writeToTagSynchronous",
+    "system.tag.writeToTags",
+];
+
+/// Whether `e`, the path argument of a `system.tag` write, can only name
+/// tag values: a path or a list or tuple of paths, each [`value_write_path`].
+fn value_write_paths(e: &Expr) -> bool {
+    match e {
+        Expr::List(l) => l.elts.iter().all(value_write_path),
+        Expr::Tuple(t) => t.elts.iter().all(value_write_path),
+        _ => value_write_path(e),
+    }
+}
+
+/// Whether the tag path `e` can only name a tag's value: the text after its
+/// last `/` (or `]`) is known and names no property other than `Value`,
+/// `Quality` or `Timestamp`. A literal; a concatenation whose last operand
+/// is such a literal containing `/`; a `%` or `format` string with such a
+/// literal tail. Anything else may end in `.expression`.
+fn value_write_path(e: &Expr) -> bool {
+    /// The known tail of a path text: after the last `/` or `]`, when
+    /// there is one (`whole`: the text is the whole path).
+    fn tail_ok(text: &str, whole: bool, placeholder: &[char]) -> bool {
+        let cut = text.rfind(['/', ']']);
+        let tail = match cut {
+            Some(i) => &text[i + 1..],
+            None if whole => text,
+            None => return false,
+        };
+        if tail.contains(placeholder) {
+            return false;
+        }
+        match tail.split_once('.') {
+            None => true,
+            Some((_, property)) => {
+                ["value", "quality", "timestamp"].contains(&property.to_ascii_lowercase().as_str())
+            }
+        }
+    }
+    fn literal(e: &Expr) -> Option<String> {
+        match e {
+            Expr::Str(s) => Some(s.s.to_latin1().into_owned()),
+            _ => None,
+        }
+    }
+    match e {
+        Expr::Str(s) => tail_ok(&s.s.to_latin1(), true, &[]),
+        Expr::BinOp(b) if b.op == Operator::Add => {
+            literal(&b.right).is_some_and(|t| tail_ok(&t, false, &[]))
+        }
+        Expr::BinOp(b) if b.op == Operator::Mod => {
+            literal(&b.left).is_some_and(|t| tail_ok(&t, true, &['%']))
+        }
+        Expr::Call(c) => match &*c.func {
+            Expr::Attribute(a) if a.attr.as_str() == "format" => {
+                literal(&a.value).is_some_and(|t| tail_ok(&t, true, &['{', '}']))
+            }
+            _ => false,
+        },
+        _ => false,
+    }
+}
 
 /// Builtins that cannot evaluate code, read a frame or look a name up.
 /// Exception classes are vetted too. Not vetted: `eval`, `execfile`,
@@ -662,6 +761,13 @@ impl Walk<'_, '_> {
     /// one that is not vetted makes the use unknown. Returns `false` when
     /// `expr` is not a chain rooted at a name.
     fn chain(&mut self, expr: &Expr) -> bool {
+        self.chain_with(expr, false)
+    }
+
+    /// [`Walk::chain`]; `callee_checked` when `expr` is the callee of a
+    /// call whose arguments [`Walk::visit_expr`] has checked (a
+    /// `system.tag` write with value-only paths).
+    fn chain_with(&mut self, expr: &Expr, callee_checked: bool) -> bool {
         let mut attrs = Vec::new();
         let mut root = expr;
         while let Expr::Attribute(a) = root {
@@ -671,9 +777,37 @@ impl Walk<'_, '_> {
         let Expr::Name(n) = root else { return false };
         attrs.reverse();
         for candidate in self.candidates(n) {
+            if candidate == Bound::Module("system") {
+                self.check_system(&attrs, callee_checked);
+            }
             self.check_chain(candidate, n.range, &attrs);
         }
         true
+    }
+
+    /// Ignition's scripting API ("`system.*` functions that run code" in
+    /// `docs/internal/fix-safety.md`): functions that store or run code
+    /// from run-time values are not vetted, `system.tag` writes only with
+    /// value-only paths ([`value_write_paths`]), and a package used as a
+    /// value is not followed.
+    fn check_system(&mut self, attrs: &[(&str, TextRange)], callee_checked: bool) {
+        let mut dotted = String::from("system");
+        for (i, (attr, range)) in attrs.iter().enumerate() {
+            dotted.push('.');
+            dotted.push_str(attr);
+            let last = i + 1 == attrs.len();
+            if SYSTEM_RUNS_CODE.contains(&dotted.as_str())
+                || (SYSTEM_TAG_WRITES.contains(&dotted.as_str()) && !(last && callee_checked))
+            {
+                self.other(*range);
+                return;
+            }
+            if last && iglint_stubs::system_package(&dotted).is_some() {
+                // `t = system.tag`: what is read from it later is not
+                // checked.
+                self.other(*range);
+            }
+        }
     }
 
     fn check_chain(&mut self, mut bound: Bound, root: TextRange, attrs: &[(&str, TextRange)]) {
@@ -702,6 +836,25 @@ impl Walk<'_, '_> {
                 Bound::Value | Bound::Plain | Bound::Unknown => return,
             };
         }
+    }
+}
+
+impl Walk<'_, '_> {
+    /// Whether `func` names a `system.tag` write function through a name
+    /// that may be Ignition's `system`.
+    fn system_write(&self, func: &Expr) -> bool {
+        let mut attrs = Vec::new();
+        let mut root = func;
+        while let Expr::Attribute(a) = root {
+            attrs.push(a.attr.as_str());
+            root = &a.value;
+        }
+        let Expr::Name(n) = root else { return false };
+        attrs.reverse();
+        let dotted = format!("system.{}", attrs.join("."));
+        n.ctx == ExprContext::Load
+            && SYSTEM_TAG_WRITES.contains(&dotted.as_str())
+            && self.candidates(n).contains(&Bound::Module("system"))
     }
 }
 
@@ -768,6 +921,28 @@ impl<'a> Visitor<'a> for Walk<'_, '_> {
 
     fn visit_expr(&mut self, expr: &'a Expr) {
         match expr {
+            Expr::Call(c) if self.system_write(&c.func) => {
+                let paths = c.args.first().or_else(|| {
+                    c.keywords
+                        .iter()
+                        .find(|k| matches!(k.arg.as_str(), "tagPaths" | "tagPath"))
+                        .map(|k| &k.value)
+                });
+                let checked = c.starargs.is_none()
+                    && c.kwargs.is_none()
+                    && paths.is_some_and(value_write_paths);
+                if !checked {
+                    self.other(c.range);
+                }
+                self.chain_with(&c.func, checked);
+                for a in &c.args {
+                    self.visit_expr(a);
+                }
+                for k in &c.keywords {
+                    self.visit_expr(&k.value);
+                }
+                return;
+            }
             Expr::Attribute(_) => {
                 if self.chain(expr) {
                     return;
@@ -1002,6 +1177,50 @@ mod tests {
             for src in arrangements(stmts) {
                 assert!(unknown(&src).is_empty(), "unknown:\n{src}");
             }
+        }
+    }
+
+    /// The `system.*` audit: functions that store or run code from run-time
+    /// values are unknown code; `system.tag` writes only with value paths.
+    #[test]
+    fn system_functions_that_run_code() {
+        for src in [
+            "system.tag.configure('[default]', [{'name': 'x'}], 'o')\n",
+            "system.tag.importTags(path, '[default]')\n",
+            "system.tag.editTag('[default]T', attributes={})\n",
+            "system.tag.copy(['[other]T'], '[default]')\n",
+            "system.util.execute(['ls'])\n",
+            "system.project.requestScan()\n",
+            "system.eam.runTask('t')\n",
+            "c = system.util.WRAPPED_CONTEXT.get()\n",
+            "f = system.tag.configure\n",
+            "t = system.tag\nt.configure('[default]', [], 'o')\n",
+            "w = system.tag.writeBlocking\n",
+            "system.tag.writeBlocking(['[default]T.expression'], ['runScript(\"x\")'])\n",
+            "system.tag.writeBlocking([p], [v])\n",
+            "system.tag.writeBlocking(paths, values)\n",
+            "system.tag.writeBlocking([base + 'n'], [v])\n",
+            "system.tag.writeBlocking([base + '/T.eventScripts'], [v])\n",
+            "system.tag.writeBlocking(['%s.expression' % base], [v])\n",
+            "system.tag.writeAsync([b + '/' + n], [v])\n",
+            "system.tag.writeBlocking(*args)\n",
+            "system.tag.write('{}'.format(p), v)\n",
+            "def f():\n    return system.tag.writeBlocking([p], [1])\n",
+        ] {
+            assert!(!unknown(src).is_empty(), "{src}");
+        }
+        for src in [
+            "system.tag.writeBlocking(['[default]Folder/Tag'], [1])\n",
+            "system.tag.writeBlocking(['[default]T.Value', '[default]U.quality'], [1, 2])\n",
+            "system.tag.writeBlocking([base + '/Speed'], [1])\n",
+            "system.tag.writeAsync(('%s/Speed' % base,), [1])\n",
+            "system.tag.writeBlocking(['{}/Speed'.format(base)], [1])\n",
+            "system.tag.writeBlocking(tagPaths=[base + '/Speed'], values=[1])\n",
+            "system.tag.readBlocking([p])\n",
+            "system.util.sendMessage('proj', handler, payload)\n",
+            "system.db.runQuery(sql)\n",
+        ] {
+            assert!(unknown(src).is_empty(), "{src}");
         }
     }
 

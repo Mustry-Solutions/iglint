@@ -364,7 +364,7 @@ impl LiveWorkspace {
         let loaded = self.load_current(rid);
         let model = build_model(&self.ws, &loaded);
         let cache = UnitCache::default();
-        let new = summarize_with_scripts(&self.ws, &model, &cache);
+        let new = summarize_with_scripts(&self.ws, &model, &loaded, &cache);
         let old = std::mem::replace(&mut self.summaries[rid.index()], new);
         let changed = old != self.summaries[rid.index()];
         let summaries = std::mem::take(&mut self.summaries);
@@ -958,7 +958,7 @@ fn project_of(container: Container) -> Option<ProjectId> {
 
 /// Models and summarises a loaded resource the way phase A does.
 fn summary_of(ws: &Workspace, loaded: &LoadedResource) -> ResourceSummary {
-    summarize_with_scripts(ws, &build_model(ws, loaded), &UnitCache::default())
+    summarize_with_scripts(ws, &build_model(ws, loaded), loaded, &UnitCache::default())
 }
 
 /// Freeing the parse trees of a large resource takes milliseconds; do it

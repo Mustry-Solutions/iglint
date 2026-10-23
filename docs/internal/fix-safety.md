@@ -303,7 +303,7 @@ as a value is itself a route.
 | `operator` | Except `attrgetter` and `methodcaller`, which look attributes up by name (verified). |
 | `os` | Only path and file functions and constants (`path`, `sep`, `getcwd`, `listdir`, `stat`, `environ`, `getenv`, `makedirs`, `remove`, `rename`, `walk`, ...). Not processes or anything else. |
 | `sys` (also as Ignition's implicit global) | Only `version`, `version_info`, `hexversion`, `platform`, `maxint`, `maxsize`, `maxunicode`, `byteorder`, `float_info`, `stdout`, `stderr`, `exit`, `getdefaultencoding`, `getfilesystemencoding`, `getrecursionlimit`. Not `_getframe`, `modules`, `exc_info`, `path` (it decides which module an import loads), trace hooks. |
-| `system` (Ignition's scripting API) | No `system.*` function of 8.3 evaluates Python code or resolves a callable by name in the caller's frame (checked against the generated stubs): functions that take callables call the value, message handlers are looked up among the project's handlers, not in the caller. |
+| `system` (Ignition's scripting API) | No `system.*` function of 8.3 evaluates Python code in the caller's frame or resolves a callable by name in it (checked against the generated stubs): functions that take callables call the value, message handlers are looked up among the project's handlers, not in the caller. Except the functions that store or run code from run-time values, which are not vetted (see "`system.*` functions that run code"). A `system` package used as a value (`t = system.tag`) is not vetted either. |
 | `__future__` | Compile-time only. |
 | `java.util` (except `ServiceLoader` and the resource bundles, which load classes by name), `java.util.concurrent` (and `atomic`, `locks`), `java.util.function`, `java.util.regex`, `java.util.stream`, `java.math`, `java.text`, `java.time` (and `chrono`, `format`, `temporal`), `java.nio.charset` | Data structures and formatting; no reflection. |
 | `java.lang`: `Math`, `StrictMath`, `String`, `StringBuilder`, `StringBuffer`, the boxed number types, `Boolean`, `Character`, `Number`, `System` (except `load`, `loadLibrary`, `mapLibraryName`, security managers, `inheritedChannel`), `Exception` and common runtime exceptions | Not `Class`, `ClassLoader`, `Thread`, `Throwable`, `Runtime`, `Process*`, reflection, `invoke` or `StackWalker`. The exception classes hand out only stack traces (class, method, file and line), which safe fixes never change. |
@@ -319,6 +319,72 @@ Everything else is unknown: `cPickle`, `pickle`, `copy_reg`, `shelve`,
 java...` of whole packages, and any Java class or module not listed. The
 list is a precision trade-off, not a claim that those are harmful: adding
 an entry needs the same check on Jython.
+
+### `system.*` functions that run code
+
+Every function of `crates/iglint_stubs` (678, all scopes) was audited for
+"makes Python code from a run-time value run" and "looks up project code
+by a run-time name". Not vetted (`vetted::SYSTEM_RUNS_CODE`, unknown code
+on any use, called or not):
+
+| Function | Why |
+|---|---|
+| `system.tag.configure`, `addTag`, `editTag`, `editTags`, `editAlarmConfig`, `configureManagedTag`, `configureManagedProvider` | Tag configurations hold expressions (`runScript`) and tag event scripts |
+| `system.tag.importTags`, `system.tag.loadFromFile`, `system.groups.loadFromFile` | Import tag or transaction group configurations from a file |
+| `system.tag.copy` | Copies tags, with their scripts, from any provider |
+| `system.util.execute`, `system.system.execute` | Runs an operating system command |
+| `system.project.requestScan`, `system.vision.updateProject` | Loads project resources as they are now on disk or published |
+| `system.eam.runTask` | Runs an EAM task, which may run scripts configured on the gateway |
+| `system.util.WRAPPED_CONTEXT`, `system.system.WRAPPED_CONTEXT`, `system.alarm.SERIALIZER` | Objects that hand out the script context or a serializer of arbitrary classes |
+
+`system.tag` writes (`write`, `writeAll`, `writeAllSynchronous`,
+`writeAsync`, `writeBlocking`, `writeSynchronous`, `writeToTag`,
+`writeToTagSynchronous`, `writeToTags`) can store code too: a path may
+name a configuration property (`Tag.expression`, `Tag.eventScripts`).
+They are vetted only as direct calls whose path argument (first argument
+or `tagPaths=`) is a literal path, or a list or tuple of them, whose text
+after the last `/` (or `]`) names the tag's value (no property, or
+`Value`, `Quality`, `Timestamp`); a concatenation ending in such a literal
+that contains `/` (`base + '/Speed'`); or a `%` or `format` string whose
+text after the last `/` is such a literal. Any other path, unpacked
+arguments, or the function used as a value is unknown code.
+
+Vetted after the audit: message sends (`system.util.sendMessage`,
+`sendRequest`, `system.perspective.sendMessage`) run handlers of the
+workspace, which are analysed; `system.report.executeReport` and
+`system.sfc.startChart` run reports and charts, which are unknown code as
+resources (below); `system.db.*` runs SQL, not Python; the remaining
+functions take values. Not covered: files that `system.file.writeFile`
+writes into a project directory take effect only after a resource scan
+(`requestScan`, not vetted) or a gateway restart; projects and gateway
+tags outside the workspace are outside the closed world.
+
+### Expressions and resources iglint does not read
+
+Expressions run Python through `runScript(script, [pollRate],
+[args...])`, the only expression function of 8.3 that does (Vision's
+`objectScript` exists only in Vision clients). Its first argument is a
+Python expression evaluated in the project's scripting context, called
+with `args` when it is callable. In every expression iglint models
+(Perspective bindings and transforms, session properties, expression
+tags, derived tag getters and setters, bound tag and alarm properties):
+
+* a literal dotted name (`runScript("lib.util.json.dumps", 0, x)`) is a
+  library reference, like the same name in a script: the project index
+  counts it as a use of every module attribute along the path;
+* any other literal is code: it is parsed and analysed like a script
+  (vetting, frame reads, library references), and if it does not parse it
+  is unknown code;
+* a computed first argument is unknown code.
+
+Resources of kinds iglint identifies but does not read hold code or
+expressions it cannot analyse: reports, alarm pipelines, SFC charts,
+Vision windows, templates and other Vision resources, transaction groups,
+event streams, the deprecated app script library, pre-8.3 aggregate event
+scripts and resources of unknown modules. Each is unknown code. So is any
+JSON string of a modelled resource that mentions `runScript` but is not an
+expression or script iglint reads. The site of each is named in unsafe
+fixes (`script_facts::code_sources`).
 
 ### Line numbers
 

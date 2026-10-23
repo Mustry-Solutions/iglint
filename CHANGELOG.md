@@ -61,6 +61,17 @@ from 0.1.0 on.
 
 ### Fixed
 
+- Code that runs from expressions and run-time strings counts for the
+  closed world. `runScript` with a computed script, or with code that is
+  not vetted or does not parse, is unknown code; literal code is analysed
+  like a script and a literal dotted name is a library reference.
+  Resources iglint does not read (reports, alarm pipelines, SFC charts,
+  Vision, transaction groups, event streams, legacy and unknown resources)
+  and `runScript` text outside modelled expressions are unknown code. An
+  audit of every `system.*` function marks those that store or run code
+  from run-time values (`system.tag.configure`, `importTags`,
+  `system.util.execute`, `system.project.requestScan`, ...) as not
+  vetted, and `system.tag` writes as vetted only with value paths.
 - The machine-measured Java reflection table now covers every type a
   script can hold: a transitive fixed point over the public members of
   `Object`, `Throwable`, `Thread`, class proxies and reflected functions,
