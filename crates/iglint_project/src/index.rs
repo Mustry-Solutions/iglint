@@ -834,6 +834,20 @@ impl<'w> ProjectIndex<'w> {
         self.projects[project.index()].unknown_code
     }
 
+    /// Whether any project in the workspace sees code that is not vetted or
+    /// that reads a frame or the interpreter. The Ignition runtime is
+    /// shared across projects and gateway-scoped scripts, so such code
+    /// anywhere (`sys._current_frames`, reflection, `cPickle` of an
+    /// `eval` opcode) can observe any module's or any frame's names. Safe
+    /// fixes that assume non-observability (`SCR102`, `VIEW015`,
+    /// `NAME001`) require this to be false: the whole workspace is the
+    /// closed world. Projects outside the workspace are covered by the
+    /// `inheritable` / incomplete-inheritance checks, which already fail
+    /// closed.
+    pub fn has_any_unknown_code(&self) -> bool {
+        self.projects.iter().any(|p| p.unknown_code)
+    }
+
     /// Whether every top-level name of a library module may be used by
     /// `project` (the module is used as a value or star-imported).
     pub fn module_escapes(&self, project: ProjectId, module: ResourceId) -> bool {

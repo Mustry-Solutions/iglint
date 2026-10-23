@@ -96,7 +96,10 @@ pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols 
         symbols,
         dynamic,
         constants,
-        unknown_code: unknown.other.is_some(),
+        // A frame/interpreter route counts as unknown code too (see
+        // `script_facts::refs`): it can observe any module's names.
+        unknown_code: unknown.other.is_some()
+            || iglint_python_semantic::dynamic::reads_frames(&ast.body).is_some(),
         imports: unknown.imports.into_iter().map(|(name, _)| name).collect(),
         library_names: super::access::library_names_used(model, &ast.body),
     }

@@ -472,8 +472,12 @@ impl ViewRule for UnusedCustomProperty {
             let interprocedural = unchecked
                 || local.is_read(i, def)
                 || local.is_written(i, def)
-                || *unknown_code
-                    .get_or_insert_with(|| crate::rules::vetting::unit_uses_unknown_code(cx));
+                || *unknown_code.get_or_insert_with(|| {
+                    crate::rules::vetting::unit_uses_unknown_code(cx)
+                        // Closed world: unknown code anywhere in the shared
+                        // runtime may read this property by name.
+                        || crate::rules::vetting::workspace_has_unknown_code(cx)
+                });
             let fix = match def.category {
                 PropCategory::Custom => fix(
                     cx,

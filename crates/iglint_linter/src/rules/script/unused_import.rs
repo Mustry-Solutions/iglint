@@ -422,6 +422,10 @@ impl ScriptRule for UnusedImport {
                         model,
                         &unit.parsed.module.body,
                     )
+                    // Closed world: a frame reader anywhere in the shared
+                    // runtime can observe this import, even a function-local
+                    // one through a callback or `sys._current_frames`.
+                    || crate::rules::vetting::workspace_has_unknown_code(cx)
                 }) {
                 Applicability::Safe
             } else {
@@ -820,6 +824,45 @@ mod tests {
         }
     }
 
+    /// Reviewer round 7, H3 (closed world): a frame reader in another
+    /// library module makes a function-local import unsafe to remove, even
+    /// though the import is not a module attribute and the two modules do
+    /// not import each other. Through the shared runtime the reader can
+    /// reach the frame (as a callback, or via `sys._current_frames`).
+    #[test]
+    fn a_frame_reader_elsewhere_makes_a_function_local_import_unsafe() {
+        let reader =
+            "def peek(n):\n    it = (x for x in [])\n    return it.gi_frame.f_back.f_locals[n]\n";
+        let f = with_library(
+            library(
+                "lib/b",
+                "def run(cb):\n    import math\n    return cb('math')\n",
+            ),
+            "lib/a",
+            reader,
+        );
+        let d = f.lint(&["SCR102"]);
+        let math = d.iter().find(|d| d.message.contains("math"));
+        if let Some(d) = math {
+            assert_eq!(
+                d.fix.as_ref().map(|x| x.applicability),
+                Some(crate::Applicability::Unsafe),
+                "a frame reader elsewhere must make the import unsafe"
+            );
+        }
+        // Remove the reader: the same import is safe to remove.
+        let f = library(
+            "lib/b",
+            "def run(cb):\n    import math\n    return cb('math')\n",
+        );
+        let d = f.lint(&["SCR102"]);
+        let math = d.iter().find(|d| d.message.contains("math")).unwrap();
+        assert_eq!(
+            math.fix.as_ref().map(|x| x.applicability),
+            Some(crate::Applicability::Safe)
+        );
+    }
+
     #[test]
     fn fix_removes_names_or_statements() {
         let f = library("m", "import os, json\nimport sys\nprint json.dumps(1)\n");
@@ -982,12 +1025,23 @@ mod tests {
             d[0].fix.as_ref().map(|f| f.applicability),
             Some(crate::diagnostic::Applicability::Unsafe)
         );
-        // Function-level imports are not attributes of the module.
+        // Function-level imports are not attributes of the module, but the
+        // computed `getattr` on the module object can reach reflection
+        // (`getattr(mod, 'class')`) and from there any frame, so the
+        // closed-world check makes the fix unsafe (reviewer round 7, H3).
         let f = with_library(
             library("sem/unusedimp", "def g():\n    import os\n"),
             "sem/user",
             "def f(name):\n    return getattr(sem.unusedimp, name)\n",
         );
+        let d = f.lint(&["SCR102"]);
+        assert_eq!(
+            d[0].fix.as_ref().map(|f| f.applicability),
+            Some(crate::diagnostic::Applicability::Unsafe)
+        );
+        // Without that dynamic reader anywhere, the function-local import
+        // is safe to remove.
+        let f = library("sem/unusedimp", "def g():\n    import os\n");
         let d = f.lint(&["SCR102"]);
         assert_eq!(
             d[0].fix.as_ref().map(|f| f.applicability),
@@ -1088,12 +1142,29 @@ mod tests {
                 crate::Applicability::Unsafe
             )]
         );
+        // `lib/util` holds `ev = eval`, so the whole workspace has a frame
+        // reader: the closed-world check makes even a clean-callee fix
+        // unsafe (reviewer round 7, H3).
         assert_eq!(
             fixes("def f():\n    import os\n    lib.plain.log(1)\n"),
             [(
                 "`os` imported but unused".to_owned(),
-                crate::Applicability::Safe
+                crate::Applicability::Unsafe
             )]
+        );
+        // In a workspace with no unknown code, the clean-callee fix is safe.
+        let clean = with_library(
+            library("m", "def f():\n    import os\n    lib.plain.log(1)\n"),
+            "lib/plain",
+            "def log(m):\n    pass\n",
+        )
+        .lint(&["SCR102"]);
+        assert_eq!(
+            clean
+                .iter()
+                .map(|d| d.fix.as_ref().unwrap().applicability)
+                .collect::<Vec<_>>(),
+            [crate::Applicability::Safe]
         );
         assert!(
             fixes("import os\nimport m as me\ndef f(n):\n    return getattr(me, n)\n").is_empty()

@@ -129,3 +129,19 @@ pub(crate) fn unit_uses_unknown_code(cx: &Checker<'_, '_>) -> bool {
             uses_unknown_code(cx, &model, &parsed.module.body)
         })
 }
+
+/// Whether any script anywhere in the workspace uses code that is not
+/// vetted or reads a frame or the interpreter
+/// ([`iglint_project::ProjectIndex::has_any_unknown_code`]). The Ignition
+/// runtime is shared, so such code in any project or gateway-scoped script
+/// can observe any module's names and any frame's locals (through
+/// `sys._current_frames`, reflection or a `cPickle` opcode). Safe fixes
+/// that assume a name or value is not observed (`SCR102`, `VIEW015`,
+/// `NAME001`) are only safe when the whole closed world is free of it.
+/// With no project index (a single file linted on its own) this is
+/// unknown; the per-rule context checks (incomplete inheritance, an
+/// inheritable project, unmodelled scripts) already fail closed there.
+pub(crate) fn workspace_has_unknown_code(cx: &Checker<'_, '_>) -> bool {
+    cx.project_index()
+        .is_some_and(|(index, _)| index.has_any_unknown_code())
+}

@@ -55,7 +55,14 @@ pub fn collect(model: &SemanticModel<'_>, ctx: &FactsContext<'_>, refs: &mut Ref
         dynamic_code(model, ctx, &site.callee, site.call, refs);
     }
     let unknown = iglint_python_semantic::vetted::unknown_code(body);
-    refs.unknown_code |= unknown.other.is_some();
+    // A script that can read a frame or the interpreter (eval, `locals`,
+    // reflection, an introspection attribute, cPickle of an `eval` opcode)
+    // is unknown code for the closed-world check: through the shared
+    // runtime (`sys._current_frames`, `cPickle.loads("c<module>\n...")`)
+    // it may read any other module's names, so no safe fix that assumes
+    // non-observability holds while it exists anywhere in the workspace.
+    refs.unknown_code |=
+        unknown.other.is_some() || iglint_python_semantic::dynamic::reads_frames(body).is_some();
     refs.unvetted_imports
         .extend(unknown.imports.into_iter().map(|(name, _)| name));
     let mut chains = Chains { model, ctx, refs };

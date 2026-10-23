@@ -738,7 +738,9 @@ fn rename_fix(
         || components_may_escape(cx, view)
         // Code that is not vetted may look the component up in ways
         // iglint does not know (`cPickle.loads` of an `eval` opcode).
+        // Closed world: such code anywhere in the shared runtime counts.
         || crate::rules::vetting::unit_uses_unknown_code(cx)
+        || crate::rules::vetting::workspace_has_unknown_code(cx)
         || refs.meta_name_read.contains(&c.id)
         || refs.dynamic_meta_name
         || refs.dynamic_lookup
@@ -1232,8 +1234,31 @@ mod tests {
                 "{script}"
             );
         }
+        // `lib/util` and `lib/unvetted` give the workspace a frame reader,
+        // so the closed-world check makes even a clean-callee rename unsafe
+        // (reviewer round 7, H3): a global reader could grab the component
+        // through `sys._current_frames`.
         assert_eq!(
             applicability("\\tlib.plain.log('x')"),
+            Some(crate::Applicability::Unsafe)
+        );
+        // With no unknown code in the workspace the rename is safe.
+        let clean = Fixture::view(&root(&[
+            component("the_label", "ia.display.label", ""),
+            component(
+                "Btn",
+                "ia.input.button",
+                r#", "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": "\tlib.plain.log('x')"}}}}"#,
+            ),
+        ]))
+        .resource(
+            "projects/p/ignition/script-python/lib/plain",
+            &[("code.py", "def log(m):\n    pass\n")],
+        );
+        let d = clean.lint_with(&[("NAME001", "convention = \"PascalCase\"")]);
+        let d = d.iter().find(|d| d.message.contains("the_label")).unwrap();
+        assert_eq!(
+            d.fix.as_ref().map(|f| f.applicability),
             Some(crate::Applicability::Safe)
         );
     }
