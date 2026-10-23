@@ -691,6 +691,27 @@ impl StringValue {
         }
     }
 
+    /// The value decoded as Latin-1: every `str` byte becomes the Java
+    /// char of the same value, which is how Jython 2.7 turns a byte string
+    /// into characters (verified: `'\xe9' == u'é'`). Unlike
+    /// [`StringValue::as_str`] this never fails, so a safety scan over the
+    /// literal (for example for an introspection attribute name or a
+    /// component name a script mentions) cannot silently see nothing for a
+    /// byte string that is not valid UTF-8. Use this, not `as_str`,
+    /// wherever a missed name would make a fix unsafe.
+    pub fn to_latin1(&self) -> std::borrow::Cow<'_, str> {
+        match self {
+            StringValue::Unicode(text) => std::borrow::Cow::Borrowed(text),
+            StringValue::Bytes(bytes) if bytes.is_ascii() => {
+                // ASCII is valid UTF-8 and Latin-1 agrees with it there.
+                std::borrow::Cow::Borrowed(std::str::from_utf8(bytes).expect("ascii is utf-8"))
+            }
+            StringValue::Bytes(bytes) => {
+                std::borrow::Cow::Owned(bytes.iter().map(|&b| b as char).collect())
+            }
+        }
+    }
+
     /// The value as text, replacing invalid UTF-8 sequences.
     pub fn to_string_lossy(&self) -> std::borrow::Cow<'_, str> {
         match self {

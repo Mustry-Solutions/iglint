@@ -238,7 +238,9 @@ impl ScriptWalker<'_, '_, '_> {
         let [Expr::Str(arg)] = call.args.as_slice() else {
             return Some((Value::Unknown, Vec::new()));
         };
-        let text = arg.s.as_str()?;
+        // Latin-1, not UTF-8: a byte-string argument that is not valid
+        // UTF-8 must still be read so the component it names is seen.
+        let text = arg.s.to_latin1();
         let mut at = match (self.eval(&f.value), method) {
             (Value::Component(c), "getChild") => c,
             (Value::Component(c), _) => self.view.component(c).parent?,
@@ -293,8 +295,8 @@ impl<'a> Visitor<'a> for ScriptWalker<'_, '_, '_> {
                         walk_expr(self, expr);
                         return;
                     };
-                    let text = arg.s.as_str().unwrap_or_default();
-                    let content = self.literal_content(arg.range, text);
+                    let text = arg.s.to_latin1();
+                    let content = self.literal_content(arg.range, &text);
                     let resolved = value != Value::Unknown;
                     match content {
                         Some(content) if resolved => {
@@ -353,9 +355,9 @@ impl<'a> Visitor<'a> for ScriptWalker<'_, '_, '_> {
                 return;
             }
             Expr::Str(s) => {
-                if let Some(text) = s.s.as_str() {
-                    self.refs.literals.insert(text.to_owned());
-                }
+                // Latin-1 so a non-UTF-8 byte string still registers as a
+                // literal that may equal the component name.
+                self.refs.literals.insert(s.s.to_latin1().into_owned());
             }
             _ => {}
         }

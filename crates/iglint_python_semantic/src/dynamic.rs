@@ -272,12 +272,16 @@ fn is_introspection_name(name: &str) -> bool {
 /// `'tb_frame.f_back.f_locals'`). Splits on every character that cannot be
 /// part of a Python identifier, so whole identifiers are matched and
 /// ordinary prose (`"the frame"`) is not.
+///
+/// The literal is decoded as Latin-1 ([`StringValue::to_latin1`]), not as
+/// UTF-8: a byte string that is not valid UTF-8 (`'{0.f_locals}\xff'`)
+/// must not be read as empty, which would miss the name and leave a fix
+/// unsafely applied. Non-ASCII bytes are not identifier characters, so
+/// they only ever act as separators here.
 fn string_names_introspection(value: &StringValue) -> bool {
-    let text = match value.as_str() {
-        Some(text) => text,
-        None => return false,
-    };
-    text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+    value
+        .to_latin1()
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
         .any(is_introspection_name)
 }
 
@@ -430,7 +434,7 @@ impl Escapes {
         // `class`: Jython exposes `getClass()` as the bean property
         // `class`, which only a reflective accessor can name.
         let is_literal = |e: &Expr| match e {
-            Expr::Str(s) => s.s.as_str() != Some("class"),
+            Expr::Str(s) => s.s.to_latin1() != "class",
             _ => false,
         };
         match name {
@@ -678,6 +682,10 @@ mod tests {
             "b = C.__mro__\n",
             "l = Thread.currentThread().getContextClassLoader()\n",
             "c = loader.loadClass(name)\n",
+            // route 1: a byte string that is not valid UTF-8 must still be
+            // scanned (decoded as Latin-1), not read as empty (H2).
+            "s = '{0.gi_frame.f_back.f_locals}\\xff'.format(it)\n",
+            "getattr(tb, 'tb_frame\\xff')\n",
         ] {
             assert!(escape(src), "{src}");
         }

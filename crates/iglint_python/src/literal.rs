@@ -524,6 +524,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn to_latin1_decodes_every_byte() {
+        // Jython maps each `str` byte to the Java char of the same value.
+        assert_eq!(
+            StringValue::Bytes(b"abc".to_vec().into()).to_latin1(),
+            "abc"
+        );
+        // Invalid UTF-8 never yields "nothing": 0xE9 becomes U+00E9.
+        assert_eq!(
+            StringValue::Bytes(vec![b'c', b'a', b'f', 0xE9].into()).to_latin1(),
+            "caf\u{e9}"
+        );
+        assert_eq!(
+            StringValue::Bytes(vec![b'x', 0xFF].into()).to_latin1(),
+            "x\u{ff}"
+        );
+        assert!(StringValue::Bytes(vec![0xFF].into()).as_str().is_none());
+        assert_eq!(StringValue::Unicode("\u{e9}".into()).to_latin1(), "\u{e9}");
+    }
+
+    #[test]
     fn integers_follow_jython_typing() {
         assert_eq!(integer("2147483647"), Ok(Number::Int(2147483647)));
         assert_eq!(integer("2147483648"), Ok(Number::Long("2147483648".into())));
