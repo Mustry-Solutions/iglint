@@ -128,7 +128,9 @@ impl ResourceRule for ManifestMismatch {
             || resource.module_id.starts_with("com.inductiveautomation.");
         for f in resource.files.iter().filter(|_| ia_module) {
             let entry = ws.file(*f);
-            if entry.listed == Some(false) {
+            // A Python file that is not the resource's script is reported
+            // on itself (listing it would not make the gateway load it).
+            if entry.listed == Some(false) && !is_stray_script(entry.kind, entry.name()) {
                 cx.report_in(
                     manifest,
                     anchor,
@@ -142,6 +144,12 @@ impl ResourceRule for ManifestMismatch {
             }
         }
     }
+}
+
+/// A Python file in a resource directory that is not the resource's script
+/// (a `helper.py` next to a library `code.py`).
+fn is_stray_script(kind: FileKind, name: &str) -> bool {
+    kind == FileKind::OtherResourceData && name.ends_with(".py")
 }
 
 /// The first character of a file (empty for an empty file): where findings
@@ -167,7 +175,7 @@ fn report_outside_resource(cx: &mut Checker<'_, '_>) {
             "`{}` is not inside a resource directory (`<moduleId>/<typeId>/<path>/` with a `resource.json`); the gateway does not load it",
             entry.name()
         ),
-        (FileKind::OtherResourceData, Some(r)) if entry.name().ends_with(".py") => {
+        (kind, Some(r)) if is_stray_script(kind, entry.name()) => {
             let resource = cx.workspace().resource(r);
             format!(
                 "`{}` is not a file of this {} resource; the gateway does not load it",
@@ -318,6 +326,32 @@ mod tests {
                     "`view.json` is not inside a resource directory (`<moduleId>/<typeId>/<path>/` with a `resource.json`); the gateway does not load it".into()
                 ),
                 ("VIEW015".into(), "Custom property `unused` is never read".into()),
+            ]
+        );
+    }
+
+    /// A stray Python file that the manifest does not list is one finding,
+    /// on the file.
+    #[test]
+    fn unlisted_stray_scripts_are_reported_once() {
+        let f = Fixture::new()
+            .file(
+                "projects/p/ignition/script-python/pkg/mod/resource.json",
+                r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+            )
+            .file("projects/p/ignition/script-python/pkg/mod/code.py", "")
+            .file(
+                "projects/p/ignition/script-python/pkg/mod/notes.py",
+                "x = 1\n",
+            )
+            .file("projects/p/ignition/script-python/pkg/mod/notes.txt", "");
+        let d = f.lint(&["REF009"]);
+        let got: Vec<&str> = d.iter().map(|d| d.message.as_str()).collect();
+        assert_eq!(
+            got,
+            [
+                "`notes.py` is not a file of this script-library resource; the gateway does not load it",
+                "`notes.txt` is not listed in `resource.json`; the gateway ignores it",
             ]
         );
     }

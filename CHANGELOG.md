@@ -86,6 +86,9 @@ from 0.1.0 on.
   (`views/My View/...`): the file name is followed by a tab, as `diff -u`
   writes it. Paths with `"`, `\` or control characters are quoted like
   git does. Both `patch` and `git apply` accept the result.
+- `REF009` reports a Python file that is not the resource's script once,
+  on the file, instead of a second time on `resource.json` as an
+  unlisted file (listing it would not make the gateway load it).
 - `SCR112` treats a `.format` field too large for a Java `int`
   (`{2147483648}`, also `{2147483648.x}` and in nested specs) as the
   keyword it is in Jython: no finding when `**kwargs` may supply it.
