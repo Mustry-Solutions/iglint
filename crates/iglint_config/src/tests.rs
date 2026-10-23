@@ -426,6 +426,51 @@ fn extend_inherits_and_detects_cycles() {
     assert!(error.message.contains("not found"), "{error}");
 }
 
+/// The command line wins over `[[overrides]]` too: `--select` replaces the
+/// selection everywhere, so an override's `extend-select` cannot re-add a
+/// rule, and `--ignore` removes a rule an override selects. (Reviewer repro
+/// R5-D.)
+#[test]
+fn command_line_select_wins_over_overrides() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "iglint.toml",
+        "[[overrides]]\nfiles = [\"**/view.json\"]\nextend-select = [\"NAME001\"]\n",
+    );
+    let mut opts = options(dir.path());
+    opts.cli = CliOverrides {
+        select: Some(vec!["VIEW001".into()]),
+        ..CliOverrides::default()
+    };
+    let config = load(&opts, &REGISTRY).unwrap();
+    let root = config.settings.root.clone();
+    let view = config
+        .settings
+        .for_file(&root.join("projects/p/views/A/view.json"));
+    let codes: Vec<_> = view.rules.keys().map(|r| r.code()).collect();
+    // Only the command line's VIEW001, never the override's NAME001.
+    assert_eq!(codes, ["VIEW001"]);
+    assert!(!view.is_enabled(rule(&testing::COMPONENT_NAME)));
+
+    // `--ignore` removes a rule the override selects.
+    write(
+        dir.path(),
+        "iglint.toml",
+        "[[overrides]]\nfiles = [\"**/view.json\"]\nselect = [\"NAME001\"]\n",
+    );
+    opts.cli = CliOverrides {
+        ignore: vec!["NAME001".into()],
+        ..CliOverrides::default()
+    };
+    let config = load(&opts, &REGISTRY).unwrap();
+    let root = config.settings.root.clone();
+    let view = config
+        .settings
+        .for_file(&root.join("projects/p/views/A/view.json"));
+    assert!(!view.is_enabled(rule(&testing::COMPONENT_NAME)));
+}
+
 #[test]
 fn command_line_overrides_come_last() {
     let dir = tempfile::tempdir().unwrap();

@@ -140,7 +140,11 @@ severity = { SCR = "info" }
 * `[[overrides]]` apply other settings to the files matching `files`.
 * Globs are relative to the configuration file and always use `/`.
 * The command line wins over the file: `--select`, `--extend-select`,
-  `--ignore`, `--strict`, `--config FILE`, `--isolated`.
+  `--ignore`, `--strict`, `--config FILE`, `--isolated`. `--select`
+  replaces the selection everywhere, `[[overrides]]` included, so an
+  override's `select`/`extend-select` cannot re-add a rule the command line
+  left out; `--extend-select` only adds and `--ignore` only removes. The
+  same holds in ign-lint compatibility mode and for migrated configurations.
 
 `iglint check --show-settings` prints the settings that apply to a path, and
 `iglint check --show-files` the files that would be linted.

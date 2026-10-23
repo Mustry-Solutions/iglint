@@ -185,10 +185,56 @@ fn cli_layer(options: &LoadOptions, registry: &Registry) -> Result<Layer, Config
     })
 }
 
+/// The command line wins over the file, overrides included (README). When
+/// `--select` is given it replaces the selection everywhere, so an
+/// override may no longer enable a rule outside it; `--extend-select` adds
+/// rules the override may not drop; `--ignore` removes rules everywhere.
+/// This applies the resolved command-line layer as the final authority on
+/// an override's membership, leaving its severities and options for the
+/// rules that survive.
+fn apply_cli_authority(
+    registry: &Registry,
+    cli: &Layer,
+    enable: &mut BTreeMap<RuleCode, RuleSettings>,
+    disable: &mut Vec<RuleCode>,
+) {
+    let selects = cli.select.is_some() || !cli.extend_select.is_empty();
+    let ignores = !cli.ignore.is_empty() || !cli.extend_ignore.is_empty();
+    if !selects && !ignores {
+        return;
+    }
+    let mut cli_enable: Vec<Selector> = cli.select.clone().unwrap_or_default();
+    cli_enable.extend(cli.extend_select.iter().copied());
+    let mut cli_disable = cli.ignore.clone();
+    cli_disable.extend(cli.extend_ignore.iter().copied());
+    for rule in registry.iter() {
+        match verdict(rule, &cli_enable, &cli_disable) {
+            // The command line selects it: the override may not drop it.
+            Some(true) => disable.retain(|r| *r != rule),
+            // The command line ignores it, or `--select` replaces the
+            // selection and it is not in it: off everywhere.
+            Some(false) => {
+                enable.remove(&rule);
+                if !disable.contains(&rule) {
+                    disable.push(rule);
+                }
+            }
+            None if cli.select.is_some() => {
+                enable.remove(&rule);
+                if !disable.contains(&rule) {
+                    disable.push(rule);
+                }
+            }
+            None => {}
+        }
+    }
+}
+
 fn build_override(
     registry: &Registry,
     base_rules: &BTreeMap<RuleCode, RawRule>,
     raw: &RawOverride,
+    cli: &Layer,
 ) -> Override {
     let mut enable = BTreeMap::new();
     let mut disable = Vec::new();
@@ -218,6 +264,7 @@ fn build_override(
             severity.insert(rule, *level);
         }
     }
+    apply_cli_authority(registry, cli, &mut enable, &mut disable);
     Override {
         files: raw.files.clone(),
         disable,
@@ -279,6 +326,11 @@ pub(crate) fn load_source(
             let mut settings = resolved.settings;
             let mut enabled: BTreeSet<RuleCode> = settings.base.rules.keys().copied().collect();
             apply_layer(registry, &mut enabled, &cli);
+            // The command line wins over the ign-lint scope overrides too
+            // (SCR900 and the other added rules on `view.json`).
+            for ov in &mut settings.overrides {
+                apply_cli_authority(registry, &cli, &mut ov.enable, &mut ov.disable);
+            }
             let mut base = (*settings.base).clone();
             base.rules.retain(|rule, _| enabled.contains(rule));
             for rule in enabled {
@@ -343,7 +395,7 @@ pub(crate) fn load_source(
             let overrides = merged
                 .overrides
                 .iter()
-                .map(|o| build_override(registry, &merged.rules, o))
+                .map(|o| build_override(registry, &merged.rules, o, &cli))
                 .collect();
             let settings = ProjectSettings {
                 root: root.clone(),

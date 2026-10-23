@@ -96,6 +96,11 @@ from 0.1.0 on.
 - SCR112 reports `%c` with a string literal that is not one character
   (`'%c' % 'ab'`) and checks format strings concatenated with `+`
   (`('%s' + '%s') % (1,)`).
+- The command line `--select` now wins over `[[overrides]]` as the README
+  promises: it replaces the selection everywhere, so an override's
+  `select` / `extend-select` can no longer re-add a rule the command line
+  left out, and `--ignore` removes a rule an override selects. This holds
+  in ign-lint compatibility mode (the `view.json` scope overrides) too.
 - Library-name detection in script accesses now resolves every name
   through its real Python 2.7 scope (the semantic model), so a name bound
   only in a nested function, class or comprehension no longer hides a
