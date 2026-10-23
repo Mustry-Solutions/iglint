@@ -21,7 +21,7 @@ pub(crate) fn uses_unknown_code(
     model: &SemanticModel<'_>,
     body: &[Stmt],
 ) -> bool {
-    let unknown = iglint_python_semantic::vetted::unknown_code(body);
+    let unknown = iglint_python_semantic::vetted::unknown_code(model);
     if unknown.other.is_some() {
         return true;
     }

@@ -36,10 +36,11 @@
 //! vetted either (an attribute read through an alias is not checked), and
 //! subclassing a Java class is unknown (its instances are Java-backed).
 
-use iglint_python::ast::{Expr, ExprContext, Stmt};
+use iglint_python::ast::{Alias, Expr, ExprContext, ExprName, Stmt, StmtImportFrom};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
 use iglint_text::TextRange;
-use rustc_hash::FxHashMap;
+
+use crate::{Binding, BindingKind, Resolution, ScopeId, ScopeKind, SemanticModel};
 
 /// Python modules whose every public, non-module attribute is vetted,
 /// with extra attributes that are not.
@@ -353,7 +354,7 @@ fn builtin_vetted(name: &str) -> bool {
             .any(|b| b.name == name && b.kind == iglint_stubs::BuiltinKind::Exception)
 }
 
-/// What a name bound by an import refers to.
+/// What a name may be bound to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Bound {
     /// A vetted Python module (its key in [`VETTED_MODULES`], or `os`,
@@ -362,8 +363,14 @@ enum Bound {
     /// A vetted Java class (qualified name).
     JavaClass(&'static str),
     /// Something else that is vetted (a function or class of a vetted
-    /// module).
+    /// module, a vetted builtin).
     Value,
+    /// A value the code computes (an assignment, a parameter, a `def`, a
+    /// project library module the caller checks): not a vetted facility
+    /// and not checked here.
+    Plain,
+    /// An import, builtin or injected name that is not vetted.
+    Unknown,
 }
 
 fn vetted_module(name: &str) -> Option<&'static str> {
@@ -457,8 +464,8 @@ fn denied_members_key(package: &str, class: &str) -> &'static str {
 /// What [`unknown_code`] found.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct UnknownCode {
-    /// The first use of something that is not vetted and not an import of
-    /// a module that may be a project library module.
+    /// The first use (in source order) of something that is not vetted and
+    /// not an import of a module that may be a project library module.
     pub other: Option<TextRange>,
     /// Imports of modules that are not vetted, by dotted name, which the
     /// caller may know to be plain project library modules.
@@ -475,37 +482,185 @@ impl UnknownCode {
     }
 }
 
-/// Every use in `body` (nested scopes included) of a module, Java class,
-/// builtin or module attribute that is not vetted. See the module
-/// documentation.
-pub fn unknown_code(body: &[Stmt]) -> UnknownCode {
+/// Every use in the module of `model` (nested scopes included) of a
+/// module, Java class, builtin or module attribute that is not vetted. See
+/// the module documentation.
+///
+/// Names are resolved through the semantic model's scopes, not in the
+/// order the walk meets them, and flow-insensitively: a name may stand for
+/// every binding of it in the scope it resolves to, whatever the textual
+/// order (a function defined before `import re` still reads the module
+/// `re`), plus, where Python looks further at run time (module and class
+/// bodies, `global` names), the injected name or builtin of that spelling.
+/// A use is unknown when **any** of those bindings is unvetted (fail
+/// closed). A name the model has no reference for, or that resolves
+/// dynamically (`from x import *`, `exec`), is unknown. A name bound
+/// nowhere is a builtin (vetted builtins only), Ignition's `sys` or
+/// `system`, or a name the caller resolves as a project library name
+/// (`library_names_used` in the linter), which raises `NameError`
+/// otherwise.
+pub fn unknown_code(model: &SemanticModel<'_>) -> UnknownCode {
+    let bound = model
+        .bindings()
+        .map(|(_, b)| binding_bound(b))
+        .collect::<Vec<_>>();
     let mut v = Walk {
-        bound: FxHashMap::default(),
+        model,
+        bound,
         out: UnknownCode::default(),
     };
-    v.bound.insert("sys".to_owned(), Bound::Module("sys"));
-    v.bound.insert("system".to_owned(), Bound::Module("system"));
-    for stmt in body {
+    for stmt in &model.module.body {
         v.visit_stmt(stmt);
     }
     v.out
 }
 
-struct Walk {
-    /// Names bound by vetted imports.
-    bound: FxHashMap<String, Bound>,
+/// What the import alias `a` of `import ...` binds.
+fn import_bound(a: &Alias) -> Bound {
+    let name = a.name.as_str();
+    let root = name.split('.').next().unwrap_or(name);
+    // `import a.b` binds `a`; `import a.b as c` binds `c` to `a.b`.
+    let target = match &a.asname {
+        Some(_) => name,
+        None if name == "os.path" => "os",
+        None if root == "system" => "system",
+        None if name.contains('.') => "",
+        None => name,
+    };
+    match vetted_module(target) {
+        Some(m) => Bound::Module(m),
+        None if root == "java" || root == "javax" || vetted_module(name).is_some() => {
+            Bound::Unknown
+        }
+        // A module that may be a project library module: the caller checks
+        // it ([`UnknownCode::imports`]).
+        None => Bound::Plain,
+    }
+}
+
+/// What the alias `a` of `from module import ...` binds.
+fn from_import_bound(i: &StmtImportFrom, a: &Alias) -> Bound {
+    let module = i.module.as_ref().map_or("", |m| m.as_str());
+    let name = a.name.as_str();
+    if i.level != 0 {
+        return Bound::Plain;
+    }
+    if let Some(m) = vetted_module(module) {
+        return match module_attribute(m, name) {
+            Some(b) if name != "*" => b,
+            _ => Bound::Unknown,
+        };
+    }
+    if module == "java" || module.starts_with("java.") || module.starts_with("javax") {
+        return java_class(module, name).map_or(Bound::Unknown, Bound::JavaClass);
+    }
+    Bound::Plain
+}
+
+/// What a binding binds, whatever the order it runs in.
+fn binding_bound(b: &Binding<'_>) -> Bound {
+    match b.kind {
+        BindingKind::Import => b.alias.map_or(Bound::Unknown, import_bound),
+        BindingKind::FromImport => match (b.stmt, b.alias) {
+            (Some(Stmt::ImportFrom(i)), Some(a)) => from_import_bound(i, a),
+            _ => Bound::Unknown,
+        },
+        BindingKind::FutureImport => Bound::Value,
+        BindingKind::Builtin | BindingKind::Injected => implicit_bound(b.name),
+        // Assignments, parameters, definitions, loop and `with` targets,
+        // `global` declarations: values the code computes. What is done
+        // with them is the default-deny walkers' business.
+        _ => Bound::Plain,
+    }
+}
+
+/// What a name that no binding of the code provides stands for: Ignition's
+/// `sys` and `system`, a builtin (vetted or not), or a name the caller
+/// resolves (a project library package, Ignition's other injected names;
+/// `NameError` otherwise).
+fn implicit_bound(name: &str) -> Bound {
+    match name {
+        "sys" => Bound::Module("sys"),
+        "system" => Bound::Module("system"),
+        "__builtins__" => Bound::Unknown,
+        _ if iglint_stubs::is_jython_builtin(name) => {
+            if builtin_vetted(name) {
+                Bound::Value
+            } else {
+                Bound::Unknown
+            }
+        }
+        _ => Bound::Plain,
+    }
+}
+
+struct Walk<'m, 'a> {
+    model: &'m SemanticModel<'a>,
+    /// [`binding_bound`] of every binding, by binding id.
+    bound: Vec<Bound>,
     out: UnknownCode,
 }
 
-impl Walk {
+impl Walk<'_, '_> {
     fn other(&mut self, range: TextRange) {
-        if self.out.other.is_none() {
+        if self.out.other.is_none_or(|o| range.start() < o.start()) {
             self.out.other = Some(range);
         }
     }
 
-    /// Checks an attribute chain rooted at a name bound to a vetted module
-    /// or class; returns `false` when the root is not such a name.
+    /// Everything the `Load` name `n` may stand for at run time, flow
+    /// insensitively (see [`unknown_code`]).
+    fn candidates(&self, n: &ExprName) -> Vec<Bound> {
+        let Some(r) = self.model.reference_at(n.range) else {
+            // No reference: we cannot say what the name is. Fail closed.
+            return vec![Bound::Unknown];
+        };
+        let name = &*n.id;
+        let of = |scope: ScopeId| {
+            self.model
+                .scope(scope)
+                .bindings_of(name)
+                .iter()
+                .map(|id| self.bound[id.index()])
+        };
+        let mut out: Vec<Bound> = Vec::new();
+        let fallback = match r.resolution {
+            Resolution::Local => {
+                out.extend(of(r.scope));
+                // Module and class bodies look names up by name at run
+                // time (`LOAD_NAME`): before the local binding runs, a
+                // class body reads the module's name, and both read the
+                // injected names and builtins.
+                match self.model.scope(r.scope).kind {
+                    ScopeKind::Module => true,
+                    ScopeKind::Class => {
+                        out.extend(of(ScopeId::MODULE));
+                        true
+                    }
+                    _ => false,
+                }
+            }
+            Resolution::Free(scope) => {
+                out.extend(of(scope));
+                false
+            }
+            Resolution::Global => {
+                out.extend(of(ScopeId::MODULE));
+                true
+            }
+            Resolution::Builtin | Resolution::Injected | Resolution::Unresolved => true,
+            Resolution::Dynamic => return vec![Bound::Unknown],
+        };
+        if fallback {
+            out.push(implicit_bound(name));
+        }
+        out
+    }
+
+    /// Checks an attribute chain rooted at a name: each binding the root
+    /// may stand for that is a vetted module or class must vet the chain;
+    /// one that is not vetted makes the use unknown. Returns `false` when
+    /// `expr` is not a chain rooted at a name.
     fn chain(&mut self, expr: &Expr) -> bool {
         let mut attrs = Vec::new();
         let mut root = expr;
@@ -514,63 +669,53 @@ impl Walk {
             root = &a.value;
         }
         let Expr::Name(n) = root else { return false };
-        let Some(mut bound) = self.bound.get(&*n.id).copied() else {
-            return false;
-        };
-        for (attr, range) in attrs.into_iter().rev() {
+        attrs.reverse();
+        for candidate in self.candidates(n) {
+            self.check_chain(candidate, n.range, &attrs);
+        }
+        true
+    }
+
+    fn check_chain(&mut self, mut bound: Bound, root: TextRange, attrs: &[(&str, TextRange)]) {
+        if bound == Bound::Unknown {
+            self.other(root);
+            return;
+        }
+        for (attr, range) in attrs {
             bound = match bound {
                 Bound::Module(m) => match module_attribute(m, attr) {
                     Some(next) => next,
                     None => {
-                        self.other(range);
-                        return true;
+                        self.other(*range);
+                        return;
                     }
                 },
                 Bound::JavaClass(q) => {
                     if JAVA_DENIED_MEMBERS
                         .iter()
-                        .any(|(c, members)| *c == q && members.contains(&attr))
+                        .any(|(c, members)| *c == q && members.contains(attr))
                     {
-                        self.other(range);
+                        self.other(*range);
                     }
-                    return true;
+                    return;
                 }
-                Bound::Value => return true,
+                Bound::Value | Bound::Plain | Bound::Unknown => return,
             };
         }
-        true
     }
 }
 
-impl<'a> Visitor<'a> for Walk {
+impl<'a> Visitor<'a> for Walk<'_, '_> {
     fn visit_stmt(&mut self, stmt: &'a Stmt) {
         match stmt {
             Stmt::Import(i) => {
                 for a in &i.names {
                     let name = a.name.as_str();
                     let root = name.split('.').next().unwrap_or(name);
-                    // `import a.b` binds `a`; `import a.b as c` binds `c`
-                    // to `a.b`.
-                    let (bound_name, target) = match &a.asname {
-                        Some(n) => (n.as_str(), name),
-                        None if name == "os.path" => ("os", "os"),
-                        None if root == "system" => ("system", "system"),
-                        None if name.contains('.') => (root, ""),
-                        None => (name, name),
-                    };
-                    match vetted_module(target) {
-                        Some(m) => {
-                            self.bound.insert(bound_name.to_owned(), Bound::Module(m));
-                            self.out.vetted_imports.push(root.to_owned());
-                        }
-                        None => {
-                            self.bound.remove(bound_name);
-                            if root == "java" || root == "javax" || vetted_module(name).is_some() {
-                                self.other(a.range);
-                            } else {
-                                self.out.imports.push((name.to_owned(), a.range));
-                            }
-                        }
+                    match import_bound(a) {
+                        Bound::Module(_) => self.out.vetted_imports.push(root.to_owned()),
+                        Bound::Plain => self.out.imports.push((name.to_owned(), a.range)),
+                        _ => self.other(a.range),
                     }
                 }
             }
@@ -578,37 +723,19 @@ impl<'a> Visitor<'a> for Walk {
                 let module = i.module.as_ref().map_or("", |m| m.as_str());
                 if i.level != 0 {
                     self.out.imports.push((module.to_owned(), i.range));
-                } else if let Some(m) = vetted_module(module) {
-                    self.out
-                        .vetted_imports
-                        .push(module.split('.').next().unwrap_or(module).to_owned());
-                    for a in &i.names {
-                        let bound_name = a.asname.as_ref().map_or(a.name.as_str(), |n| n.as_str());
-                        match module_attribute(m, a.name.as_str()) {
-                            Some(b) if a.name.as_str() != "*" => {
-                                self.bound.insert(bound_name.to_owned(), b);
-                            }
-                            _ => {
-                                self.bound.remove(bound_name);
-                                self.other(a.range);
-                            }
-                        }
-                    }
-                } else if module == "java"
+                } else if vetted_module(module).is_some()
+                    || module == "java"
                     || module.starts_with("java.")
                     || module.starts_with("javax")
                 {
+                    if vetted_module(module).is_some() {
+                        self.out
+                            .vetted_imports
+                            .push(module.split('.').next().unwrap_or(module).to_owned());
+                    }
                     for a in &i.names {
-                        let bound_name = a.asname.as_ref().map_or(a.name.as_str(), |n| n.as_str());
-                        match java_class(module, a.name.as_str()) {
-                            Some(q) => {
-                                self.bound
-                                    .insert(bound_name.to_owned(), Bound::JavaClass(q));
-                            }
-                            None => {
-                                self.bound.remove(bound_name);
-                                self.other(a.range);
-                            }
+                        if from_import_bound(i, a) == Bound::Unknown {
+                            self.other(a.range);
                         }
                     }
                 } else {
@@ -625,7 +752,10 @@ impl<'a> Visitor<'a> for Walk {
                     // `java.util.ArrayList` needs an import, already
                     // flagged.)
                     if let Expr::Name(n) = base
-                        && matches!(self.bound.get(&*n.id), Some(Bound::JavaClass(_)))
+                        && self
+                            .candidates(n)
+                            .iter()
+                            .any(|b| matches!(b, Bound::JavaClass(_)))
                     {
                         self.other(n.range);
                     }
@@ -644,16 +774,14 @@ impl<'a> Visitor<'a> for Walk {
                 }
             }
             Expr::Name(n) if n.ctx == ExprContext::Load => {
-                match self.bound.get(&*n.id) {
-                    // A module object used as a value: what is read from
-                    // it later is not checked.
-                    Some(Bound::Module(_)) => self.other(n.range),
-                    Some(_) => {}
-                    None => {
-                        if iglint_stubs::is_jython_builtin(&n.id) && !builtin_vetted(&n.id) {
-                            self.other(n.range);
-                        }
-                    }
+                // A module object used as a value: what is read from it
+                // later is not checked. A binding that is not vetted.
+                if self
+                    .candidates(n)
+                    .iter()
+                    .any(|b| matches!(b, Bound::Module(_) | Bound::Unknown))
+                {
+                    self.other(n.range);
                 }
                 return;
             }
@@ -670,7 +798,14 @@ mod tests {
     fn unknown(src: &str) -> UnknownCode {
         let parsed = iglint_python::parse_module(src);
         assert!(parsed.errors.is_empty(), "{src}");
-        unknown_code(&parsed.module.body)
+        let model = SemanticModel::build(
+            &parsed.module,
+            &crate::SemanticOptions {
+                injected: vec!["system", "fpmi", "sys", "__builtins__"],
+                unknown_globals: false,
+            },
+        );
+        unknown_code(&model)
     }
 
     #[test]
@@ -757,6 +892,116 @@ mod tests {
             "import os.path\nx = os.path.sys\n",
         ] {
             assert!(!unknown(src).is_empty(), "{src}");
+        }
+    }
+
+    /// All orders of `stmts`, at module level and inside a function.
+    fn arrangements(stmts: &[&str]) -> Vec<String> {
+        fn permute(rest: Vec<&str>, done: Vec<&str>, out: &mut Vec<Vec<String>>) {
+            if rest.is_empty() {
+                out.push(done.iter().map(|s| (*s).to_owned()).collect());
+                return;
+            }
+            for i in 0..rest.len() {
+                let mut r = rest.clone();
+                let s = r.remove(i);
+                let mut d = done.clone();
+                d.push(s);
+                permute(r, d, out);
+            }
+        }
+        let mut orders = Vec::new();
+        permute(stmts.to_vec(), Vec::new(), &mut orders);
+        let mut out = Vec::new();
+        for order in orders {
+            let module = order.join("\n") + "\n";
+            let mut nested = String::from("def wrapper():\n");
+            for line in module.lines() {
+                nested.push_str("    ");
+                nested.push_str(line);
+                nested.push('\n');
+            }
+            nested.push_str("wrapper()\n");
+            out.push(module);
+            out.push(nested);
+        }
+        out
+    }
+
+    /// Reviewer round 8 (Codex) blocker: the verdict must not depend on the
+    /// order in which the walk meets bindings. A function defined before
+    /// `import re` reads the module `re` when it runs. Every permutation of
+    /// the top-level statements, and the same code moved into a function,
+    /// must stay unknown.
+    #[test]
+    fn verdict_does_not_depend_on_statement_order() {
+        let exploits: &[&[&str]] = &[
+            &[
+                "def capture():\n    return re.sys.modules['__builtin__']",
+                "import re",
+                "def target():\n    import math\n    print capture().eval('math.pi')",
+                "target()",
+            ],
+            &["def f():\n    return json", "import json"],
+            &[
+                "def f():\n    return calendar.sys",
+                "import calendar",
+                "f()",
+            ],
+            &["def f():\n    return r.sys", "import re as r"],
+            &["def f():\n    return s.Formatter()", "import string as s"],
+            &["def f():\n    return os.system('x')", "import os"],
+            &[
+                "def f():\n    S.loadLibrary('x')",
+                "from java.lang import System as S",
+            ],
+            &[
+                "def f():\n    class B(L):\n        pass\n    return B",
+                "from java.util import ArrayList as L",
+            ],
+            &[
+                "def h():\n    global re\n    import re",
+                "def g():\n    return re.sys",
+            ],
+            &["x = re.sys", "import re", "re = 1"],
+            &["class C:\n    y = re.sys\n    import re", "pass"],
+            &[
+                "def outer():\n    def inner():\n        return re.sys\n    import re\n    return inner",
+                "pass",
+            ],
+            &[
+                "def f():\n    return capture()",
+                "capture = re.sys",
+                "import re",
+            ],
+        ];
+        for stmts in exploits {
+            for src in arrangements(stmts) {
+                assert!(!unknown(&src).is_empty(), "not unknown:\n{src}");
+            }
+        }
+        // A module-level rebinding of Ignition's injected `sys` does not
+        // hide it from code that may run first (inside a function, `sys`
+        // would be a closure variable instead).
+        for src in [
+            "def f():\n    return sys.modules\nsys = 1\n",
+            "sys = 1\ndef f():\n    return sys.modules\n",
+        ] {
+            assert!(!unknown(src).is_empty(), "{src}");
+        }
+        let plain: &[&[&str]] = &[
+            &["def f():\n    return math.sqrt(2)", "import math", "f()"],
+            &[
+                "def f():\n    return D(1)",
+                "from decimal import Decimal as D",
+                "x = f()",
+            ],
+            &["def f():\n    re = 1\n    return re.sys", "import math"],
+        ];
+        for stmts in plain {
+            for src in arrangements(stmts) {
+                assert!(unknown(&src).is_empty(), "unknown:\n{src}");
+            }
         }
     }
 

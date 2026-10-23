@@ -91,7 +91,7 @@ pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols 
             range: first.range,
         });
     }
-    let unknown = iglint_python_semantic::vetted::unknown_code(&ast.body);
+    let unknown = iglint_python_semantic::vetted::unknown_code(model);
     ModuleSymbols {
         symbols,
         dynamic,

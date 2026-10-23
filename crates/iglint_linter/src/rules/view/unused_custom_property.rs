@@ -1499,6 +1499,38 @@ mod tests {
         );
     }
 
+    /// Reviewer round 8 (Codex) blocker: a view script that defines
+    /// `capture()` before `import re` reaches `eval` through `re.sys`; the
+    /// vetting verdict must not depend on that order.
+    #[test]
+    fn functions_before_imports_are_vetted() {
+        for script in [
+            "\\tdef capture():\\n\\t\\treturn re.sys.modules['__builtin__']\\n\\timport re\\n\\tcapture().eval('self.view.custom.a')",
+            "\\timport re\\n\\tdef capture():\\n\\t\\treturn re.sys.modules['__builtin__']\\n\\tcapture().eval('self.view.custom.a')",
+        ] {
+            let d = with_library(script, &[]);
+            assert!(
+                !d.is_empty()
+                    && d.iter().all(|d| d
+                        .fix
+                        .as_ref()
+                        .is_none_or(|f| f.applicability == crate::Applicability::Unsafe)),
+                "a safe fix survived: {script}\n{d:?}"
+            );
+        }
+        // A library module whose function precedes its import.
+        let d = with_library(
+            "\\tlib.util.log('x')",
+            &[("lib/util", "def log(m):\n    return re.sys\nimport re\n")],
+        );
+        assert!(
+            !d.is_empty()
+                && d.iter()
+                    .all(|d| d.fix.as_ref().unwrap().applicability == crate::Applicability::Unsafe),
+            "{d:?}"
+        );
+    }
+
     #[test]
     fn fix_is_unsafe_for_written_properties() {
         let v = view(

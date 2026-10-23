@@ -1264,6 +1264,45 @@ mod tests {
         assert_eq!(fixed, "import cPickle\nx = cPickle.dumps(1)\n");
     }
 
+    /// Reviewer round 8 (Codex) blocker: vetting resolved names in the
+    /// order the walk met them, so a function defined before `import re`
+    /// read `re.sys` unseen and `import math` was removed by a safe fix
+    /// (Jython: `3.14159265359` before the fix, `NameError` after). The
+    /// verdict is now order-free; the same code in another library module
+    /// makes the fix of a clean module unsafe too (closed world).
+    #[test]
+    fn functions_before_imports_are_vetted() {
+        use crate::diagnostic::Applicability::{Safe, Unsafe};
+        let exploit = "def capture():\n    return re.sys.modules['__builtin__']\nimport re\ndef target():\n    import math\n    print capture().eval('math.pi')\ntarget()\n";
+        let f = library("m", exploit);
+        let d = f.lint(&["SCR102"]);
+        assert_eq!(applicability(&d), [Some(Unsafe)], "{d:?}");
+        let fixed = safe_fixed(&f, &["SCR102"], &library_path(&f, "m"));
+        assert_eq!(fixed, exploit);
+        // Nested: the import comes after the inner function, in the outer.
+        let nested = "def outer():\n    def capture():\n        return re.sys.modules['__builtin__']\n    import re\n    def target():\n        import math\n        print capture().eval('math.pi')\n    target()\n";
+        let d = library("m", nested).lint(&["SCR102"]);
+        assert_eq!(applicability(&d), [Some(Unsafe)], "{d:?}");
+        // Workspace propagation: a clean module next to the exploit.
+        let clean = "def g():\n    import os\n    return 1\n";
+        assert_eq!(
+            applicability(&library("c", clean).lint(&["SCR102"])),
+            [Some(Safe)]
+        );
+        let f = with_library(library("c", clean), "m", exploit);
+        let d: Vec<_> = f
+            .lint(&["SCR102"])
+            .into_iter()
+            .filter(|d| d.message.contains("`os`"))
+            .collect();
+        assert_eq!(applicability(&d), [Some(Unsafe)], "{d:?}");
+        // Control: without the capture, the same import is removed safely.
+        let benign =
+            "import re\ndef target():\n    import math\n    print re.escape('a')\ntarget()\n";
+        let f = library("m", benign);
+        assert_eq!(applicability(&f.lint(&["SCR102"])), [Some(Safe)]);
+    }
+
     /// Two deletions that together promote a string to a docstring in a
     /// view script: the safe-fix net keeps the second import (reviewer
     /// repro R6-E2).

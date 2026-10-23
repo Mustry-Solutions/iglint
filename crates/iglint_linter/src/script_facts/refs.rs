@@ -54,7 +54,7 @@ pub fn collect(model: &SemanticModel<'_>, ctx: &FactsContext<'_>, refs: &mut Ref
         }
         dynamic_code(model, ctx, &site.callee, site.call, refs);
     }
-    let unknown = iglint_python_semantic::vetted::unknown_code(body);
+    let unknown = iglint_python_semantic::vetted::unknown_code(model);
     // A script that can read a frame or the interpreter (eval, `locals`,
     // reflection, an introspection attribute, cPickle of an `eval` opcode)
     // is unknown code for the closed-world check: through the shared

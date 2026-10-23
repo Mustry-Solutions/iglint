@@ -276,3 +276,36 @@ fn every_discovered_file_is_linted() {
         "not linted: {missing:#?}\nstdout:\n{stdout}\nstderr:\n{stderr}"
     );
 }
+
+/// Reviewer round 8 (Codex) blocker, through the command line: a function
+/// defined before `import re` reaches `eval` through `re.sys`, so `--fix`
+/// must keep `import math` (Jython prints `3.14159265359` before and raises
+/// `NameError` after removing it). Without the capture the safe fix runs.
+#[test]
+fn fix_keeps_imports_read_by_functions_defined_before_an_unvetted_import() {
+    let exploit = "def capture():\n    return re.sys.modules['__builtin__']\nimport re\ndef target():\n    import math\n    print capture().eval('math.pi')\ntarget()\n";
+    let benign = "import re\ndef target():\n    import math\n    print re.escape('a')\ntarget()\n";
+    for (code, removed) in [(exploit, false), (benign, true)] {
+        let dir = tempfile::tempdir().unwrap();
+        let module = dir.path().join("p/ignition/script-python/m");
+        std::fs::create_dir_all(&module).unwrap();
+        std::fs::write(
+            dir.path().join("p/project.json"),
+            r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            module.join("resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        )
+        .unwrap();
+        std::fs::write(module.join("code.py"), code).unwrap();
+        iglint(dir.path())
+            .args(["--no-cache", "--fix", "--select", "SCR102"])
+            .assert()
+            .stderr("");
+        let after = std::fs::read_to_string(module.join("code.py")).unwrap();
+        assert_eq!(!after.contains("import math"), removed, "{after}");
+        assert_eq!(after.lines().count(), code.lines().count(), "{after}");
+    }
+}

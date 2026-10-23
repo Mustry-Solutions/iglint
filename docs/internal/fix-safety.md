@@ -64,8 +64,18 @@ Three mechanisms carry it:
    vetted per module, and the Java member names that reach reflection, are
    not hand lists: they are measured inside the Ignition image (see
    "Machine-measured facts" below). Subclassing a Java class is not plain
-   (its instances are Java-backed). Findings are not affected: only the
-   fixes become unsafe.
+   (its instances are Java-backed). Names are resolved through the
+   semantic model's scopes, flow-insensitively: a use may stand for every
+   binding of the name in the scope it resolves to, whatever the textual
+   order (a function defined before `import re` reads the module `re`
+   when it runs), plus the injected name or builtin where Python looks
+   further at run time (module and class bodies, `global` names). A use
+   is unknown when any of those bindings is not vetted; a name the model
+   cannot resolve, or that resolves dynamically (`import *`, `exec`), is
+   unknown. `verdict_does_not_depend_on_statement_order` checks every
+   permutation of the top-level statements of each known exploit, at
+   module level and inside a function. Findings are not affected: only
+   the fixes become unsafe.
 2. **The default-deny walkers.** Within vetted code, the access analysis of
    `VIEW015` and `NAME001` (`script_facts/access.rs`) enumerates the
    understood uses of components and properties and treats every other

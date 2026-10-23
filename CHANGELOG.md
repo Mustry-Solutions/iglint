@@ -46,6 +46,13 @@ from 0.1.0 on.
 
 ### Fixed
 
+- The vetted-code guard resolves names through the semantic model's
+  scopes, flow-insensitively, instead of in the order its walk met the
+  imports. A function defined before `import re` that reads `re.sys` (and
+  from there `eval`) was not seen, so SCR102 removed an import that code
+  read by name and VIEW015 removed a property; now every binding of a name
+  in the scope it resolves to counts, a single unvetted one makes the use
+  unknown, and names the model cannot resolve fail closed.
 - SCR002 reports a `yield` inside a list comprehension, or in the first
   iterable of a set or dict comprehension: Jython's compiler crashes on it
   (`java.lang.VerifyError`). The exact crashing and compiling forms were
