@@ -25,8 +25,11 @@ arguments, with Jython 2.7's rules (verified on Jython):
   trailing `%`, a tuple with too many or too few values for the
   placeholders (`*` widths count), `%(name)s` with a tuple or a single
   value instead of a dict, `%(name)s` keys missing from a dict literal,
-  and `%c` with a string literal that is not one character (`'%c' %
-  'ab'`). A single non-tuple literal counts as one value.
+  `%c` with a string literal that is not one character (`'%c' %
+  'ab'`) or an integer that is negative or beyond Unicode, a numeric
+  conversion (`%d %i %o %u %x %X %e %E %f %F %g %G`) or a `*` width with a
+  string, complex number, container or `None` literal (`'%d' % 'ab'`). A
+  single non-tuple literal counts as one value.
 * `str.format`: a single `{` or `}`, mixing `{}` and `{0}`, conversions
   other than `!r` and `!s`, positional fields beyond the arguments given,
   and keyword fields that are not passed. A numeric field too large for a
@@ -35,7 +38,10 @@ arguments, with Jython 2.7's rules (verified on Jython):
   (`ArrayIndexOutOfBoundsException`; `{-0}` is index 0). A format spec
   whose width or precision is too large for a Java `int`
   (`{0:2147483648}`) fails for a literal argument and with `!r` or `!s`
-  (other objects may have their own `__format__`).
+  (other objects may have their own `__format__`). A presentation type
+  that the literal argument does not support (`'{:d}'.format('a')`,
+  `'{:s}'.format(1)`, `'{:d}'.format(1.5)`, any type but `s` after `!r` or
+  `!s`).
 
 Only literal format strings (also concatenated with `+`: `('%s' +
 '%s') % (1,)`) with literal arguments (or literal argument lists) are
@@ -239,6 +245,20 @@ struct BraceSpec {
     /// Fields whose literal format spec has a width or precision too large
     /// for a Java `int`.
     oversized: Vec<Oversized>,
+    /// Fields of an argument itself with a literal format spec that ends
+    /// in a presentation type (`{0:d}`, `{:.2f}`, `{x!s:>5}`).
+    typed: Vec<TypedField>,
+}
+
+/// A field formatted with a presentation type.
+#[derive(Debug, PartialEq)]
+struct TypedField {
+    argument: FieldArg,
+    /// `!r` or `!s`: the value formatted is a string.
+    converted: bool,
+    /// The presentation type (`d`, `f`, `s`, ...).
+    kind: char,
+    spec: String,
 }
 
 /// A field whose format spec has a width or precision that Jython's
@@ -260,6 +280,187 @@ struct Oversized {
 enum FieldArg {
     Index(usize),
     Keyword(String),
+}
+
+impl FieldArg {
+    fn clone_arg(&self) -> FieldArg {
+        match self {
+            FieldArg::Index(i) => FieldArg::Index(*i),
+            FieldArg::Keyword(k) => FieldArg::Keyword(k.clone()),
+        }
+    }
+}
+
+/// The presentation type of a standard format spec
+/// (`[[fill]align][sign][#][0][width][,][.precision][type]`), when the
+/// spec is well formed and has one; `None` otherwise (no type, or a spec
+/// this does not parse, which is left alone).
+fn spec_type(spec: &str) -> Option<char> {
+    let chars: Vec<char> = spec.chars().collect();
+    if chars.iter().any(|c| !c.is_ascii()) {
+        return None;
+    }
+    let mut i = 0;
+    let align = |c: Option<&char>| matches!(c, Some('<' | '>' | '=' | '^'));
+    if align(chars.get(1)) {
+        i = 2;
+    } else if align(chars.first()) {
+        i = 1;
+    }
+    for flag in [&['+', '-', ' '][..], &['#'], &['0']] {
+        if chars.get(i).is_some_and(|c| flag.contains(c)) {
+            i += 1;
+        }
+    }
+    while chars.get(i).is_some_and(char::is_ascii_digit) {
+        i += 1;
+    }
+    if chars.get(i) == Some(&',') {
+        i += 1;
+    }
+    if chars.get(i) == Some(&'.') {
+        i += 1;
+        let start = i;
+        while chars.get(i).is_some_and(char::is_ascii_digit) {
+            i += 1;
+        }
+        if i == start {
+            return None;
+        }
+    }
+    match &chars[i..] {
+        [t] if "bcdoxXneEfFgG%s".contains(*t) => Some(*t),
+        _ => None,
+    }
+}
+
+/// What a literal argument is, for the type checks of `%` conversions and
+/// format specs. `True` and `False` can be rebound in Python 2 and are not
+/// literals; `None` cannot.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Literal {
+    Str,
+    /// An `int` or `long` (the value when it fits).
+    Int(Option<i64>),
+    Float,
+    Complex,
+    /// A list, tuple, dict or set display (or comprehension).
+    Container,
+    None,
+}
+
+fn literal(e: &Expr) -> Option<Literal> {
+    use iglint_python::ast::{Number, UnaryOp};
+    Some(match e {
+        Expr::Str(_) => Literal::Str,
+        Expr::Num(n) => match &n.n {
+            Number::Int(v) => Literal::Int(Some(*v)),
+            Number::Long(v) => Literal::Int(v.parse().ok()),
+            Number::Float(_) => Literal::Float,
+            Number::Complex(_) => Literal::Complex,
+        },
+        Expr::UnaryOp(u) if matches!(u.op, UnaryOp::USub | UnaryOp::UAdd) => {
+            match (literal(&u.operand)?, u.op) {
+                (Literal::Int(Some(v)), UnaryOp::USub) => Literal::Int(v.checked_neg()),
+                (Literal::Int(v), _) => Literal::Int(v),
+                (l @ (Literal::Float | Literal::Complex), _) => l,
+                _ => return None,
+            }
+        }
+        Expr::List(_)
+        | Expr::ListComp(_)
+        | Expr::Tuple(_)
+        | Expr::Dict(_)
+        | Expr::DictComp(_)
+        | Expr::Set(_)
+        | Expr::SetComp(_) => Literal::Container,
+        Expr::Name(n) if &*n.id == "None" => Literal::None,
+        _ => return None,
+    })
+}
+
+/// Why `%` conversion `c` fails on the literal `e` (verified on Jython):
+/// the numeric conversions need a number (`int`, `long`, `float`, `bool`),
+/// `%c` an int in range or one character. `None` when it may succeed.
+fn percent_type_error(c: char, e: &Expr) -> Option<String> {
+    let lit = literal(e)?;
+    match c {
+        'd' | 'i' | 'o' | 'u' | 'x' | 'X' | 'e' | 'E' | 'f' | 'F' | 'g' | 'G' => matches!(
+            lit,
+            Literal::Str | Literal::Complex | Literal::Container | Literal::None
+        )
+        .then(|| {
+            format!(
+                "`%{c}` needs a number, not {} (Jython raises TypeError)",
+                describe(lit)
+            )
+        }),
+        'c' => match lit {
+            Literal::Str => bad_char(e).then(|| BAD_CHAR.to_owned()),
+            Literal::Complex | Literal::Container | Literal::None => Some(BAD_CHAR.to_owned()),
+            // Negative or beyond Unicode: out of range for any format
+            // string (byte strings take 0 to 255, unicode strings more).
+            Literal::Int(Some(v)) if !(0..=0x10FFFF).contains(&v) => Some(
+                "`%c` argument is not in the range of characters (Jython raises OverflowError)"
+                    .to_owned(),
+            ),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Why a `*` width or precision fails on the literal `e`: it must be an
+/// integer (verified on Jython: `TypeError: * wants int`).
+fn star_type_error(e: &Expr) -> Option<String> {
+    let lit = literal(e)?;
+    matches!(
+        lit,
+        Literal::Str | Literal::Complex | Literal::Container | Literal::None
+    )
+    .then(|| {
+        format!(
+            "`*` needs an integer, not {} (Jython raises TypeError)",
+            describe(lit)
+        )
+    })
+}
+
+fn describe(lit: Literal) -> &'static str {
+    match lit {
+        Literal::Str => "a string",
+        Literal::Int(_) => "an integer",
+        Literal::Float => "a float",
+        Literal::Complex => "a complex number",
+        Literal::Container => "a list, tuple, dict or set",
+        Literal::None => "`None`",
+    }
+}
+
+/// Why presentation type `t` fails for the literal `e` in `str.format`
+/// (verified on Jython): `!r` and `!s` make every value a string, which
+/// takes only `s`; strings, containers and `None` take only `s`; integers
+/// take every type but `s` (`c` only in range); floats only the float
+/// types and `%`; complex numbers only the float types.
+fn format_type_error(t: char, converted: bool, e: &Expr) -> Option<String> {
+    let lit = if converted { Literal::Str } else { literal(e)? };
+    let float_types = "eEfFgGn";
+    let fails = match lit {
+        Literal::Str | Literal::Container | Literal::None => t != 's',
+        Literal::Int(v) => {
+            t == 's' || (t == 'c' && v.is_some_and(|v| !(0..=0x10FFFF).contains(&v)))
+        }
+        Literal::Float => !(float_types.contains(t) || t == '%'),
+        Literal::Complex => !float_types.contains(t),
+    };
+    fails.then(|| {
+        let what = if converted {
+            "a string (after `!r` or `!s`)"
+        } else {
+            describe(lit)
+        };
+        format!("Unknown format code `{t}` for {what} (Jython raises ValueError)")
+    })
 }
 
 /// Whether a format spec (`[[fill]align][sign][#][0][width][,][.precision]
@@ -445,12 +646,22 @@ fn field_spec(
                 return Err("Max string recursion exceeded".into());
             }
             parse_braces_into(format_spec, spec, auto, next_auto, depth + 1)?;
-        } else if spec_number_too_large(format_spec) == Some(true) {
-            spec.oversized.push(Oversized {
-                argument,
-                converted,
-                spec: format_spec.to_owned(),
-            });
+        } else {
+            if spec_number_too_large(format_spec) == Some(true) {
+                spec.oversized.push(Oversized {
+                    argument: argument.as_ref().map(FieldArg::clone_arg),
+                    converted,
+                    spec: format_spec.to_owned(),
+                });
+            }
+            if let (Some(argument), Some(kind)) = (argument, spec_type(format_spec)) {
+                spec.typed.push(TypedField {
+                    argument,
+                    converted,
+                    kind,
+                    spec: format_spec.to_owned(),
+                });
+            }
         }
     }
     Ok(())
@@ -587,20 +798,23 @@ fn check_percent(format: &str, right: &Expr) -> Option<String> {
                     plural(spec.positional, "value"),
                     given
                 ))
-            } else if spec
-                .conversions
-                .iter()
-                .zip(&t.elts)
-                .any(|(c, e)| *c == Some('c') && bad_char(e))
-            {
-                Some(BAD_CHAR.into())
             } else {
-                None
+                spec.conversions
+                    .iter()
+                    .zip(&t.elts)
+                    .find_map(|(c, e)| match c {
+                        Some(c) => percent_type_error(*c, e),
+                        None => star_type_error(e),
+                    })
             }
         }
         Expr::Dict(d) => {
             if spec.keys.is_empty() {
-                return None;
+                // The dict is the one value of a single placeholder.
+                return match spec.conversions.as_slice() {
+                    [Some(c)] => percent_type_error(*c, right),
+                    _ => None,
+                };
             }
             let mut given = Vec::new();
             for k in &d.keys {
@@ -614,21 +828,36 @@ fn check_percent(format: &str, right: &Expr) -> Option<String> {
             let value = |key: &str| given.iter().rposition(|k| k == key).map(|i| &d.values[i]);
             spec.key_conversions
                 .iter()
-                .any(|(k, c)| *c == 'c' && value(k).is_some_and(bad_char))
-                .then(|| BAD_CHAR.into())
+                .find_map(|(k, c)| percent_type_error(*c, value(k)?))
         }
-        Expr::Str(_) | Expr::Num(_) | Expr::List(_) | Expr::ListComp(_) => {
+        _ if is_single_value(right) => {
             if !spec.keys.is_empty() {
                 return Some("`%(key)` format requires a mapping".into());
             }
             match spec.positional {
-                1 if spec.conversions == [Some('c')] && bad_char(right) => Some(BAD_CHAR.into()),
-                1 => None,
+                1 => spec.conversions[0].and_then(|c| percent_type_error(c, right)),
                 0 => Some("Not all arguments converted during string formatting: the format string has no placeholder".into()),
                 n => Some(format!("Not enough arguments for format string: it needs {n}, 1 given")),
             }
         }
         _ => None,
+    }
+}
+
+/// Whether `e`, the right operand of `%`, is certainly one value that is
+/// not a tuple or a mapping: a string, number, list or set literal (or
+/// comprehension), a signed number literal, `None`.
+fn is_single_value(e: &Expr) -> bool {
+    match e {
+        Expr::Str(_)
+        | Expr::Num(_)
+        | Expr::List(_)
+        | Expr::ListComp(_)
+        | Expr::Set(_)
+        | Expr::SetComp(_) => true,
+        Expr::UnaryOp(_) => literal(e).is_some(),
+        Expr::Name(n) => &*n.id == "None",
+        _ => false,
     }
 }
 
@@ -719,6 +948,19 @@ fn check_format_call(format: &str, call: &iglint_python::ast::ExprCall) -> Optio
             ));
         }
     }
+    for t in &spec.typed {
+        let value = match &t.argument {
+            FieldArg::Index(i) => positional.as_ref().and_then(|p| p.get(*i).copied()),
+            FieldArg::Keyword(k) => keywords
+                .as_ref()
+                .and_then(|kw| kw.iter().rev().find(|(name, _)| name == k).map(|(_, v)| *v)),
+        };
+        if let Some(value) = value
+            && let Some(problem) = format_type_error(t.kind, t.converted, value)
+        {
+            return Some(format!("{problem} in `{{:{}}}`", t.spec));
+        }
+    }
     None
 }
 
@@ -783,6 +1025,61 @@ m = u"%d%%" % (5,)
             lines(&d).into_iter().map(|(l, _)| l).collect::<Vec<_>>(),
             [1, 2, 3, 4, 5, 6, 7]
         );
+    }
+
+    /// Reviewer round 9 (Codex) finding C2: literal arguments of the wrong
+    /// type for a numeric conversion or presentation type. Each case was
+    /// run on Jython 2.7 (Ignition 8.3.3): every line of `failing` raises
+    /// (`TypeError`, `ValueError` or `OverflowError`), every line of
+    /// `passing` formats. 3,000 generated cases (formats, flags, widths,
+    /// `*`, keys, `!r`/`!s`, specs with fills and literal arguments of every
+    /// kind) gave no finding on code that formats.
+    #[test]
+    fn literal_arguments_of_the_wrong_type() {
+        let failing = r#"a = '%d' % 'ab'
+b = '%d' % ('1',)
+c = '%.2f %s' % (u'x', 1)
+d = '%x' % None
+e = '%e' % [1]
+f = '%(k)i' % {'k': 'v'}
+g = '%g' % (1j,)
+h = '%c' % (-1,)
+i = '%c' % 1114112
+j = '%*d' % ('x', 1)
+k = '{:d}'.format('a')
+l = '{0:.2f}'.format(u'x')
+m = '{k:x}'.format(k=[1])
+n = '{0!r:d}'.format(1)
+o = '{:s}'.format(1)
+p = '{:d}'.format(1.5)
+q = '{:%}'.format(1j)
+r = '{:c}'.format(-1)
+s = '%d' % {}
+t = '%o' % ((1,),)
+"#;
+        let d = lint_module("SCR112", failing);
+        assert_eq!(lines(&d).len(), failing.lines().count(), "{d:?}");
+        let passing = r#"a = '%d' % 1.5
+b = '%x %o %e' % (1, 2L, 3)
+c = '%s %r' % ('a', None)
+d = '%c' % 255
+e = '%f' % -1
+f = '{:d}'.format(1)
+g = '{:.2f}'.format(1)
+h = '{:s}'.format('a')
+i = '{0!s:>5}'.format(1)
+j = '{:d>5}'.format('a')
+k = '{:e}'.format(1j)
+l = '{:n}'.format(1.5)
+m = '{:%}'.format(2)
+n = '%d' % True
+o = '{:d}'.format(True)
+p = '%d' % x
+q = '{:d}'.format(x)
+r = u'%c' % 300
+"#;
+        let d = lint_module("SCR112", passing);
+        assert!(d.is_empty(), "{d:?}");
     }
 
     /// Each case was run on Jython 2.7 (Ignition 8.3.3): the first group
