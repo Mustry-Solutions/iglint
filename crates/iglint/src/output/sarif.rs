@@ -123,6 +123,36 @@ pub(super) fn sarif(report: &Report<'_>, out: &mut dyn Write) -> io::Result<()> 
                     })
                     .collect();
             }
+            if let Some(reason) = diagnostic
+                .fix
+                .as_ref()
+                .and_then(|f| f.unsafe_reason.as_ref())
+            {
+                // Why the fix is unsafe, at the code that makes it so.
+                let mut related = json!({
+                    "message": {
+                        "text": format!(
+                            "the fix is unsafe because {}",
+                            reason.describe(|p| report.display_path(p))
+                        )
+                    },
+                });
+                if let Some(site) = &reason.site {
+                    related["physicalLocation"] = json!({
+                        "artifactLocation": artifact_location(report, &site.path),
+                        "region": { "startLine": site.line, "startColumn": site.column },
+                    });
+                }
+                let list = result
+                    .as_object_mut()
+                    .expect("a result is an object")
+                    .entry("relatedLocations")
+                    .or_insert_with(|| json!([]));
+                if let Some(list) = list.as_array_mut() {
+                    related["id"] = json!(list.len());
+                    list.push(related);
+                }
+            }
             if let Some(fixes) = fixes(report, diagnostic) {
                 result["fixes"] = fixes;
             }

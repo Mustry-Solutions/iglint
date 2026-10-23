@@ -469,15 +469,14 @@ impl ViewRule for UnusedCustomProperty {
             // property and the view proves it unused without following
             // values into library functions (code outside the view, which
             // other resources or run-time changes can invalidate).
-            let interprocedural = unchecked
-                || local.is_read(i, def)
-                || local.is_written(i, def)
-                || *unknown_code.get_or_insert_with(|| {
-                    crate::rules::vetting::unit_uses_unknown_code(cx)
-                        // Closed world: unknown code anywhere in the shared
-                        // runtime may read this property by name.
-                        || crate::rules::vetting::workspace_has_unknown_code(cx)
-                });
+            // Code that is not vetted in the view's scripts, or (closed
+            // world) anywhere in the shared runtime, may read this property
+            // by name.
+            let vetting = unknown_code
+                .get_or_insert_with(|| crate::rules::vetting::unit_reason(cx))
+                .clone();
+            let interprocedural =
+                unchecked || local.is_read(i, def) || local.is_written(i, def) || vetting.is_some();
             let fix = match def.category {
                 PropCategory::Custom => fix(
                     cx,
@@ -485,7 +484,8 @@ impl ViewRule for UnusedCustomProperty {
                     file,
                     def,
                     usage.is_written(i, def) || interprocedural,
-                ),
+                )
+                .map(|f| f.because(vetting)),
                 PropCategory::Params => None,
             };
             let message = if usage.is_written(i, def) {
@@ -1517,6 +1517,13 @@ mod tests {
                         .is_none_or(|f| f.applicability == crate::Applicability::Unsafe)),
                 "a safe fix survived: {script}\n{d:?}"
             );
+            // Each unsafe fix says why: the view script's `re.sys`.
+            for d in &d {
+                let reason = d.fix.as_ref().unwrap().unsafe_reason.as_ref().unwrap();
+                let site = reason.site.as_ref().unwrap();
+                assert_eq!(site.what, "re.sys", "{reason:?}");
+                assert!(site.path.ends_with("view.json"), "{reason:?}");
+            }
         }
         // A library module whose function precedes its import.
         let d = with_library(

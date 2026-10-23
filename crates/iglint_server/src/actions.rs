@@ -54,10 +54,20 @@ impl Server {
                     && let Some(edit) = self.quick_fix_edit(&uri, &path, folder, d)
                 {
                     let safe = fix.applicability == Applicability::Safe;
-                    let title = if safe {
-                        format!("{}: {}", d.rule.code(), fix.message)
-                    } else {
-                        format!("{}: {} (unsafe)", d.rule.code(), fix.message)
+                    let root = self.folders[folder].root.clone();
+                    let title = match (&fix.unsafe_reason, safe) {
+                        (_, true) => format!("{}: {}", d.rule.code(), fix.message),
+                        (Some(reason), false) => format!(
+                            "{}: {} (unsafe: {})",
+                            d.rule.code(),
+                            fix.message,
+                            reason.describe(|p| {
+                                iglint_linter::discovery::slash_path(
+                                    p.strip_prefix(&root).unwrap_or(p),
+                                )
+                            })
+                        ),
+                        (None, false) => format!("{}: {} (unsafe)", d.rule.code(), fix.message),
                     };
                     actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                         title,

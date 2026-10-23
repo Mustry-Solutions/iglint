@@ -309,3 +309,80 @@ fn fix_keeps_imports_read_by_functions_defined_before_an_unvetted_import() {
         assert_eq!(after.lines().count(), code.lines().count(), "{after}");
     }
 }
+
+/// Reviewer round 8, finding 2: an unsafe fix says why and where, in
+/// every output format, and the closed-world site stays current when the
+/// finding comes from the cache.
+#[test]
+fn unsafe_fixes_name_the_code_that_makes_them_unsafe() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = dir.path().join("p/ignition/script-python");
+    std::fs::create_dir_all(dir.path().join("p")).unwrap();
+    std::fs::write(
+        dir.path().join("p/project.json"),
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    )
+    .unwrap();
+    for (name, code) in [
+        ("c", "def g():\n    import os\n    return 1\n"),
+        ("m", "import re\nx = re.sys\n"),
+    ] {
+        std::fs::create_dir_all(lib.join(name)).unwrap();
+        std::fs::write(
+            lib.join(name).join("resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        )
+        .unwrap();
+        std::fs::write(lib.join(name).join("code.py"), code).unwrap();
+    }
+    let run = |format: &str| -> String {
+        let out = iglint(dir.path())
+            .args([
+                "--select",
+                "SCR102",
+                "--cache-dir",
+                "cache",
+                "--output-format",
+                format,
+                "p/ignition/script-python/c/code.py",
+            ])
+            .output()
+            .unwrap();
+        String::from_utf8(out.stdout).unwrap()
+    };
+    let reason = |json: &str| -> serde_json::Value {
+        let v: serde_json::Value = serde_json::from_str(json).unwrap();
+        v[0]["fix"]["unsafe_reason"].clone()
+    };
+    let first = run("json");
+    let r = reason(&first);
+    assert_eq!(
+        r["message"],
+        "closed world: code in the workspace is not vetted or reads frames, first"
+    );
+    assert_eq!(r["what"], "re.sys");
+    assert_eq!(r["filename"], "p/ignition/script-python/m/code.py");
+    assert_eq!(r["location"]["row"], 2);
+    // Deterministic, also from the cache.
+    let second = run("json");
+    assert_eq!(second, first, "{first}\n----\n{second}");
+    let text = run("text");
+    assert!(
+        text.contains(
+            "note: the fix is unsafe because closed world: code in the workspace is not vetted \
+             or reads frames, first: `re.sys` at p/ignition/script-python/m/code.py:2:5"
+        ),
+        "{text}"
+    );
+    let sarif: serde_json::Value = serde_json::from_str(&run("sarif")).unwrap();
+    let related = &sarif["runs"][0]["results"][0]["relatedLocations"][0];
+    assert_eq!(
+        related["physicalLocation"]["artifactLocation"]["uri"],
+        "p/ignition/script-python/m/code.py"
+    );
+    assert_eq!(related["physicalLocation"]["region"]["startLine"], 2);
+    // The site moves without changing any summary: the cached finding of
+    // `c` names the new line.
+    std::fs::write(lib.join("m/code.py"), "\nimport re\nx = re.sys\n").unwrap();
+    assert_eq!(reason(&run("json"))["location"]["row"], 3);
+}

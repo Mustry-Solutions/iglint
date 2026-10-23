@@ -8,7 +8,7 @@ use iglint_text::Ranged;
 use rustc_hash::FxHashMap;
 
 use crate::checker::Checker;
-use crate::diagnostic::{Applicability, Severity};
+use crate::diagnostic::{Applicability, Severity, UnsafeReason};
 use crate::registry::{Category, FixAvailability, RuleMeta};
 use crate::rule::{Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
 use crate::rules::refs::{ExternalUse, external_use};
@@ -405,28 +405,47 @@ impl ScriptRule for UnusedImport {
         // A library name the module calls may be `eval` or `locals` under
         // another name: it reads the caller's names, imports included. Code
         // that is not vetted may read them in ways iglint does not know.
-        let mut frames = None;
+        let mut frames: Option<Option<UnsafeReason>> = None;
         for (stmt, mut unused) in unused_imports(model, library) {
             // Top-level names of a library module are its attributes: other
             // resources may use them as `pkg.mod.name`.
-            let mut applicability = if unused.iter().all(|id| removal_is_pure(cx, model, *id))
+            let plain = unused.iter().all(|id| removal_is_pure(cx, model, *id))
                 && !unused.iter().any(|id| still_referenced(model, *id))
-                && !before_future_import(&unit.parsed.module.body, stmt)
-                && !*frames.get_or_insert_with(|| {
-                    crate::rules::view::unused_custom_property::library_names_may_read_frames(
-                        cx,
-                        model,
-                        &unit.parsed.module.body,
-                    ) || crate::rules::vetting::uses_unknown_code(
-                        cx,
-                        model,
-                        &unit.parsed.module.body,
-                    )
-                    // Closed world: a frame reader anywhere in the shared
-                    // runtime can observe this import, even a function-local
-                    // one through a callback or `sys._current_frames`.
-                    || crate::rules::vetting::workspace_has_unknown_code(cx)
-                }) {
+                && !before_future_import(&unit.parsed.module.body, stmt);
+            let reason = if plain {
+                frames
+                    .get_or_insert_with(|| {
+                        let body = &unit.parsed.module.body;
+                        if crate::rules::view::unused_custom_property::library_names_may_read_frames(
+                            cx, model, body,
+                        ) {
+                            return Some(UnsafeReason {
+                                message: "the script calls a library name that may read frames"
+                                    .to_owned(),
+                                site: None,
+                                workspace: false,
+                            });
+                        }
+                        if let Some(at) = crate::rules::vetting::unknown_code_at(cx, model, body) {
+                            return Some(crate::rules::vetting::script_reason(
+                                cx,
+                                unit.file,
+                                unit.script,
+                                at,
+                            ));
+                        }
+                        // Closed world: a frame reader anywhere in the shared
+                        // runtime can observe this import, even a
+                        // function-local one through a callback or
+                        // `sys._current_frames`.
+                        crate::rules::vetting::workspace_has_unknown_code(cx)
+                            .then(crate::rules::vetting::workspace_reason)
+                    })
+                    .clone()
+            } else {
+                None
+            };
+            let mut applicability = if plain && reason.is_none() {
                 Applicability::Safe
             } else {
                 Applicability::Unsafe
@@ -478,7 +497,9 @@ impl ScriptRule for UnusedImport {
             };
             let keep_lines = applicability == Applicability::Safe;
             let edit = removal(model, text, stmt, &unused, keep_lines);
-            let fix = edit.and_then(|e| statement_fix(cx, unit, message, applicability, e));
+            let fix = edit
+                .and_then(|e| statement_fix(cx, unit, message, applicability, e))
+                .map(|f| f.because(reason));
             for id in &unused {
                 let b = model.binding(*id);
                 // The bound name, with the module when it differs
@@ -1289,6 +1310,17 @@ mod tests {
         let f = library("m", exploit);
         let d = f.lint(&["SCR102"]);
         assert_eq!(applicability(&d), [Some(Unsafe)], "{d:?}");
+        // The fix says why it is unsafe and where (reviewer round 8,
+        // finding 2).
+        let reason = d[0].fix.as_ref().unwrap().unsafe_reason.clone().unwrap();
+        assert_eq!(reason.message, "the script uses code that is not vetted");
+        assert!(!reason.workspace);
+        let site = reason.site.unwrap();
+        assert!(site.path.ends_with("m/code.py"), "{site:?}");
+        assert_eq!(
+            (site.line, site.column, site.what.as_str()),
+            (2, 12, "re.sys")
+        );
         let fixed = safe_fixed(&f, &["SCR102"], &library_path(&f, "m"));
         assert_eq!(fixed, exploit);
         // Nested: the import comes after the inner function, in the outer.
@@ -1308,6 +1340,13 @@ mod tests {
             .filter(|d| d.message.contains("`os`"))
             .collect();
         assert_eq!(applicability(&d), [Some(Unsafe)], "{d:?}");
+        // Closed world: the reason names the workspace's first unknown code.
+        let reason = d[0].fix.as_ref().unwrap().unsafe_reason.clone().unwrap();
+        assert!(reason.workspace, "{reason:?}");
+        assert!(reason.message.starts_with("closed world"), "{reason:?}");
+        let site = reason.site.unwrap();
+        assert!(site.path.ends_with("m/code.py"), "{site:?}");
+        assert_eq!((site.line, site.what.as_str()), (2, "re.sys"));
         // Control: without the capture, the same import is removed safely.
         let benign =
             "import re\ndef target():\n    import math\n    print re.escape('a')\ntarget()\n";

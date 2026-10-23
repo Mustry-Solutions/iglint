@@ -24,7 +24,7 @@
 //! | `exec '...'`, `eval('...')`, `compile('...', ...)` with literal code | the references of the code |
 //! | a non-literal view path, query path or message type | dynamic reference with the literal prefix |
 
-use iglint_project::summary::{MessageSend, MessageTarget, References};
+use iglint_project::summary::{MessageSend, MessageTarget, References, UnknownSite};
 use iglint_python::ast::{Expr, ExprContext, Slice, Stmt};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
 use iglint_python_semantic::{BindingKind, Resolution, ScopeId, SemanticModel, UnboundNames};
@@ -61,10 +61,25 @@ pub fn collect(model: &SemanticModel<'_>, ctx: &FactsContext<'_>, refs: &mut Ref
     // runtime (`sys._current_frames`, `cPickle.loads("c<module>\n...")`)
     // it may read any other module's names, so no safe fix that assumes
     // non-observability holds while it exists anywhere in the workspace.
-    refs.unknown_code |=
-        unknown.other.is_some() || iglint_python_semantic::dynamic::reads_frames(body).is_some();
-    refs.unvetted_imports
-        .extend(unknown.imports.into_iter().map(|(name, _)| name));
+    let frames = iglint_python_semantic::dynamic::reads_frames(body);
+    refs.unknown_code |= unknown.other.is_some() || frames.is_some();
+    // The first site, in the script's source; the script layer places it
+    // in the file (`UnknownSite::detached`).
+    let first = [unknown.other, frames]
+        .into_iter()
+        .flatten()
+        .min_by_key(|r| r.start());
+    if refs.unknown_site.is_none()
+        && let Some(range) = first
+    {
+        refs.unknown_site = Some(UnknownSite::detached(range));
+    }
+    refs.unvetted_imports.extend(
+        unknown
+            .imports
+            .into_iter()
+            .map(|(name, range)| (name, UnknownSite::detached(range))),
+    );
     let mut chains = Chains { model, ctx, refs };
     chains.visit_module(model.module);
     // Imports make names attributes of the importing module.
@@ -321,7 +336,16 @@ fn literal_code(ctx: &FactsContext<'_>, code: &iglint_python::ast::ExprStr, refs
         module: None,
         ..*ctx
     };
-    collect(&model, &ctx, refs);
+    // Sites inside the string are reported at the string.
+    let mut inner = References::default();
+    collect(&model, &ctx, &mut inner);
+    if let Some(site) = &mut inner.unknown_site {
+        site.range = code.range;
+    }
+    for (_, site) in &mut inner.unvetted_imports {
+        site.range = code.range;
+    }
+    refs.extend(inner);
 }
 
 /// How an attribute chain is used.

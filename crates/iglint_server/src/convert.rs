@@ -98,6 +98,27 @@ pub fn diagnostic(d: &Diagnostic, options: &ServerOptions) -> lsp_types::Diagnos
                 message: label.message.clone(),
             })
         })
+        .chain(
+            d.fix
+                .as_ref()
+                .and_then(|f| f.unsafe_reason.as_ref())
+                .and_then(|reason| {
+                    // Why the fix is unsafe, at the code that makes it so.
+                    let site = reason.site.as_ref()?;
+                    let at =
+                        Position::new(site.line.saturating_sub(1), site.column.saturating_sub(1));
+                    Some(DiagnosticRelatedInformation {
+                        location: Location {
+                            uri: uri_of(&site.path)?,
+                            range: lsp_types::Range::new(at, at),
+                        },
+                        message: format!(
+                            "the fix is unsafe because {}: `{}`",
+                            reason.message, site.what
+                        ),
+                    })
+                }),
+        )
         .collect();
     lsp_types::Diagnostic {
         range: source_range(&d.file, d.range),

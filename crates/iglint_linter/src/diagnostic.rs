@@ -157,6 +157,51 @@ pub struct Fix {
     /// statements): fixes with the same guard never delete all statements
     /// of the suite in one pass.
     pub suite: Option<SuiteGuard>,
+    /// Why the fix is unsafe when only the code around it keeps it from
+    /// being safe (code that is not vetted, or that reads a frame).
+    pub unsafe_reason: Option<UnsafeReason>,
+}
+
+/// Why a fix that would otherwise be safe is unsafe.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnsafeReason {
+    /// What keeps the fix from being safe, without the location.
+    pub message: String,
+    /// The construct and where it is.
+    pub site: Option<ReasonSite>,
+    /// The site is the first use of code that is not vetted, or that reads
+    /// a frame, in the whole workspace (the closed-world rule). It may be
+    /// in another file and is filled in after the cache, from the current
+    /// project index.
+    pub workspace: bool,
+}
+
+/// A location named by an [`UnsafeReason`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReasonSite {
+    pub path: PathBuf,
+    /// 1-based line and column (characters).
+    pub line: u32,
+    pub column: u32,
+    /// The construct, as written (one line, shortened).
+    pub what: String,
+}
+
+impl UnsafeReason {
+    /// The reason as one sentence, with the location shown by `display`.
+    pub fn describe(&self, display: impl Fn(&Path) -> String) -> String {
+        match &self.site {
+            Some(site) => format!(
+                "{}: `{}` at {}:{}:{}",
+                self.message,
+                site.what,
+                display(&site.path),
+                site.line,
+                site.column
+            ),
+            None => self.message.clone(),
+        }
+    }
 }
 
 /// The suite a statement-deleting fix removes a statement from.
@@ -170,6 +215,12 @@ pub struct SuiteGuard {
 }
 
 impl Fix {
+    /// Records why the fix is unsafe (see [`UnsafeReason`]).
+    pub fn because(mut self, reason: Option<UnsafeReason>) -> Self {
+        self.unsafe_reason = reason;
+        self
+    }
+
     /// Marks the fix as deleting a statement of the suite `guard`.
     pub fn deleting_from(mut self, guard: SuiteGuard) -> Self {
         self.suite = Some(guard);
@@ -182,6 +233,7 @@ impl Fix {
             applicability: Applicability::Safe,
             edits,
             suite: None,
+            unsafe_reason: None,
         }
     }
 
@@ -191,6 +243,7 @@ impl Fix {
             applicability: Applicability::Unsafe,
             edits,
             suite: None,
+            unsafe_reason: None,
         }
     }
 
@@ -200,6 +253,7 @@ impl Fix {
             applicability: Applicability::DisplayOnly,
             edits,
             suite: None,
+            unsafe_reason: None,
         }
     }
 }

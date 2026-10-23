@@ -9,7 +9,7 @@ use crate::library::{LibraryLookup, LibraryTree, ModuleSymbols, SymbolKind};
 use crate::perspective::match_page_url;
 use crate::summary::{
     DynamicReferences, Facts, MessageTarget, NamedQueryFacts, ResourceSummary, SessionFacts,
-    StyleClassFacts, TagFacts, ViewFacts,
+    StyleClassFacts, TagFacts, UnknownSite, ViewFacts,
 };
 use crate::tags::TagType;
 use crate::view::SESSION_PROPS;
@@ -169,6 +169,9 @@ pub struct ProjectIndex<'w> {
     symbol_usage: FxHashMap<(ResourceId, String), u32>,
     /// Like `symbol_usage`, counting only references from other resources.
     external_symbol_usage: FxHashMap<(ResourceId, String), u32>,
+    /// The first use (by path and offset) of code that is not vetted, or
+    /// that reads a frame or the interpreter, in the workspace.
+    first_unknown: Option<UnknownSite>,
 }
 
 /// Lowercases ASCII and non-ASCII letters (tag paths are case-insensitive).
@@ -198,6 +201,7 @@ impl<'w> ProjectIndex<'w> {
             has_history_providers: false,
             theme_classes: FxHashSet::default(),
             has_themes: false,
+            first_unknown: None,
             databases: FxHashSet::default(),
             has_databases: false,
             usage: FxHashMap::default(),
@@ -379,6 +383,7 @@ impl<'w> ProjectIndex<'w> {
         let mut exposed: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut star_imported: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut unknown_code: Vec<bool> = vec![false; n];
+        let mut first_unknown: Option<UnknownSite> = None;
         // Resources of gateway collections (tag event scripts) run with the
         // gateway scripting project, which the workspace does not name:
         // their references count for every project.
@@ -433,17 +438,31 @@ impl<'w> ProjectIndex<'w> {
                         _ => {}
                     }
                 }
-                if refs.unknown_code
-                    || refs.unvetted_imports.iter().any(|name| {
-                        !matches!(
-                            self.resolve_library(pid, name),
-                            LibraryLookup::Module { .. }
-                                | LibraryLookup::Package { .. }
-                                | LibraryLookup::Symbol { .. }
-                        )
-                    })
-                {
+                let unvetted = refs.unvetted_imports.iter().find(|(name, _)| {
+                    !matches!(
+                        self.resolve_library(pid, name),
+                        LibraryLookup::Module { .. }
+                            | LibraryLookup::Package { .. }
+                            | LibraryLookup::Symbol { .. }
+                    )
+                });
+                if refs.unknown_code || unvetted.is_some() {
                     unknown_code[pid.index()] = true;
+                    let sites = refs
+                        .unknown_site
+                        .iter()
+                        .filter(|_| refs.unknown_code)
+                        .chain(unvetted.map(|(_, site)| site));
+                    for site in sites {
+                        let key = |s: &UnknownSite| (ws.file(s.file).path.clone(), s.range.start());
+                        if site.file != UnknownSite::DETACHED
+                            && first_unknown
+                                .as_ref()
+                                .is_none_or(|f: &UnknownSite| key(site) < key(f))
+                        {
+                            first_unknown = Some(site.clone());
+                        }
+                    }
                 }
                 for name in &refs.dynamic.library {
                     let library = &self.projects[pid.index()].library;
@@ -562,6 +581,7 @@ impl<'w> ProjectIndex<'w> {
             p.star_imported_modules = std::mem::take(&mut star_imported[i]);
             p.unknown_code = unknown_code[i];
         }
+        self.first_unknown = first_unknown;
         self.usage = usage;
         self.symbol_usage = symbol_usage;
         self.external_symbol_usage = external_symbol_usage;
@@ -846,6 +866,14 @@ impl<'w> ProjectIndex<'w> {
     /// closed.
     pub fn has_any_unknown_code(&self) -> bool {
         self.projects.iter().any(|p| p.unknown_code)
+    }
+
+    /// The first use (by path, then offset) of code that is not vetted, or
+    /// that reads a frame or the interpreter, anywhere in the workspace
+    /// ([`ProjectIndex::has_any_unknown_code`]): what explains an unsafe
+    /// fix under the closed-world rule.
+    pub fn first_unknown_code(&self) -> Option<&UnknownSite> {
+        self.first_unknown.as_ref()
     }
 
     /// Whether every top-level name of a library module may be used by

@@ -734,13 +734,13 @@ fn rename_fix(
         edits.push(TextEdit::replace(site.range, escaped(new, style)));
         count += 1;
     }
+    // Code that is not vetted may look the component up in ways iglint
+    // does not know (`cPickle.loads` of an `eval` opcode). Closed world:
+    // such code anywhere in the shared runtime counts.
+    let vetting = crate::rules::vetting::unit_reason(cx);
     let risky = count > 0
         || components_may_escape(cx, view)
-        // Code that is not vetted may look the component up in ways
-        // iglint does not know (`cPickle.loads` of an `eval` opcode).
-        // Closed world: such code anywhere in the shared runtime counts.
-        || crate::rules::vetting::unit_uses_unknown_code(cx)
-        || crate::rules::vetting::workspace_has_unknown_code(cx)
+        || vetting.is_some()
         || refs.meta_name_read.contains(&c.id)
         || refs.dynamic_meta_name
         || refs.dynamic_lookup
@@ -748,7 +748,7 @@ fn rename_fix(
     let message = format!("Rename component '{}' to '{new}'", c.name);
     let edits = cx.file_edits(file, edits);
     Some(if risky {
-        Fix::unsafe_edit(message, edits)
+        Fix::unsafe_edit(message, edits).because(vetting)
     } else {
         Fix::safe(message, edits)
     })

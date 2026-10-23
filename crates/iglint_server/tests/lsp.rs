@@ -661,9 +661,30 @@ fn quick_fix_for_import_read_through_an_earlier_function_is_unsafe() {
     .collect();
     assert!(!fixes.is_empty(), "{fixes:#?}");
     for fix in &fixes {
-        assert!(fix.title.contains("(unsafe)"), "{fix:#?}");
+        // The title says why the fix is unsafe and where (reviewer round 8,
+        // finding 2).
+        assert!(
+            fix.title.ends_with(
+                "(unsafe: the script uses code that is not vetted: `re.sys` at \
+                 projects/demo/ignition/script-python/m/code.py:2:12)"
+            ),
+            "{fix:#?}"
+        );
         assert_eq!(fix.is_preferred, Some(false), "{fix:#?}");
     }
+    let related = published
+        .diagnostics
+        .iter()
+        .find(|d| d.range == range)
+        .and_then(|d| d.related_information.clone())
+        .unwrap_or_default();
+    assert!(
+        related.iter().any(|r| r.location.uri.path().ends_with("m/code.py")
+            && r.location.range.start == Position::new(1, 11)
+            && r.message
+                == "the fix is unsafe because the script uses code that is not vetted: `re.sys`"),
+        "{related:#?}"
+    );
     let actions = code_actions(
         &mut client,
         &uri,

@@ -288,6 +288,14 @@ fn code_frame(
                 writeln!(out, "{blank} {eq} {help}: {}", fix.message)?
             }
         }
+        if let Some(reason) = &fix.unsafe_reason {
+            writeln!(
+                out,
+                "{blank} {eq} {}: the fix is unsafe because {}",
+                style.bold("note"),
+                reason.describe(|p| report.display_path(p))
+            )?;
+        }
     }
     Ok(())
 }

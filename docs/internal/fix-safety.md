@@ -315,7 +315,17 @@ longer needed for safety.
 
 Rules not listed offer no fix. The language server uses the same
 applicability: unsafe code actions are titled `(unsafe)`, and the
-fix-all action applies unsafe fixes only when configured to. Every path
+fix-all action applies unsafe fixes only when configured to. When code
+that is not vetted, or that reads a frame, is what keeps a `SCR102`,
+`VIEW015` or `NAME001` fix from being safe, the fix carries the reason
+and the construct: the first use in the script itself (`re.sys` at
+`m/code.py:2:12`), else, under the closed-world rule, the first use in the
+workspace by path and offset (`ProjectIndex::first_unknown_code`). The
+text output adds a `note`, JSON an `unsafe_reason` object in `fix`, SARIF
+a related location, and the language server a related location and the
+code action title `(unsafe: <reason>)`. A workspace site is filled in after
+the cache from the current index, so a finding restored from the cache
+names the site as it is now; moving the site does not change any summary. Every path
 that applies or offers a fix goes through one function,
 `engine::fix_file`, and so through the health check and the post-fix
 safety net (see "Threat model"): `--fix`, `--fix --unsafe-fixes`,

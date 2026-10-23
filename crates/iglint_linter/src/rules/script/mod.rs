@@ -174,6 +174,7 @@ pub fn fix(
         applicability,
         edits,
         suite: None,
+        unsafe_reason: None,
     })
 }
 

@@ -661,6 +661,8 @@ pub(crate) fn analyze_with(
     let mut per_target: Vec<Vec<Diagnostic>> = (0..targets.len()).map(|_| Vec::new()).collect();
     let mut time: Vec<Duration> = vec![Duration::ZERO; targets.len()];
     let mut cached = vec![false; targets.len()];
+    // Cached findings name the workspace's first unknown code as it is now.
+    let first_unknown = crate::rules::vetting::first_unknown_site(&index, &table);
     let place = |d: Diagnostic, origin: Option<usize>, per_target: &mut Vec<Vec<Diagnostic>>| {
         let Some(&t) = by_display.get(d.file.path()) else {
             return;
@@ -669,6 +671,10 @@ pub(crate) fn analyze_with(
             return;
         };
         let mut d = d;
+        crate::rules::vetting::complete_reasons(
+            std::slice::from_mut(&mut d),
+            first_unknown.as_ref(),
+        );
         let same_settings = || {
             d.severity_from_options
                 && origin.and_then(|o| targets[o].settings.rule(d.rule)) == Some(rule_settings)
@@ -1031,6 +1037,7 @@ pub(crate) fn run_phase(
     hooks: &PhaseHooks,
     out: &mut Vec<Diagnostic>,
 ) {
+    let start = out.len();
     for (slot, rule) in &hooks.resource {
         let mut cx = Checker::new(unit, index, &set.active[*slot], out);
         rule.check_resource(&mut cx, unit.data);
@@ -1118,6 +1125,10 @@ pub(crate) fn run_phase(
             })
             .collect();
         out.extend(found.into_iter().flatten());
+    }
+    if let Some(index) = index {
+        let site = crate::rules::vetting::first_unknown_site(index, unit.files);
+        crate::rules::vetting::complete_reasons(&mut out[start..], site.as_ref());
     }
 }
 

@@ -72,7 +72,7 @@ pub use script::{
     EmbeddedScript, HeaderStatus, IMPLICIT_GLOBALS, Owner, ScriptFile, ScriptKind, TagEventKind,
 };
 pub use source_map::SourceMap;
-pub use summary::{ResourceSummary, summarize};
+pub use summary::{ResourceSummary, UnknownSite, summarize};
 pub use tags::{Tag, TagFolder};
 pub use view::{Component, SessionProps, View, build_view};
 pub use workspace::{Container, Existence, Workspace};

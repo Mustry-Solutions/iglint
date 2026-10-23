@@ -31,6 +31,12 @@ from 0.1.0 on.
 
 ### Added
 
+- An unsafe fix of SCR102, VIEW015 or NAME001 says why when code that is
+  not vetted, or that reads a frame, keeps it from being safe: the
+  construct and its location, in the script or (closed world) the first
+  such use in the workspace. Shown as a note in the text output, as
+  `fix.unsafe_reason` in JSON, as a related location in SARIF, and in the
+  language server's related information and code action title.
 - `docs/compat/ign-lint.md` lists what changed between ign-lint 0.6.3 and
   0.6.4; configurations of both versions are accepted.
 

@@ -20,7 +20,8 @@ use iglint_text::{TextEdit, TextRange, TextSize};
 use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::{
-    Applicability, Diagnostic, FileEdit, Fix, Fnv64, Label, Severity, SourceFile, SuiteGuard,
+    Applicability, Diagnostic, FileEdit, Fix, Fnv64, Label, ReasonSite, Severity, SourceFile,
+    SuiteGuard, UnsafeReason,
 };
 use crate::discovery::FileKind;
 use crate::settings::{LinterSettings, ProjectSettings};
@@ -115,6 +116,19 @@ struct CachedFix {
     edits: Vec<(u32, u32, String)>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     suite: Option<(u32, u32)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unsafe_reason: Option<CachedReason>,
+}
+
+/// An [`crate::UnsafeReason`]: the site only when it is in the cached
+/// file; a workspace site is filled in again after the cache.
+#[derive(Clone, Serialize, Deserialize)]
+struct CachedReason {
+    message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    site: Option<(u32, u32, String)>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    workspace: bool,
 }
 
 pub(crate) struct Cache {
@@ -284,6 +298,15 @@ fn store(d: &Diagnostic, file: &SourceFile) -> Option<CachedDiagnostic> {
                     })
                     .collect(),
                 suite: fix.suite.map(|g| (g.key, g.statements)),
+                unsafe_reason: fix.unsafe_reason.as_ref().map(|r| CachedReason {
+                    message: r.message.clone(),
+                    site: r
+                        .site
+                        .as_ref()
+                        .filter(|s| !r.workspace && s.path == file.path())
+                        .map(|s| (s.line, s.column, s.what.clone())),
+                    workspace: r.workspace,
+                }),
             })
         }
     };
@@ -361,6 +384,16 @@ fn restore(
             suite: fix
                 .suite
                 .map(|(key, statements)| SuiteGuard { key, statements }),
+            unsafe_reason: fix.unsafe_reason.as_ref().map(|r| UnsafeReason {
+                message: r.message.clone(),
+                site: r.site.as_ref().map(|(line, column, what)| ReasonSite {
+                    path: file.path().to_path_buf(),
+                    line: *line,
+                    column: *column,
+                    what: what.clone(),
+                }),
+                workspace: r.workspace,
+            }),
         });
     }
     Some(diagnostic)

@@ -161,7 +161,23 @@ impl ScriptFacts for AstScriptFacts {
                 unknown_globals: false,
             },
         );
-        super::refs::collect(&model, ctx, &mut summary.references);
+        let mut references = iglint_project::summary::References::default();
+        super::refs::collect(&model, ctx, &mut references);
+        // Place the sites of code that is not vetted in the file.
+        let place = |site: &mut iglint_project::summary::UnknownSite| {
+            if site.file == iglint_project::summary::UnknownSite::DETACHED {
+                site.what = snippet(&unit.script.source, site.range);
+                site.file = unit.file;
+                site.range = unit.script.file_range(site.range);
+            }
+        };
+        if let Some(site) = &mut references.unknown_site {
+            place(site);
+        }
+        for (_, site) in &mut references.unvetted_imports {
+            place(site);
+        }
+        summary.references.extend(references);
         if library {
             summary.set_module_symbols(super::symbols::module_symbols(&model, &unit.parsed.module));
         }
@@ -506,6 +522,20 @@ fn script_model<'s>(unit: &ScriptUnit<'s, '_>) -> Option<SemanticModel<'s>> {
             unknown_globals: false,
         },
     ))
+}
+
+/// The text of `range` in `source`, on one line and shortened, to name a
+/// construct in a message.
+pub(crate) fn snippet(source: &str, range: TextRange) -> String {
+    let text = source
+        .get(range.start().to_usize()..range.end().to_usize())
+        .unwrap_or("");
+    let line = text.lines().next().unwrap_or("").trim();
+    let mut out: String = line.chars().take(60).collect();
+    if out.len() < line.len() || text.trim_end().contains('\n') {
+        out.push_str("...");
+    }
+    out
 }
 
 /// The leftmost `Load` name of a `Load` attribute chain (`a` in

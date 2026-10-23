@@ -342,6 +342,7 @@ fn make_fix(
         applicability: Applicability::Unsafe,
         edits: cx.file_edits(script.file, vec![edit]),
         suite: None,
+        unsafe_reason: None,
     }
 }
 

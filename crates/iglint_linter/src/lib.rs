@@ -23,7 +23,8 @@ pub mod suppression;
 pub mod testing;
 
 pub use diagnostic::{
-    Applicability, Diagnostic, FileEdit, Fix, Label, Severity, SourceFile, SuiteGuard,
+    Applicability, Diagnostic, FileEdit, Fix, Label, ReasonSite, Severity, SourceFile, SuiteGuard,
+    UnsafeReason,
 };
 pub use discovery::FileKind;
 pub use engine::{CheckOptions, CheckResult, FixMode, check};

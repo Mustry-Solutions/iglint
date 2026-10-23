@@ -50,11 +50,20 @@ pub(super) fn diagnostic_value(report: &Report<'_>, diagnostic: &Diagnostic) -> 
                 }
             })
             .collect();
-        json!({
+        let mut value = json!({
             "applicability": applicability_name(fix.applicability),
             "message": fix.message,
             "edits": edits,
-        })
+        });
+        if let Some(reason) = &fix.unsafe_reason {
+            value["unsafe_reason"] = json!({
+                "message": reason.message,
+                "what": reason.site.as_ref().map(|s| s.what.as_str()),
+                "filename": reason.site.as_ref().map(|s| report.display_path(&s.path)),
+                "location": reason.site.as_ref().map(|s| json!({ "row": s.line, "column": s.column })),
+            });
+        }
+        value
     });
     json!({
         "code": diagnostic.rule.code(),

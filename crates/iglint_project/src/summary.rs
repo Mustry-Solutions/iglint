@@ -6,8 +6,9 @@
 //! `sendMessage` calls, ...) before the index is built.
 
 use iglint_expression::{ExprKind, Reference, TagPath};
+use iglint_text::TextRange;
 
-use crate::ids::ResourceId;
+use crate::ids::{FileId, ResourceId};
 use crate::library::ModuleSymbols;
 use crate::model::{ModelData, ResourceModel};
 use crate::named_query::NamedQueryParamKind;
@@ -267,10 +268,64 @@ pub struct References {
     /// `iglint_python_semantic::vetted`): it may read the namespace of any
     /// module by name.
     pub unknown_code: bool,
-    /// Imports of modules that are not vetted; any that is not a project
-    /// library module counts as [`References::unknown_code`].
-    pub unvetted_imports: Vec<String>,
+    /// Where [`References::unknown_code`] comes from: the first such use
+    /// of the resource (by file and offset).
+    pub unknown_site: Option<UnknownSite>,
+    /// Imports of modules that are not vetted, with where they are; any
+    /// that is not a project library module counts as
+    /// [`References::unknown_code`].
+    pub unvetted_imports: Vec<(String, UnknownSite)>,
 }
+
+/// Where a script uses code that is not vetted or reads a frame or the
+/// interpreter, to explain why a fix is unsafe.
+///
+/// `range` is not part of the summary's identity (`Debug`, `PartialEq`):
+/// an edit that only moves the site keeps the summaries, and so the cached
+/// results of other units, as they were. Diagnostics that name a site of
+/// another file are completed after the cache, from the current index
+/// ([`crate::ProjectIndex::first_unknown_code`]).
+#[derive(Clone)]
+pub struct UnknownSite {
+    pub file: FileId,
+    /// The range in `file`. While the script layer collects references it
+    /// is a range of the script's source, until the site is placed in the
+    /// file ([`UnknownSite::DETACHED`]).
+    pub range: TextRange,
+    /// The construct, as written (one line, shortened).
+    pub what: String,
+}
+
+impl UnknownSite {
+    /// The file of a site not yet placed in a file.
+    pub const DETACHED: FileId = FileId(u32::MAX);
+
+    /// A site at `range` of a script's source, placed in a file later.
+    pub fn detached(range: TextRange) -> Self {
+        UnknownSite {
+            file: Self::DETACHED,
+            range,
+            what: String::new(),
+        }
+    }
+}
+
+impl std::fmt::Debug for UnknownSite {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UnknownSite")
+            .field("file", &self.file)
+            .field("what", &self.what)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for UnknownSite {
+    fn eq(&self, other: &Self) -> bool {
+        self.file == other.file && self.what == other.what
+    }
+}
+
+impl Eq for UnknownSite {}
 
 impl References {
     /// Appends everything from `other`.
@@ -289,6 +344,9 @@ impl References {
         self.databases.extend(other.databases);
         self.dynamic.extend(&other.dynamic);
         self.unknown_code |= other.unknown_code;
+        if self.unknown_site.is_none() {
+            self.unknown_site = other.unknown_site;
+        }
         self.unvetted_imports.extend(other.unvetted_imports);
     }
 }
