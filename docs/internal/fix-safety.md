@@ -433,6 +433,93 @@ another module; aliases, `os.path`, a Java static field, `__builtin__`
 and a library module's import) and the language server test
 `quick_fix_after_a_shared_module_change_is_not_preferred`.
 
+#### The binding rule
+
+Review round 23 (Opus, blocker): `class K: import math` stores the module
+as the attribute `K.math`. `K` is a plain value (a class the code
+defines), and the walker does not check attribute reads of plain values,
+so `del K.math.pi`, `K.sys.modules['math'] = None`, `K.os.system(...)`,
+`K.System.loadLibrary(...)` and `K.os.open` / `K.os.read` of a file a fix
+edits stayed vetted, through `K()`, `self`, a classmethod's `cls`, a
+parameter, an alias, a subclass, a nested class and `l.K` of another
+module alike. On the 8.3.3 image the first printed `missing` before
+`SCR102`'s safe fix and `7` after.
+
+The cause was not a missing form but a missing rule. **An object the
+vetting tracks (a vetted module, `os`, `sys`, `system`, a Java class or
+member class, a function, class or constant of a vetted module, a
+builtin, a project library module, anything not vetted) may be held only
+by a name whose every use the walker analyses. Every other holder
+receives it as a value**, and a value is checked where it is computed:
+a module object, a Java class, a binding that is not vetted or the
+builtin `type` used anywhere but a read-only place (a callee, the object
+of an attribute read, a comparison, the class arguments of `isinstance`,
+`issubclass` and `super`, `str`/`repr`/`unicode`, `print`, `%`) is
+unknown code, and a file facility used as a value is a possible file
+read. That covers every binding form that evaluates an expression:
+assignments in any scope (class bodies included), default arguments,
+`for`, `with` and `except` targets, comprehension variables that leak
+from a Python 2 class body, attribute stores (`self.x = sys`, `obj.x =
+math`), subscript stores, containers, `return` and `yield`. Closures
+need nothing more: a free name's uses are in the code and are analysed
+there, and a function's cells and globals are introspection routes.
+
+An import binds the object without an expression the walker sees. Its
+name is analysed when it lives in a function or a script's module scope;
+a library module's top-level names are followed by the project index
+(`ProjectIndex::shared_object_site`, round 22). A class body's names are
+attributes of the class, its instances, its subclasses and every alias,
+none of which the walker follows (`vetted::attribute_namespace`). So
+**every import in a class body is unknown code at the import**, whatever
+it imports (`import`, `from ... import`, a library module, a star
+import). This is a precision trade-off, not a claim that `class K: from
+math import floor` is harmful; the private corpus has no import in a
+class body.
+
+The project index follows the same rule across modules: a function,
+class or variable of a library module stands for a shared object
+(`reaches_shared`) when the module's code may store one where it is
+reachable (`module_may_hold_shared`: the module has unknown code, its
+names are not known, or one of its library values reaches a shared
+object). `del l.K.math.pi` in another module is then reported at the
+change, not only at `l`'s import.
+
+Attribute reads of plain values were audited for other ways to reach a
+tracked object. Instances and functions get attributes only by stores,
+whose values are checked; base classes that are vetted Python classes
+hand out only attributes the subclass reads (`__bases__`, `__mro__` and
+`__base__` are introspection routes); library modules are the index's.
+What remained was the class of a value: `x.__class__` of a Java value is
+its Java class (`ArrayList().__class__.foo = 1` and
+`getattr(l, '__class__').baz = 3` change `ArrayList` for every script,
+measured on 8.3.3), and `t = type` made `t(x)` escape the `type(x)`
+check. `x.__class__`, `x.__objclass__`, `getattr(x, '__class__')` and
+the builtin `type` used as a value are now handled like `type(x)`:
+unknown code unless only read, and a store through them at any depth
+(`type(o).a.b = 1`) is not a read. A `super(...)` proxy refuses stores
+and deletions (`AttributeError`, measured), so its arguments are only
+read.
+
+Measured on the private corpus (its revision of 2026-10-24): findings,
+fix applicabilities and unsafe reasons are byte-identical before and
+after (2,928 findings with the default selection, 4,007 with every rule).
+It has no import or star import in a class body and no attribute or
+subscript store of an imported object; it reads `__class__` 18 times and
+names `type` outside a call twice, and none of these is the first
+unknown site of any script (so no script became unknown code).
+
+Tests: `class_attributes_hold_no_tracked_object` (every unknown-code,
+shared-change and file-read form through a module name, generated
+through `K.m`, `K().m`, `self.m`, `cls.m`, a parameter, an alias, a
+subclass, a nested class and a class a function returns, each unknown at
+the import, and the same routes to a plain attribute vetted),
+`class_attributes_of_values_are_followed`, the binary test
+`class_attribute_imports_keep_the_import` (JSON applicability and reason,
+`--fix` leaves the file unchanged, a warm cache, the file alone, the
+file-read gate, and `del l.K.math.pi`, `k = l.K` and a nested class of
+another module) and the language server test
+`quick_fix_after_a_class_attribute_module_change_is_not_preferred`.
+
 ### Names imports bind
 
 Reviewer round 12 (K1): a library module whose only import was removed

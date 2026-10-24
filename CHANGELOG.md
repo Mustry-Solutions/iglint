@@ -116,6 +116,31 @@ from 0.1.0 on.
 
 ### Fixed
 
+- An import in a class body is unknown code at the import: `class K:
+  import math` stores the module as the attribute `K.math`, which the
+  vetting walker did not follow, so `del K.math.pi`,
+  `K.sys.modules['math'] = None`, `K.os.system(...)`, `K.System.loadLibrary`
+  and `K.os.open` / `K.os.read` of a file a fix edits (also through
+  `K()`, `self`, `cls`, a parameter, an alias, a subclass or a nested
+  class) kept SCR102's and SCR124's fixes safe (Jython printed `missing`
+  before SCR102's fix and `7` after). The rule is general: an object the
+  vetting tracks may be held only by a name whose every use the walker
+  analyses; every other holder receives it as a value, checked where the
+  value is computed. A star import in a class body counts too. The
+  project index no longer takes a function, class or variable of a
+  library module for plain when that module's code may store such an
+  object where it is reachable (`del l.K.math.pi` from another module is
+  reported at the change). `x.__class__`, `x.__objclass__`,
+  `getattr(x, '__class__')` and the builtin `type` used as a value are
+  handled like `type(x)`: unknown unless only read
+  (`ArrayList().__class__.size = f` changes the Java class). Findings and
+  fixes on the private corpus are unchanged.
+- SCR120 reports closures that read a module global a module-level loop
+  rebinds (`for value in xs: callbacks.append(lambda: value)` gives every
+  callback the last value), and a global a function's loop rebinds under
+  `global`; loops in methods were attributed to the module and missed. A
+  loop in a class body is not reported (its names are class attributes,
+  which closures do not read by name).
 - SCR102 no longer removes an import safely when code anywhere in the
   workspace changes the shared object the import's evidence describes:
   after `import math; del math.pi`, removing an unused `from math import

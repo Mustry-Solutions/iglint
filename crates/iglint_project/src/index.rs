@@ -1140,8 +1140,26 @@ impl<'w> ProjectIndex<'w> {
     /// library module imports from elsewhere, or anything under it, or a
     /// name in a module whose names are not known. With `whole`, a library
     /// module or package (used as a value) counts when any of its modules
-    /// imports such a name: whoever holds the module reaches it.
+    /// imports such a name: whoever holds the module reaches it. A
+    /// function, class or variable a library module defines counts when
+    /// the module may store such an object where it is reachable
+    /// ([`ProjectIndex::module_may_hold_shared`]): `del l.K.math.pi` after
+    /// `class K: import math` in `l`.
     fn reaches_shared(&self, project: ProjectId, dotted: &str, whole: bool) -> bool {
+        self.reaches_shared_from(project, dotted, whole, &mut FxHashMap::default())
+    }
+
+    /// [`ProjectIndex::reaches_shared`], with the modules whose answer
+    /// [`ProjectIndex::module_may_hold_shared`] has given or is computing
+    /// (`false` while in progress: a cycle of library values adds no
+    /// object the other modules of the cycle do not already reach).
+    fn reaches_shared_from(
+        &self,
+        project: ProjectId,
+        dotted: &str,
+        whole: bool,
+        seen: &mut FxHashMap<ResourceId, bool>,
+    ) -> bool {
         let mut dotted = dotted.to_owned();
         for _ in 0..8 {
             match self.resolve_library(project, &dotted) {
@@ -1163,7 +1181,11 @@ impl<'w> ProjectIndex<'w> {
                         m.starts_with(&prefix) && self.module_imports_shared(project, resource)
                     });
                 }
-                LibraryLookup::Symbol { symbol, rest, .. } => match &symbol.kind {
+                LibraryLookup::Symbol {
+                    resource,
+                    symbol,
+                    rest,
+                } => match &symbol.kind {
                     SymbolKind::Import {
                         target: Some(target),
                     } => {
@@ -1192,11 +1214,52 @@ impl<'w> ProjectIndex<'w> {
                         dotted = next;
                     }
                     SymbolKind::Import { target: None } => return true,
-                    _ => return false,
+                    // A function, class or variable of the module: what
+                    // its attributes, instances or items hold is the
+                    // module's own code.
+                    _ => return self.module_may_hold_shared(project, resource, seen),
                 },
             }
         }
         true
+    }
+
+    /// Whether the code of the library module `module` may store an object
+    /// that is not a library module (a module, a Java class, `system`,
+    /// anything not vetted) where another module reaches it through one of
+    /// its names: in a class body (`class K: import math`), an attribute
+    /// (`K.m = math`), an instance, a container or a default argument.
+    /// The vetting walker makes each such store unknown code
+    /// (`vetted::unknown_code`, "Shared objects" in
+    /// `docs/internal/fix-safety.md`); a library module or library name
+    /// stored that way is one of the module's library values, which hold
+    /// such an object when [`ProjectIndex::reaches_shared`] says so. A
+    /// module whose code or names are not known holds one.
+    fn module_may_hold_shared(
+        &self,
+        project: ProjectId,
+        module: ResourceId,
+        seen: &mut FxHashMap<ResourceId, bool>,
+    ) -> bool {
+        if let Some(known) = seen.get(&module) {
+            return *known;
+        }
+        seen.insert(module, false);
+        let (Some(symbols), Some(summary)) = (self.module_symbols(module), self.summary(module))
+        else {
+            seen.insert(module, true);
+            return true;
+        };
+        let refs = &summary.references;
+        let holds = symbols.unknown_code
+            || symbols.dynamic
+            || refs.unknown_code
+            || refs
+                .library_values
+                .iter()
+                .any(|(value, _)| self.reaches_shared_from(project, value, true, seen));
+        seen.insert(module, holds);
+        holds
     }
 
     /// Whether the library module `module` imports a name that is not a

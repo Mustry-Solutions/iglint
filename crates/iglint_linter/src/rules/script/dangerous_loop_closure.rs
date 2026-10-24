@@ -153,20 +153,38 @@ impl ScriptRule for DangerousLoopClosure {
         walk_stmts(&unit.parsed.module.body, &mut |s| {
             let Stmt::For(f) = s else { return };
             let names = loop_names(&f.target, &f.body);
+            // The innermost scope whose code holds the loop. A loop in a
+            // class body binds class attributes, which no closure reads
+            // by name.
             let Some(loop_scope) = model
                 .scopes()
-                .filter(|(_, sc)| sc.kind != iglint_python_semantic::ScopeKind::Class)
-                .find(|(id, _)| scope_contains(model, *id, f.range))
+                .filter(|(_, sc)| scope_range(sc).contains_range(f.range))
+                .max_by_key(|(id, _)| depth(model, *id))
                 .map(|(id, _)| id)
             else {
                 return;
             };
+            if model.scope(loop_scope).kind == iglint_python_semantic::ScopeKind::Class {
+                return;
+            }
             let inner = closures(model, &f.body);
+            let globals = &model.scope(loop_scope).globals;
             for (_, r) in model.references() {
-                let Resolution::Free(owner) = r.resolution else {
-                    continue;
+                // The namespace the closure reads the name from: an
+                // enclosing function, or the module (a loop at module
+                // level, or in a function that declares the name
+                // `global`).
+                let owner = match r.resolution {
+                    Resolution::Free(owner) => owner,
+                    Resolution::Global => ScopeId::MODULE,
+                    _ => continue,
                 };
-                if owner != loop_scope || !names.contains(r.name) {
+                let rebinds = if globals.contains_key(r.name) {
+                    ScopeId::MODULE
+                } else {
+                    loop_scope
+                };
+                if owner != rebinds || !names.contains(r.name) {
                     continue;
                 }
                 if inner.iter().any(|c| is_within(model, r.scope, *c)) {
@@ -201,21 +219,25 @@ fn is_within(model: &SemanticModel<'_>, mut scope: ScopeId, ancestor: ScopeId) -
     }
 }
 
-/// The innermost scope whose code contains `range`.
-fn scope_contains(model: &SemanticModel<'_>, id: ScopeId, range: TextRange) -> bool {
-    let scope = model.scope(id);
-    let own = match scope.node {
+/// The source range of a scope's node.
+fn scope_range(scope: &iglint_python_semantic::Scope<'_>) -> TextRange {
+    match scope.node {
         iglint_python_semantic::ScopeNode::Module(m) => m.range,
         iglint_python_semantic::ScopeNode::Function(f) => f.range,
         iglint_python_semantic::ScopeNode::Lambda(l) => l.range,
         iglint_python_semantic::ScopeNode::Generator(g) => g.range(),
         iglint_python_semantic::ScopeNode::Class(c) => c.range,
-    };
-    own.contains_range(range)
-        && !scope.children.iter().any(|c| {
-            model.scope(*c).kind != iglint_python_semantic::ScopeKind::Class
-                && scope_contains(model, *c, range)
-        })
+    }
+}
+
+/// How many scopes enclose `scope`.
+fn depth(model: &SemanticModel<'_>, mut scope: ScopeId) -> usize {
+    let mut n = 0;
+    while let Some(p) = model.scope(scope).parent {
+        scope = p;
+        n += 1;
+    }
+    n
 }
 
 #[cfg(test)]
@@ -227,6 +249,45 @@ mod tests {
         let code = "def f(paths):\n    for p in paths:\n        q = p + '/x'\n        system.util.invokeLater(lambda: g(p, q))\n";
         let d = library("m", code).lint(&["SCR120"]);
         assert_eq!(flagged(&d), ["p", "q"]);
+    }
+
+    /// Review round 23 (Codex): a loop at module level rebinds a module
+    /// global, which closures read when they run (Jython prints `[2, 2]`).
+    #[test]
+    fn reports_late_binding_of_module_globals() {
+        for (code, names) in [
+            (
+                "callbacks = []\nfor value in [1, 2]:\n    callbacks.append(lambda: value)\nprint [callback() for callback in callbacks]\n",
+                &["value"][..],
+            ),
+            (
+                "handlers = {}\nfor key, n in [('a', 1), ('b', 2)]:\n    def h():\n        return n\n    handlers[key] = h\n",
+                &["n"][..],
+            ),
+            (
+                "def f(xs):\n    global v\n    for v in xs:\n        system.util.invokeLater(lambda: g(v))\n",
+                &["v"][..],
+            ),
+            (
+                "class C(object):\n    def m(self, xs):\n        for v in xs:\n            system.util.invokeLater(lambda: g(v))\n",
+                &["v"][..],
+            ),
+        ] {
+            let d = library("m", code).lint(&["SCR120"]);
+            assert_eq!(flagged(&d), names, "{code}");
+        }
+        for code in [
+            "callbacks = []\nfor value in [1, 2]:\n    callbacks.append(lambda value=value: value)\n",
+            "for value in [1, 2]:\n    def h(value=value):\n        return value\n",
+            // The closure reads another name, or the loop is in a class
+            // body (its names are class attributes, not what the lambda
+            // reads), or a function's own local shadows the global.
+            "for value in [1, 2]:\n    f = lambda: other\n",
+            "class C:\n    for value in [1, 2]:\n        f = lambda: value\n",
+            "def f(xs):\n    for v in xs:\n        g(lambda v=v: v)\nv = 1\n",
+        ] {
+            assert!(library("m", code).lint(&["SCR120"]).is_empty(), "{code}");
+        }
     }
 
     #[test]

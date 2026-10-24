@@ -1066,6 +1066,166 @@ fn changing_a_shared_object_keeps_the_import() {
     }
 }
 
+/// Review round 23 (Opus) blocker: `class K: import math` stores the module
+/// as the attribute `K.math`, which the vetting walker did not follow:
+/// `del K.math.pi` (Jython printed `missing` before SCR102's safe fix and
+/// `7` after, measured on 8.3.3), `K.sys.modules['math'] = None`, and
+/// `K.os.open` / `K.os.read` of the file a fix edits (the file-read gate)
+/// stayed vetted. An import in a class body is unknown code at the import:
+/// the fixes are unsafe with that site, `--fix` keeps the file, and a
+/// change through a class of another library module (`del l.K.math.pi`)
+/// is reported at the change.
+#[test]
+fn class_attribute_imports_keep_the_import() {
+    let user = "def f():\n    from math import pi\n    return 7\ntry:\n    print f()\nexcept ImportError:\n    print \"missing\"\n";
+    let repros = [
+        format!("class K:\n    import math\ndel K.math.pi\n{user}"),
+        format!("class K:\n    import sys\nK.sys.modules['math'] = None\n{user}"),
+        format!(
+            "class K(object):\n    import math\n    def g(self):\n        del self.math.pi\nK().g()\n{user}"
+        ),
+        format!("class K:\n    import math\ndef h(o):\n    del o.math.pi\nh(K)\n{user}"),
+    ];
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        "p/project.json",
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    );
+    let module = |name: &str, text: &str| {
+        write(
+            &format!("p/ignition/script-python/{name}/resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        );
+        write(&format!("p/ignition/script-python/{name}/code.py"), text);
+    };
+    let m = dir.path().join("p/ignition/script-python/m/code.py");
+    let m_rel = "p/ignition/script-python/m/code.py";
+    let cache = dir.path().join("cache");
+    let cache = cache.to_str().unwrap();
+    for repro in &repros {
+        module("m", repro);
+        let site = if repro.contains("import sys") {
+            "sys"
+        } else {
+            "math"
+        };
+        let expected = [
+            m_rel.to_owned(),
+            "unsafe".to_owned(),
+            "the script uses code that is not vetted".to_owned(),
+            site.to_owned(),
+            m_rel.to_owned(),
+        ];
+        for args in [
+            vec!["--no-cache"],
+            vec!["--no-cache", m_rel],
+            vec!["--cache-dir", cache],
+            vec!["--cache-dir", cache, m_rel],
+        ] {
+            assert_eq!(
+                scr102_reasons(dir.path(), &args),
+                std::slice::from_ref(&expected),
+                "{repro} {args:?}"
+            );
+        }
+        for args in [vec!["--fix"], vec!["--fix", m_rel]] {
+            iglint(dir.path())
+                .args(["check", "--no-cache", "--select", "SCR102"])
+                .args(&args)
+                .output()
+                .unwrap();
+            assert_eq!(&std::fs::read_to_string(&m).unwrap(), repro, "{args:?}");
+        }
+    }
+
+    // The file-read gate: `K.os.open` reads the file SCR124 edits.
+    let reads = "class K:\n    import os\nfd = K.os.open('/w/projects/p/ignition/script-python/m/code.py', 0)\nprint K.os.read(fd, 5) == 'class'\nx = 1  # note  \n";
+    module("m", reads);
+    let out = iglint(dir.path())
+        .args(["check", "--no-cache", "--output-format", "json"])
+        .args(["--select", "SCR124"])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let found = v.as_array().unwrap();
+    assert_eq!(found.len(), 1, "{v}");
+    assert_eq!(found[0]["fix"]["applicability"], "unsafe", "{v}");
+    let reason = &found[0]["fix"]["unsafe_reason"];
+    assert!(
+        reason["message"]
+            .as_str()
+            .unwrap()
+            .contains("assume-scripts-do-not-read-workspace-files"),
+        "{reason}"
+    );
+    assert_eq!(reason["what"], "os", "{reason}");
+    iglint(dir.path())
+        .args(["check", "--no-cache", "--fix", "--select", "SCR124"])
+        .output()
+        .unwrap();
+    assert_eq!(std::fs::read_to_string(&m).unwrap(), reads);
+
+    // A change through a class of another library module, reported at
+    // the change (the other module `a` sorts before `l`).
+    module("m", user);
+    for (l, other, site, file) in [
+        ("x = 1\n", "x = 1\n", None, ""),
+        (
+            "class K:\n    import math\n",
+            "del l.K.math.pi\n",
+            Some("l.K.math.pi"),
+            "a",
+        ),
+        (
+            "class K:\n    import math\n",
+            "import l\nk = l.K\ndel k.math.pi\n",
+            Some("l.K"),
+            "a",
+        ),
+        (
+            "class O:\n    class K:\n        from java.lang import System\n",
+            "l.O.K.System.out = None\n",
+            Some("l.O.K.System.out"),
+            "a",
+        ),
+        // The class in `l` is unknown code itself.
+        ("class K:\n    import math\n", "x = 1\n", Some("math"), "l"),
+    ] {
+        module("l", l);
+        module("a", other);
+        for args in [vec!["--no-cache"], vec!["--no-cache", m_rel]] {
+            let found = scr102_reasons(dir.path(), &args);
+            let of_m: Vec<_> = found.iter().filter(|f| f[0] == m_rel).collect();
+            assert_eq!(of_m.len(), 1, "{other} {args:?} {found:?}");
+            match site {
+                None => assert_eq!(of_m[0][1], "safe", "{other} {found:?}"),
+                Some(site) => {
+                    assert_eq!(of_m[0][1], "unsafe", "{other} {found:?}");
+                    assert!(of_m[0][2].starts_with("closed world"), "{other} {found:?}");
+                    assert_eq!(of_m[0][3], site, "{other} {found:?}");
+                    assert_eq!(
+                        of_m[0][4],
+                        format!("p/ignition/script-python/{file}/code.py"),
+                        "{other} {found:?}"
+                    );
+                }
+            }
+        }
+        if site.is_some() {
+            iglint(dir.path())
+                .args(["check", "--no-cache", "--fix", "--select", "SCR102"])
+                .output()
+                .unwrap();
+            assert_eq!(std::fs::read_to_string(&m).unwrap(), user, "{other}");
+        }
+    }
+}
+
 /// Review round 13 (both reviewers): imports that a class body reads by
 /// name, spelled mangled (`__m` is `_D__m` in class `D`) or before the
 /// class binds the name, and an import the interpreter reads as a class's

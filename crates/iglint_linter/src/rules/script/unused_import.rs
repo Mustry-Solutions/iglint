@@ -1091,11 +1091,19 @@ mod tests {
                 "def f(xs, l):\n    for x in xs:\n\n        pass\n    else:\n\n        pass\n    while xs:\n\n        pass\n    with l:\n\n        pass\n",
             ),
             (
-                "def f():\n    class C:\n        import os\n        import sys\n    def g():\n        import re\n        import json\n        import bisect\n    return C, g\n",
-                // Class bodies are left alone: their names are attributes.
-                "def f():\n    class C:\n        import os\n        import sys\n    def g():\n\n\n        pass\n    return C, g\n",
+                "def f():\n    class C:\n        x = 1\n        y = 2\n    def g():\n        import re\n        import json\n        import bisect\n    return C, g\n",
+                "def f():\n    class C:\n        x = 1\n        y = 2\n    def g():\n\n\n        pass\n    return C, g\n",
             ),
         ];
+        // Class bodies are left alone: their names are attributes. (An
+        // import there is unknown code since review round 23, so the
+        // module's other fixes are unsafe.)
+        let f = library(
+            "m",
+            "def f():\n    class C:\n        import os\n        import sys\n    return C\n",
+        );
+        let result = f.run(&[("SCR102", "")], crate::engine::FixMode::None);
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
         for (code, expected) in cases {
             let f = library("m", code);
             let fixed = f.fixed(&[("SCR102", "")], false, &library_path(&f, "m"));

@@ -41,7 +41,10 @@
 //! builtins. Code that may change one (a store, deletion or augmented
 //! assignment into it, `setattr`/`delattr`, `__setattr__`, `__dict__`, a
 //! Java class handed out as a value, `type(x)` kept) is unknown code
-//! ("Shared objects" in `docs/internal/fix-safety.md`).
+//! ("Shared objects" in `docs/internal/fix-safety.md`). A tracked object
+//! may be held only by a name whose every use the walker analyses; an
+//! import in a class body makes it a class attribute that nothing follows
+//! (the binding rule, `Walk::check_attribute_namespaces`).
 
 use iglint_python::ast::{
     Alias, Expr, ExprCall, ExprContext, ExprName, Operator, Stmt, StmtImportFrom,
@@ -673,6 +676,13 @@ pub fn holds_shared_object(qualified: &str) -> bool {
 /// `x.__dict__`.
 const MUTATING_ATTRIBUTES: &[&str] = &["__delattr__", "__dict__", "__setattr__"];
 
+/// Attribute names that hand out the class of the value they are read
+/// from, like `type(x)`: `x.__class__` of a Java value is its Java class
+/// (`ArrayList().__class__.size = f` changes the class for every script,
+/// measured on 8.3.3), `__objclass__` the class of a method descriptor.
+/// Where it is not only read ([`Walk::class_ok`]) it is not followed.
+const CLASS_ATTRIBUTES: &[&str] = &["__class__", "__objclass__"];
+
 /// Whether a name bound to `b` may stand for a shared object whose
 /// measured facts code could invalidate by changing it: a module (vetted,
 /// `sys`, Ignition's `system`), a Java class, a function, class or
@@ -825,12 +835,26 @@ pub fn unknown_code(model: &SemanticModel<'_>) -> UnknownCode {
         qualified,
         callee: None,
         class_ok: FxHashSet::default(),
+        changed: FxHashSet::default(),
         out: UnknownCode::default(),
     };
+    v.check_attribute_namespaces();
     for stmt in &model.module.body {
         v.visit_stmt(stmt);
     }
     v.out
+}
+
+/// Whether the names bound in `scope` are attributes of a value that the
+/// walker does not follow: a class body's names are attributes of the
+/// class (`K.x`), of its instances (`K().x`, `self.x`), of its subclasses
+/// and of every alias or parameter that holds any of them. A function's
+/// names are not reachable by attribute (its frame and closure cells are
+/// [`crate::dynamic`] routes); a module's are the script's own, or, for a
+/// project library module, followed by the project index
+/// (`ProjectIndex::shared_object_site`).
+fn attribute_namespace(model: &SemanticModel<'_>, scope: ScopeId) -> bool {
+    model.scope(scope).kind == ScopeKind::Class
 }
 
 /// What the import alias `a` of `import ...` binds.
@@ -954,6 +978,11 @@ struct Walk<'m, 'a> {
     /// of `isinstance` and `issubclass`, the argument of `str`, `repr` and
     /// `unicode`, `print` and the operand of `%` ([`Walk::class_read`]).
     class_ok: FxHashSet<TextRange>,
+    /// The objects (and the objects they are read from) of attribute
+    /// stores, deletions and mutating attributes whose chain is not rooted
+    /// at a name (`type(x).a.b = 1`): a class object there is changed
+    /// through, not only read.
+    changed: FxHashSet<TextRange>,
     out: UnknownCode,
 }
 
@@ -961,6 +990,95 @@ impl Walk<'_, '_> {
     fn other(&mut self, range: TextRange) {
         if self.out.other.is_none_or(|o| range.start() < o.start()) {
             self.out.other = Some(range);
+        }
+    }
+
+    /// The binding rule ("Shared objects" in `docs/internal/fix-safety.md`):
+    /// an object the walker tracks (a vetted module, `os`, `sys`, `system`,
+    /// a Java class, a function, class or constant of a vetted module, a
+    /// project library module, anything not vetted) may be held only by a
+    /// name whose every use the walker analyses. Everything else is a use
+    /// of the object as a value, checked where the value is computed
+    /// ([`Walk::value_use`]): an assignment, a default argument, an
+    /// attribute or subscript store, a container, `return` and `yield`
+    /// all evaluate an expression the walker sees. An import binds the
+    /// object without such an expression, so an import whose name is an
+    /// attribute of something the walker does not follow
+    /// ([`attribute_namespace`]: `class K: import sys` makes `K.sys`,
+    /// `K().sys`, `self.sys` and `l.K.sys`) is unknown code at the import,
+    /// whatever it imports. So is a star import there.
+    fn check_attribute_namespaces(&mut self) {
+        let model = self.model;
+        for (_, b) in model.bindings() {
+            if matches!(
+                b.kind,
+                BindingKind::Import | BindingKind::FromImport | BindingKind::FutureImport
+            ) && attribute_namespace(model, b.scope)
+            {
+                self.other(b.range);
+            }
+        }
+        for (id, scope) in model.scopes() {
+            if let Some(star) = scope.star_import
+                && attribute_namespace(model, id)
+            {
+                self.other(star);
+            }
+        }
+    }
+
+    /// The `Load` name `n` used as a value (not as a callee, the object of
+    /// an attribute read or another read-only place, [`Walk::class_ok`]):
+    /// whoever receives it is not followed. Unknown code when it may be a
+    /// module object (what is read from it later is not checked), a
+    /// binding that is not vetted, a Java class (whoever holds it may
+    /// change it, `c.out = ...`) or the builtin `type` (its calls hand out
+    /// classes, [`Walk::check_class_call`]). A file facility used as a
+    /// value is a possible file read ([`Walk::check_file_value`]).
+    fn value_use(&mut self, n: &ExprName) {
+        let class_ok = self.class_ok.contains(&n.range);
+        if self.candidates_with_names(n).iter().any(|(b, q)| {
+            matches!(b, Bound::Module(_) | Bound::Unknown)
+                || (matches!(b, Bound::JavaClass(_)) && !class_ok)
+                || (q.as_deref() == Some("__builtin__.type") && !class_ok)
+        }) {
+            self.other(n.range);
+        }
+    }
+
+    /// `x.__class__` (any [`CLASS_ATTRIBUTES`] name) is the class of `x`,
+    /// a Java class for a Java value: like `type(x)`, it is unknown code
+    /// unless only read. `attrs` is the chain of `whole` (outermost last),
+    /// each with the range of the expression it ends.
+    fn check_class_attributes(&mut self, whole: &Expr, attrs: &[(&str, TextRange)]) {
+        let stored = matches!(
+            whole,
+            Expr::Attribute(a) if a.ctx != ExprContext::Load
+        );
+        for (i, (attr, range)) in attrs.iter().enumerate() {
+            if !CLASS_ATTRIBUTES.contains(attr) {
+                continue;
+            }
+            let read_only = if i + 1 == attrs.len() {
+                // `x.__class__` itself: a callee or another read-only place.
+                // Storing or deleting `__class__` changes `x`, not a class.
+                stored
+                    || (!self.changed.contains(range)
+                        && (self.callee == Some(whole.range())
+                            || self.class_ok.contains(&whole.range())))
+            } else {
+                // The object of attribute reads only: nothing after it is
+                // stored, deleted or a mutating attribute (`x.__class__.a.b
+                // = 1` changes what the class holds).
+                !stored
+                    && !self.changed.contains(&whole.range())
+                    && !attrs[i + 1..]
+                        .iter()
+                        .any(|(a, _)| MUTATING_ATTRIBUTES.contains(a))
+            };
+            if !read_only {
+                self.other(*range);
+            }
         }
     }
 
@@ -1052,6 +1170,7 @@ impl Walk<'_, '_> {
         }
         let Expr::Name(n) = root else { return false };
         attrs.reverse();
+        self.check_class_attributes(expr, &attrs);
         // Storing into or deleting from a shared object (a module, a Java
         // class, Ignition's scripting API, a builtin) changes it for every
         // script of the gateway, and the measured facts about it (that
@@ -1387,9 +1506,14 @@ impl Walk<'_, '_> {
     /// `str`, `repr` and `unicode` are only read.
     fn check_class_call(&mut self, c: &ExprCall) {
         let plain_call = c.starargs.is_none() && c.kwargs.is_none() && c.keywords.is_empty();
-        if self.maybe_builtin(&c.func, "type")
-            && c.args.len() == 1
-            && !self.class_ok.contains(&c.range)
+        let kept = !self.class_ok.contains(&c.range) || self.changed.contains(&c.range);
+        if self.maybe_builtin(&c.func, "type") && c.args.len() == 1 && kept {
+            self.other(c.range);
+        }
+        // `getattr(x, '__class__')` is `x.__class__`.
+        if self.maybe_builtin(&c.func, "getattr")
+            && matches!(c.args.get(1), Some(Expr::Str(s)) if CLASS_ATTRIBUTES.contains(&s.s.to_latin1().as_ref()))
+            && kept
         {
             self.other(c.range);
         }
@@ -1424,6 +1548,12 @@ impl Walk<'_, '_> {
             && c.args.len() == 1
         {
             self.class_read(&c.args[0]);
+        } else if self.only_builtin(&c.func, "super") {
+            // `super(self.__class__, self)`: the proxy refuses stores
+            // (`AttributeError`, measured on 8.3.3) and only reads.
+            for a in c.args.iter().take(2) {
+                self.class_read(a);
+            }
         }
     }
 
@@ -1636,6 +1766,22 @@ impl<'a> Visitor<'a> for Walk<'_, '_> {
                 // change it; writing one does.
                 if a.ctx == ExprContext::Load && !MUTATING_ATTRIBUTES.contains(&a.attr.as_str()) {
                     self.class_ok.insert(a.value.range());
+                } else if !self.changed.contains(&expr.range()) {
+                    // Everything the changed object is read from is changed
+                    // through (`type(x).a.b = 1`).
+                    let mut inner = &*a.value;
+                    loop {
+                        self.changed.insert(inner.range());
+                        match inner {
+                            Expr::Attribute(i) => inner = &i.value,
+                            _ => break,
+                        }
+                    }
+                }
+                // A chain rooted at a name is checked whole by
+                // [`Walk::chain`]; this covers `f().__class__`.
+                if CLASS_ATTRIBUTES.contains(&a.attr.as_str()) {
+                    self.check_class_attributes(expr, &[(a.attr.as_str(), a.range)]);
                 }
                 self.check_store_members(expr);
                 self.check_file_members(expr);
@@ -1674,17 +1820,7 @@ impl<'a> Visitor<'a> for Walk<'_, '_> {
                 }
             }
             Expr::Name(n) if n.ctx == ExprContext::Load => {
-                // A module object used as a value: what is read from it
-                // later is not checked. A binding that is not vetted. A
-                // Java class kept or passed on (`c = System`, `f(String)`):
-                // whoever holds it may change it (`c.out = ...`).
-                let class_ok = self.class_ok.contains(&n.range);
-                if self.candidates(n).iter().any(|b| {
-                    matches!(b, Bound::Module(_) | Bound::Unknown)
-                        || (matches!(b, Bound::JavaClass(_)) && !class_ok)
-                }) {
-                    self.other(n.range);
-                }
+                self.value_use(n);
                 return;
             }
             _ => {}
@@ -1761,7 +1897,10 @@ mod tests {
                 "def f():\n    import math\n    def g():\n        del math.pi\n",
                 "math.pi",
             ),
-            ("class C:\n    import math\n    del math.pi\n", "math.pi"),
+            ("import math\nclass C:\n    del math.pi\n", "math.pi"),
+            // An import in a class body is unknown at the import (see
+            // `class_attributes_hold_no_tracked_object`).
+            ("class C:\n    import math\n    del math.pi\n", "math"),
             ("import os\ndel os.path.join\n", "os.path.join"),
             ("import os.path\nos.path.sep = 'x'\n", "os.path.sep"),
             ("from os import path\ndel path.join\n", "path.join"),
@@ -1863,6 +2002,221 @@ mod tests {
             "class C(object):\n    pass\nc = C()\nc.x = 1\nsetattr(c, 'y', 2)\ndel c.x\n",
             "self.props.text = 'a'\nself.getSibling('B').props.x = 1\n",
             "def f(o):\n    o.value += 1\n",
+        ] {
+            assert!(unknown(src).is_empty(), "{src}: {:?}", unknown(src));
+        }
+    }
+
+    /// Review round 23 (Opus) blocker: `class K: import sys` stores the
+    /// module as the attribute `K.sys`, and `K` is a plain value whose
+    /// attribute reads the walker does not check, so `K.sys.modules`, `del
+    /// K.math.pi` and `K.os.system(...)` stayed vetted. Every form that is
+    /// unknown code, a change of a shared object or a possible file read
+    /// through a module name is unknown code, at the import, through every
+    /// route that reaches a class attribute: the class, an instance,
+    /// `self`, a classmethod's `cls`, a parameter, an alias, a nested
+    /// class, a subclass and a class a function returns. The same routes
+    /// to a plain class attribute stay vetted.
+    #[test]
+    fn class_attributes_hold_no_tracked_object() {
+        // (import, its bound name, a statement using `{}` for the object).
+        let forms: &[(&str, &str, &str)] = &[
+            ("import math", "math", "del {}.pi"),
+            ("import math", "math", "{}.pi = 3"),
+            ("import math", "math", "{}.pi += 1"),
+            ("import math", "math", "{}.__setattr__('pi', 1)"),
+            ("import math", "math", "setattr({}, 'pi', 1)"),
+            ("import math", "math", "for {}.pi in [1]: pass"),
+            ("import math as m", "m", "del {}.e"),
+            ("import os", "os", "del {}.path.join"),
+            ("import os", "os", "{}.system('ls')"),
+            ("import os", "os", "fd = {}.open('x', 0)"),
+            ("import os", "os", "n = {}.listdir('.')"),
+            ("import os", "os", "n = {}.path.getsize('x')"),
+            ("import os.path", "os", "{}.path.sep = 'x'"),
+            ("from os import path", "path", "del {}.join"),
+            ("from os import listdir", "listdir", "n = {}('.')"),
+            ("import sys", "sys", "{}.modules['math'] = None"),
+            ("import sys", "sys", "e = {}.modules['__builtin__'].eval"),
+            ("import sys", "sys", "{}.stdout = f"),
+            ("import re", "re", "x = {}.sre_compile"),
+            ("import json", "json", "m = {}"),
+            ("import string", "string", "{}.Template.delimiter = '%'"),
+            ("import string", "string", "f = {}.Formatter()"),
+            (
+                "from string import Template",
+                "Template",
+                "{}.delimiter = '%'",
+            ),
+            ("import operator", "operator", "g = {}.attrgetter('a')"),
+            ("from java.lang import System", "System", "{}.out = None"),
+            (
+                "from java.lang import System",
+                "System",
+                "{}.loadLibrary('x')",
+            ),
+            ("from java.lang import System", "System", "c = {}"),
+            ("from java.lang import System", "System", "f({})"),
+            (
+                "from java.util import ArrayList",
+                "ArrayList",
+                "del {}.size",
+            ),
+            (
+                "from java.util import ArrayList",
+                "ArrayList",
+                "{}.size = f",
+            ),
+            ("from java.util import Map", "Map", "e = {}.Entry"),
+            ("from java.io import File", "File", "f = {}('x')"),
+            (
+                "from java.io import FileReader",
+                "FileReader",
+                "r = {}('x')",
+            ),
+            ("import system", "system", "{}.tag.readBlocking = f"),
+            ("from math import *", "*", "del {}.pi"),
+        ];
+        // (class definition with `{}` for the import, the object holding
+        // the attribute `n`, as a function of `n`).
+        type Route = (&'static str, fn(&str) -> String);
+        let routes: &[Route] = &[
+            ("class K:\n    {}\n", |n| format!("K.{n}")),
+            ("class K:\n    {}\n", |n| format!("K().{n}")),
+            ("class K(object):\n    {}\nX = K\n", |n| format!("X.{n}")),
+            ("class K:\n    {}\nclass L(K):\n    pass\n", |n| {
+                format!("L.{n}")
+            }),
+            ("class O:\n    class K:\n        {}\n", |n| {
+                format!("O.K.{n}")
+            }),
+            ("def g():\n    class K:\n        {}\n    return K\n", |n| {
+                format!("g().{n}")
+            }),
+            (
+                "class K(object):\n    {}\n    @classmethod\n    def h(cls):\n        return cls.{n}\n",
+                |_| "K.h()".to_owned(),
+            ),
+        ];
+        let at = |src: &str, needle: &str| src.find(needle).unwrap();
+        let check = |src: &str, import: &str, name: &str| {
+            let found = unknown(src);
+            let site = found.other.unwrap_or_else(|| panic!("{src}"));
+            let start = usize::from(site.start());
+            // The site is the import (the bound name, or the star).
+            let line = at(src, import);
+            assert!(
+                start >= line && start < line + import.len(),
+                "{src}: {:?}",
+                src.get(start..usize::from(site.end()))
+            );
+            let bound = if name == "*" { import } else { name };
+            assert!(
+                src.get(start..usize::from(site.end()))
+                    .is_some_and(|t| t == bound || t.ends_with(bound)),
+                "{src}: {:?}",
+                src.get(start..usize::from(site.end()))
+            );
+        };
+        for (import, name, stmt) in forms {
+            let attr = if *name == "*" { "pi" } else { name };
+            // The direct form is not vetted either (sanity).
+            if *name != "*" {
+                let direct = format!("{import}\n{}\n", stmt.replace("{}", name));
+                let found = unknown(&direct);
+                assert!(
+                    found.other.is_some() || found.file_read.is_some(),
+                    "{direct}"
+                );
+            }
+            for (class, object) in routes {
+                let src = format!(
+                    "{}{}\n",
+                    class.replace("{}", import).replace("{n}", attr),
+                    stmt.replace("{}", &object(attr))
+                );
+                check(&src, import, name);
+                // The same route to a plain class attribute is vetted.
+                // `setattr` of a value that is not a name or a chain rooted
+                // at one is not followed.
+                if *name != "*" && !(stmt.starts_with("setattr") && object(attr).contains('(')) {
+                    let plain = src.replace(import, &format!("{name} = 1"));
+                    let found = unknown(&plain);
+                    assert!(
+                        found.other.is_none() && found.file_read.is_none(),
+                        "{plain}: {found:?}"
+                    );
+                }
+            }
+            // Methods, parameters and `self`.
+            for src in [
+                format!(
+                    "class K(object):\n    {import}\n    def h(self):\n        {}\n",
+                    stmt.replace("{}", &format!("self.{attr}"))
+                ),
+                format!(
+                    "class K:\n    {import}\ndef h(o):\n    {}\nh(K)\n",
+                    stmt.replace("{}", &format!("o.{attr}"))
+                ),
+            ] {
+                check(&src, import, name);
+            }
+        }
+    }
+
+    /// Review round 23: attribute reads of plain values that hand out a
+    /// class (`x.__class__`, `getattr(x, '__class__')`, the builtin `type`
+    /// kept as a value) are unknown unless only read, like `type(x)`
+    /// (`ArrayList().__class__.foo = 1` changes the Java class proxy,
+    /// measured on 8.3.3).
+    #[test]
+    fn class_attributes_of_values_are_followed() {
+        for (src, site) in [
+            (
+                "from java.util import ArrayList\nl = ArrayList()\nl.__class__.foo = 1\n",
+                "l.__class__",
+            ),
+            (
+                "from java.util import ArrayList\nArrayList().__class__.foo = 1\n",
+                "ArrayList().__class__",
+            ),
+            ("def f(o):\n    c = o.__class__\n", "o.__class__"),
+            ("def f(o):\n    g(o.__class__)\n", "o.__class__"),
+            ("def f(o):\n    del o.__class__.x\n", "o.__class__"),
+            ("def f(o):\n    o.__class__.x.y = 1\n", "o.__class__"),
+            (
+                "def f(o):\n    o.__class__.__setattr__('x', 1)\n",
+                "o.__class__",
+            ),
+            ("def f(o):\n    return o.__objclass__\n", "o.__objclass__"),
+            (
+                "def f(o):\n    getattr(o, '__class__').x = 1\n",
+                "getattr(o, '__class__')",
+            ),
+            ("def f(o):\n    type(o).x.y = 1\n", "type(o)"),
+            ("def f(o):\n    f(o).__class__.x.y = 1\n", "f(o).__class__"),
+            ("t = type\n", "type"),
+            ("def f(o, t=type):\n    t(o).x = 1\n", "type"),
+            ("m = map(type, xs)\n", "type"),
+        ] {
+            let found = unknown(src).other.unwrap_or_else(|| panic!("{src}"));
+            assert_eq!(
+                src.get(usize::from(found.start())..usize::from(found.end())),
+                Some(site),
+                "{src}"
+            );
+        }
+        for src in [
+            "def f(o):\n    return o.__class__.__name__\n",
+            "def f(o):\n    return o.__class__(1)\n",
+            "def f(o):\n    return isinstance(x, o.__class__)\n",
+            "def f(o):\n    return o.__class__ == C\n",
+            "def f(o):\n    return str(o.__class__)\n",
+            "class C(object):\n    def f(self):\n        return super(self.__class__, self).f()\n",
+            "def f(o):\n    o.__class__ = C\n",
+            "def f(o):\n    return getattr(o, '__class__').__name__\n",
+            "def f(o):\n    return isinstance(o, type)\n",
+            "def f(o):\n    return type(o).__name__\n",
         ] {
             assert!(unknown(src).is_empty(), "{src}: {:?}", unknown(src));
         }
