@@ -1648,8 +1648,8 @@ mod tests {
     #[test]
     fn functions_before_imports_are_vetted() {
         for script in [
-            "\\tdef capture():\\n\\t\\treturn re.sys.modules['__builtin__']\\n\\timport re\\n\\tcapture().eval('self.view.custom.a')",
-            "\\timport re\\n\\tdef capture():\\n\\t\\treturn re.sys.modules['__builtin__']\\n\\tcapture().eval('self.view.custom.a')",
+            "\\tdef capture():\\n\\t\\treturn re.sre_parse\\n\\timport re\\n\\tcapture()",
+            "\\timport re\\n\\tdef capture():\\n\\t\\treturn re.sre_parse\\n\\tcapture()",
         ] {
             let d = with_library(script, &[]);
             assert!(
@@ -1664,14 +1664,17 @@ mod tests {
             for d in &d {
                 let reason = d.fix.as_ref().unwrap().unsafe_reason.as_ref().unwrap();
                 let site = reason.site.as_ref().unwrap();
-                assert_eq!(site.what, "re.sys", "{reason:?}");
+                assert_eq!(site.what, "re.sre_parse", "{reason:?}");
                 assert!(site.path.ends_with("view.json"), "{reason:?}");
             }
         }
         // A library module whose function precedes its import.
         let d = with_library(
             "\\tlib.util.log('x')",
-            &[("lib/util", "def log(m):\n    return re.sys\nimport re\n")],
+            &[(
+                "lib/util",
+                "def log(m):\n    return re.sre_parse\nimport re\n",
+            )],
         );
         assert!(
             !d.is_empty()

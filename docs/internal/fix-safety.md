@@ -745,11 +745,11 @@ leave out the other routes. `SCR103`'s fix is unsafe in any case.
 |---|---|---|---|
 | a frame builtin used as a value, or with unpacked arguments | `e = eval`, `f(vars)`, `eval(*a)` | yes: it reads the frame of whoever calls it | unsafe |
 | the builtins module | `import __builtin__`, `__builtins__` | yes: it hands out `eval` and `locals` | unsafe |
-| `__import__` of a frame-reaching module or of a computed name | `__import__('__builtin__')`, `__import__(n)` | yes | unsafe |
-| frames and the module table | `sys._getframe`, `sys._current_frames`, `sys.modules`, `inspect.currentframe`, `inspect.stack`, `inspect.getouterframes`, `gc.get_referrers`, `from sys import *` | yes | unsafe |
+| `__import__` or `importlib.import_module` of a frame-reaching module, of a computed or relative name, or used as a value; `imp`'s loaders | `__import__('__builtin__')`, `__import__(n)`, `importlib.import_module('__builtin__')`, `from importlib import import_module`, `imp.load_source(n, p)` | yes (`importlib.import_module('__builtin__').locals()` reads the caller's frame, measured on 8.3.3) | unsafe |
+| frames, the module table and the builtins | `sys._getframe`, `sys._current_frames`, `sys.modules`, `sys.builtins`, `sys.getBuiltins()`, `sys.getDefaultBuiltins()`, `sys.modules_reloading`, `inspect.currentframe`, `inspect.stack`, `inspect.getouterframes`, `gc.get_referrers`, `from sys import *` | yes (`sys.builtins['locals']()` reads the caller's frame, measured on 8.3.3) | unsafe |
 | trace hooks | `sys.settrace`, `sys.setprofile` | yes: hooks receive frames | unsafe |
 | frame, traceback and generator links, function globals | `.f_locals`, `.f_globals`, `.f_back`, `.f_builtins`, `.f_trace`, `.tb_frame`, `.gi_frame`, `.func_globals`, `.__globals__`, also as a literal in a sink | yes | unsafe |
-| a frame-reaching module as a value | `x = sys`, `getattr(sys, n)` | yes: its frame functions are no longer named | unsafe |
+| a frame-reaching module as a value, its namespace, or another module's `sys` | `x = sys`, `getattr(sys, n)`, `f(importlib)`, `sys.__dict__`, `re.sys`, `importlib.sys` | yes: its frame functions are no longer named | unsafe |
 | the interpreter's classes | `from org.python.core import Py`, `PyFrame`, `ThreadState`, `PySystemState`, `import org.python.core` | yes: `Py.getFrame()` | unsafe |
 | a reflective accessor or format method under another name | `get = getattr`, `map(getattr, ...)`, `f = template.format` | yes: every call of it is hidden | unsafe |
 | measured reflective Java members | `.type`, `.fields`, `.module`, `getColumnType(i)`, `.__class__`, `.traceback` | no: a first hop into Java reflection | unsafe |
@@ -757,7 +757,7 @@ leave out the other routes. `SCR103`'s fix is unsafe in any case.
 | a computed attribute name or format string | `getattr(o, n)`, `setattr(o, n, v)`, `'{0}'.format` on a computed string, `vars(o)`, `getattr(o, 'class')` | no: it reads what it is given | unsafe |
 | the exception state and tracebacks as text | `sys.exc_info()`, `sys.exc_traceback`, `import traceback`, `.tb_lineno`, `.tb_next` | no: a frame needs `tb_frame` (a route of its own) | unsafe |
 | line numbers, code objects, class hierarchies, method internals | `.f_lineno`, `.co_varnames`, `.func_code`, `.__dict__`, `.__mro__`, `.__subclasses__`, `.im_self`, `inspect.getmembers` | no: none of them reads a frame's names | unsafe |
-| module loaders, `compile`, Jython's value classes | `import importlib`, `imp`, `compile(...)`, `__import__('os')`, `from org.python.core import PyString` | no: what they hand out is used through further routes | unsafe |
+| importing a module loader, loading a plain module by a literal name, `compile`, Jython's value classes | `import importlib`, `import imp`, `imp.new_module(n)`, `compile(...)`, `__import__('os')`, `importlib.import_module('json')`, `from org.python.core import PyString` | no: what they hand out is used through further routes | unsafe |
 
 Not routes, and handled by the scope that runs them (`symbols.rs`):
 `locals()`, `vars()`, `dir()`, `eval(s)`, `execfile(f)` and `exec` called
@@ -788,8 +788,22 @@ member names (`.type`, `class` in a literal sink), `import traceback`,
 `sys.exc_info()`, computed `getattr`/`setattr`/`hasattr`, and Java
 reflection to load a driver.
 
+Review round 25 (Opus, M2): `importlib.import_module('__builtin__')`
+was a first hop while `__import__('__builtin__')` observed, so a function
+that read its `os` through `.locals()` had `os` reported unused. A direct
+call of `importlib.import_module` is now judged like `__import__`, and
+every other use of it, `imp`'s loaders (`load_module`, `load_source`,
+`load_compiled`, `load_dynamic`, `load_package`: they run and hand out
+any file's code) and the other ways to the same objects measured on
+8.3.3's Jython (`sys.builtins` and its getters, `sys.modules_reloading`,
+the namespace of `sys`, `importlib` or `imp`, and the `sys` attribute
+that `re`, `os` and `importlib` hand out) observe. `pkgutil` and `runpy`
+loaders cannot load `__builtin__` (measured: `ImportError`), and
+`imp.find_module('__builtin__')` fails, so they stay as they were (code
+that is not vetted, which makes fixes unsafe).
+
 Tests: `dynamic::tests::routes_are_classified` (the table, route by
-route), `unused_import::tests::frame_access_keeps_imports` and
+route), `unused_import::tests::module_loaders_that_hand_out_the_builtins_observe`, `unused_import::tests::frame_access_keeps_imports` and
 `literals_name_members_only_in_sinks` (findings kept, fixes unsafe with
 the route as the site), `unused_library_function::tests::escaped_modules_are_skipped`
 and the binary test `fix_only_routes_keep_findings` (the reviewer's

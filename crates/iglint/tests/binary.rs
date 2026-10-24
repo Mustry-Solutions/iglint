@@ -1114,13 +1114,16 @@ fn class_attribute_imports_keep_the_import() {
         } else {
             "math"
         };
-        let expected = [
+        let expected = vec![[
             m_rel.to_owned(),
             "unsafe".to_owned(),
             "the script uses code that is not vetted".to_owned(),
             site.to_owned(),
             m_rel.to_owned(),
-        ];
+        ]];
+        // `K.sys` is the `sys` module, whose module table reads names for
+        // the findings too (review round 25, M2): no finding.
+        let expected = if site == "sys" { Vec::new() } else { expected };
         for args in [
             vec!["--no-cache"],
             vec!["--no-cache", m_rel],
@@ -1129,7 +1132,7 @@ fn class_attribute_imports_keep_the_import() {
         ] {
             assert_eq!(
                 scr102_reasons(dir.path(), &args),
-                std::slice::from_ref(&expected),
+                expected,
                 "{repro} {args:?}"
             );
         }

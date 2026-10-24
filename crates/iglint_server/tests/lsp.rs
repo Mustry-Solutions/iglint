@@ -634,8 +634,10 @@ fn script_findings_can_be_suppressed() {
 
 /// Reviewer round 8 (Codex) blocker, through the language server: the
 /// quick fix that removes `import math` from a module whose function,
-/// defined before `import re`, reaches `eval` through `re.sys` is offered
-/// only as unsafe (not preferred), and fix-all keeps the import.
+/// defined before `import re`, uses an attribute of `re` that is not
+/// vetted is offered only as unsafe (not preferred), and fix-all keeps the
+/// import. (The round 8 exploit reached `eval` through `re.sys`, which
+/// since review round 25 reads names for the findings too: no finding.)
 #[test]
 fn quick_fix_for_import_read_through_an_earlier_function_is_unsafe() {
     let dir = tempfile::tempdir().unwrap();
@@ -647,7 +649,7 @@ fn quick_fix_for_import_read_through_an_earlier_function_is_unsafe() {
         &format!("{lib}/resource.json"),
         &MANIFEST.replace("view.json", "code.py"),
     );
-    let text = "def capture():\n    return re.sys.modules['__builtin__']\nimport re\ndef target():\n    import math\n    print capture().eval('math.pi')\ntarget()\n";
+    let text = "def capture():\n    return re.sre_parse\nimport re\ndef target():\n    import math\n    print capture()\ntarget()\n";
     let path = write(&root, &format!("{lib}/code.py"), text);
     let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
     let uri = client.open(&path, text);
@@ -678,7 +680,7 @@ fn quick_fix_for_import_read_through_an_earlier_function_is_unsafe() {
         // finding 2).
         assert!(
             fix.title.ends_with(
-                "(unsafe: the script uses code that is not vetted: `re.sys` at \
+                "(unsafe: the script uses code that is not vetted: `re.sre_parse` at \
                  projects/demo/ignition/script-python/m/code.py:2:12)"
             ),
             "{fix:#?}"
@@ -695,7 +697,7 @@ fn quick_fix_for_import_read_through_an_earlier_function_is_unsafe() {
         related.iter().any(|r| r.location.uri.path().ends_with("m/code.py")
             && r.location.range.start == Position::new(1, 11)
             && r.message
-                == "the fix is unsafe because the script uses code that is not vetted: `re.sys`"),
+                == "the fix is unsafe because the script uses code that is not vetted: `re.sre_parse`"),
         "{related:#?}"
     );
     let actions = code_actions(

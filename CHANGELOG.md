@@ -116,6 +116,16 @@ from 0.1.0 on.
 
 ### Fixed
 
+- `importlib.import_module('__builtin__')` hands out the builtins like
+  `__import__('__builtin__')`, and `.locals()` on it reads the caller's
+  frame (review round 25, M2), but it only made fixes unsafe, so SCR102
+  reported an import read that way as unused. A direct call is now
+  judged like `__import__` (a literal plain module keeps the findings),
+  and every other use of it, `imp`'s loaders, `sys.builtins`,
+  `sys.getBuiltins()`, `sys.getDefaultBuiltins()`,
+  `sys.modules_reloading`, `sys.__dict__` and the `sys` attribute of
+  other modules (`re.sys`) are routes that read names, like
+  `sys.modules`. Measured on 8.3.3's Jython.
 - SCR124's safe fix changed what a script does after a string Jython
   drops (review round 25, B1): Jython's lexer drops a single-quoted
   string that a line break ends, with the line break, and a backslash in

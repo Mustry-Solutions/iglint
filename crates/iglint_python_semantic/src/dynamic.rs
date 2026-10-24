@@ -163,6 +163,33 @@ const PARTLY_FRAME_MODULES: &[(&str, &[&str])] = &[
             "exc_info",
             "exc_traceback",
             "last_traceback",
+            // Jython's `PySystemState` hands out the builtins dictionary
+            // and the modules being reloaded (measured on 8.3.3:
+            // `sys.builtins['locals']()` and `sys.getDefaultBuiltins()`
+            // read the caller's frame; review round 25, M2).
+            "builtins",
+            "getBuiltins",
+            "getBuiltin",
+            "getDefaultBuiltins",
+            "setBuiltins",
+            "modules_reloading",
+        ],
+    ),
+    // Module loaders: `importlib.import_module` hands out any module, the
+    // builtins too (`importlib.import_module('__builtin__').locals()` reads
+    // the caller's frame, measured on 8.3.3; review round 25, M2); a
+    // direct call with a literal name is judged like `__import__`
+    // ([`import_call_route`]). `imp` runs and hands out the code of any
+    // file or package.
+    ("importlib", &["import_module"]),
+    (
+        "imp",
+        &[
+            "load_module",
+            "load_source",
+            "load_compiled",
+            "load_dynamic",
+            "load_package",
         ],
     ),
     (
@@ -534,11 +561,13 @@ pub fn reads_frames(body: &[Stmt]) -> Option<TextRange> {
     v.0
 }
 
-/// The route of a direct `__import__(...)` call: it hands out any module,
-/// the builtins too. A literal name of a module that hands out frames,
-/// the builtins or the interpreter (or a name that is not a literal)
-/// observes; a literal name of another module is fix only (whatever it
-/// hands out is used through further routes).
+/// The route of a direct `__import__(...)` or
+/// `importlib.import_module(...)` call: it hands out any module, the
+/// builtins too. A literal name of a module that hands out frames, the
+/// builtins or the interpreter (or a name that is not a literal, or a
+/// relative one, which a package argument resolves) observes; a literal
+/// name of another module is fix only (whatever it hands out is used
+/// through further routes).
 fn import_call_route(c: &iglint_python::ast::ExprCall) -> Route {
     if c.starargs.is_some() || c.kwargs.is_some() {
         return Route::Observes;
@@ -547,7 +576,8 @@ fn import_call_route(c: &iglint_python::ast::ExprCall) -> Route {
         Some(Expr::Str(s)) => {
             let name = s.s.to_latin1();
             let root = name.split('.').next().unwrap_or("").to_owned();
-            if FRAME_MODULES.contains(&root.as_str())
+            if root.is_empty()
+                || FRAME_MODULES.contains(&root.as_str())
                 || module_frame_names(&root).is_some()
                 || is_reflection_import(&name)
             {
@@ -754,6 +784,21 @@ impl<'a> Visitor<'a> for Escapes {
             // "String sinks" in the module documentation.
             Expr::Str(_) => return,
             Expr::Call(c) => {
+                // `importlib.import_module(name)`, called directly: judged
+                // like `__import__` (any other use of it observes).
+                if let Expr::Attribute(a) = &*c.func
+                    && a.attr.as_str() == "import_module"
+                    && self.module(&a.value) == Some("importlib")
+                {
+                    self.found(c.range, import_call_route(c));
+                    for a in &c.args {
+                        self.visit_expr(a);
+                    }
+                    for k in &c.keywords {
+                        self.visit_expr(&k.value);
+                    }
+                    return;
+                }
                 // A computed name (or Jython's `class` bean property): the
                 // attribute read is not known.
                 if Escapes::reflective_escape(c) {
@@ -865,6 +910,17 @@ impl<'a> Visitor<'a> for Escapes {
                     .filter(|m| module_frame_names(m).is_some_and(|names| names.contains(&attr)));
                 let route = match member {
                     Some(m) => Some(module_member_route(m, attr)),
+                    // The namespace of a module that hands out frames,
+                    // modules or the builtins (`sys.__dict__`,
+                    // `importlib.__getattribute__`) observes, like the
+                    // module as a value.
+                    None if module.is_some() && is_introspection_name(attr) => {
+                        Some(Route::Observes)
+                    }
+                    // A module's `sys` attribute is the `sys` module
+                    // (`re.sys`, `os.sys`, `importlib.sys`), which hands out
+                    // frames, every module and the builtins.
+                    None if attr == "sys" && a.ctx == ExprContext::Load => Some(Route::Observes),
                     None => introspection_route(attr),
                 };
                 if let Some(route) = route {
@@ -1054,6 +1110,23 @@ mod tests {
             "map(getattr, objs, names)\n",
             "f = operator.attrgetter\n",
             "f = template.format\n",
+            // module loaders that hand out the builtins or any module, and
+            // the builtins of Jython's `sys` (review round 25, M2)
+            "import importlib\nm = importlib.import_module('__builtin__')\n",
+            "import importlib as il\nm = il.import_module(name)\n",
+            "import importlib\nm = importlib.import_module('.x', p)\n",
+            "import importlib\nm = importlib.import_module(*a)\n",
+            "import importlib\nf = importlib.import_module\n",
+            "from importlib import import_module\n",
+            "import importlib\nf(importlib)\n",
+            "from imp import load_source\n",
+            "import imp\nm = imp.load_module(n, f, p, d)\n",
+            "b = sys.builtins\n",
+            "b = sys.getBuiltins()\n",
+            "b = sys.getDefaultBuiltins()\n",
+            "d = sys.__dict__\n",
+            "import re\nm = re.sys.modules\n",
+            "import importlib\nm = importlib.sys\n",
         ] {
             assert_eq!(route(src), Some(Route::Observes), "{src}");
         }
@@ -1092,7 +1165,8 @@ mod tests {
             // module loaders, rendering tracebacks, Jython value classes
             "import traceback\ntraceback.format_exc()\n",
             "import importlib\n",
-            "from imp import load_source\n",
+            "import imp\nm = imp.new_module('m')\n",
+            "import importlib\nm = importlib.import_module('json')\n",
             "from org.python.core import PyString\n",
             "__import__('os')\n",
             "compile(s, '<s>', 'exec')\n",

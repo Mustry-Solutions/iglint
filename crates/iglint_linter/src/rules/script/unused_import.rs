@@ -1923,7 +1923,13 @@ mod tests {
     #[test]
     fn functions_before_imports_are_vetted() {
         use crate::diagnostic::Applicability::{Safe, Unsafe};
-        let exploit = "def capture():\n    return re.sys.modules['__builtin__']\nimport re\ndef target():\n    import math\n    print capture().eval('math.pi')\ntarget()\n";
+        // Since review round 25 (M2) a module's `sys` attribute reads names
+        // for the findings too (here `eval` reads `math` in `target`): no
+        // finding. The order-free verdict is checked with an attribute that
+        // is not vetted and reads nothing (`re.sre_parse`, a submodule).
+        let observed = "def capture():\n    return re.sys.modules['__builtin__']\nimport re\ndef target():\n    import math\n    print capture().eval('math.pi')\ntarget()\n";
+        assert!(library("m", observed).lint(&["SCR102"]).is_empty());
+        let exploit = "def capture():\n    return re.sre_parse\nimport re\ndef target():\n    import math\n    print capture()\ntarget()\n";
         let f = library("m", exploit);
         let d = f.lint(&["SCR102"]);
         assert_eq!(applicability(&d), [Some(Unsafe)], "{d:?}");
@@ -1936,12 +1942,12 @@ mod tests {
         assert!(site.path.ends_with("m/code.py"), "{site:?}");
         assert_eq!(
             (site.line, site.column, site.what.as_str()),
-            (2, 12, "re.sys")
+            (2, 12, "re.sre_parse")
         );
         let fixed = safe_fixed(&f, &["SCR102"], &library_path(&f, "m"));
         assert_eq!(fixed, exploit);
         // Nested: the import comes after the inner function, in the outer.
-        let nested = "def outer():\n    def capture():\n        return re.sys.modules['__builtin__']\n    import re\n    def target():\n        import math\n        print capture().eval('math.pi')\n    target()\n";
+        let nested = "def outer():\n    def capture():\n        return re.sre_parse\n    import re\n    def target():\n        import math\n        print capture()\n    target()\n";
         let d = library("m", nested).lint(&["SCR102"]);
         assert_eq!(applicability(&d), [Some(Unsafe)], "{d:?}");
         // Workspace propagation: a clean module next to the exploit.
@@ -1963,7 +1969,7 @@ mod tests {
         assert!(reason.message.starts_with("closed world"), "{reason:?}");
         let site = reason.site.unwrap();
         assert!(site.path.ends_with("m/code.py"), "{site:?}");
-        assert_eq!((site.line, site.what.as_str()), (2, "re.sys"));
+        assert_eq!((site.line, site.what.as_str()), (2, "re.sre_parse"));
         // Control: without the capture, the same import is removed safely.
         let benign =
             "import re\ndef target():\n    import math\n    print re.escape('a')\ntarget()\n";
@@ -2123,5 +2129,40 @@ mod tests {
             assert_eq!(fixes, [crate::Applicability::Safe], "{rules:?}");
         }
         assert!(safe_fix_applies(&f, "SCR102", "m"));
+    }
+
+    /// Review round 25 (M2, Opus): `importlib.import_module('__builtin__')`
+    /// hands out the builtins like `__import__('__builtin__')`, and its
+    /// `locals()` reads the caller's frame (`'os'` on 8.3.3's Jython), but
+    /// it was only a first hop, so `os` was reported unused. Module loaders
+    /// are judged like `__import__`, and the other ways to the builtins and
+    /// the module table measured on 8.3.3 (`sys.builtins`,
+    /// `sys.getDefaultBuiltins()`, a module's `sys` attribute) observe. A
+    /// loader of a plain module keeps the finding; its fix is unsafe.
+    #[test]
+    fn module_loaders_that_hand_out_the_builtins_observe() {
+        for reach in [
+            "importlib.import_module('__builtin__').locals()",
+            "importlib.import_module(name).locals()",
+            "importlib.sys.modules['__builtin__'].locals()",
+            "sys.builtins['locals']()",
+            "sys.getDefaultBuiltins()['locals']()",
+            "imp.load_source('x', path).f()",
+        ] {
+            let code = format!(
+                "import sys, imp, importlib\nname = '__builtin__'\npath = ''\ndef f():\n    import os\n    return {reach}\n"
+            );
+            assert!(
+                flagged(&library("m", &code).lint(&["SCR102"])).is_empty(),
+                "{code}"
+            );
+        }
+        let code = "import importlib\ndef f():\n    import os\n    return importlib.import_module('json')\n";
+        let d = library("m", code).lint(&["SCR102"]);
+        assert_eq!(flagged(&d), ["os"]);
+        assert_eq!(
+            d[0].fix.as_ref().unwrap().applicability,
+            crate::Applicability::Unsafe
+        );
     }
 }
