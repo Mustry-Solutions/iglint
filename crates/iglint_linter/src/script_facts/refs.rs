@@ -26,11 +26,12 @@
 //! | `exec '...'`, `eval('...')`, `compile('...', ...)` with literal code | the references of the code |
 //! | a non-literal view path, query path or message type | dynamic reference with the literal prefix |
 
+use iglint_project::library::{HARMLESS_ATTRIBUTES, is_special_attribute};
 use iglint_project::summary::{MessageSend, MessageTarget, References, UnknownSite};
 use iglint_python::ast::{Expr, ExprContext, Slice, Stmt};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
 use iglint_python_semantic::{BindingKind, Resolution, ScopeId, SemanticModel, UnboundNames};
-use iglint_text::Ranged;
+use iglint_text::{Ranged, TextRange};
 
 use super::api::{ApiTarget, api_target};
 use super::calls::{
@@ -113,7 +114,17 @@ pub fn collect(model: &SemanticModel<'_>, ctx: &FactsContext<'_>, refs: &mut Ref
             && let Some(q) = &b.qualified
             && q.contains('.')
         {
-            refs.library.push(q.clone());
+            match q.rsplit_once('.') {
+                // `from m import __dict__`.
+                Some((base, name)) if is_special_attribute(name) => {
+                    chains.special_use(base.to_owned(), true, b.range);
+                }
+                // `from m import dict`: the index decides.
+                Some((_, name)) if is_object_member(name) => {
+                    chains.plain_use(q.clone(), Role::Base, true, true, b.range);
+                }
+                _ => chains.refs.library.push(q.clone()),
+            }
         }
     }
 }
@@ -316,6 +327,12 @@ fn dynamic_code(
                     Expr::Str(s) => s.s.as_str(),
                     _ => None,
                 });
+                if let Some(attr) = attr
+                    && is_special_attribute(attr)
+                {
+                    // `setattr(m, '__dict__', d)`: the object as a value.
+                    chains.member_use(e, attr, Role::Value, call.range);
+                }
                 chains.store(match attr {
                     Some(attr) => format!("{object}.{attr}"),
                     None => object,
@@ -398,9 +415,60 @@ enum Role {
     Value,
 }
 
-/// Attributes of a function or class whose reading exposes nothing.
-const HARMLESS_FUNCTION_ATTRIBUTES: &[&str] =
-    &["__name__", "func_name", "__doc__", "func_doc", "__module__"];
+/// The object of the first special attribute of the chain `e` from its
+/// root ([`is_special_attribute`]): `m` for `m.__dict__` and
+/// `m.__getattribute__`, `m.f` for `m.f.__call__`. Only attributes the
+/// source spells count (not a module's own name its top-level names are
+/// dotted with).
+fn special_object(e: &Expr) -> Option<&Expr> {
+    let mut found = None;
+    let mut at = e;
+    while let Expr::Attribute(a) = at {
+        if is_special_attribute(a.attr.as_str()) {
+            found = Some(&*a.value);
+        }
+        at = &a.value;
+    }
+    found
+}
+
+/// Whether `c` reads an attribute by a literal name: `getattr(o, 'n')`,
+/// `o.__getattribute__('n')` and the other accessors
+/// ([`Chains::literal_accessor_method`]).
+fn is_literal_accessor(c: &iglint_python::ast::ExprCall) -> bool {
+    let name = match &*c.func {
+        Expr::Name(n) => &*n.id,
+        Expr::Attribute(a) => a.attr.as_str(),
+        _ => return false,
+    };
+    let at = match name {
+        "getattr" => 1,
+        "__getattribute__" | "__getattr__" | "__findattr__" | "__findattr_ex__" => 0,
+        _ => return false,
+    };
+    matches!(c.args.get(at), Some(Expr::Str(_)))
+}
+
+/// Whether `name` is a member of Ignition's library module or package
+/// objects ([`iglint_project::library::MODULE_OBJECT_MEMBERS`],
+/// [`iglint_project::library::PACKAGE_OBJECT_MEMBERS`]).
+fn is_object_member(name: &str) -> bool {
+    iglint_project::library::MODULE_OBJECT_MEMBERS.contains(&name)
+        || iglint_project::library::PACKAGE_OBJECT_MEMBERS.contains(&name)
+}
+
+/// Whether an attribute of the chain `e` names a member of Ignition's
+/// library module or package objects ([`is_object_member`]).
+fn names_object_member(e: &Expr) -> bool {
+    let mut at = e;
+    while let Expr::Attribute(a) = at {
+        if is_object_member(a.attr.as_str()) {
+            return true;
+        }
+        at = &a.value;
+    }
+    false
+}
 
 struct Chains<'m, 'a, 'c, 'r> {
     model: &'m SemanticModel<'a>,
@@ -465,18 +533,73 @@ impl Chains<'_, '_, '_, '_> {
     }
 
     fn record(&mut self, e: &Expr, role: Role) {
+        if let Some(object) = special_object(e) {
+            let root = self.library_root(object);
+            if let Some(base) = self.dotted(object) {
+                self.special_use(base, root, e.range());
+            }
+            return;
+        }
         let Some(q) = self.dotted(e) else {
             return;
         };
-        if role == Role::Value && self.library_root(e) {
+        let root = self.library_root(e);
+        self.plain_use(q, role, root, names_object_member(e), e.range());
+    }
+
+    /// `object.name` with a literal name (`getattr(object, 'name')`,
+    /// `object.__getattribute__('name')`), like the attribute written out.
+    fn member_use(&mut self, object: &Expr, name: &str, role: Role, at: TextRange) {
+        let target = special_object(object).unwrap_or(object);
+        let Some(base) = self.dotted(target) else {
+            return;
+        };
+        let root = self.library_root(target);
+        if !std::ptr::eq(target, object) || is_special_attribute(name) {
+            self.special_use(base, root, at);
+            return;
+        }
+        let member = names_object_member(object) || is_object_member(name);
+        self.plain_use(format!("{base}.{name}"), role, root, member, at);
+    }
+
+    /// A special attribute of the object `base` is used at `at` (review
+    /// round 26). Default deny over the attributes of library objects:
+    /// reading or calling a name of a module (`m.f`, `pkg.m.f`) is a static
+    /// reference; a special attribute anywhere after the root of a chain
+    /// (`m.__getattribute__`, `m.__dict__`, `m.__class__`,
+    /// `m.__reduce_ex__`, `m.f.__call__`, [`is_special_attribute`]) is a
+    /// use of the object before it as a value that may read and change
+    /// everything in it, like `vars(m)` and `m.__dict__`. `root`: whether
+    /// the root of the chain may be a library name
+    /// ([`Chains::library_root`]).
+    fn special_use(&mut self, base: String, root: bool, at: TextRange) {
+        if root {
+            self.refs
+                .library_changes
+                .push((base.clone(), UnknownSite::detached(at)));
             self.refs
                 .library_values
-                .push((q.clone(), UnknownSite::detached(e.range())));
+                .push((base.clone(), UnknownSite::detached(at)));
         }
-        if q.ends_with(".__dict__")
-            && let Expr::Attribute(a) = e
-        {
-            self.changed(e, &a.value);
+        self.refs.library_stores.push(base.clone());
+        self.refs.dynamic.library.push(base.clone());
+        self.refs.library_exposed.push(base.clone());
+        self.refs.library.push(base);
+    }
+
+    /// The use of the dotted name `q` at `at`, as `role`. `member`: the
+    /// chain names a member of Ignition's module or package objects
+    /// (`m.dict`, `m.getDict()`, `pkg.clear()`); the index decides whether
+    /// the module binds the name or the member is meant
+    /// ([`iglint_project::LibraryTree::object_member`], which makes the
+    /// object a value), and the chain is a library value here, for the
+    /// shared objects the module holds.
+    fn plain_use(&mut self, q: String, role: Role, root: bool, member: bool, at: TextRange) {
+        if root && (role == Role::Value || member) {
+            self.refs
+                .library_values
+                .push((q.clone(), UnknownSite::detached(at)));
         }
         self.record_dotted(q, role);
     }
@@ -517,6 +640,9 @@ impl Chains<'_, '_, '_, '_> {
     /// reference, like the attribute written out), not of the object
     /// `chain` as a value. `role`: how the result of the call is used.
     fn literal_getattr(&mut self, c: &iglint_python::ast::ExprCall, role: Role) -> bool {
+        if let Expr::Attribute(a) = &*c.func {
+            return self.literal_accessor_method(c, a, role);
+        }
         let Expr::Name(f) = &*c.func else {
             return false;
         };
@@ -544,28 +670,74 @@ impl Chains<'_, '_, '_, '_> {
         {
             return false;
         }
-        let Some(base) = self.dotted(object) else {
+        if self.dotted(object).is_none() {
             return false;
-        };
-        self.record_dotted(
-            format!("{base}.{name}"),
-            if has { Role::Base } else { role },
-        );
+        }
+        self.member_use(object, name, if has { Role::Base } else { role }, c.range);
         for a in &c.args[2..] {
             self.expr(a, Role::Value);
         }
         true
     }
 
-    fn record_dotted(&mut self, q: String, role: Role) {
-        if let Some(base) = q.strip_suffix(".__dict__") {
-            // The namespace of a module (or a function's attributes) may be
-            // written through it, and every name in it read
-            // (`m.__dict__[n]`, review round 25, N2): the object is used
-            // as a value, like `vars(m)` or `getattr(m, n)`.
-            self.refs.library_stores.push(base.to_owned());
-            self.refs.dynamic.library.push(base.to_owned());
+    /// `chain.__getattribute__('name')` (also `__getattr__`,
+    /// `__findattr__`, Jython's `__findattr_ex__`) with a literal name:
+    /// like `getattr(chain, 'name')`; `chain.__setattr__('name', v)` and
+    /// `chain.__delattr__('name')`: like `setattr` and `delattr`, a change
+    /// of `chain`, a store of `chain.name` and `chain` used as a value, as
+    /// an argument of `setattr` is (review round 26). Any other
+    /// call of these (a computed name, unpacked arguments) is the special
+    /// attribute used, which makes `chain` a value.
+    fn literal_accessor_method(
+        &mut self,
+        c: &iglint_python::ast::ExprCall,
+        a: &iglint_python::ast::ExprAttribute,
+        role: Role,
+    ) -> bool {
+        let store = match a.attr.as_str() {
+            "__getattribute__" | "__getattr__" | "__findattr__" | "__findattr_ex__" => false,
+            "__setattr__" | "__delattr__" => true,
+            _ => return false,
+        };
+        let arity = match a.attr.as_str() {
+            "__setattr__" => 2,
+            _ => 1,
+        };
+        let Some(Expr::Str(name)) = c.args.first() else {
+            return false;
+        };
+        let Some(name) = name.s.as_str() else {
+            return false;
+        };
+        if !is_chain(&a.value)
+            || c.starargs.is_some()
+            || c.kwargs.is_some()
+            || !c.keywords.is_empty()
+            || c.args.len() != arity
+            || name.is_empty()
+            || name.contains('.')
+        {
+            return false;
         }
+        let Some(base) = self.dotted(&a.value) else {
+            return false;
+        };
+        if store && !is_special_attribute(name) && special_object(&a.value).is_none() {
+            // As `setattr(chain, ...)`, whose arguments are values.
+            self.record(&a.value, Role::Value);
+            self.changed(c.func.as_ref(), &a.value);
+            self.store(format!("{base}.{name}"));
+        } else {
+            let role = if store { Role::Value } else { role };
+            self.member_use(&a.value, name, role, c.range);
+        }
+        for arg in &c.args[1..] {
+            self.expr(arg, Role::Value);
+        }
+        true
+    }
+
+    fn record_dotted(&mut self, q: String, role: Role) {
         // `f.func_globals` is the namespace of `f`'s module.
         let segments: Vec<&str> = q.split('.').collect();
         if let Some(i) = segments
@@ -581,7 +753,7 @@ impl Chains<'_, '_, '_, '_> {
         if role == Role::Value
             && !segments
                 .last()
-                .is_some_and(|s| HARMLESS_FUNCTION_ATTRIBUTES.contains(s))
+                .is_some_and(|s| HARMLESS_ATTRIBUTES.contains(s))
         {
             // Code that receives the object may replace its code or reach
             // its module through `func_globals`.
@@ -619,13 +791,27 @@ impl Chains<'_, '_, '_, '_> {
                     self.record(e, role);
                 } else {
                     self.record(&a.value, Role::Base);
-                    if let Some(q) = self.dotted(e) {
+                    if special_object(e).is_some() {
+                        // `m.__dict__ = d`, `m.f.__code__ = c`.
+                        self.record(e, Role::Value);
+                    } else if let Some(q) = self.dotted(e) {
                         self.changed(e, &a.value);
                         self.store(q);
                     }
                 }
             }
-            Expr::Attribute(a) => self.expr(&a.value, Role::Base),
+            Expr::Attribute(a) => {
+                // An attribute of a value that is not a chain: a special
+                // attribute or a member of a library object hands out the
+                // value as a whole, and so does any attribute of an object
+                // read by a literal accessor (`getattr(pkg, 'm').f`,
+                // `pkg.__findattr_ex__('m').__dict__`), which the dotted
+                // names do not follow (review round 26).
+                let whole = is_special_attribute(a.attr.as_str())
+                    || is_object_member(a.attr.as_str())
+                    || matches!(&*a.value, Expr::Call(c) if is_literal_accessor(c));
+                self.expr(&a.value, if whole { Role::Value } else { Role::Base });
+            }
             Expr::Call(c) if self.literal_getattr(c, role) => {}
             Expr::Call(c) => {
                 self.expr(&c.func, Role::Call);

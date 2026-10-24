@@ -1,0 +1,187 @@
+### getattribute-literal literal m
+    return m.__getattribute__('re')
+### getattr-dunder-literal literal m
+    return m.__getattr__('re')
+### findattr-literal literal m
+    return m.__findattr__('re')
+### findattr-ex-literal literal m
+    return m.__findattr_ex__('re')
+### getattr-literal literal m
+    return getattr(m, 're')
+### getattr-default-literal literal m
+    return getattr(m, 're', None)
+### hasattr-literal literal m
+    return hasattr(m, 're')
+### package-getattribute-literal literal pkg.m
+    return pkg.m.__getattribute__('re')
+### package-findattr-ex-literal literal pkg.m
+    return pkg.m.__findattr_ex__('re')
+### package-getattr-literal literal pkg.m
+    return getattr(pkg.m, 're')
+### eval-literal literal m
+    return eval('m.re')
+### exec-literal literal m
+    exec 'r = m.re'
+    return r
+### getattribute-computed value m
+    return m.__getattribute__(n)
+### getattribute-computed-called value m
+    return m.__getattribute__(n)()
+### findattr-ex-computed value m
+    return m.__findattr_ex__(n)
+### getattr-computed value m
+    return getattr(m, n)
+### hasattr-computed value m
+    return hasattr(m, n)
+### getattribute-unpacked value m
+    return m.__getattribute__(*[n])
+### getattribute-of-dict value m
+    return m.__getattribute__('__dict__')[n]
+### getattribute-of-member value m
+    return m.__getattribute__('dict')[n]
+### getattr-of-dict value m
+    return getattr(m, '__dict__')[n]
+### getattr-of-member value m
+    return getattr(m, 'dict')[n]
+### getattr-of-getattribute value m
+    return getattr(m, '__getattribute__')(n)
+### vars value m
+    return vars(m)[n]
+### dir value m
+    return dir(m)
+### dunder-dict value m
+    return m.__dict__[n]
+### dunder-dict-write value m
+    m.__dict__[n] = 1
+    return m.re
+### member-dict value m
+    return m.dict[n]
+### member-dict-write value m
+    m.dict[n] = 1
+    return m.re
+### member-getdict value m
+    return m.getDict()[n]
+### member-setcode value m
+    return m.setCode
+### member-reload value m
+    return m.reloadModule
+### reduce-ex value m
+    return m.__reduce_ex__(2)[2][n]
+### reduce value m
+    return m.__reduce__
+### class value m
+    return m.__class__
+### type value m
+    return type(m)
+### setattr-dunder-literal value m
+    m.__setattr__('re', 1)
+    return m.re
+### setattr-dunder-computed value m
+    m.__setattr__(n, 1)
+    return m.re
+### delattr-dunder-literal value m
+    m.__delattr__('re')
+    return hasattr(m, 're')
+### delattr-dunder-computed value m
+    m.__delattr__(n)
+    return hasattr(m, 're')
+### setattr-literal value m
+    setattr(m, 're', 1)
+    return m.re
+### delattr-literal value m
+    delattr(m, 're')
+    return hasattr(m, 're')
+### delattr-computed value m
+    delattr(m, n)
+    return hasattr(m, 're')
+### object-getattribute value m
+    return object.__getattribute__(m, n)
+### object-setattr value m
+    object.__setattr__(m, n, 1)
+    return m.re
+### object-delattr value m
+    object.__delattr__(m, n)
+    return hasattr(m, 're')
+### type-getattribute value m
+    return type(m).__getattribute__(m, n)
+### class-getattribute value m
+    return m.__class__.__getattribute__(m, n)
+### moduletype-getattribute value m
+    import types
+    return types.ModuleType.__getattribute__(m, n)
+### super-getattribute value m
+    return super(type(m), m).__getattribute__(n)
+### attrgetter value m
+    import operator
+    return operator.attrgetter(n)(m)
+### methodcaller value m
+    import operator
+    return operator.methodcaller('__findattr_ex__', n)(m)
+### inspect-getmembers value m
+    import inspect
+    return [v for k, v in inspect.getmembers(m) if k == n]
+### copy value m
+    import copy
+    return copy.copy(m)
+### deepcopy value m
+    import copy
+    return copy.deepcopy(m)
+### pickle value m
+    import pickle
+    return pickle.dumps(m)
+### cpickle value m
+    import cPickle
+    return cPickle.dumps(m)
+### builtins value m
+    return m.__builtins__
+### module-sys value m
+    return m.sys.modules['m'].re
+### func-globals value m
+    return m.f.func_globals[n]
+### func-dunder-globals value m
+    return m.f.__globals__[n]
+### method-wrapper-globals value m
+    return m.f.__call__.__self__.func_globals[n]
+### alias-getattribute value m
+    x = m
+    return x.__getattribute__(n)
+### alias-member-dict value m
+    x = m
+    return x.dict[n]
+### alias-dunder-dict value m
+    x = m
+    return x.__dict__[n]
+### container-dunder-dict value m
+    return [m][0].__dict__[n]
+### lambda-member-dict value m
+    return (lambda: m)().dict[n]
+### package-dunder-dict value pkg.m
+    return pkg.m.__dict__[n]
+### package-member-dict value pkg.m
+    return pkg.m.dict[n]
+### package-alias value pkg.m
+    x = pkg.m
+    return x.__findattr_ex__(n)
+### package-finditem value pkg.m
+    return pkg.__finditem__('m').__findattr_ex__(n)
+### package-findattr-ex value pkg.m
+    return pkg.__findattr_ex__('m').__findattr_ex__(n)
+### package-getattr value pkg.m
+    return getattr(pkg, 'm').__findattr_ex__(n)
+### package-getattr-attribute value pkg.m
+    return getattr(pkg, 'm').re
+### package-member value pkg.m
+    return pkg.dict['m'].dict[n]
+### package-getdict value pkg.m
+    return pkg.getDict()['m'].dict[n]
+### package-clear value pkg.m
+    pkg.clear()
+    return hasattr(pkg, 'm')
+### package-dunder value pkg.m
+    return pkg.__dict__['m'].__dict__[n]
+### package-of-alias value pkg.m
+    p = pkg
+    return p.m.__dict__[n]
+### from-import-alias value pkg.m
+    from pkg import m as x
+    return x.__dict__[n]

@@ -1,6 +1,8 @@
 //! REF: references between resources.
 
 pub mod library_function_arity;
+#[cfg(test)]
+mod library_routes;
 pub(crate) mod library_uses;
 pub mod manifest_mismatch;
 pub mod named_query_params;

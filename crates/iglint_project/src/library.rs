@@ -34,6 +34,88 @@ pub fn is_valid_module_path(path: &str) -> bool {
         })
 }
 
+/// The Java members of Ignition's project library module objects
+/// (`ProjectScriptModule`), as Jython finds them when the module does not
+/// bind the name itself (a name the module binds wins). Measured on 8.3.3
+/// by `oracle/jython_library_routes_oracle.py` (replayed by
+/// `library_object_members_match_the_oracle` in `iglint_linter`). `dict`
+/// and `getDict()` hand out the module's namespace (its `__builtins__`
+/// too), `setCode` replaces its code and `reloadModule` runs it again: a
+/// use of any of them is a use of the module as a value.
+pub const MODULE_OBJECT_MEMBERS: &[&str] = &[
+    "code",
+    "dict",
+    "getCode",
+    "getDict",
+    "getName",
+    "getPath",
+    "loadModule",
+    "name",
+    "path",
+    "reloadModule",
+    "setCode",
+    "setName",
+    "toString",
+];
+
+/// The Java members of Ignition's library package objects
+/// (`ScriptPackage`), found when the package has no child of that name (a
+/// child wins). Measured like [`MODULE_OBJECT_MEMBERS`]: `dict` and
+/// `getDict()` hand out the package's modules, `clear()` and `setDict`
+/// replace them.
+pub const PACKAGE_OBJECT_MEMBERS: &[&str] = &[
+    "clear", "dict", "getDict", "getName", "name", "setDict", "setName", "toString",
+];
+
+/// Attributes of library modules, packages, functions and classes whose
+/// reading exposes nothing: names and documentation.
+pub const HARMLESS_ATTRIBUTES: &[&str] =
+    &["__name__", "func_name", "__doc__", "func_doc", "__module__"];
+
+/// Whether the attribute `name` of a library object is something other
+/// than one of its names, whatever the object: a special attribute
+/// (`__dict__`, `__getattribute__`, `__class__`, `__reduce_ex__`,
+/// `__setattr__`, ...), other than the [`HARMLESS_ATTRIBUTES`]. Default
+/// deny: every special name counts, so that a route the measurement did
+/// not list is still a use of the object as a value.
+pub fn is_special_attribute(name: &str) -> bool {
+    name.len() > 4
+        && name.starts_with("__")
+        && name.ends_with("__")
+        && !HARMLESS_ATTRIBUTES.contains(&name)
+}
+
+/// The library object (a module or a package) whose own member a dotted
+/// name reaches ([`LibraryTree::object_member`]): code that reads it may
+/// read and change everything in the object.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LibraryObject {
+    Module {
+        resource: ResourceId,
+        dotted: String,
+    },
+    Package {
+        dotted: String,
+    },
+}
+
+/// Whether `name` is a member of a library module object.
+fn module_member(name: &str) -> bool {
+    MODULE_OBJECT_MEMBERS.contains(&name) || is_special_attribute(name)
+}
+
+/// Whether `name` is a member of a library package object.
+fn package_member(name: &str) -> bool {
+    PACKAGE_OBJECT_MEMBERS.contains(&name) || is_special_attribute(name)
+}
+
+/// Whether `name` is a special name (`__doc__`, `__name__`, `__file__`):
+/// the objects have some of them (measured), which lookups do not
+/// decide.
+fn dunder(name: &str) -> bool {
+    name.len() > 4 && name.starts_with("__") && name.ends_with("__")
+}
+
 /// Top-level definitions of a module, produced by the Python layer from its
 /// parse tree. iglint_project never parses Python itself.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -459,6 +541,10 @@ impl LibraryTree {
                             index: i,
                             module: node.dotted.clone(),
                         },
+                        // A member of the module object itself (`m.dict`,
+                        // `m.__dict__`): it exists, and what it reaches is
+                        // not a name of the module.
+                        None if module_member(seg) || dunder(seg) => LibraryLookup::Unknown,
                         None if syms.dynamic => LibraryLookup::Unknown,
                         None => LibraryLookup::MissingAttribute { index: i, resource },
                     },
@@ -471,6 +557,8 @@ impl LibraryTree {
             }
             match node.children.get(*seg) {
                 Some(&child) => at = child,
+                // A member of the package object (`pkg.dict`, `pkg.clear`).
+                None if package_member(seg) || dunder(seg) => return LibraryLookup::Unknown,
                 None => {
                     return LibraryLookup::Missing {
                         index: i,
@@ -489,6 +577,42 @@ impl LibraryTree {
                 dotted: node.dotted.clone(),
             },
         }
+    }
+
+    /// The module or package whose own member `dotted` reaches, if any:
+    /// a member of Ignition's module or package object
+    /// ([`MODULE_OBJECT_MEMBERS`], [`PACKAGE_OBJECT_MEMBERS`]) that the
+    /// module does not bind (or the package has no child of that name),
+    /// or a special attribute ([`is_special_attribute`]). A module whose
+    /// symbols are not known may bind anything: its members count.
+    pub fn object_member<'i>(
+        &self,
+        dotted: &str,
+        symbols: impl Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+    ) -> Option<LibraryObject> {
+        let mut segments = dotted.split('.');
+        let mut at = *self.roots.get(segments.next()?)?;
+        for seg in segments {
+            let node = &self.nodes[at];
+            if let Some(resource) = node.resource {
+                let bound = symbols(resource).is_some_and(|s| s.get(seg).is_some());
+                return (!bound && !node.children.contains_key(seg) && module_member(seg)).then(
+                    || LibraryObject::Module {
+                        resource,
+                        dotted: node.dotted.clone(),
+                    },
+                );
+            }
+            match node.children.get(seg) {
+                Some(&child) => at = child,
+                None => {
+                    return package_member(seg).then(|| LibraryObject::Package {
+                        dotted: node.dotted.clone(),
+                    });
+                }
+            }
+        }
+        None
     }
 
     /// Modules whose own `code.py` hides child modules: `(module, hidden

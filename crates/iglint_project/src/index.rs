@@ -5,7 +5,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::{ProjectId, ResourceId};
 use crate::kinds::{EventScriptKind, MODULE_IGNITION, MODULE_PERSPECTIVE, ResourceKind};
-use crate::library::{LibraryLookup, LibraryTree, ModuleSymbols, SymbolKind};
+use crate::library::{LibraryLookup, LibraryObject, LibraryTree, ModuleSymbols, SymbolKind};
 use crate::perspective::match_page_url;
 use crate::summary::{
     DynamicReferences, Facts, MessageTarget, NamedQueryFacts, ResourceSummary, SessionFacts,
@@ -534,6 +534,29 @@ impl<'w> ProjectIndex<'w> {
                             *usage.entry(resource).or_default() += 1;
                         }
                         _ => {}
+                    }
+                    // A member of the module or package object itself
+                    // (`m.dict`, `m.getDict()`, `pkg.clear()`, `m.__dict__`;
+                    // review round 26): the object is used as a value, its
+                    // names may be read and changed through it.
+                    let library = &self.projects[pid.index()].library;
+                    match library.object_member(name, |r| self.module_symbols(r)) {
+                        Some(LibraryObject::Module { resource, dotted }) => {
+                            escaped[pid.index()].insert(resource);
+                            value_modules[pid.index()].insert(resource);
+                            stores[pid.index()].insert(dotted);
+                        }
+                        Some(LibraryObject::Package { dotted }) => {
+                            let prefix = format!("{dotted}.");
+                            for (m, resource) in library.modules() {
+                                if m.starts_with(&prefix) {
+                                    escaped[pid.index()].insert(resource);
+                                    value_modules[pid.index()].insert(resource);
+                                }
+                            }
+                            stores[pid.index()].insert(dotted);
+                        }
+                        None => {}
                     }
                 }
                 let unvetted = refs.unvetted_imports.iter().find(|(name, _)| {
@@ -1196,6 +1219,22 @@ impl<'w> ProjectIndex<'w> {
     ) -> bool {
         let mut dotted = dotted.to_owned();
         for _ in 0..8 {
+            // A member of a module or package object (`m.dict`): whoever
+            // reads it holds the object (review round 26).
+            let library = &self.projects[project.index()].library;
+            match library.object_member(&dotted, |r| self.module_symbols(r)) {
+                Some(LibraryObject::Module { resource, .. }) => {
+                    return self.module_imports_shared(project, resource, memo);
+                }
+                Some(LibraryObject::Package { dotted: package }) => {
+                    let prefix = format!("{package}.");
+                    return library.modules().any(|(m, resource)| {
+                        m.starts_with(&prefix)
+                            && self.module_imports_shared(project, resource, memo)
+                    });
+                }
+                None => {}
+            }
             match self.resolve_library(project, &dotted) {
                 LibraryLookup::NotLibrary
                 | LibraryLookup::Missing { .. }

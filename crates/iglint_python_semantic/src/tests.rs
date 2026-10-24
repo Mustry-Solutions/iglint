@@ -634,3 +634,42 @@ fn with_model_options(src: &str, module_has_name: bool, f: impl FnOnce(&Semantic
     };
     f(&SemanticModel::build(&parsed.module, &options));
 }
+
+/// Review round 26 (M2): the namespace of a value the model resolves to a
+/// module (an import, a library package bound nowhere) observes names, of
+/// a parameter or a builtin it does not.
+#[test]
+fn module_namespaces_read_the_callers_locals() {
+    for (src, observes) in [
+        (
+            "import json\ndef f():\n    x = 1\n    return vars(json)['__builtins__']['locals']()\n",
+            true,
+        ),
+        (
+            "def f():\n    x = 1\n    return lib.util.__dict__['__builtins__']\n",
+            true,
+        ),
+        ("def f():\n    x = 1\n    return lib.dict\n", true),
+        (
+            "from lib import util\ndef f():\n    x = 1\n    return util.getDict()\n",
+            true,
+        ),
+        ("def f(o):\n    x = 1\n    return vars(o)\n", false),
+        ("def f(o):\n    x = 1\n    return o.__dict__\n", false),
+        ("def f():\n    x = len\n    return x.__dict__\n", false),
+        (
+            "import json\ndef f(n):\n    x = 1\n    return getattr(json, n)\n",
+            false,
+        ),
+    ] {
+        with_model(src, &["lib"], |m| {
+            assert!(m.frame_escape().is_some(), "{src}");
+            let f = m
+                .scopes()
+                .find(|(_, s)| s.kind == ScopeKind::Function)
+                .map(|(_, s)| s)
+                .unwrap();
+            assert_eq!(f.reads_locals, observes, "{src}");
+        });
+    }
+}

@@ -95,7 +95,7 @@
 //! numbers after a safe fix. Routes that only expose line numbers are kept
 //! because they also reach frames.
 
-use iglint_python::ast::{Expr, ExprContext, Stmt, StringValue};
+use iglint_python::ast::{Expr, ExprContext, ExprName, Stmt, StringValue};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
 use iglint_text::TextRange;
 use rustc_hash::FxHashMap;
@@ -277,10 +277,14 @@ pub const INTROSPECTION_ATTRS: &[&str] = &[
     "co_nlocals",
     "co_stacksize",
     "co_varnames",
-    // generic introspection
+    // generic introspection; `__reduce__` and `__reduce_ex__` hand out
+    // the object's `__dict__` as its state (measured on 8.3.3:
+    // `m.__reduce_ex__(2)[2]` is a library module's namespace)
     "__dict__",
     "__getattribute__",
     "__builtins__",
+    "__reduce__",
+    "__reduce_ex__",
     // classes: every class of the interpreter, and the classes a class
     // derives from (each leads to functions and their globals)
     "__subclasses__",
@@ -325,6 +329,22 @@ const FRAME_METHOD_NAMES: &[&str] = &[
     "defineClass",
 ];
 
+/// Members of Ignition's project library module and package objects
+/// (`ProjectScriptModule`, `ScriptPackage`, measured on 8.3.3 with
+/// `oracle/jython_library_routes_oracle.py`) that hand out the object's
+/// namespace, the `__builtins__` of a module included (`m.dict`,
+/// `m.getDict()`: `m.dict['__builtins__']['locals']()` reads the caller's
+/// frame), or replace its code with code from data (`m.setCode(s)`).
+/// Matched on any value, like [`INTROSPECTION_ATTRS`]: an alias or a
+/// parameter may hold a library module (review round 26).
+pub const LIBRARY_OBJECT_ROUTES: &[&str] = &["dict", "getDict", "setCode"];
+
+/// Attributes that hand out the namespace of the object they are read
+/// from: on a value that may be a module (a module's namespace holds its
+/// `__builtins__`), [`Route::Observes`] (review round 26, M2:
+/// `vars(json)['__builtins__']['locals']()` reads the caller's frame).
+const NAMESPACE_ATTRS: &[&str] = &["__dict__", "dict", "getDict", "__reduce__", "__reduce_ex__"];
+
 /// Whether `name`, a whole identifier, is an introspection attribute, a
 /// frame-reaching method name, or a Java member whose declared type
 /// mentions a reflection or interpreter type, on any type a script can
@@ -337,6 +357,7 @@ const FRAME_METHOD_NAMES: &[&str] = &[
 fn is_introspection_name(name: &str) -> bool {
     INTROSPECTION_ATTRS.contains(&name)
         || FRAME_METHOD_NAMES.contains(&name)
+        || LIBRARY_OBJECT_ROUTES.contains(&name)
         || crate::generated::JAVA_REFLECTIVE_MEMBERS
             .binary_search(&name)
             .is_ok()
@@ -507,8 +528,23 @@ pub fn frame_observer(body: &[Stmt]) -> Option<TextRange> {
 
 /// [`frame_escape`] and [`frame_observer`] in one walk.
 pub fn escapes(body: &[Stmt]) -> (Option<TextRange>, Option<TextRange>) {
+    escapes_with(body, &|_| false)
+}
+
+/// [`escapes`], where `may_be_module` says which names may stand for a
+/// module object (the caller resolves them: a name bound by an import or
+/// bound nowhere, such as a library package). The namespace of such a
+/// value (`vars(m)`, `m.__dict__`, `m.dict`, `getattr(m, n)` with a
+/// computed name, [`NAMESPACE_ATTRS`]) holds the module's `__builtins__`:
+/// [`Route::Observes`] instead of [`Route::FixOnly`]. Which routes there
+/// are does not depend on it, only how far they reach.
+pub fn escapes_with(
+    body: &[Stmt],
+    may_be_module: &dyn Fn(&ExprName) -> bool,
+) -> (Option<TextRange>, Option<TextRange>) {
     let mut v = Escapes {
         modules: module_names(body),
+        may_be_module,
         found: None,
         observed: None,
     };
@@ -617,22 +653,47 @@ fn module_names(body: &[Stmt]) -> FxHashMap<String, &'static str> {
     v.0
 }
 
-struct Escapes {
+struct Escapes<'p> {
     /// Names bound to modules of [`PARTLY_FRAME_MODULES`].
     modules: FxHashMap<String, &'static str>,
+    /// Whether a name may stand for a module object ([`escapes_with`]).
+    may_be_module: &'p dyn Fn(&ExprName) -> bool,
     /// The first route of either kind.
     found: Option<TextRange>,
     /// The first [`Route::Observes`] route.
     observed: Option<TextRange>,
 }
 
-impl Escapes {
+impl Escapes<'_> {
     fn found(&mut self, range: TextRange, route: Route) {
         if self.found.is_none_or(|f| range.start() < f.start()) {
             self.found = Some(range);
         }
         if route == Route::Observes && self.observed.is_none_or(|f| range.start() < f.start()) {
             self.observed = Some(range);
+        }
+    }
+
+    /// Whether `e` may be a module object: an attribute chain on a name
+    /// that may stand for one ([`escapes_with`]).
+    fn module_value(&self, e: &Expr) -> bool {
+        let mut root = e;
+        while let Expr::Attribute(a) = root {
+            root = &a.value;
+        }
+        matches!(root, Expr::Name(n) if (self.may_be_module)(n))
+    }
+
+    /// The object whose attribute a direct reflective-accessor call reads
+    /// (`getattr(o, ...)`, `o.__getattribute__(...)`), if it names one.
+    fn accessor_object<'e>(name: &str, c: &'e iglint_python::ast::ExprCall) -> Option<&'e Expr> {
+        match name {
+            "getattr" | "setattr" | "delattr" | "hasattr" => c.args.first(),
+            "attrgetter" | "methodcaller" | "invoke" => None,
+            _ => match &*c.func {
+                Expr::Attribute(a) => Some(&a.value),
+                _ => None,
+            },
         }
     }
 
@@ -687,7 +748,7 @@ impl Escapes {
     }
 }
 
-impl Escapes {
+impl Escapes<'_> {
     /// A string literal in a sink position (see "String sinks" in the
     /// module documentation): it names members, so it is scanned for
     /// introspection names.
@@ -710,7 +771,7 @@ impl Escapes {
     }
 }
 
-impl<'a> Visitor<'a> for Escapes {
+impl<'a> Visitor<'a> for Escapes<'_> {
     fn visit_stmt(&mut self, stmt: &'a Stmt) {
         match stmt {
             // Code in a literal names whatever it reads.
@@ -800,9 +861,20 @@ impl<'a> Visitor<'a> for Escapes {
                     return;
                 }
                 // A computed name (or Jython's `class` bean property): the
-                // attribute read is not known.
+                // attribute read is not known, a first hop. A literal name
+                // of the namespace of a module object
+                // (`getattr(m, '__dict__')`) hands out its `__builtins__`,
+                // like `m.__dict__` (review round 26).
                 if Escapes::reflective_escape(c) {
                     self.found(c.range, Route::FixOnly);
+                }
+                if let Some(name) = Escapes::reflective_accessor(&c.func)
+                    && Escapes::accessor_object(name, c).is_some_and(|o| self.module_value(o))
+                    && Escapes::accessor_names(name, c).iter().any(|a| {
+                        matches!(a, Expr::Str(s) if NAMESPACE_ATTRS.contains(&&*s.s.to_latin1()))
+                    })
+                {
+                    self.found(c.range, Route::Observes);
                 }
                 let format = match &*c.func {
                     Expr::Attribute(a) if FORMAT_METHODS.contains(&a.attr.as_str()) => Some(a),
@@ -865,8 +937,14 @@ impl<'a> Visitor<'a> for Escapes {
                         // `eval(*a)`, `vars(*a)`: may read the caller's frame.
                         self.found(c.range, Route::Observes);
                     } else if &*f.id == "vars" && !c.args.is_empty() {
-                        // A member dictionary of a value.
-                        self.found(c.range, Route::FixOnly);
+                        // A member dictionary of a value; of a module, its
+                        // namespace with its `__builtins__`.
+                        let route = if self.module_value(&c.args[0]) {
+                            Route::Observes
+                        } else {
+                            Route::FixOnly
+                        };
+                        self.found(c.range, route);
                     }
                     // `eval('tb.tb_frame')`: the code names members.
                     if matches!(&*f.id, "eval" | "execfile" | "input")
@@ -921,6 +999,11 @@ impl<'a> Visitor<'a> for Escapes {
                     // (`re.sys`, `os.sys`, `importlib.sys`), which hands out
                     // frames, every module and the builtins.
                     None if attr == "sys" && a.ctx == ExprContext::Load => Some(Route::Observes),
+                    // The namespace of a value that may be a module holds
+                    // its `__builtins__` (`m.__dict__`, `m.dict`).
+                    None if NAMESPACE_ATTRS.contains(&attr) && self.module_value(&a.value) => {
+                        Some(Route::Observes)
+                    }
                     None => introspection_route(attr),
                 };
                 if let Some(route) = route {
@@ -1170,6 +1253,16 @@ mod tests {
             "from org.python.core import PyString\n",
             "__import__('os')\n",
             "compile(s, '<s>', 'exec')\n",
+            // namespaces of values that may be library modules or packages
+            // (an alias or a parameter may hold one), code from data
+            // (review round 26)
+            "x = o.dict\n",
+            "d = o.getDict()\n",
+            "o.setCode(s)\n",
+            "s = o.__reduce_ex__(2)\n",
+            "s = o.__reduce__()\n",
+            "getattr(o, 'dict')\n",
+            "x = o.__getattribute__('getDict')\n",
         ] {
             assert_eq!(route(src), Some(Route::FixOnly), "{src}");
         }
@@ -1178,6 +1271,60 @@ mod tests {
             "eval('1')\n",
             "x.modules\n",
             "getattr(o, 'value')\n",
+        ] {
+            assert_eq!(route(src), None, "{src}");
+        }
+    }
+
+    /// Review round 26 (M2): the namespace of a module holds its
+    /// `__builtins__` (`vars(json)['__builtins__']['locals']()` and
+    /// `m.dict['__builtins__']['locals']()` read the caller's frame,
+    /// measured on 8.3.3), so on a value that may be a module it observes;
+    /// on any other value it stays a first hop, as does a computed name.
+    #[test]
+    fn module_namespaces_observe() {
+        let route = |src: &str| {
+            let parsed = iglint_python::parse_module(src);
+            assert!(parsed.errors.is_empty(), "{src}");
+            let modules = |n: &ExprName| matches!(&*n.id, "m" | "json" | "pkg");
+            match escapes_with(&parsed.module.body, &modules) {
+                (None, None) => None,
+                (Some(_), None) => Some(Route::FixOnly),
+                (Some(_), Some(_)) => Some(Route::Observes),
+                (None, Some(_)) => panic!("an observer is an escape: {src}"),
+            }
+        };
+        for src in [
+            "vars(json)['__builtins__']['locals']()\n",
+            "vars(m)\n",
+            "d = m.__dict__\n",
+            "d = pkg.m.__dict__\n",
+            "m.dict['__builtins__']['locals']()\n",
+            "d = m.getDict()\n",
+            "d = pkg.dict\n",
+            "s = m.__reduce_ex__(2)[2]\n",
+            "getattr(m, '__dict__')\n",
+            "getattr(m, 'dict')\n",
+            "m.__getattribute__('__dict__')\n",
+            "m.__findattr_ex__('getDict')()\n",
+        ] {
+            assert_eq!(route(src), Some(Route::Observes), "{src}");
+        }
+        for src in [
+            "getattr(m, n)\n",
+            "m.__getattribute__(n)\n",
+            "vars(o)\n",
+            "d = o.__dict__\n",
+            "d = o.dict\n",
+            "getattr(o, '__dict__')\n",
+        ] {
+            assert_eq!(route(src), Some(Route::FixOnly), "{src}");
+        }
+        for src in [
+            "x = m.f\n",
+            "m.name\n",
+            "getattr(m, 'f')\n",
+            "n = m.__name__\n",
         ] {
             assert_eq!(route(src), None, "{src}");
         }

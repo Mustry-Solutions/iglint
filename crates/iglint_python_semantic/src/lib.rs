@@ -130,17 +130,8 @@ impl<'a> SemanticModel<'a> {
     pub fn build(module: &'a Module, options: &SemanticOptions<'_>) -> SemanticModel<'a> {
         let injected: FxHashSet<&str> = options.injected.iter().copied().collect();
         let table = symbols::build(module, options.module_has_name);
-        let mut out = flow::Flow::new(module, table, &injected, options.unknown_globals).run();
-        let (frame_escape, frame_observer) = dynamic::escapes(&module.body);
-        if frame_observer.is_some() {
-            // A frame builtin, a frame or the builtins module escapes: any
-            // scope may have its names read or the module's written.
-            for scope in &mut out.scopes {
-                scope.reads_locals = true;
-                scope.writes_globals = true;
-            }
-        }
-        SemanticModel {
+        let out = flow::Flow::new(module, table, &injected, options.unknown_globals).run();
+        let mut model = SemanticModel {
             module,
             scopes: out.scopes,
             bindings: out.bindings,
@@ -151,7 +142,44 @@ impl<'a> SemanticModel<'a> {
             reference_at: out.reference_at,
             dunder_all: out.dunder_all,
             dunder_all_dynamic: out.dunder_all_dynamic,
-            frame_escape,
+            frame_escape: None,
+        };
+        let (frame_escape, frame_observer) =
+            dynamic::escapes_with(&module.body, &|n| model.may_be_module(n));
+        if frame_observer.is_some() {
+            // A frame builtin, a frame or the builtins module escapes: any
+            // scope may have its names read or the module's written.
+            for scope in &mut model.scopes {
+                scope.reads_locals = true;
+                scope.writes_globals = true;
+            }
+        }
+        model.frame_escape = frame_escape;
+        model
+    }
+
+    /// Whether the name read at `n` may stand for a module object: no
+    /// reference is known for it, it is bound nowhere the code shows (a
+    /// library package, Ignition's injected names, a name that may not
+    /// exist) or by an import. Builtins and names the code binds only to
+    /// values it computes are not modules (an alias or parameter may still
+    /// hold one: what that reaches is a route for fixes, not findings).
+    pub fn may_be_module(&self, n: &iglint_python::ast::ExprName) -> bool {
+        let Some(r) = self.reference_at(n.range) else {
+            return true;
+        };
+        match r.resolution {
+            Resolution::Builtin => false,
+            Resolution::Injected | Resolution::Dynamic | Resolution::Unresolved => true,
+            _ => {
+                r.bindings.is_empty()
+                    || r.bindings.iter().any(|b| {
+                        matches!(
+                            self.binding(*b).kind,
+                            BindingKind::Import | BindingKind::FromImport | BindingKind::Injected
+                        )
+                    })
+            }
         }
     }
 }

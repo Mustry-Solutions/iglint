@@ -129,25 +129,34 @@ mod tests {
         // value, like `vars(m)` and `getattr(m, name)`: `m.helper` and
         // `m`'s import are not reported (a function's own `__dict__` is
         // not its module's namespace).
-        for user in [
-            "def g(k):\n    return m.__dict__[k]\n",
-            "def g(k):\n    return vars(m)[k]\n",
-            "def g(k):\n    return getattr(m, k)\n",
-            "def g(k):\n    m.__dict__[k] = 1\n",
+        // The namespace of a module holds its `__builtins__`
+        // (`m.__dict__['__builtins__']['locals']()` reads the caller's
+        // frame, measured on 8.3.3; review round 26, M2): `vars(m)` and
+        // `m.__dict__` observe names in `n` too, so its own unused `g` is
+        // not reported either; a computed `getattr` is a first hop.
+        for (user, flags) in [
+            ("def g(k):\n    return m.__dict__[k]\n", vec![]),
+            ("def g(k):\n    return vars(m)[k]\n", vec![]),
+            ("def g(k):\n    return getattr(m, k)\n", vec!["g"]),
+            ("def g(k):\n    m.__dict__[k] = 1\n", vec![]),
+            ("def g(k):\n    return m.dict[k]\n", vec![]),
+            ("def g(k):\n    return m.__getattribute__(k)()\n", vec!["g"]),
         ] {
             let f = with_library(
                 library("m", "import os\ndef helper():\n    return 1\n"),
                 "n",
                 user,
             );
-            assert_eq!(flagged(&f.lint(&["REF012", "SCR102"])), vec!["g"], "{user}");
+            assert_eq!(flagged(&f.lint(&["REF012", "SCR102"])), flags, "{user}");
         }
         let f = with_library(
             library("m", "import os\ndef helper():\n    return 1\n"),
             "n",
             "def g():\n    return m.helper.__dict__\n",
         );
-        assert_eq!(flagged(&f.lint(&["REF012", "SCR102"])), vec!["os", "g"]);
+        // `m.helper.__dict__` may be a module's namespace as far as `n`
+        // can tell (`pkg.m.__dict__` is): it observes there.
+        assert_eq!(flagged(&f.lint(&["REF012", "SCR102"])), vec!["os"]);
         // The target module is passed as a value: its functions may be
         // reached any way, but the caller itself is not introspective, so
         // its own unused function is still reported.

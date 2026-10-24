@@ -1470,6 +1470,97 @@ mod tests {
         assert_eq!(d.len(), 1, "{d:?}");
     }
 
+    /// Review round 26 (Opus, blocker): a special attribute of a library
+    /// module read from another module (`m.__getattribute__('re')`,
+    /// `m.__findattr_ex__('re')`, `m.__dict__`) or a member of Ignition's
+    /// module object (`m.dict`, `m.getDict()`, measured on 8.3.3) reaches
+    /// the module's names: `import re` in `m` is used or its removal
+    /// unsafe, also through aliases and package chains, and `--fix` keeps
+    /// it. The table of every measured route is
+    /// `rules::refs::library_routes`.
+    #[test]
+    fn special_attributes_of_library_modules_elsewhere_use_their_imports() {
+        let module = "import re\n\ndef f():\n    return 1\n";
+        for user in [
+            "def g():\n    return m.__getattribute__('re').compile('a+').match('aaa').group(0)\n",
+            "def g():\n    return m.__findattr_ex__('re')\n",
+            "def g(n):\n    return m.__getattribute__(n)\n",
+            "def g():\n    m.__delattr__('re')\n",
+            "def g():\n    return m.dict['re']\n",
+            "def g():\n    return m.getDict()['re']\n",
+            "def g():\n    return m.__reduce_ex__(2)[2]['re']\n",
+            "def g():\n    x = m\n    return x.__getattribute__('re')\n",
+            "def g():\n    return getattr(m, 'dict')['re']\n",
+        ] {
+            let f = with_library(library("m", module), "b", user);
+            let found: Vec<_> = f
+                .lint(&["SCR102"])
+                .into_iter()
+                .filter(|d| d.file.path().ends_with("m/code.py"))
+                .collect();
+            assert!(
+                found.iter().all(|d| d
+                    .fix
+                    .as_ref()
+                    .is_none_or(|x| x.applicability != crate::diagnostic::Applicability::Safe)),
+                "{user}: {found:?}"
+            );
+            f.run(&[("SCR102", "")], crate::engine::FixMode::Safe);
+            assert_eq!(
+                std::fs::read_to_string(library_path(&f, "m")).unwrap(),
+                module,
+                "{user}"
+            );
+        }
+        let f = with_library(
+            with_library(library("pkg/m", module), "pkg/n", "X = 1\n"),
+            "b",
+            "def g():\n    return pkg.m.__getattribute__('re')\n",
+        );
+        assert!(
+            f.lint(&["SCR102"])
+                .iter()
+                .all(|d| !d.file.path().ends_with("pkg/m/code.py")),
+        );
+        // A name the module binds wins over the object's member.
+        let f = with_library(
+            library("m", "import re\nname = 'x'\n\ndef f():\n    return 1\n"),
+            "b",
+            "def g():\n    return m.name\n",
+        );
+        assert_eq!(
+            applicability(&f.lint(&["SCR102"])),
+            vec![Some(crate::diagnostic::Applicability::Safe)]
+        );
+    }
+
+    /// Review round 26: the namespace of a library module (`m.dict`,
+    /// `m.getDict()`, `m.__reduce_ex__(2)[2]`) holds its `__builtins__`,
+    /// whose `locals()` reads the caller's frame (measured on 8.3.3: `['os']`
+    /// with the import, `[]` without): the caller's own import is used.
+    #[test]
+    fn library_module_namespaces_read_the_callers_frame() {
+        for route in [
+            "m.dict['__builtins__']['locals']()",
+            "m.getDict()['__builtins__']['locals']()",
+            "m.__reduce_ex__(2)[2]['__builtins__']['locals']()",
+            "vars(m)['__builtins__']['locals']()",
+            "m.__dict__['__builtins__']['locals']()",
+            "getattr(m, '__dict__')['__builtins__']['locals']()",
+        ] {
+            let user = format!("def g():\n    import os\n    return sorted({route}.keys())\n");
+            let f = with_library(library("m", "def f():\n    return 1\n"), "b", &user);
+            assert!(f.lint(&["SCR102"]).is_empty(), "{route}");
+        }
+        // Through a parameter the module is not known, the fix is unsafe.
+        let user = "def g(x):\n    import os\n    return x.dict['__builtins__']['locals']()\n";
+        let f = with_library(library("m", "def f():\n    return 1\n"), "b", user);
+        assert_eq!(
+            applicability(&f.lint(&["SCR102"])),
+            vec![Some(crate::diagnostic::Applicability::Unsafe)]
+        );
+    }
+
     /// Reviewer round 9 (Codex) blocker: removing `from java.util import
     /// MissingReviewClass` turns a failed call into a successful one when
     /// the caller catches the `ImportError` (verified on Jython: `failed`
