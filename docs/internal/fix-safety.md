@@ -1529,16 +1529,25 @@ remaining documented assumption.
   look-ahead of the first two lines is exact and needs no upper bound.
   `tests/method_size_oracle.rs` checks the bounds against the oracle
   (`oracle/run-oracle.sh --method-size`, which now also records every
-  method of the class and its constant pool count): 3,194 programs in
-  the committed data, 400 of them random function bodies around 64 KB,
+  method of the class and its constant pool count): 3,494 programs in
+  the committed data, 300 of them near the class initializer's limit, 400 of them random function bodies around 64 KB,
   the review's repro, modules of 150 to 800 functions and pools around
   65,535 entries. A calibration run with 3,000 bodies around 64 KB
   (5,794 programs) found no method or pool above its bound, method
   bounds at least 1.25 times the size (median 2.1; 15,659 bytes above
   the closest unit of more than 60,000 bytes) and pool bounds at least
-  1.05 times the count. The measurement found a limit `SCR002` does not
-  model: about 760 functions of eight parameters fail on `<init>`; their
-  verdict is open. On the private project no script has an open verdict
+  1.05 times the count. The measurement found a limit `SCR002` did not
+  model: Jython fails from about 765 functions of eight parameters on
+  `<init>`. `SCR002` now reports it from a lower bound too (30 bytes per
+  code unit, 6 per parameter or assigned local of a function; measured
+  about 31 and 6): on 300 generated modules of 1,000 to 2,400 mixed
+  functions, decorated functions with defaults, classes, methods, nested
+  functions, lambdas, generator expressions and constants, it reports 203
+  of the 245 that Jython rejects and none that compile (the lower bound
+  is 0.84 to 0.91 of the measured `<init>` from 30,000 bytes on); the
+  verdict between the bounds is open. The constant pool is reported
+  whenever its lower bound (two entries per distinct string literal)
+  exceeds the limit, and open between the bounds. On the private project no script has an open verdict
   (458 library modules; the largest unit's upper bound is 50,874 bytes).
 * **Import side effects.** Removing an import is safe only with positive
   evidence that the import succeeds and has no effect: a Java class

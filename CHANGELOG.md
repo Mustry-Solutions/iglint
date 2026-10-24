@@ -137,9 +137,12 @@ from 0.1.0 on.
   `<init>` and constant pool limits): no method or pool exceeds its
   bound, method bounds are at least a quarter above the method's size
   (15,659 bytes above any unit of more than 60,000 bytes) and pool bounds
-  at least 5% above the count. The measurement also found a limit
-  `SCR002` does not model: a module of about 760 small functions fails
-  because `<init>` builds a code object per unit.
+  at least 5% above the count.
+- `SCR002` reports modules with too many functions, classes, lambdas and
+  generator expressions for Jython's class initializer (`<init>` builds a
+  code object per body and is one Java method too): Jython fails from
+  about 765 functions of eight parameters, `SCR002` reports these from
+  840, with 0 false reports on 300 generated modules near the limit.
 - `check`, the language server's diagnostics and its quick fixes report a
   safe fix that the post-fix safety net would drop as unsafe, with the
   net's reason (review round 18, Opus, N1). Before, it was listed as safe

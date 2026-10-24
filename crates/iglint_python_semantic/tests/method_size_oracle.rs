@@ -29,7 +29,9 @@
 //! the sources and for the check, with the output of the oracle in
 //! `IGLINT_METHOD_SIZE_EXPECTED`.
 
-use iglint_python_semantic::{CompileErrorKind, code_units, size_errors, size_unknown, upper};
+use iglint_python_semantic::{
+    CompileErrorKind, code_units, init_lower, size_errors, size_unknown, upper,
+};
 
 /// Runs `f` on a thread with a stack deep enough for the longest `elif`
 /// chains (as the linter does).
@@ -624,6 +626,33 @@ fn near_limit_sources() -> Vec<(String, String)> {
         }
         out.push((format!("units-{n}-{params}"), s));
     }
+    // Code objects around the limit of the class initializer: functions
+    // with and without parameters, decorators and defaults, classes,
+    // nested functions, methods, lambdas, generator expressions and
+    // constants, 1,000 to 2,400 units (Jython fails from about 1,300).
+    let mut r = Rng::new(7);
+    for k in 0..NEAR_INIT {
+        let n = 1_000 + r.below(1_400);
+        let mut s = String::new();
+        for i in 0..n {
+            let p = r.below(7);
+            let args: Vec<String> = (0..p).map(|j| format!("a{j}")).collect();
+            let args = args.join(", ");
+            let comma = if args.is_empty() { "" } else { ", " };
+            s.push_str(&match r.below(9) {
+                0 => format!("def g{i}({args}):\n    return 1\n"),
+                1 => format!("@d\ndef g{i}({args}{comma}z=1):\n    return z\n"),
+                2 => format!("class K{i}(object):\n    v = 1\n"),
+                3 => format!("def g{i}({args}):\n    def h():\n        return 1\n    return h\n"),
+                4 => format!("x{i} = lambda {args}: 1\n"),
+                5 => format!("x{i} = (q for q in y)\n"),
+                6 => format!("c{i} = 's{i}'\n"),
+                7 => format!("class M{i}:\n    def m(self{comma}{args}):\n        return self\n"),
+                _ => format!("def g{i}(*a, **k):\n    v = a\n    return v\n"),
+            });
+        }
+        out.push((format!("init-{k}-{n}"), s));
+    }
     // Distinct constants and names around the constant pool limit.
     for n in [28_000, 31_000, 32_000, 32_400, 32_600, 33_000] {
         for kind in ["strings", "names", "mixed"] {
@@ -643,6 +672,10 @@ fn near_limit_sources() -> Vec<(String, String)> {
     }
     out
 }
+
+/// Programs near the limit of the class initializer in
+/// [`near_limit_sources`].
+const NEAR_INIT: usize = 300;
 
 /// Random programs near the method limit in [`near_limit_sources`]: 400,
 /// or `IGLINT_METHOD_SIZE_NEAR` for a larger calibration run (set it for
@@ -867,6 +900,13 @@ struct Margins {
     methods: Vec<f64>,
     /// upper / count of constant pools.
     pools: Vec<f64>,
+    /// lower bound / size of `<init>` of 30,000 bytes or more.
+    init: Vec<f64>,
+    /// Programs Jython rejects for their size, and those `SCR002` reports.
+    rejected: usize,
+    rejected_reported: usize,
+    /// The same for the programs near the class initializer's limit.
+    init_rejected: (usize, usize),
     /// Programs whose verdict the bounds leave open, and programs whose
     /// bounds decide it.
     unknown: usize,
@@ -886,7 +926,10 @@ impl Margins {
                 .unwrap_or(0.0)
         };
         eprintln!(
-            "upper / size of methods of 1,000 bytes or more: min {:.2}, median {:.2}, max {:.2} ({} methods); upper / count of constant pools: min {:.2}, median {:.2}, max {:.2}; verdict open for {} programs, decided for {}; closest upper bound above a unit of more than 60,000 bytes: {:?} bytes",
+            "lower / size of <init> of 30,000 bytes or more: min {:.2}, median {:.2}, max {:.2}; upper / size of methods of 1,000 bytes or more: min {:.2}, median {:.2}, max {:.2} ({} methods); upper / count of constant pools: min {:.2}, median {:.2}, max {:.2}; verdict open for {} programs, decided for {}; Jython rejects {} for their size, SCR002 reports {} (near the class initializer's limit: {} and {}); closest upper bound above a unit of more than 60,000 bytes: {:?} bytes",
+            q(&self.init, 0.0),
+            q(&self.init, 0.5),
+            q(&self.init, 1.0),
             q(&self.methods, 0.0),
             q(&self.methods, 0.5),
             q(&self.methods, 1.0),
@@ -896,6 +939,10 @@ impl Margins {
             q(&self.pools, 1.0),
             self.unknown,
             self.known,
+            self.rejected,
+            self.rejected_reported,
+            self.init_rejected.0,
+            self.init_rejected.1,
             self.closest
         );
     }
@@ -914,6 +961,14 @@ fn check_upper(
     let mut out = Vec::new();
     let open = size_unknown(module, source).is_some();
     let reported = !size_errors(module, source).is_empty();
+    if !m.compiles && m.units.is_none() {
+        margins.rejected += 1;
+        margins.rejected_reported += usize::from(reported);
+        if name.starts_with("init-") {
+            margins.init_rejected.0 += 1;
+            margins.init_rejected.1 += usize::from(reported);
+        }
+    }
     if open {
         margins.unknown += 1;
     } else {
@@ -938,6 +993,19 @@ fn check_upper(
         out.push(format!("{name}: pool {pool}, upper {}", class.pool));
     }
     margins.pools.push(class.pool as f64 / pool as f64);
+    let init = methods
+        .iter()
+        .find(|(n, _)| n == "<init>")
+        .map_or(0, |m| m.1);
+    let (lower, _) = init_lower(module, source);
+    if lower > init {
+        out.push(format!(
+            "{name}: `<init>` has {init} bytes, the lower bound says {lower}"
+        ));
+    }
+    if init >= 30_000 {
+        margins.init.push(lower as f64 / init as f64);
+    }
     for (method, bound) in [
         ("<init>", class.init),
         ("call_function", class.call_function),

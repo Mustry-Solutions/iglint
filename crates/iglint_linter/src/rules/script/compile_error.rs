@@ -64,8 +64,18 @@ It also reports scripts that are too large for Jython:
   module level, 1,880 of `f(N, "a", b)` and 680 of `d["kN"] = {"a": N,
   "b": [1, 2, 3]}` in a function, and iglint reports these from 9,382,
   3,290, about 3,200, about 2,100 and about 740 lines;
+* a module with too many functions, classes, lambdas and generator
+  expressions for Jython's class initializer (`Module or method too
+  large`: the class's `<init>` builds one code object per body, with its
+  variable names, and is one Java method too). iglint counts at least 30
+  bytes per body and 6 per parameter or assigned local variable of a
+  function (measured: about 31 and 6), checked against the `<init>` of
+  hundreds of generated modules near the limit with 0 false reports.
+  Jython fails from about 765 functions of eight parameters, and iglint
+  reports these from 840;
 * a module with more than 32,767 distinct string literals (`Class too
-  large`: one module is one Java class, with at most 65,535 constants).
+  large`: one module is one Java class, with at most 65,535 constants;
+  Jython fails from 32,594).
 
 Jython generates no code for the rest of a block after `return`, `raise`,
 `continue` or an `if`/`else` whose every branch ends that way (but not
@@ -295,6 +305,23 @@ mod tests {
         assert_eq!(flagged(&d), ["f"]);
         assert!(d[0].message.contains("too large"));
         assert!(lint_module("SCR002", &"x = 1\n".repeat(3_000)).is_empty());
+        // Review round 18: too many code objects for the class
+        // initializer. Jython fails from about 765 functions of eight
+        // parameters.
+        let functions = |n: usize| -> String {
+            (0..n)
+                .map(|i| format!("def g{i}(a, b, c, d, e, f1, f2, f3):\n    return a\n"))
+                .collect()
+        };
+        assert!(lint_module("SCR002", &functions(760)).is_empty());
+        let d = lint_module("SCR002", &functions(900));
+        assert_eq!(d.len(), 1, "{d:?}");
+        assert!(
+            d[0].message
+                .contains("too many functions, classes, lambdas and generator expressions"),
+            "{}",
+            d[0].message
+        );
         // Review round 14: expressions count. Jython fails from 680
         // statements of this shape.
         let items = |n: usize| -> String {

@@ -130,6 +130,22 @@ pub fn size_errors(module: &Module, source: &str) -> Vec<CompileError> {
             kind: CompileErrorKind::MethodTooLarge,
         });
     }
+    let (init, crossing) = init_lower(module, source);
+    if init > METHOD_LIMIT {
+        out.push(CompileError {
+            range: crossing.map_or_else(|| TextRange::empty(TextSize::ZERO), |s| match s {
+                Stmt::FunctionDef(f) => f.name.range(),
+                Stmt::ClassDef(c) => c.name.range(),
+                other => other.range(),
+            }),
+            message: format!(
+                "Jython cannot compile this module: it has too many functions, classes, lambdas and generator expressions (code objects) for Jython's class initializer, which needs at least {} bytes of Java bytecode for them, more than one Java method can hold ({METHOD_LIMIT} bytes, Module or method too large)",
+                group(init)
+            ),
+            anchor: None,
+            kind: CompileErrorKind::MethodTooLarge,
+        });
+    }
     let mut strings = Strings::default();
     strings.suite(&module.body, true);
     if strings.distinct.len() * 2 > CONSTANT_POOL_LIMIT
@@ -177,6 +193,11 @@ pub fn size_unknown(module: &Module, source: &str) -> Option<String> {
         }
     }
     let class = upper::class(module, source);
+    let (init_lower, _) = init_lower(module, source);
+    if init_lower > METHOD_LIMIT {
+        // Certainly too large: decided, `size_errors` reports it.
+        return None;
+    }
     for (method, bytes) in [
         ("<init>", class.init),
         ("call_function", class.call_function),
@@ -202,6 +223,84 @@ pub fn size_unknown(module: &Module, source: &str) -> Option<String> {
         ));
     }
     None
+}
+
+/// Least bytes of the class initializer `<init>` per code unit (it builds
+/// the unit's code object) and per parameter of a function or method (a
+/// variable name of the code object). Measured with
+/// `oracle/run-oracle.sh --method-size`: about 31 bytes per unit and 6
+/// per variable name; `tests/method_size_oracle.rs` checks the bound
+/// against every measured `<init>`.
+const INIT_PER_UNIT: usize = 30;
+const INIT_PER_PARAM: usize = 6;
+
+/// A lower bound of the bytecode of the module's `<init>` and the `def`
+/// or `class` statement (of the module's own code) whose code object makes
+/// it exceed the method limit: every unit Jython generates
+/// ([`code_units`]) counts once, a function with its parameters.
+pub fn init_lower<'a>(module: &'a Module, source: &str) -> (usize, Option<&'a Stmt>) {
+    let mut bytes = 0;
+    let mut crossing = None;
+    for unit in code_units(module, source) {
+        let params = match unit.owner {
+            Some(Stmt::FunctionDef(f)) => {
+                fn names(e: &Expr) -> usize {
+                    match e {
+                        Expr::Tuple(t) => t.elts.iter().map(names).sum(),
+                        Expr::List(t) => t.elts.iter().map(names).sum(),
+                        _ => 1,
+                    }
+                }
+                // Parameters, and the names the body binds by assignment
+                // (local variables unless declared global; a name both
+                // ways counts once).
+                let mut locals: FxHashSet<&str> = FxHashSet::default();
+                let mut globals: FxHashSet<&str> = FxHashSet::default();
+                for stmt in emitted(&f.body, false) {
+                    match stmt {
+                        Stmt::Global(g) => globals.extend(g.names.iter().map(|n| n.as_str())),
+                        Stmt::FunctionDef(d) => {
+                            locals.insert(d.name.as_str());
+                        }
+                        Stmt::ClassDef(c) => {
+                            locals.insert(c.name.as_str());
+                        }
+                        Stmt::Assign(a) => {
+                            for t in &a.targets {
+                                if let Expr::Name(n) = t {
+                                    locals.insert(&n.id);
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                let params: FxHashSet<&str> = f
+                    .args
+                    .args
+                    .iter()
+                    .filter_map(|a| match a {
+                        Expr::Name(n) => Some(&*n.id),
+                        _ => None,
+                    })
+                    .collect();
+                let assigned = locals
+                    .iter()
+                    .filter(|n| !globals.contains(*n) && !params.contains(*n))
+                    .count();
+                f.args.args.iter().map(names).sum::<usize>()
+                    + usize::from(f.args.vararg.is_some())
+                    + usize::from(f.args.kwarg.is_some())
+                    + assigned
+            }
+            _ => 0,
+        };
+        bytes += INIT_PER_UNIT + INIT_PER_PARAM * params;
+        if bytes > METHOD_LIMIT && crossing.is_none() {
+            crossing = unit.owner;
+        }
+    }
+    (bytes, crossing)
 }
 
 /// `n` with a comma between groups of three digits.
