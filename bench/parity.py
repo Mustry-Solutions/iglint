@@ -567,6 +567,12 @@ def main():
         print(f"{r:38} {s['identical']:>9} {s['expected']:>9} {s['ign-lint-only']:>13} {s['iglint-only']:>11}")
     if stats and any(stats[r]["expected: wording"] for r in rules):
         categories["message wording (bugs 8, 18)"] += sum(stats[r]["expected: wording"] for r in rules)
+    print(
+        "\nnote: PylintScriptRule (SCR900) findings are outside this comparison: they count as\n"
+        "expected ('not compared') and are compared by message code below. They differ by\n"
+        "design: iglint drops ign-lint's combined-file header messages (C0103, W1405), does\n"
+        "not report E0602 for names Ignition injects, and reports W0702 once, as SCR106."
+    )
     print("\nexpected differences by category:")
     for c, n in categories.most_common():
         print(f"  {n:6}  {c}")

@@ -330,9 +330,21 @@ component reference pattern counts, name suggestions), then classified:
 severity: the output gives the number of matched findings with the same
 severity, the expected severity differences per category (a documented
 mapping: native `SCR` rules take the severity mapped for `E` or `W`) and
-the unexplained ones per rule and severity pair. Pylint findings
-are compared separately by file, node path and message code, because
-ign-lint's combined file shifts lines and adds file-level messages.
+the unexplained ones per rule and severity pair.
+
+**Pylint findings are outside the parity comparison.** Every
+`PylintScriptRule` finding (`SCR900` and the native `SCR` rules it maps
+to) is counted under "expected" as `not compared: PylintScriptRule`, never
+as identical or unexplained, so the identical and unexplained columns
+speak only for the other rules. Pylint findings are compared separately,
+by file, node path and message code, because ign-lint's combined file
+shifts lines and adds file-level messages, and they differ from ign-lint's
+by design: iglint drops the messages caused by ign-lint's combined file
+and its generated header (`C0103` module-level names, `W1405` quote
+consistency across scripts), does not report `E0602` undefined names
+that Ignition injects (`system`, the project's library packages), and
+reports `W0702` (bare `except:`) once, as `SCR106`, instead of twice (see
+`docs/compat/ign-lint-differences.md`, "PylintScriptRule").
 Details go to `differences.json` and `severity-differences.json` in the
 output directory, the counts to `summary.json`. For a private
 corpus (`--private`, or the corpus is `$IGLINT_PRIVATE_CORPUS`) only
@@ -356,8 +368,8 @@ private project with its own configuration (pylint included):
 | large | 2,247 | 1,146 | 0 | 0 |
 | private project (aggregates) ³ | 1,531 | 3,932 ² | 0 | 0 |
 
-² Including 3,017 pylint findings, which are compared by message code
-instead (below).
+² Including 3,017 pylint findings, which are outside the comparison and
+compared by message code instead (below).
 
 ³ Numbers from the private project depend on its revision. These were
 measured on 2026-10-24, on the revision of 2026-10-21, with ign-lint 0.6.4

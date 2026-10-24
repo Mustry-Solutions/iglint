@@ -9,6 +9,11 @@ from 0.1.0 on.
 
 ### Changed
 
+- `bench/README.md` and the text summary of `bench/parity.py` say plainly
+  that pylint-derived findings (`PylintScriptRule`, `SCR900`) are outside
+  the parity comparison, and how they differ by design (the combined-file
+  `C0103` and `W1405` messages dropped, no `E0602` for injected names,
+  `W0702` reported once as `SCR106`).
 - `docs/rules/SCR101.md` says which code is not checked at all: a `.py`
   file outside any project and the tag scripts of gateway resources, where
   any name could be a library package iglint does not know.
