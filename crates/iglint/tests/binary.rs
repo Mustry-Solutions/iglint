@@ -1824,6 +1824,57 @@ fn unusual_project_and_collection_directories_are_linted() {
     }
 }
 
+/// Hidden resource directories and folders inside a project load on the
+/// gateway (verified on 8.3.3, like resources named `target`,
+/// `node_modules` or `__pycache__`), so they are linted and part of the
+/// closed world.
+#[test]
+fn hidden_resource_directories_are_linted() {
+    let dir = closed_world_repository("\tprint 1\n");
+    let root = dir.path();
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    let lib = root.join("projects/A/ignition/script-python");
+    for module in [".hidden", "pkg/.inner", "__pycache__"] {
+        std::fs::create_dir_all(lib.join(module)).unwrap();
+        std::fs::write(
+            lib.join(module).join("resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        )
+        .unwrap();
+        std::fs::write(lib.join(module).join("code.py"), "def f(:\n").unwrap();
+    }
+    let out = iglint(root)
+        .args(["check", "--no-cache", "--output-format", "json"])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let mut syntax: Vec<String> = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|d| d["code"] == "SCR001")
+        .map(|d| d["filename"].as_str().unwrap().to_owned())
+        .collect();
+    syntax.sort();
+    assert_eq!(
+        syntax,
+        [
+            "projects/A/ignition/script-python/.hidden/code.py",
+            "projects/A/ignition/script-python/__pycache__/code.py",
+            "projects/A/ignition/script-python/pkg/.inner/code.py",
+        ]
+    );
+    // A hidden module that is not vetted is in the closed world.
+    std::fs::write(lib.join(".hidden/code.py"), "x = eval('1')\n").unwrap();
+    let out = iglint(root)
+        .args(["check", "--no-cache", "--output-format", "json", MODULE])
+        .output()
+        .unwrap();
+    let fixes = fixes_of(&out);
+    assert_eq!(fixes.len(), 1, "{fixes:?}");
+    assert_eq!(fixes[0].1, "unsafe", "{fixes:?}");
+}
+
 /// Reviewer round 15 B2: a directory of the workspace that cannot be
 /// walked (a broken link, a link cycle, no permission to list it) may
 /// hold projects; the closed world is then unknown, never "no code

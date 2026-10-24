@@ -114,6 +114,9 @@ from 0.1.0 on.
   discovered, linted and part of the closed world; before they were
   skipped, reported by REF009 file by file, or left nothing to lint
   (review round 15).
+- Hidden resource directories and folders inside a project or collection
+  (`script-python/.hidden/`, `views/.folder/V`) are linted and part of the
+  closed world: an 8.3.3 gateway loads them. Before they were skipped.
 - A workspace directory that cannot be read (permissions, a broken
   symbolic link, a link cycle) makes the closed world unknown: safe fixes
   become unsafe with a reason that names the directory. REF009 says when

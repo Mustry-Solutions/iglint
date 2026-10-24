@@ -520,7 +520,13 @@ container, whatever its name (projects named `target` and
 `node_modules` load on an 8.3.3 gateway), so it is linted and analysed. Only directories that are not
 containers are skipped by name: hidden ones (`.git`), `node_modules`,
 `target` and `__pycache__` (a container below them is not where the
-gateway looks for one). Inside containers, hidden entries are skipped.
+gateway looks for one). Inside containers nothing is skipped by name: an
+8.3.3 gateway loads hidden projects (`projects/.p`), hidden resources and
+folders (`script-python/.hidden/`, `script-python/pkg/.inner/`,
+`views/.folder/V`) and resources named `target`, `node_modules` or
+`__pycache__` (verified with the gateway's project manager and imports),
+so the workspace walk and the walk of linted files enter them. Hidden
+files are skipped: the gateway reads only the files a manifest names.
 Symbolic links to directories are followed, also to directories outside
 the repository, and the project or resource is found at the path through
 the link (the walk of linted files, `discovery::discover`, follows them

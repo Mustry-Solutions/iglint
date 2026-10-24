@@ -220,9 +220,12 @@ pub struct Discovery {
 }
 
 /// Walks `paths` and classifies every file below them. Directory walks skip
-/// hidden directories, `.gitignore`d files (when configured), excluded
-/// paths and Python files outside any Ignition tree; explicitly named files are still checked against `exclude` and the
-/// whitelist so that editor and pre-commit integrations honour them.
+/// hidden files, hidden directories outside every project and collection
+/// (hidden projects, collections and resource directories load on the
+/// gateway and are walked), `.gitignore`d files (when configured),
+/// excluded paths and Python files outside any Ignition tree; explicitly
+/// named files are still checked against `exclude` and the whitelist so
+/// that editor and pre-commit integrations honour them.
 pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
     let mut discovery = Discovery::default();
     let mut seen = BTreeSet::new();
@@ -259,7 +262,9 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
         }
         let mut builder = ignore::WalkBuilder::new(path);
         builder
-            .hidden(true)
+            // Hidden entries are filtered below: hidden resource
+            // directories inside a container load on the gateway.
+            .hidden(false)
             .git_ignore(settings.respect_gitignore)
             .git_global(settings.respect_gitignore)
             .git_exclude(settings.respect_gitignore)
@@ -273,9 +278,16 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
         // Prune excluded directories early instead of filtering their files.
         let dir_skip = Arc::clone(&skip);
         builder.filter_entry(move |entry| {
-            entry.depth() == 0
-                || !entry.file_type().is_some_and(|t| t.is_dir())
-                || !dir_skip.is_excluded(entry.path())
+            if entry.depth() == 0 {
+                return true;
+            }
+            let is_dir = entry.file_type().is_some_and(|t| t.is_dir());
+            if entry.file_name().to_string_lossy().starts_with('.')
+                && !(is_dir && hidden_dir_loads(entry.path()))
+            {
+                return false;
+            }
+            !is_dir || !dir_skip.is_excluded(entry.path())
         });
         for entry in builder.build() {
             let entry = match entry {
@@ -320,6 +332,14 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
     discovery.files.sort();
     discovery.skipped.sort_by(|a, b| a.0.cmp(&b.0));
     discovery
+}
+
+/// Whether the gateway loads what the hidden directory `dir` holds: it is
+/// a project or collection, or inside one (the gateway loads hidden
+/// projects, resources and folders; verified on 8.3.3). Other hidden
+/// directories (`.git`, `.venv`) are not walked.
+fn hidden_dir_loads(dir: &Path) -> bool {
+    dir.ancestors().any(is_container)
 }
 
 /// Whether a walk error is a symbolic link cycle or a broken symbolic

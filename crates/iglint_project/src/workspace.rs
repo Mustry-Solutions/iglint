@@ -1233,8 +1233,11 @@ fn scan_resource_tree(
 type DirListing = (Vec<(String, PathBuf)>, Vec<(String, PathBuf, PathBuf)>);
 
 /// Files and subdirectories (with their real paths) of `dir`, whose real
-/// path is the last of `ancestors`, sorted by name. Hidden entries are
-/// skipped. Symbolic links are followed; a directory that cannot be read,
+/// path is the last of `ancestors`, sorted by name. Hidden files are
+/// skipped (the gateway reads only the files a manifest names); hidden
+/// directories are not: the gateway loads hidden resources and folders
+/// (`script-python/.hidden/`, `views/.folder/V`, verified on 8.3.3), and
+/// no name is skipped inside a container. Symbolic links are followed; a directory that cannot be read,
 /// a broken link and a link back to a directory the walk is in are
 /// recorded in `unread` (see [`subdirectory`]).
 fn list_dir(dir: &Path, ancestors: &[PathBuf], unread: &mut Vec<WorkspaceProblem>) -> DirListing {
@@ -1253,13 +1256,11 @@ fn list_dir(dir: &Path, ancestors: &[PathBuf], unread: &mut Vec<WorkspaceProblem
                         continue;
                     }
                 };
-                let name = entry.file_name();
-                if is_hidden(&name) {
-                    continue;
-                }
-                let name = name.to_string_lossy().into_owned();
+                let hidden = is_hidden(&entry.file_name());
+                let name = entry.file_name().to_string_lossy().into_owned();
                 let path = entry.path();
                 match subdirectory(&entry, &path, ancestors) {
+                    Subdirectory::No if hidden => {}
                     Subdirectory::No => files.push((name, path)),
                     Subdirectory::Yes(real) => dirs.push((name, path, real)),
                     Subdirectory::Unread(message) => {
@@ -1360,6 +1361,48 @@ mod tests {
         );
         assert!(ws.unread.is_empty(), "{:?}", ws.unread);
         assert_eq!(holds_container(root), Some(true));
+        // Inside a container no directory is skipped by name: hidden
+        // resources and folders, and resources named like build or cache
+        // directories, load on an 8.3.3 gateway (hidden files do not
+        // count: the gateway reads the files a manifest names).
+        let lib = "projects/target/ignition/script-python";
+        for module in [
+            ".hidden",
+            "pkg/.inner",
+            "target",
+            "node_modules",
+            "__pycache__",
+        ] {
+            write(
+                root,
+                &format!("{lib}/{module}/resource.json"),
+                r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+            );
+            write(root, &format!("{lib}/{module}/code.py"), "x = 1\n");
+        }
+        write(root, &format!("{lib}/.hidden/.notes.py"), "");
+        let ws = Workspace::discover(&[root]);
+        let mut modules: Vec<&str> = ws
+            .resources
+            .iter()
+            .filter(|r| &*r.type_id == "script-python")
+            .map(|r| &*r.path)
+            .collect();
+        modules.sort_unstable();
+        assert_eq!(
+            modules,
+            [
+                ".hidden",
+                "__pycache__",
+                "m",
+                "m",
+                "m",
+                "node_modules",
+                "pkg/.inner",
+                "target"
+            ]
+        );
+        assert!(!ws.files.iter().any(|f| f.name() == ".notes.py"));
         let empty = tempfile::tempdir().unwrap();
         project(empty.path(), "node_modules/pkg/projects/X");
         assert_eq!(holds_container(empty.path()), Some(false));
