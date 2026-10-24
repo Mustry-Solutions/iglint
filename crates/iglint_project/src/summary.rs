@@ -402,6 +402,7 @@ pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
     let facts = match &model.data {
         ModelData::View { view, file } => {
             hidden_code(&view.problems, *file, &mut references);
+            configuration_reads(*file, &view.bindings, &mut references);
             Facts::View(view_facts(view, &mut references))
         }
         ModelData::StyleClass(s) => Facts::StyleClass(StyleClassFacts {
@@ -448,6 +449,7 @@ pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
         }
         ModelData::SessionProps { props, file } => {
             hidden_code(&props.problems, *file, &mut references);
+            configuration_reads(*file, &props.bindings, &mut references);
             Facts::SessionProps(session_facts(props, &mut references))
         }
         ModelData::Library(_) => Facts::Library(LibraryFacts::default()),
@@ -455,6 +457,7 @@ pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
             if let Some((file, _)) = t.files.first() {
                 hidden_code(&t.problems, *file, &mut references);
             }
+            tag_configuration_reads(t, &mut references);
             Facts::Tags(tag_facts(t, &mut references))
         }
         ModelData::Stylesheet { text, .. } => Facts::Css(CssFacts {
@@ -479,6 +482,18 @@ pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
         }),
         ModelData::EventScript(e) => {
             if let crate::event_resource::EventSettings::TagChange { paths, .. } = &e.settings {
+                for (s, _) in paths {
+                    // A tag change script on a configuration property gets
+                    // the configuration as its new value.
+                    if !tag_path_names_value(s.value()) {
+                        configuration_read(
+                            model.resource.manifest.file,
+                            s.range(),
+                            s.value(),
+                            &mut references,
+                        );
+                    }
+                }
                 for (s, p) in paths {
                     if p.is_valid() && !p.is_relative() {
                         references.tag_paths.push(s.value().to_owned());
@@ -499,6 +514,9 @@ pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
         }
         _ => Facts::None,
     };
+    for (file, e) in model.expressions() {
+        expression_configuration_reads(file, e, &mut references);
+    }
     if !model.errors.is_empty() {
         valid = false;
     }
@@ -507,6 +525,140 @@ pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
         valid,
         facts,
         references,
+    }
+}
+
+/// Whether the tag path text `path` can only name a tag's value: the text
+/// after its last `/` (or `]`) has no `{...}` placeholder and names no
+/// property, or `Value`, `Quality` or `Timestamp` (case-insensitively).
+/// Any other property may be configuration (`Tag.eventScripts`,
+/// `Tag.expression`, `Tag.alarms`): reading it hands out the content of
+/// the files a fix edits. The same rule as the vetted `system.tag` reads
+/// and writes of literal paths (`iglint_python_semantic::vetted`).
+pub fn tag_path_names_value(path: &str) -> bool {
+    let tail = match path.rfind(['/', ']']) {
+        Some(i) => &path[i + 1..],
+        None => path,
+    };
+    if tail.contains(['{', '}']) {
+        return false;
+    }
+    match tail.split_once('.') {
+        None => true,
+        Some((_, property)) => matches!(
+            property.to_ascii_lowercase().as_str(),
+            "value" | "quality" | "timestamp"
+        ),
+    }
+}
+
+/// Records a reference that may read tag configuration
+/// ([`tag_path_names_value`] does not hold, or the path is computed): the
+/// configuration of a tag is the content of a `tags.json` file a fix
+/// edits, and an expression tag, reference or derived tag, binding or
+/// tag change script that reads it hands it to every reader of the value
+/// (verified on 8.3.3: `{[.]T.eventScripts}`, `tag('[.]T.eventScripts')`,
+/// a reference tag on `[.]T.eventScripts` all have the event script text
+/// as their value). Counted like a file read (`References::reads_files`).
+fn configuration_read(file: FileId, range: TextRange, path: &str, refs: &mut References) {
+    refs.reads_files = true;
+    if refs.file_read_site.is_none() {
+        let mut what: String = path.chars().take(60).collect();
+        if what.len() < path.len() {
+            what.push_str("...");
+        }
+        refs.file_read_site = Some(UnknownSite {
+            file,
+            range,
+            what: format!("tag path `{what}`, which may read tag configuration"),
+        });
+    }
+}
+
+/// [`configuration_read`] for the tag references of an expression:
+/// `{...}` tag paths and `tag(...)` (a computed path counts).
+fn expression_configuration_reads(
+    file: FileId,
+    e: &crate::EmbeddedExpression<'_>,
+    refs: &mut References,
+) {
+    for (r, resolved) in e.references() {
+        if let Reference::Tag(t) = resolved
+            && !tag_path_names_value(&t.raw)
+        {
+            configuration_read(file, e.file_range(r.path_range), &t.raw, refs);
+        }
+    }
+    for call in e.parsed.expr.calls() {
+        if !call.is("tag") {
+            continue;
+        }
+        match call.args.first().map(|a| &a.unparenthesized().kind) {
+            Some(ExprKind::String(s)) if tag_path_names_value(s) => {}
+            Some(ExprKind::String(s)) => {
+                let range = call.args[0].range;
+                configuration_read(file, e.file_range(range), s, refs);
+            }
+            _ => {
+                let range = call.args.first().map_or(call.name_range, |a| a.range);
+                configuration_read(file, e.file_range(range), "tag(...)", refs);
+            }
+        }
+    }
+}
+
+/// [`configuration_read`] for Perspective tag bindings: a direct or
+/// indirect path whose tail may name a configuration property, or a path
+/// computed by an expression.
+fn configuration_reads(file: FileId, bindings: &[crate::view::Binding<'_>], refs: &mut References) {
+    for b in bindings {
+        let BindingConfig::Tag(t) = &b.typed else {
+            continue;
+        };
+        match (t.mode, t.tag_path) {
+            (TagMode::Direct | TagMode::Indirect, Some(p)) if tag_path_names_value(p.value()) => {}
+            (_, Some(p)) => configuration_read(file, p.range(), p.value(), refs),
+            (_, None) => configuration_read(file, b.value.range, &b.node_path, refs),
+        }
+    }
+}
+
+/// [`configuration_read`] for tags: reference and derived tags'
+/// `sourceTagPath` (literal or bound), and alarm properties bound to a
+/// tag.
+fn tag_configuration_reads(folder: &TagFolder<'_>, refs: &mut References) {
+    for t in &folder.tags {
+        if let Some(p) = t.source_tag_path
+            && !tag_path_names_value(p.value())
+        {
+            configuration_read(t.file, p.range(), p.value(), refs);
+        }
+        for b in &t.bound_properties {
+            if b.property.value() == "sourceTagPath" {
+                let text = b.binding.map_or("", |s| s.value());
+                // A parameter binding substitutes text; an expression
+                // computes the path.
+                let parameter = b
+                    .bind_type
+                    .is_some_and(|k| k.eq_ignore_ascii_case("parameter"));
+                if !parameter || !tag_path_names_value(text) {
+                    configuration_read(t.file, b.value.range, text, refs);
+                }
+            }
+        }
+        for a in &t.alarms {
+            for b in &a.bindings {
+                if b.bind_type
+                    .is_some_and(|k| k.value().eq_ignore_ascii_case("tag"))
+                {
+                    match b.bound_value.and_then(|v| v.as_json_string()) {
+                        Some(p) if tag_path_names_value(p.value()) => {}
+                        Some(p) => configuration_read(t.file, p.range(), p.value(), refs),
+                        None => configuration_read(t.file, b.value.range, "", refs),
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -773,5 +925,41 @@ fn tag_facts(folder: &TagFolder<'_>, refs: &mut References) -> TagFacts {
         folder: folder.folder.to_owned(),
         definitions: folder.definitions,
         tags,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tag_path_names_value;
+
+    /// Review round 12: tag paths that may name configuration properties
+    /// (verified on 8.3.3: `{[.]T.eventScripts}`, `tag('[.]T.eventScripts')`
+    /// and a reference tag on `[.]T.eventScripts` hand out the script text).
+    #[test]
+    fn tag_paths_that_name_values() {
+        for p in [
+            "[default]T",
+            "[default]Folder/T.Value",
+            "[.]T.quality",
+            "[~]A/B.Timestamp",
+            "T",
+            "[default]{1}/Speed",
+            "[default]T[0]",
+            "[default]",
+        ] {
+            assert!(tag_path_names_value(p), "{p}");
+        }
+        for p in [
+            "[default]T.eventScripts",
+            "[.]T.expression",
+            "[default]T.Documentation",
+            "[default]T.alarms",
+            "[default]Folder/{1}",
+            "[default]T.{prop}",
+            "[default]T[0].eventScripts",
+            "[default]T.Value.x",
+        ] {
+            assert!(!tag_path_names_value(p), "{p}");
+        }
     }
 }

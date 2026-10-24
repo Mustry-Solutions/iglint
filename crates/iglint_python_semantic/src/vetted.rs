@@ -42,7 +42,7 @@ use iglint_python::ast::{
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
 use iglint_text::{Ranged, TextRange};
 
-use crate::file_reads::{Facility, JavaPolicy};
+use crate::file_reads::{Facility, JavaPolicy, Output};
 use crate::{Binding, BindingKind, Resolution, ScopeId, ScopeKind, SemanticModel};
 
 /// Python modules whose every public, non-module attribute is vetted,
@@ -300,6 +300,7 @@ const SYSTEM_RUNS_CODE: &[&str] = &[
     "system.tag.editTags",
     "system.tag.importTags",
     "system.tag.loadFromFile",
+    "system.tag.move",
     "system.util.WRAPPED_CONTEXT",
     "system.util.execute",
     "system.vision.updateProject",
@@ -320,8 +321,10 @@ const SYSTEM_TAG_WRITES: &[&str] = &[
     "system.tag.writeToTags",
 ];
 
-/// Whether `e`, the path argument of a `system.tag` write, can only name
-/// tag values: a path or a list or tuple of paths, each [`value_write_path`].
+/// Whether `e`, the path argument of a `system.tag` write or read, can only
+/// name tag values: a path or a list or tuple of paths, each
+/// [`value_write_path`]. A write of another property may store code; a
+/// read of one returns configuration ([`crate::file_reads::Output::TagValues`]).
 fn value_write_paths(e: &Expr) -> bool {
     match e {
         Expr::List(l) => l.elts.iter().all(value_write_path),
@@ -1079,6 +1082,24 @@ impl Walk<'_, '_> {
         }
     }
 
+    /// Whether the call `c` of a `system.*` function whose output may carry
+    /// workspace content ([`crate::file_reads::Output`]) reads none: only a
+    /// tag read whose paths can only name values ([`value_write_paths`]).
+    fn output_call_ok(&self, o: Output, c: &ExprCall) -> bool {
+        match o {
+            Output::TagValues => {
+                let paths = c.args.first().or_else(|| {
+                    c.keywords
+                        .iter()
+                        .find(|k| matches!(k.arg.as_str(), "tagPaths" | "tagPath"))
+                        .map(|k| &k.value)
+                });
+                c.starargs.is_none() && c.kwargs.is_none() && paths.is_some_and(value_write_paths)
+            }
+            Output::Content | Output::Network => false,
+        }
+    }
+
     /// Whether the constructor call `c` of a Java file class touches no
     /// workspace file.
     fn java_call_ok(&self, policy: JavaPolicy, c: &ExprCall) -> bool {
@@ -1103,6 +1124,12 @@ impl Walk<'_, '_> {
                     || matches!(&c.args[0], Expr::Call(inner) if self.plain_java_constructor(inner))
             }
             JavaPolicy::Url => {
+                c.args.len() == 1
+                    && self
+                        .literal_path(&c.args[0])
+                        .is_some_and(|u| crate::file_reads::file_url_outside_workspace(&u))
+            }
+            JavaPolicy::Uri => {
                 c.args.len() == 1
                     && self
                         .literal_path(&c.args[0])
@@ -1135,6 +1162,9 @@ impl Walk<'_, '_> {
     fn check_file_call(&mut self, c: &ExprCall) {
         let mut read = false;
         for q in self.dotted_names(&c.func) {
+            if let Some(o) = crate::file_reads::system_output(&q) {
+                read |= !self.output_call_ok(o, c);
+            }
             if let Some(f) = crate::file_reads::facility(&q) {
                 read |= !self.facility_call_ok(f, c);
             } else if let Some(p) = crate::file_reads::java_policy(&q) {
@@ -1162,6 +1192,7 @@ impl Walk<'_, '_> {
         }
         let read = self.dotted_names(expr).iter().any(|q| {
             crate::file_reads::facility(q).is_some()
+                || crate::file_reads::system_output(q).is_some()
                 || crate::file_reads::java_policy(q).is_some_and(|p| p != JavaPolicy::Plain)
         });
         if read {
@@ -1733,6 +1764,12 @@ mod tests {
                 )
             }) || p.ty.is_some_and(|t| t.contains("File"))
         };
+        // A function named after files or exports, for parameters Ignition
+        // does not name (`system.db.exportCSV(?, ?, ?)`).
+        let named_like_file = |name: &str| {
+            let lower = name.to_ascii_lowercase();
+            lower.contains("file") || lower.starts_with("export")
+        };
         let mut functions = Vec::new();
         for package in iglint_stubs::system_packages() {
             for member in iglint_stubs::system_members(package.path) {
@@ -1741,12 +1778,12 @@ mod tests {
                     if SYSTEM_RUNS_CODE.contains(&f.path) {
                         continue;
                     }
-                    let file_like = f
-                        .variants
-                        .iter()
-                        .flat_map(|v| v.overloads)
-                        .flat_map(|o| o.params)
-                        .any(looks_like_file);
+                    let file_like = named_like_file(f.name())
+                        || f.variants
+                            .iter()
+                            .flat_map(|v| v.overloads)
+                            .flat_map(|o| o.params)
+                            .any(looks_like_file);
                     if file_like {
                         let path_taking = facility(f.path).is_some();
                         let reviewed = SYSTEM_NOT_LOCAL_FILES.contains(&f.path);
@@ -1772,6 +1809,137 @@ mod tests {
         for q in SYSTEM_NOT_LOCAL_FILES {
             assert!(functions.contains(q), "{q} is not a system function");
         }
+    }
+
+    /// Review round 12 (Opus): every `system.*` function and object is
+    /// classified by what its outputs carry: workspace content (a possible
+    /// read of the files a fix edits, `file_reads::SYSTEM_OUTPUTS`), values
+    /// only (`file_reads::SYSTEM_VALUE_ONLY`), or not applicable because it
+    /// runs code and is unknown code anyway (`SYSTEM_RUNS_CODE`). Classes
+    /// (the `system.bacnet` data types) are values.
+    #[test]
+    fn every_system_function_output_is_classified() {
+        use crate::file_reads::{SYSTEM_OUTPUTS, SYSTEM_VALUE_ONLY};
+        let mut members = Vec::new();
+        for package in iglint_stubs::system_packages() {
+            for member in iglint_stubs::system_members(package.path) {
+                match member {
+                    iglint_stubs::Member::Function(f) => members.push(f.path),
+                    iglint_stubs::Member::Object(o)
+                        if o.variants
+                            .iter()
+                            .any(|v| v.kind == iglint_stubs::ObjectKind::Instance) =>
+                    {
+                        members.push(o.path)
+                    }
+                    _ => {}
+                }
+            }
+        }
+        for m in &members {
+            let classes = [
+                SYSTEM_OUTPUTS.iter().any(|(q, _)| q == m),
+                SYSTEM_VALUE_ONLY.contains(m),
+                SYSTEM_RUNS_CODE.contains(m),
+            ];
+            let n = classes.iter().filter(|c| **c).count();
+            assert!(
+                n == 1,
+                "{m} is {}",
+                if n == 0 {
+                    "not classified by output"
+                } else {
+                    "classified more than once"
+                }
+            );
+        }
+        for q in SYSTEM_OUTPUTS
+            .iter()
+            .map(|(q, _)| *q)
+            .chain(SYSTEM_VALUE_ONLY.iter().copied())
+            .chain(SYSTEM_RUNS_CODE.iter().copied())
+        {
+            assert!(
+                members.contains(&q),
+                "{q} is not a system function or object"
+            );
+        }
+        assert!(SYSTEM_OUTPUTS.windows(2).all(|w| w[0].0 < w[1].0));
+        assert!(SYSTEM_VALUE_ONLY.windows(2).all(|w| w[0] < w[1]));
+    }
+
+    /// Review round 12 (Opus) blocker: scripts read tag configuration (the
+    /// content of the `tags.json` files that fixes edit) through
+    /// `system.tag` functions that take no file path, and network clients
+    /// may fetch workspace files from a gateway. Verified on 8.3.3:
+    /// `getConfiguration`, `readBlocking` of `T.eventScripts`, `getTagValue`,
+    /// `getAttribute`, `query` and `exportTags` (to a string, or to a file a
+    /// later `open` reads) return the event script text.
+    #[test]
+    fn outputs_that_carry_workspace_content_are_reads() {
+        for src in [
+            "x = system.tag.getConfiguration('[default]T', False)\n",
+            "x = system.tag.getConfiguration('[default]', True)\n",
+            "x = system.tag.readBlocking(['[default]T.eventScripts'])[0].value\n",
+            "x = system.tag.readBlocking(['[default]T.expression', '[default]U'])\n",
+            "x = system.tag.readBlocking([p])\n",
+            "x = system.tag.readBlocking(paths)\n",
+            "x = system.tag.readBlocking(tagPaths=['[default]T.eventScripts'])\n",
+            "x = system.tag.readBlocking(*args)\n",
+            "system.tag.readAsync(['[default]T.alarms'], cb)\n",
+            "x = system.tag.read('[default]T.eventScripts')\n",
+            "x = system.tag.readAll(['[default]T.Documentation'])\n",
+            "x = system.tag.getTagValue('[default]T.eventScripts')\n",
+            "x = system.tag.getTagValues(['%s.eventScripts' % p])\n",
+            "x = system.tag.getAttribute('[default]T', 'eventScripts')\n",
+            "x = system.tag.exportTags(tagPaths=['[default]T'])\n",
+            "system.tag.exportTags('/tmp/x.json', ['[default]T'])\nx = open('/tmp/x.json').read()\n",
+            "x = system.tag.query('default', {})\n",
+            "x = system.tag.browse('[default]')\n",
+            "x = system.tag.browseTags(parentPath='')\n",
+            "x = system.tag.getAlarmStates('[default]T')\n",
+            "x = system.perspective.getProjectInfo()\n",
+            "x = system.util.queryAuditLog('p')\n",
+            "r = system.tag.readBlocking\n",
+            "g = system.tag.getConfiguration\n",
+            "from system.tag import getConfiguration\nx = getConfiguration('[default]T')\n",
+            "c = system.net.httpClient()\nx = c.get('http://localhost:8088/data/api/v1/x')\n",
+            "x = system.net.httpGet('http://localhost:8088/system/webdev/p/r')\n",
+            "x = system.net.httpPost('https://h/x', 'application/json', '{}')\n",
+            "from java.net import URL\nx = URL('http://localhost:8088/').openStream()\n",
+            "x = system.gui.getWindow('Main')\n",
+        ] {
+            assert!(unknown(src).file_read.is_some(), "no read in:\n{src}");
+        }
+        for src in [
+            "x = system.tag.readBlocking(['[default]T'])\n",
+            "x = system.tag.readBlocking(['[default]T.Value', '[default]U.Quality', '[default]V.timestamp'])\n",
+            "x = system.tag.readBlocking([base + '/Speed'])\n",
+            "x = system.tag.readBlocking(['%s/Speed' % base], 500)\n",
+            "x = system.tag.readBlocking(tagPaths=['{}/Speed'.format(base)])\n",
+            "system.tag.readAsync(['[default]T'], cb)\n",
+            "x = system.tag.read('[default]T').value\n",
+            "x = system.tag.getTagValue('[default]T')\n",
+            "x = system.tag.exists('[default]T')\n",
+            "x = system.tag.queryTagHistory(paths=['[default]T'])\n",
+            "x = system.util.getProjectName()\n",
+            "x = system.project.getProjectNames()\n",
+            "x = system.db.runNamedQuery('q', {})\n",
+            "x = system.opc.readValue('Ignition OPC UA Server', 'ns=1;s=[default]/T')\n",
+            "x = system.alarm.queryStatus(priority=['High'])\n",
+            "system.util.sendMessage('p', 'h', {})\n",
+            "x = system.util.getGatewayStatus('localhost:8088')\n",
+        ] {
+            let found = unknown(src);
+            assert_eq!(found.file_read, None, "read in:\n{src}");
+            assert!(found.is_empty(), "{src}");
+        }
+        // `system.tag.move` copies tags with their scripts, like `copy`.
+        assert!(
+            unknown("system.tag.move(['[other]T'], '[default]')\n")
+                .other
+                .is_some()
+        );
     }
 
     #[test]
@@ -1907,6 +2075,10 @@ mod tests {
             "from java.io import PrintWriter\nx = PrintWriter(w)\n",
             "from java.util import Formatter\nx = Formatter(p)\n",
             "from java.io import FileWriter\nW = FileWriter\n",
+            // Network clients (round 12): a gateway serves workspace
+            // files over HTTP.
+            "x = system.net.httpGet('https://example.com/a')\n",
+            "from java.net import URL\nx = URL('https://example.com').openStream()\n",
         ] {
             let found = unknown(src);
             assert!(found.file_read.is_some(), "no file read in:\n{src}");
@@ -1919,12 +2091,10 @@ mod tests {
             "import os\nx = os.path.join(a, b)\n",
             "import os\nx = os.stat('/tmp/x')\n",
             "x = system.file.getTempFile('csv')\n",
-            "x = system.net.httpGet('https://example.com/a')\n",
             "from java.io import File\nx = File('/tmp/x').length()\n",
             "from java.io import File\nx = File('/tmp', 'x')\n",
             "from java.io import File\nx = File.separator\n",
             "from java.io import FileInputStream\nx = FileInputStream('/tmp/x')\n",
-            "from java.net import URL\nx = URL('https://example.com').openStream()\n",
             "from java.util import Scanner\nx = Scanner('1 2 3')\n",
             "d = {}\nd.update(x)\n",
             "x = self.getChild('A').parent\n",
@@ -1941,6 +2111,8 @@ mod tests {
             "from java.io import FileOutputStream\nx = FileOutputStream('/tmp/x', True)\n",
             "from java.io import PrintWriter, StringWriter\nx = PrintWriter(StringWriter())\n",
             "from java.util import Formatter\nx = Formatter()\n",
+            "from java.net import URL\nx = URL('file:///tmp/x').openStream()\n",
+            "from java.net import URI\nx = URI('https://example.com/a').getHost()\n",
         ] {
             let found = unknown(src);
             assert_eq!(found.file_read, None, "file read in:\n{src}");

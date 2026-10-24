@@ -80,6 +80,30 @@ from 0.1.0 on.
 
 ### Fixed
 
+- Every fix was safe although scripts read the content of the files it
+  edits without naming them (review round 12). The `system.*` audit
+  classified functions by their parameters only; it now classifies each
+  of the 683 functions and objects of the stubs by what its outputs
+  carry, and a test fails on one that is not classified. Possible reads
+  now include `system.tag.getConfiguration`, `exportTags` to any path
+  (`exportTags('/tmp/x.json', ...)` then `open('/tmp/x.json')` showed a
+  tag event script's comments), `query`, `browse`, `getAttribute`,
+  `getAlarmStates`, tag reads (`readBlocking`, `read`, `getTagValue`,
+  ...) of a path that may name a configuration property such as
+  `T.eventScripts` (literal value, `Quality` and `Timestamp` paths stay
+  fine), `system.perspective.getProjectInfo`, the audit log, Vision
+  windows, and every network client (`system.net.httpClient`, the `http*`
+  functions, `java.net.URL` with a network URL): a gateway sharing the
+  workspace's files serves them over HTTP. Expressions, Perspective tag
+  bindings, reference and derived tags, tag-bound alarm properties and
+  tag change scripts whose tag path may name a configuration property
+  (`{[.]T.eventScripts}`, `tag(path)` with a computed path) count too,
+  since the value they produce carries the configuration. The measured
+  Java members that hand out such content (`getEventScripts`,
+  `findViewConfig`, `getPropertyConfig`, ...) count like file handles.
+  `system.tag.move` counts as code that stores tag scripts, like `copy`,
+  and the legacy `system.db.exportCSV`, `exportExcel` and `exportHTML`
+  as file facilities. All verified on Ignition 8.3.3.
 - SCR112 missed `*` widths and precisions with a dict as the only
   operand (`'%*s' % {'x': 1}`, `'%.*f' % {'x': 1}`), which raise
   `TypeError: * wants int` on Jython.

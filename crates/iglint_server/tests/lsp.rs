@@ -985,6 +985,106 @@ fn quick_fixes_are_unsafe_when_scripts_move_or_append_to_workspace_files() {
     }
 }
 
+/// Review round 12 (Opus) blocker, in the language server: the quick fix
+/// of trailing whitespace in a tag event script edits `tags.json`, which
+/// `system.tag.getConfiguration`, a `readBlocking` of `T.eventScripts` and
+/// `exportTags` followed by `open` read without naming the file. A read of
+/// the tag's value keeps the fix safe.
+#[test]
+fn quick_fixes_are_unsafe_when_scripts_read_tag_configuration() {
+    for (code, unsafe_fix) in [
+        (
+            "def f():\n    return system.tag.getConfiguration('[default]T')\n",
+            true,
+        ),
+        (
+            "def f():\n    return system.tag.readBlocking(['[default]T.eventScripts'])\n",
+            true,
+        ),
+        (
+            "def f():\n    system.tag.exportTags('/tmp/x.json', ['[default]T'])\n    return open('/tmp/x.json').read()\n",
+            true,
+        ),
+        (
+            "def f():\n    return system.tag.readBlocking(['[default]T'])\n",
+            false,
+        ),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        demo_project(&root);
+        write(&root, "iglint.toml", "extend-select = [\"SCR124\"]\n");
+        let lib = "projects/demo/ignition/script-python";
+        write(
+            &root,
+            &format!("{lib}/m/resource.json"),
+            &MANIFEST.replace("view.json", "code.py"),
+        );
+        write(&root, &format!("{lib}/m/code.py"), code);
+        write(&root, "config/core/config-mode.json", "{}");
+        write(
+            &root,
+            "config/core/ignition/tag-provider/default/resource.json",
+            &MANIFEST.replace("view.json", "config.json"),
+        );
+        write(
+            &root,
+            "config/core/ignition/tag-provider/default/config.json",
+            r#"{"profile": {"type": "STANDARD"}, "settings": {}}"#,
+        );
+        write(
+            &root,
+            "config/core/ignition/tag-definition/default/unary-resource.json",
+            &MANIFEST
+                .replace("view.json", "tags.json")
+                .replace(r#""attributes": {}"#, r#""attributes": {"config": {}}"#),
+        );
+        let tags = r#"[{"name": "T", "tagType": "AtomicTag", "valueSource": "memory", "dataType": "Int4", "eventScripts": [{"eventid": "valueChanged", "script": "\tx = 1   \n"}]}]"#;
+        let path = write(
+            &root,
+            "config/core/ignition/tag-definition/default/tags.json",
+            tags,
+        );
+        let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+        let uri = client.open(&path, tags);
+        let published = client.diagnostics(&uri, Some(1));
+        let range = published
+            .diagnostics
+            .iter()
+            .find(|d| {
+                d.code
+                    .as_ref()
+                    .is_some_and(|c| *c == lsp_types::NumberOrString::String("SCR124".to_owned()))
+            })
+            .unwrap_or_else(|| panic!("{code}: {published:#?}"))
+            .range;
+        let fixes: Vec<CodeAction> = code_actions(
+            &mut client,
+            &uri,
+            range,
+            Some(vec![CodeActionKind::QUICKFIX]),
+        )
+        .into_iter()
+        .filter(|a| a.title.starts_with("SCR124") && !a.title.contains("suppress"))
+        .collect();
+        assert!(!fixes.is_empty(), "{code}: {fixes:#?}");
+        for fix in &fixes {
+            if unsafe_fix {
+                assert!(
+                    fix.title
+                        .contains("(unsafe: code in the workspace may read the files"),
+                    "{code}: {fix:#?}"
+                );
+                assert!(fix.title.contains("system.tag."), "{code}: {fix:#?}");
+                assert_eq!(fix.is_preferred, Some(false), "{fix:#?}");
+            } else {
+                assert!(!fix.title.contains("unsafe"), "{code}: {fix:#?}");
+            }
+        }
+        client.shutdown();
+    }
+}
+
 /// The NAME001 quick fixes offered for the component `name` of `view`: the
 /// title and whether each is preferred (safe).
 fn name001_fixes(view: &str, name: &str) -> Vec<(String, Option<bool>)> {

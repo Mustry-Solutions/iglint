@@ -598,6 +598,136 @@ fn fixes_are_unsafe_when_scripts_read_workspace_files() {
     );
 }
 
+/// A gateway collection with tag `T`, whose `valueChanged` event script
+/// has an unused suppression of `SCR124` (`SCR123`) and trailing whitespace
+/// (`SCR124`), the extra tags `extra` (JSON objects), and a project library
+/// module `m` with `code`.
+fn tag_configuration_workspace(code: &str, extra: &str) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write("config/core/config-mode.json", "{}");
+    write(
+        "config/core/ignition/tag-provider/default/resource.json",
+        r#"{"scope": "G", "version": 1, "files": ["config.json"]}"#,
+    );
+    write(
+        "config/core/ignition/tag-provider/default/config.json",
+        r#"{"profile": {"type": "STANDARD"}, "settings": {}}"#,
+    );
+    write(
+        "config/core/ignition/tag-definition/default/unary-resource.json",
+        r#"{"scope": "G", "version": 1, "restricted": false, "overridable": true, "files": ["tags.json"], "attributes": {"config": {}}}"#,
+    );
+    write(
+        "config/core/ignition/tag-definition/default/tags.json",
+        &format!(
+            r#"[{{"name": "T", "tagType": "AtomicTag", "valueSource": "memory", "dataType": "Int4", "eventScripts": [{{"eventid": "valueChanged", "script": "\tx = 1  # iglint: ignore[SCR124]\n\ty = 2   \n"}}]}}{extra}]"#
+        ),
+    );
+    write(
+        "p/project.json",
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    );
+    write(
+        "p/ignition/script-python/m/resource.json",
+        r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+    );
+    write("p/ignition/script-python/m/code.py", code);
+    dir
+}
+
+/// Review round 12 (Opus) blocker: the safe fixes of a tag event script
+/// edit `tags.json`, whose content scripts read without a file path:
+/// `system.tag.getConfiguration`, `readBlocking` of the `eventScripts`
+/// property, `exportTags` to a file that `open` then reads (both literal
+/// paths outside the workspace), and the value of an expression tag that
+/// references `{[.]T.eventScripts}` (verified on Ignition 8.3.3: each
+/// returns the event script text with its comment and whitespace). A
+/// read of the tag's value keeps the fixes safe.
+#[test]
+fn fixes_are_unsafe_when_scripts_read_tag_configuration() {
+    let expression_tag = r#", {"name": "E", "tagType": "AtomicTag", "valueSource": "expr", "dataType": "String", "expression": "toStr({[.]T.eventScripts})"}"#;
+    let value = "def f():\n    return system.tag.readBlocking(['[default]T'])[0].value\n";
+    for (case, code, extra, what) in [
+        (
+            "getConfiguration",
+            "def f():\n    return system.tag.getConfiguration('[default]T', False)\n",
+            "",
+            "system.tag.getConfiguration(",
+        ),
+        (
+            "readBlocking",
+            "def f():\n    return system.tag.readBlocking(['[default]T.eventScripts'])[0].value\n",
+            "",
+            "system.tag.readBlocking(",
+        ),
+        (
+            "exportTags",
+            "def f():\n    system.tag.exportTags('/tmp/x.json', ['[default]T'])\n    return open('/tmp/x.json').read()\n",
+            "",
+            "system.tag.exportTags(",
+        ),
+        (
+            "expression tag",
+            value,
+            expression_tag,
+            "tag path `[.]T.eventScripts`",
+        ),
+    ] {
+        let dir = tag_configuration_workspace(code, extra);
+        let tags = dir
+            .path()
+            .join("config/core/ignition/tag-definition/default/tags.json");
+        let before = std::fs::read_to_string(&tags).unwrap();
+        let out = iglint(dir.path())
+            .args([
+                "--no-cache",
+                "--output-format",
+                "json",
+                "--select",
+                "SCR123,SCR124",
+            ])
+            .output()
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+        let found = v.as_array().unwrap();
+        let mut rules: Vec<&str> = found.iter().map(|d| d["code"].as_str().unwrap()).collect();
+        rules.sort_unstable();
+        assert_eq!(rules, ["SCR123", "SCR124"], "{case}: {v}");
+        for d in found {
+            assert_eq!(d["fix"]["applicability"], "unsafe", "{case}: {d}");
+            let reason = &d["fix"]["unsafe_reason"];
+            assert!(
+                reason["what"].as_str().unwrap().starts_with(what),
+                "{case}: {reason}"
+            );
+        }
+        iglint(dir.path())
+            .args(["--no-cache", "--fix", "--select", "SCR123,SCR124"])
+            .output()
+            .unwrap();
+        assert_eq!(std::fs::read_to_string(&tags).unwrap(), before, "{case}");
+    }
+    // Reading the value only: the fixes stay safe and apply.
+    let dir = tag_configuration_workspace(value, "");
+    let tags = dir
+        .path()
+        .join("config/core/ignition/tag-definition/default/tags.json");
+    iglint(dir.path())
+        .args(["--no-cache", "--fix", "--select", "SCR123,SCR124"])
+        .output()
+        .unwrap();
+    let fixed = std::fs::read_to_string(&tags).unwrap();
+    assert!(
+        fixed.contains(r#""script": "\tx = 1\n\ty = 2\n""#),
+        "{fixed}"
+    );
+}
+
 #[test]
 fn reads_of_files_outside_the_workspace_keep_fixes_safe() {
     let dir = tempfile::tempdir().unwrap();

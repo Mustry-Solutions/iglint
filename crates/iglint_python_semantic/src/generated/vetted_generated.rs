@@ -132,6 +132,46 @@ pub(crate) const GENERATED_FROM: &[&str] = &[
     "file-handle:com.inductiveautomation.ignition.gateway.resourcecollection.ResourceCollectionFileTree",
     "file-handle:com.inductiveautomation.ignition.gateway.resourcecollection.ResourceDataFile",
     "file-handle:com.inductiveautomation.ignition.gateway.resourcecollection.StreamingResource",
+    "file-handle:com.inductiveautomation.perspective.common.config.ViewConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.ComponentConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.PageConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.PagesConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.SessionPropsConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.PropertyConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.PropertyConfigCollection",
+    "file-handle:com.inductiveautomation.perspective.common.config.BindingConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.ActionConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.EventConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.ScriptConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.CustomMethodConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.MessageHandlerConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.ExtensionFunctionConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.PropertyChangeScriptConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.SystemEventsConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.DocksConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.DockedViewConfig",
+    "file-handle:com.inductiveautomation.perspective.common.config.PerspectiveProjectProps",
+    "file-handle:com.inductiveautomation.perspective.gateway.api.PerspectiveProject",
+    "file-handle:com.inductiveautomation.perspective.gateway.api.PerspectiveProjectCache",
+    "file-handle:com.inductiveautomation.perspective.gateway.config.ProjectConfig",
+    "file-handle:com.inductiveautomation.perspective.gateway.model.ViewModel",
+    "file-handle:com.inductiveautomation.ignition.common.tags.config.TagConfiguration",
+    "file-handle:com.inductiveautomation.ignition.common.tags.config.TagConfigurationModel",
+    "file-handle:com.inductiveautomation.ignition.common.sqltags.model.scripts.TagEventScripts",
+    "file-handle:com.inductiveautomation.ignition.common.alarming.config.AlarmConfiguration",
+    "file-handle:com.inductiveautomation.ignition.common.alarming.config.AlarmDefinition",
+    "file-handle:com.inductiveautomation.ignition.common.script.builtin.ialabs.TagAlarmDefinition",
+    "file-handle:com.inductiveautomation.ignition.common.script.ScheduledScript",
+    "file-handle:com.inductiveautomation.ignition.common.script.TagChangeScript",
+    "file-handle:com.inductiveautomation.ignition.common.script.ScriptConfig$MessageHandlerScript",
+    "file-handle:com.inductiveautomation.ignition.common.script.ScriptConfig$ShutdownScript",
+    "file-handle:com.inductiveautomation.ignition.common.script.ScriptConfig$StartupScript",
+    "file-handle:com.inductiveautomation.ignition.common.script.ScriptConfig$TagChangeScriptEvent",
+    "file-handle:com.inductiveautomation.ignition.common.script.ScriptConfig$TimerScript",
+    "file-handle:com.inductiveautomation.ignition.common.db.namedquery.NamedQuery",
+    "file-handle:com.inductiveautomation.ignition.gateway.config.DecodedResource",
+    "file-handle:com.inductiveautomation.ignition.gateway.tags.scripting.CompiledTagScript",
+    "file-handle:com.inductiveautomation.ignition.gateway.tags.scripting.events.AbstractTagScript",
     "store:com.inductiveautomation.ignition.gateway.model.GatewayContext",
     "store:com.inductiveautomation.perspective.gateway.api.PerspectiveContext",
     "store:com.inductiveautomation.ignition.gateway.project.ProjectManager",
@@ -298,31 +338,41 @@ pub(crate) const JAVA_REFLECTIVE_MEMBERS: &[&str] = &[
 /// Member names (Java method, Jython bean-property and field
 /// spellings) whose declared type mentions a file handle (a file,
 /// path, channel, descriptor, URL or URI, or a project resource as
-/// the gateway loaded it), over every type a script can hold (2324
+/// the gateway loaded it), over every type a script can hold (2188
 /// types scanned). Naming any of these on any value may read the
 /// bytes or metadata of a workspace file. Sorted.
 pub(crate) const JAVA_FILE_MEMBERS: &[&str] = &[
     "FD", // java.io.FileInputStream.getFD
     "URIs", // java.net.CookieStore.getURIs
     "absoluteFile", // java.io.File.getAbsoluteFile
+    "alarmStates", // com.inductiveautomation.ignition.common.sqltags.model.Tag.getAlarmStates
     "baseDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getBaseDir
     "build", // com.inductiveautomation.ignition.common.resourcecollection.ResourceBuilder.build
     "bundleFile", // com.inductiveautomation.ignition.gateway.model.DiagnosticsManager$DiagnosticsBundle.getBundleFile
     "canonicalFile", // java.io.File.getCanonicalFile
     "channel", // java.io.FileInputStream.getChannel
+    "config", // com.inductiveautomation.perspective.gateway.api.ActionContext.getConfig
     "configDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getConfigDir
     "configurationManager", // com.inductiveautomation.ignition.gateway.model.GatewayContext.getConfigurationManager
     "create", // java.net.URI.create
     "createTempFile", // java.io.File.createTempFile
     "dataDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getDataDir
+    "decodedResource", // com.inductiveautomation.ignition.gateway.mail.EmailProfile$Managed.getDecodedResource
+    "eventScripts", // com.inductiveautomation.ignition.common.sqltags.model.Tag.getEventScripts
+    "findResource", // com.inductiveautomation.ignition.gateway.config.NamedResourceHandler.findResource
+    "findViewConfig", // com.inductiveautomation.perspective.gateway.api.Session.findViewConfig
     "getAbsoluteFile", // java.io.File.getAbsoluteFile
+    "getAlarmStates", // com.inductiveautomation.ignition.common.sqltags.model.Tag.getAlarmStates
     "getBaseDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getBaseDir
     "getBundleFile", // com.inductiveautomation.ignition.gateway.model.DiagnosticsManager$DiagnosticsBundle.getBundleFile
     "getCanonicalFile", // java.io.File.getCanonicalFile
     "getChannel", // java.io.FileInputStream.getChannel
+    "getConfig", // com.inductiveautomation.perspective.gateway.api.ActionContext.getConfig
     "getConfigDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getConfigDir
     "getConfigurationManager", // com.inductiveautomation.ignition.gateway.model.GatewayContext.getConfigurationManager
     "getDataDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getDataDir
+    "getDecodedResource", // com.inductiveautomation.ignition.gateway.mail.EmailProfile$Managed.getDecodedResource
+    "getEventScripts", // com.inductiveautomation.ignition.common.sqltags.model.Tag.getEventScripts
     "getFD", // java.io.FileInputStream.getFD
     "getLibDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getLibDir
     "getLocalDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getLocalDir
@@ -335,15 +385,22 @@ pub(crate) const JAVA_FILE_MEMBERS: &[&str] = &[
     "getPlatformConfigDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getPlatformConfigDir
     "getPlatformConfigLocalDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getPlatformConfigLocalDir
     "getPlatformTransientDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getPlatformTransientDir
+    "getProject", // com.inductiveautomation.perspective.gateway.session.InternalSession.getProject
+    "getProjectCache", // com.inductiveautomation.perspective.gateway.api.PerspectiveContext.getProjectCache
     "getProjectManager", // com.inductiveautomation.ignition.gateway.model.GatewayContext.getProjectManager
+    "getPropertyConfig", // com.inductiveautomation.perspective.gateway.api.Component.getPropertyConfig
+    "getQueryFromPath", // com.inductiveautomation.ignition.common.db.namedquery.NamedQueryManager.getQueryFromPath
     "getRelativeRequestUri", // com.inductiveautomation.ignition.gateway.dataroutes.RequestContext.getRelativeRequestUri
     "getRequestUri", // com.inductiveautomation.ignition.gateway.dataroutes.RequestContext.getRequestUri
     "getResource", // com.inductiveautomation.ignition.common.resourcecollection.ChangeOperation$CreateResourceOperation.getResource
     "getResourceFromChange", // com.inductiveautomation.ignition.common.resourcecollection.ChangeOperation$CreateResourceOperation.getResourceFromChange
+    "getResources", // com.inductiveautomation.ignition.gateway.config.NamedResourceHandler.getResources
+    "getTagConfigsAsync", // com.inductiveautomation.ignition.common.tags.model.TagProvider.getTagConfigsAsync
     "getTempDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getTempDir
     "getURIs", // java.net.CookieStore.getURIs
     "getURL", // java.sql.CallableStatement.getURL
     "getUserLibDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getUserLibDir
+    "getViews", // com.inductiveautomation.perspective.gateway.api.Page.getViews
     "libDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getLibDir
     "listFiles", // java.io.File.listFiles
     "listRoots", // java.io.File.listRoots
@@ -357,19 +414,22 @@ pub(crate) const JAVA_FILE_MEMBERS: &[&str] = &[
     "platformConfigDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getPlatformConfigDir
     "platformConfigLocalDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getPlatformConfigLocalDir
     "platformTransientDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getPlatformTransientDir
+    "project", // com.inductiveautomation.perspective.gateway.session.InternalSession.getProject
+    "projectCache", // com.inductiveautomation.perspective.gateway.api.PerspectiveContext.getProjectCache
     "projectManager", // com.inductiveautomation.ignition.gateway.model.GatewayContext.getProjectManager
     "relativeRequestUri", // com.inductiveautomation.ignition.gateway.dataroutes.RequestContext.getRelativeRequestUri
     "relativize", // java.net.URI.relativize
     "requestUri", // com.inductiveautomation.ignition.gateway.dataroutes.RequestContext.getRequestUri
     "resolve", // java.net.URI.resolve
     "resource", // com.inductiveautomation.ignition.common.resourcecollection.ChangeOperation$CreateResourceOperation.getResource
-    "snapshot", // com.inductiveautomation.perspective.gateway.api.PerspectiveProject.snapshot
+    "resources", // com.inductiveautomation.ignition.gateway.config.NamedResourceHandler.getResources
     "tempDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getTempDir
     "toPath", // java.io.File.toPath
     "toURI", // java.io.File.toURI
     "toURL", // java.io.File.toURL
     "uri", // java.net.http.HttpRequest.uri
     "userLibDir", // com.inductiveautomation.ignition.gateway.system.SystemManager.getUserLibDir
+    "views", // com.inductiveautomation.perspective.gateway.api.Page.getViews
 ];
 
 /// The vetted Java classes that are file handle types or have a public

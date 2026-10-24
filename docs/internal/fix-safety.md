@@ -446,23 +446,99 @@ reason names the first such site in the workspace and the setting.
     extension without a separator or `..`), `system.tag.exportTags`, the
     dataset and Vision exports and `printToImage`,
     `system.iec61850.readFile` and `writeFile` (local paths), the legacy
-    `system.net.httpGet`, `httpPost`, `httpPut` and `httpDelete` and
-    `openURL`, which take any URL string (`file:` included, not verified
-    otherwise, so failing closed), and, on every call, the file dialogs,
+    Vision exports `system.db.exportCSV`, `exportExcel` and `exportHTML`,
+    the legacy `system.net.httpGet`, `httpPost`, `httpPut` and
+    `httpDelete` and `openURL`, which take any URL string (`file:`
+    included, not verified otherwise, so failing closed; the `http*`
+    functions count on every call anyway, see the outputs below), and, on
+    every call, the file dialogs,
     `system.file.saveToFile`, `system.util.playSoundClip`,
     `system.report.executeAndDistribute` (its distribution actions write
     files) and `system.db.addDatasource` and `setDatasourceConnectURL` (a
-    JDBC URL may name a database file). `system.net.httpClient` uses
-    Java's `HttpClient`, which rejects `file:` URIs (verified:
-    `IllegalArgumentException: invalid URI scheme file`). Every `system.*`
-    function with a parameter whose name or type looks like a local file
-    (`file`, `filename`, `filepath`, `url`, `uri`, `location`,
-    `destination`, `dir`, `folder`, `wav`, a `File` type) is a facility or
+    JDBC URL may name a database file). Every `system.*` function with a
+    parameter whose name or type looks like a local file (`file`,
+    `filename`, `filepath`, `url`, `uri`, `location`, `destination`,
+    `dir`, `folder`, `wav`, a `File` type), or whose own name contains
+    `file` or starts with `export` (for parameters Ignition does not name),
+    is a facility or
     reviewed as not touching local files
     (`file_reads::SYSTEM_NOT_LOCAL_FILES`: OPC folders and endpoints, the
     browser's download name and navigation, `system.perspective.print`'s
-    console destination, a report's format, tag paths), checked by
+    console destination, a report's format), checked by
     `every_system_file_parameter_is_classified`;
+  * `system.*` functions whose **outputs** carry content that the gateway
+    loaded from workspace resources, whatever their parameters
+    (`file_reads::SYSTEM_OUTPUTS`, review round 12). A path-based audit
+    misses them: `system.tag.getConfiguration('[default]T')` returns the
+    tag's event scripts, comments and whitespace included, and
+    `system.tag.exportTags('/tmp/x.json', ['[default]T'])` followed by
+    `open('/tmp/x.json')` copies them to a file that a literal outside
+    path then reads (both verified on 8.3.3). Every function and object
+    of the stubs (683, all scopes) is classified by what its return
+    value, the files it writes and what it hands to callbacks carry, and
+    `every_system_function_output_is_classified` fails on one in no class
+    or in two:
+    * workspace content, on every use (called or as a value): tag
+      configuration (`getConfiguration`, `exportTags` to a string or to
+      any file, `query`, `browse`, `browseTags`, `browseTagsSimple`,
+      whose `attributes` reveal which tags have scripts, `getAttribute`,
+      `getAlarmStates`), project information with modification data
+      (`system.perspective.getProjectInfo`), the audit log (it may record
+      resource changes; failing closed), Vision windows and components,
+      which hold their window's definition (`system.gui.getWindow`,
+      `system.nav.openWindow`, `system.vision.getParentWindow`, ...),
+      `system.file.getChooser` (it hands out local files) and the
+      undocumented `system.device.getInstance` and
+      `system.util.initialize`;
+    * tag reads (`readBlocking`, `readAsync`, `read`, `readAll`,
+      `getTagValue`, `getTagValues`): a path that names a configuration
+      property returns that configuration (verified on 8.3.3:
+      `readBlocking(['[default]T.eventScripts'])` and
+      `getTagValue('[default]T.eventScripts')` return the script text).
+      A read is fine only as a direct call whose path argument (the first,
+      or `tagPaths=` / `tagPath=`) can only name values, with the rule of
+      the `system.tag` writes (see "`system.*` functions that run code"):
+      a literal, a concatenation ending in a literal with `/`, or a `%` or
+      `format` string, whose text after the last `/` names no property,
+      or `Value`, `Quality` or `Timestamp`. Computed paths count;
+    * network clients (`system.net.httpClient`, `httpGet`, `httpPost`,
+      `httpPut`, `httpDelete`, and `java.net.URL` with a network URL): the
+      gateway that runs the script, or another gateway that shares the
+      workspace's files, serves their content over HTTP (the 8.3 REST
+      API's project and resource exports, WebDev resources), and no host
+      name can be proven not to reach one (`localhost`, an alias, a
+      proxy, the gateway's own DNS name). They count on every use. There
+      is no list of trusted hosts: declaring a host harmless is the same
+      declaration as `assume-scripts-do-not-read-workspace-files`, which
+      the user can make;
+    * values only (`file_reads::SYSTEM_VALUE_ONLY`, reviewed per
+      package): run-time values that the running configuration produces
+      (tag history, alarm events and states, query results, OPC values),
+      settings values (a device's host name, a roster's users), names (no
+      fix creates, renames or deletes a resource) and data the script
+      passes in. A safe fix keeps behaviour, so it keeps them; what it
+      changes is the representation of definitions (script text,
+      comments, whitespace, unused imports and properties), which only
+      the outputs above expose. The Ignition OPC UA server exposes tags
+      as value nodes only (verified on 8.3.3 with exposed tag providers:
+      no property nodes, and `[default]/T.eventScripts` is
+      `Bad_NodeIdUnknown`), so OPC reads are values;
+    * not applicable: the functions that run code
+      (`vetted::SYSTEM_RUNS_CODE`), unknown code on every use anyway;
+  * references in modelled configuration that hand tag configuration to
+    a value: a tag path whose text after the last `/` (or `]`) has a
+    `{...}` placeholder or names a property other than `Value`,
+    `Quality` and `Timestamp`, or that is computed, in an expression
+    (`{[.]T.eventScripts}`, `tag(...)`), a Perspective tag binding
+    (direct or indirect; expression mode always counts), a reference or
+    derived tag's `sourceTagPath` (literal or bound), an alarm property
+    bound to a tag, or a gateway tag change script's paths
+    (`summary::tag_path_names_value`). Verified on 8.3.3: an expression
+    tag on `{[.]T.eventScripts}`, one on `tag('[.]T.eventScripts')` and a
+    reference tag on `[.]T.eventScripts` all have the event script text
+    as their value, so any value read (a script's `readBlocking`, a
+    binding, the OPC UA server) would carry it; the reference is the
+    read site, and value reads stay values;
   * vetted Java classes that make file handles from strings
     (`file_reads::JAVA_FILE_POLICY`): `java.io.File`, `FileInputStream`,
     `FileReader`, `FileOutputStream` and `FileWriter` (path arguments,
@@ -470,8 +546,10 @@ reason names the first such site in the workspace and the setting.
     (fine without arguments, with an outside literal or with a direct
     constructor call of a vetted Java class without a file policy, as in
     `PrintWriter(StringWriter())`; anything else may be a file name),
-    `java.net.URL` and `URI` (an `http`, `https` or `ftp` literal is
-    fine, a `file:` literal is a path). Classes that only take a handle
+    `java.net.URL` (only an outside `file:` literal is fine: a network URL
+    is a network client, see above) and `URI` (an `http`, `https` or
+    `ftp` literal is fine, a `file:` literal is a path; `URI` reads
+    nothing by itself, and `toURL` is a measured file member). Classes that only take a handle
     or stream the script already holds (`Scanner`, `HttpURLConnection`,
     readers and writers wrapping a stream) are plain: the handle was
     counted where it was made. Which vetted classes take or are handles
@@ -484,10 +562,18 @@ reason names the first such site in the workspace and the setting.
     `FileDescriptor`, `FileInputStream`, `FileReader`, `RandomAccessFile`,
     `java.nio.file.Path`, `FileSystem`, `FileStore`, `DirectoryStream`,
     `FileSystemProvider`, `BasicFileAttributes`, file channels,
-    `ZipFile`, `URL`, `URI`, `URLConnection`, and Ignition's
+    `ZipFile`, `URL`, `URI`, `URLConnection`, Ignition's
     `ProjectManager`, resource collections, resources, snapshots and
     resource data files, which hand out resources as the gateway loaded
-    them from the files a fix edits). It is measured by
+    them from the files a fix edits, and, since review round 12, the
+    configuration objects that carry that content: Perspective view,
+    component, page, session, binding, event, script and project
+    configurations, `PerspectiveProject` and its cache, `ViewModel`, tag
+    configurations, `TagEventScripts`, alarm configurations and
+    definitions, gateway event script configurations, named queries and
+    decoded gateway resources; a probe of every Ignition type reachable
+    from the seeds whose name mentions a configuration, definition,
+    script, resource, snapshot, project or query chose them). It is measured by
     `stubs-gen/gen_vetted.py` as a second fixed point over the same seeds
     as the reflection closure (see "Machine-measured facts"), with the
     handle types as stops, except the handles vetted code can hold without
@@ -498,7 +584,7 @@ reason names the first such site in the workspace and the setting.
     (`LastModification.update(Resource, String)`) is not a first hop. Seeds
     are the gateway scope only: `system.*` return types of gateway
     variants and the injected objects without Vision's (see below). For
-    8.3.3: 2,324 types scanned, 68 names (`getDataDir` on the WebDev
+    8.3.3: 2,188 types scanned, 88 names (`getDataDir` on the WebDev
     context's system manager, `getProjectManager`, `getParentFile`,
     `toPath`, ...);
   * a file facility or Java file class used as a value (`o = open`,
@@ -541,23 +627,37 @@ not accepted: the rest may hold `../` or, for `os.path.join`, an absolute
 path that discards the prefix. The regression tests are
 `vetted::tests::file_reads`,
 `every_vetted_os_attribute_is_classified`,
-`every_system_file_parameter_is_classified`, `file_reads::tests::*`, the
+`every_system_file_parameter_is_classified`,
+`every_system_function_output_is_classified`,
+`outputs_that_carry_workspace_content_are_reads`, `file_reads::tests::*`, the
 rule tests `file_reads_make_the_fix_unsafe` (`SCR124`),
 `file_reads_make_the_removal_unsafe` (`SCR102`),
 `file_reads_make_fixes_unsafe` (`VIEW015`), the binary tests
 `fixes_are_unsafe_when_scripts_read_workspace_files`,
-`moves_and_appends_of_workspace_files_make_fixes_unsafe` and
+`moves_and_appends_of_workspace_files_make_fixes_unsafe`,
+`fixes_are_unsafe_when_scripts_read_tag_configuration` and
 `reads_of_files_outside_the_workspace_keep_fixes_safe`, and the language
-server tests `quick_fixes_are_unsafe_when_scripts_read_workspace_files`
-and `quick_fixes_are_unsafe_when_scripts_move_or_append_to_workspace_files`.
+server tests `quick_fixes_are_unsafe_when_scripts_read_workspace_files`,
+`quick_fixes_are_unsafe_when_scripts_move_or_append_to_workspace_files`
+and `quick_fixes_are_unsafe_when_scripts_read_tag_configuration`.
 
 **Why outside literals stay fine.** A literal path outside the workspace
-can name a workspace file only through an alias: a rename, copy, hard
-or symbolic link that puts a workspace file there. Every vetted way to
-make one (`os.rename`, `os.renames`, `File.renameTo` on a `File` made
-from a path, a write of a copy) takes the workspace path as an argument
-and is therefore itself a possible access, so the script that creates
-the alias already withholds safe fixes. Vetted code cannot create links
+can show workspace content only through a copy or an alias: a rename,
+copy, hard or symbolic link that puts a workspace file there, or a write
+of content that came from one. Every vetted way to make one is itself
+counted. Either it takes the workspace path as an argument (`os.rename`,
+`os.renames`, `File.renameTo` on a `File` made from a path), or the
+content it writes came from a counted source: a read of a workspace
+path, an output that carries workspace content (`system.tag.exportTags`
+writes the tag configuration to the file it is given, whatever the path;
+`getConfiguration`, a configuration property read, a network client or
+a configuration object hand it to the script, which may write it
+anywhere), or a value that a counted reference fills (an expression tag
+on `{[.]T.eventScripts}`). So the script, expression or binding that
+makes the copy already withholds safe fixes. An earlier version of this
+argument covered only copies that name the workspace path; review round
+12 defeated it with `exportTags` to `/tmp` followed by `open` of the same
+literal. Vetted code cannot create links
 (`os.link` and `os.symlink` are not vetted; `java.nio.file` is not
 vetted). Symbolic links that exist before the script runs, made by an
 administrator or another process (`/tmp/x -> .../projects/p`), are
@@ -579,7 +679,12 @@ count anyway under the default-deny rule above.
 
 **Not covered**, outside the closed world like projects outside the
 workspace: other processes that read the files (a database server on the
-same machine, an editor, a file sync, another gateway), Java methods in
+same machine, an editor, a file sync, another gateway's scripts), copies
+the gateway makes on its own (scheduled gateway backups to a configured
+folder, which a literal outside path could name, and logs), tag
+providers and expressions outside the workspace that read the
+configuration of workspace tags (a reference tag of a provider the
+workspace does not hold), Java methods in
 the measured closure that read a file named by a string argument without
 a handle type in their signature (a review of every scanned method with
 a string parameter and a name containing `read`, `load`, `open`,
@@ -641,7 +746,7 @@ on any use, called or not):
 |---|---|
 | `system.tag.configure`, `addTag`, `editTag`, `editTags`, `editAlarmConfig`, `configureManagedTag`, `configureManagedProvider` | Tag configurations hold expressions (`runScript`) and tag event scripts |
 | `system.tag.importTags`, `system.tag.loadFromFile`, `system.groups.loadFromFile` | Import tag or transaction group configurations from a file |
-| `system.tag.copy` | Copies tags, with their scripts, from any provider |
+| `system.tag.copy`, `system.tag.move` | Copy or move tags, with their scripts, from any provider (`move` since review round 12) |
 | `system.util.execute`, `system.system.execute` | Runs an operating system command |
 | `system.project.requestScan`, `system.vision.updateProject` | Loads project resources as they are now on disk or published |
 | `system.eam.runTask` | Runs an EAM task, which may run scripts configured on the gateway |
