@@ -77,6 +77,13 @@ from 0.1.0 on.
 
 ### Fixed
 
+- `iglint check <dir>` on a directory without an Ignition project (a
+  folder of loose `.py` files) printed only "All checks passed!". It now
+  warns that no Ignition project or lintable files were found under it
+  (exit status still `0`); a `.py` file named on the command line is
+  still linted as a standalone script.
+- `bench/__pycache__` is no longer committed; `__pycache__/` and `*.pyc`
+  are ignored.
 - File access is default deny for the file-read condition of every fix:
   every vetted facility that takes a path counts unless every path
   argument is a literal outside the workspace, whatever its mode or

@@ -876,3 +876,50 @@ fn webdev_gateway_context_is_unknown_code() {
         }
     }
 }
+
+/// Reviewer round 11: a directory of loose `.py` files has no Ignition
+/// project, so nothing under it is linted; the run says so (exit 0)
+/// instead of only "All checks passed!". Named on the command line, the
+/// same file is linted as a standalone script.
+#[test]
+fn directories_without_lintable_files_say_so() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("loose")).unwrap();
+    std::fs::write(dir.path().join("loose/x.py"), "def f(:\n").unwrap();
+    let out = iglint(dir.path())
+        .args(["--no-cache", "loose"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("warning: no Ignition project or lintable files found under loose"),
+        "{stderr}"
+    );
+    assert_eq!(out.status.code(), Some(0), "{stderr}");
+    // `--quiet` prints findings only.
+    let out = iglint(dir.path())
+        .args(["--no-cache", "--quiet", "loose"])
+        .output()
+        .unwrap();
+    assert!(out.stderr.is_empty(), "{}", String::from_utf8_lossy(&out.stderr));
+    let out = iglint(dir.path())
+        .args(["--no-cache", "loose/x.py"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stdout).contains("SCR001"));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!stderr.contains("no Ignition project"), "{stderr}");
+    // A project directory is not reported.
+    std::fs::write(
+        dir.path().join("loose/project.json"),
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    )
+    .unwrap();
+    let out = iglint(dir.path())
+        .args(["--no-cache", "loose"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!stderr.contains("no Ignition project"), "{stderr}");
+}

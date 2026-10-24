@@ -1,7 +1,8 @@
 # Generates str.format cases for SCR112's format spec check: every
 # combination of fill and alignment, sign, '#', '0', width, ',', precision
 # and presentation type (valid and invalid ones), with and without !s / !r,
-# applied to literal arguments of every kind. Prints "format<TAB>argument"
+# applied to literal arguments of every kind; then, on a smaller grid,
+# the same with characters after the type (`dd`, `%Y`, `.2.2`, `s.`). Prints "format<TAB>argument"
 # lines: all of them, or a seeded random sample. `stratify` picks, from a
 # result file of oracle/format-spec.sh, COUNT cases half of which Jython
 # accepts (the cases that a false positive would come from).
@@ -22,14 +23,28 @@ COMMAS = ['', ',']
 PRECISIONS = ['', '.2', '.0']
 TYPES = [''] + list('bcdoxXneEfFgG%s') + list('zaiurjZSB')
 CONVERSIONS = ['', '!s', '!r']
+# Characters after the type, on a smaller grid of the other parts.
+TRAILERS = ['d', 's', '.', '#', '2', '.2', 'Y', '%', ',', '<']
+SMALL_ALIGNS = ['', '<', '0=']
+SMALL_SIGNS = ['', '+']
+SMALL_WIDTHS = ['', '5']
+SMALL_PRECISIONS = ['', '.2']
 ARGS = ["'ab'", "u'ab'", "''", '5', '-5', '0', '5L', '65', '1.5', '-1.5',
         '1e300', '1j', '[1]', '(1,)', '{}', 'None']
 
 
-def cases():
+def specs():
     for parts in itertools.product(ALIGNS, SIGNS, ALTS, ZEROS, WIDTHS, COMMAS,
                                    PRECISIONS, TYPES):
-        spec = ''.join(parts)
+        yield ''.join(parts)
+    for parts in itertools.product(SMALL_ALIGNS, SMALL_SIGNS, ALTS, ZEROS,
+                                   SMALL_WIDTHS, COMMAS, SMALL_PRECISIONS,
+                                   TYPES, TRAILERS):
+        yield ''.join(parts)
+
+
+def cases():
+    for spec in specs():
         for conversion in CONVERSIONS:
             for arg in ARGS:
                 yield '{0%s:%s}' % (conversion, spec), arg

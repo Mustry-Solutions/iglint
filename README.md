@@ -85,6 +85,13 @@ iglint rules                # list the rules
 iglint rule SCR101          # explain a rule
 ```
 
+A directory is searched for Ignition projects and gateway resource
+collections; Python files are linted as Ignition scripts only inside
+them. A `.py` file named on the command line is linted on its own, as a
+standalone script. When a directory holds nothing to lint (a folder of
+loose `.py` files without a `project.json`), the run says so on standard
+error and exits with `0`.
+
 Output looks like this:
 
 ```text

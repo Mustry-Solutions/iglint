@@ -295,7 +295,26 @@ pub fn run(
     if let Some(analyzer) = &environment.analyzer {
         options.analyzer = Some(analyzer.clone());
     }
-    let result = engine::check(settings, &paths, &options);
+    let mut result = engine::check(settings, &paths, &options);
+    // A directory with nothing to lint: say so instead of only "All checks
+    // passed!". Python files are linted as Ignition scripts only inside an
+    // Ignition project (or when named on the command line, as standalone
+    // scripts), so a directory of loose `.py` files has none. Not an error
+    // (exit status 0), like an empty directory.
+    if stdin.is_none() {
+        for dir in paths.iter().filter(|p| p.is_dir()) {
+            let found = result.files.iter().any(|f| f.path.starts_with(dir))
+                || result.skipped.iter().any(|(p, _)| p.starts_with(dir))
+                || result.errors.iter().any(|e| e.path.starts_with(dir));
+            if !found {
+                result.notices.push(format!(
+                    "no Ignition project or lintable files found under {} (Python files outside an \
+                     Ignition project are linted only when named on the command line)",
+                    output::display_path(dir, cwd)
+                ));
+            }
+        }
+    }
 
     // Baseline.
     let explicit_baseline = args.baseline.as_ref().map(|b| absolutize(cwd, b));

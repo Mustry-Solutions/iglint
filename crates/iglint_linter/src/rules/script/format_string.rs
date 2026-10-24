@@ -309,6 +309,9 @@ struct StandardSpec {
     grouping: bool,
     precision: bool,
     kind: Option<char>,
+    /// Why Jython's parser rejects the spec whatever the value is: a `.`
+    /// without digits, or characters after the type (`dd`, `%Y`, `.2.2`).
+    invalid: Option<&'static str>,
 }
 
 impl StandardSpec {
@@ -368,14 +371,18 @@ fn standard_spec(spec: &str) -> Option<StandardSpec> {
             i += 1;
         }
         if i == start {
-            return None;
+            out.invalid = Some("Format specifier missing precision");
+            return Some(out);
         }
         out.precision = true;
     }
     match &chars[i..] {
         [] => {}
         [t] => out.kind = Some(*t),
-        _ => return None,
+        [t, ..] => {
+            out.kind = Some(*t);
+            out.invalid = Some("Invalid conversion specification");
+        }
     }
     Some(out)
 }
@@ -491,6 +498,11 @@ fn describe(lit: Literal) -> &'static str {
 /// precisions, every presentation type and a few invalid ones, with and
 /// without `!r` / `!s`): this reports exactly the ones that raise.
 ///
+/// * every literal: a `.` without digits ("Format specifier missing
+///   precision") and characters after the type ("Invalid conversion
+///   specification", `{0:dd}`, `{0:%Y}`, `{0:.2.2}`): the parser rejects
+///   them before it looks at the value. Only literals: other objects may
+///   have a `__format__` of their own (`datetime` takes `strftime` codes);
 /// * strings: only `s` or no type; no sign, `#`, `=` alignment (also
 ///   implied by the `0` flag) or `,`;
 /// * integers: with `b c d o x X n` or no type no precision, with `c` no
@@ -512,6 +524,9 @@ fn format_spec_error(spec: &StandardSpec, converted: bool, e: &Expr) -> Option<S
 /// [`format_spec_error`] for a literal of kind `lit`, without the
 /// exception.
 fn format_spec_problem(spec: &StandardSpec, lit: Literal) -> Option<String> {
+    if let Some(invalid) = spec.invalid {
+        return Some(invalid.to_owned());
+    }
     let kind = spec.kind;
     let ty = kind.map_or_else(String::new, |t| format!(" '{t}'"));
     let unknown = |object: &str| {
