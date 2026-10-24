@@ -102,6 +102,23 @@ from 0.1.0 on.
 
 ### Fixed
 
+- No more panics (exit 101) on text with multi-byte characters where a
+  byte index was assumed to be a character boundary (review round 18,
+  Codex). A script path literal whose component starts with such a
+  character (`os.path.exists(u"/é/report.txt")`) aborted `check` and
+  the language server's initialization; so did a view property key ending
+  in multi-byte characters, a string literal with a multi-byte character
+  across its seventh byte (SEC004), and a configured NAME001 abbreviation
+  whose uppercase form is shorter (`ı`, `ſ`), which could also split
+  the name at the wrong place. Lexer error columns, pylint positions and
+  source map offsets inside a character now snap to its start. Clippy's
+  `string_slice` lint is denied in the whole workspace: every byte slice
+  of a `str` either uses a checked API or says why its indices are
+  boundaries. `TextRange::slice` clamps a range that splits a character
+  or leaves the text instead of panicking (`TextRange::get` returns
+  `None`), and `apply_edits` rejects such an edit as an error. A
+  generated-workspace test puts random Unicode in every name and string
+  position and runs every command and the language server over it.
 - A linked Git work tree (`git worktree add`, `.git` is a file that points
   at `<git dir>/worktrees/<name>`) is a checkout of its own, wherever it
   lies (review round 17, Opus): a file of `.worktrees/x` or

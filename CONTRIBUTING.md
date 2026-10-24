@@ -20,6 +20,21 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 ```
 
+## Lints
+
+The workspace denies Clippy's `string_slice` (with `char_indices_as_byte_indices`
+and `sliced_string_as_bytes`): text from projects can contain any Unicode,
+and a byte index that is not a character boundary panics. Prefer APIs that
+cannot split a character (`strip_prefix`, `split_once`, `char_indices`,
+`get(..)`, `split_at_checked`, `TextRange::slice` and `TextRange::get`).
+Keep a byte slice (or `split_at`) only where the index is a boundary by
+construction (it comes from `find` of a character on the same string, from
+the lexer, or follows an ASCII byte), with `#[allow(clippy::string_slice)]`
+on that statement and a one-line comment saying why; never on a module or
+crate. `tests/stress.rs` (`unicode_everywhere_does_not_panic`, and the
+ignored `unicode_everywhere_long`) runs every command over generated
+workspaces full of such characters.
+
 ## Workspace layout
 
 | Path | Contents |

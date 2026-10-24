@@ -7,12 +7,16 @@
 //! `iglint_expression::MAX_DEPTH` and `iglint_project::MAX_JSON_DEPTH`
 //! (JSON of any depth is parsed; deeper than that is a `VIEW001` finding).
 //!
-//! The inputs are large, so these tests run in release mode only:
+//! Generated workspaces with multi-byte characters in every name and
+//! string position must not crash any command either.
+//!
+//! The deep inputs are large, so those tests run in release mode only:
 //!
 //! ```sh
 //! cargo test --release -p iglint --test stress
 //! ```
 
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
@@ -38,10 +42,7 @@ fn iglint(dir: &Path, args: &[&str]) -> Output {
         matches!(output.status.code(), Some(0 | 1)),
         "iglint {args:?} failed with {:?}: {}",
         output.status,
-        &stderr[..(0..=stderr.len().min(2000))
-            .rev()
-            .find(|&i| stderr.is_char_boundary(i))
-            .unwrap_or(0)]
+        stderr.chars().take(2000).collect::<String>()
     );
     assert!(!stderr.contains("overflow"), "{stderr}");
     output
@@ -524,8 +525,8 @@ fn long_lines() {
             shown.matches("Mark invalid").count(),
             expected,
             "{}: {}",
-            &source[..40.min(source.len())],
-            &shown[..shown.len().min(2000)]
+            source.chars().take(40).collect::<String>(),
+            shown.chars().take(2000).collect::<String>()
         );
     };
     // A module: line 1 plus line 2 (`x = 1`, 5) and line 1's newline.
@@ -663,6 +664,18 @@ impl Server {
                 .messages
                 .recv_timeout(left)
                 .expect("the server answers (and is alive)");
+            // The server survives a panicking handler (it logs the panic
+            // and answers with an internal error); that is still a bug.
+            let logged = message["method"] == "window/logMessage"
+                || message["method"] == "window/showMessage";
+            assert!(
+                !(logged
+                    && message["params"]["message"]
+                        .as_str()
+                        .is_some_and(|m| m.contains(" failed: "))),
+                "{message}"
+            );
+            assert_ne!(message["error"]["code"], -32603, "{message}");
             if let Some(found) = pick(&message) {
                 return found;
             }
@@ -694,7 +707,7 @@ impl Server {
         self.wait(|m| {
             let params = &m["params"];
             (m["method"] == "textDocument/publishDiagnostics"
-                && params["uri"] == uri
+                && params["uri"].as_str().map(percent_decoded) == Some(percent_decoded(&uri))
                 && params["version"] == version)
                 .then(|| {
                     params["diagnostics"]
@@ -714,18 +727,48 @@ impl Server {
             let _ = err.read_to_string(&mut stderr);
         }
         assert!(status.success(), "{status:?}: {stderr}");
+        assert!(!stderr.contains("panicked"), "{stderr}");
     }
+}
+
+/// `uri` with its percent escapes decoded, to compare URIs that encode
+/// different characters.
+fn percent_decoded(uri: &str) -> Vec<u8> {
+    let bytes = uri.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = bytes
+            .get(i + 1..i + 3)
+            .and_then(|h| std::str::from_utf8(h).ok())
+            .and_then(|h| u8::from_str_radix(h, 16).ok());
+        match (bytes[i], hex) {
+            (b'%', Some(byte)) => {
+                out.push(byte);
+                i += 3;
+            }
+            (byte, _) => {
+                out.push(byte);
+                i += 1;
+            }
+        }
+    }
+    out
 }
 
 fn file_uri(path: &Path) -> String {
     let path = path.canonicalize().unwrap();
-    let text = path
-        .to_string_lossy()
-        .replace('\\', "/")
-        .replace('%', "%25")
-        .replace(' ', "%20");
+    let raw = path.to_string_lossy().replace('\\', "/");
     // Windows: `\\?\C:\...`.
-    let text = text.strip_prefix("//?/").unwrap_or(&text);
+    let raw = raw.strip_prefix("//?/").unwrap_or(&raw);
+    let mut text = String::new();
+    for byte in raw.bytes() {
+        if byte.is_ascii_alphanumeric() || b"-._~/:".contains(&byte) {
+            text.push(char::from(byte));
+        } else {
+            text.push_str(&format!("%{byte:02X}"));
+        }
+    }
     if text.starts_with('/') {
         format!("file://{text}")
     } else {
@@ -1044,5 +1087,1040 @@ fn multi_byte_first_characters_do_not_panic() {
         }
         server.stop();
         eprintln!("{name}: {} files survived", files.len());
+    }
+}
+
+/// Review round 18 (Codex): `outside_workspace` sliced a path component
+/// at byte 1, so a literal path whose component starts with a multi-byte
+/// character (`u"/é/report.txt"`) aborted `check` and the language
+/// server's initialization with exit status 101.
+#[test]
+fn multi_byte_path_components_do_not_panic() {
+    let dir = module("import os\nprint os.path.exists(u\"/\u{e9}/report.txt\")\n");
+    let root = dir.path();
+    for args in [
+        &["check", "--isolated", "--no-cache"][..],
+        &[
+            "check",
+            "--isolated",
+            "--no-cache",
+            "--select",
+            "ALL",
+            "--ignore",
+            "SCR900",
+        ],
+    ] {
+        let mut args = args.to_vec();
+        let path = root.to_str().unwrap();
+        args.push(path);
+        iglint(root, &args);
+    }
+    let mut server = Server::start(root);
+    let module_path = root.join(MODULE);
+    let text = std::fs::read_to_string(&module_path).unwrap();
+    server.edit(&module_path, &text);
+    server.stop();
+}
+
+/// A deterministic random number generator (SplitMix64).
+struct Rng(u64);
+
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        z ^ (z >> 31)
+    }
+
+    fn below(&mut self, n: usize) -> usize {
+        (self.next() % n.max(1) as u64) as usize
+    }
+
+    /// True with probability `percent` / 100.
+    fn chance(&mut self, percent: usize) -> bool {
+        self.below(100) < percent
+    }
+
+    fn pick<T: Copy>(&mut self, items: &[T]) -> T {
+        items[self.below(items.len())]
+    }
+}
+
+/// Stand-ins replaced after JSON serialization: a surrogate pair escape
+/// and lone surrogate escapes, which a Rust string cannot hold.
+const SURROGATE_PAIR: char = '\u{e000}';
+const LONE_HIGH: char = '\u{e001}';
+const LONE_LOW: char = '\u{e002}';
+
+/// Characters longer than a byte, to start and fill strings with:
+/// two-, three- and four-byte characters, combining marks (alone and
+/// after a base), a byte order mark, zero-width and bidirectional
+/// controls, right-to-left scripts, emoji sequences, characters whose case
+/// mapping changes their length, the last code point and line separators.
+const WIDE: &[&str] = &[
+    "\u{e9}",
+    "\u{20ac}",
+    "\u{1f600}",
+    "\u{301}",
+    "e\u{301}",
+    "\u{feff}",
+    "\u{200b}",
+    "\u{200d}",
+    "\u{202e}",
+    "\u{200f}",
+    "\u{5e9}\u{5dc}\u{5d5}\u{5dd}",
+    "\u{645}\u{631}\u{62d}\u{628}\u{627}",
+    "\u{6f22}\u{5b57}",
+    "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}",
+    "\u{2764}\u{fe0f}",
+    "\u{1f1e7}\u{1f1ea}",
+    "\u{131}",
+    "\u{17f}",
+    "\u{df}",
+    "\u{130}",
+    "\u{1e9e}",
+    "\u{fb03}",
+    "\u{10ffff}",
+    "\u{fffd}",
+    "\u{2028}",
+    "\u{85}",
+    "\u{a0}",
+    "\u{3000}",
+    "\u{1d400}",
+    "\u{ff21}",
+];
+
+/// ASCII that means something to one of the parsers.
+const SYNTAX: &[&str] = &[
+    "{", "}", ".", "/", "[", "]", "%", "$", ":", "#", "*", "?", " ", "-", "_", "a", "Z", "0", "..",
+    "{0}", "%s", "%(", "{x}", "${", "::", ",",
+];
+
+/// What a generated string is for, which decides what it may contain.
+#[derive(Clone, Copy, PartialEq)]
+enum Slot {
+    /// A file or directory name (no `/`, no NUL).
+    Name,
+    /// A JSON string (anything, including NUL and surrogate escapes).
+    Json,
+    /// The content of a Python string literal (no quote, backslash or
+    /// line break; escapes are added separately).
+    Python,
+    /// A Python comment (no line break).
+    Comment,
+    /// A TOML string value, and regular expressions built from it (no
+    /// ASCII syntax).
+    Plain,
+}
+
+fn unicode(rng: &mut Rng, slot: Slot) -> String {
+    let mut out = String::new();
+    let pieces = 1 + rng.below(4);
+    for i in 0..pieces {
+        // Most strings start with a multi-byte character.
+        let wide = (i == 0 && rng.chance(80)) || slot == Slot::Plain || rng.chance(60);
+        if wide {
+            out.push_str(rng.pick(WIDE));
+            continue;
+        }
+        match slot {
+            Slot::Json => match rng.below(8) {
+                0 => out.push('\0'),
+                1 => out.push(rng.pick(&[SURROGATE_PAIR, LONE_HIGH, LONE_LOW])),
+                2 => out.push_str(rng.pick(&["\"", "\\", "\n", "\t", "'", "\r\n"])),
+                _ => out.push_str(rng.pick(SYNTAX)),
+            },
+            Slot::Python => match rng.below(6) {
+                0 => out.push_str(rng.pick(&["\\\\", "\\x00", "\\u00e9", "\\n", "\\0", "\\N"])),
+                _ => out.push_str(rng.pick(SYNTAX)),
+            },
+            Slot::Comment => out.push_str(rng.pick(SYNTAX)),
+            Slot::Name => out.push_str(rng.pick(SYNTAX).trim_matches('/')),
+            Slot::Plain => unreachable!(),
+        }
+    }
+    if slot == Slot::Name {
+        out = out.replace('/', "");
+        if out.is_empty() || out == "." || out == ".." {
+            out.insert(0, '\u{e9}');
+        }
+    }
+    if slot == Slot::Comment {
+        out = out.replace(['\u{2028}', '\u{85}'], "\u{e9}");
+    }
+    out
+}
+
+/// `text` with a generated string inserted at a random character boundary
+/// (most often right after a character that starts a name or reference).
+fn insert_somewhere(rng: &mut Rng, text: &str, slot: Slot) -> String {
+    let boundaries: Vec<usize> = (0..=text.len())
+        .filter(|&i| text.is_char_boundary(i))
+        .collect();
+    let preferred: Vec<usize> = boundaries
+        .iter()
+        .copied()
+        .filter(|&i| {
+            i > 0
+                && text
+                    .as_bytes()
+                    .get(i - 1)
+                    .is_some_and(|b| b"{[./'\":\\".contains(b))
+        })
+        .collect();
+    let at = if !preferred.is_empty() && rng.chance(70) {
+        rng.pick(&preferred)
+    } else {
+        rng.pick(&boundaries)
+    };
+    let (before, after) = text.split_at(at);
+    format!("{before}{}{after}", unicode(rng, slot))
+}
+
+/// A changed copy of a JSON string or key.
+fn mutate_string(
+    rng: &mut Rng,
+    key: &str,
+    text: &str,
+    renamed: &HashMap<String, String>,
+) -> String {
+    if let Some(new) = renamed.get(text) {
+        return new.clone();
+    }
+    if matches!(key, "script" | "code") || text.contains("\n\t") || text.starts_with('\t') {
+        return mutate_python(rng, text);
+    }
+    match rng.below(10) {
+        0..=3 => text.to_owned(),
+        4 => format!("{}{text}", unicode(rng, Slot::Json)),
+        5 => format!("{text}{}", unicode(rng, Slot::Json)),
+        6 => unicode(rng, Slot::Json),
+        _ => insert_somewhere(rng, text, Slot::Json),
+    }
+}
+
+fn mutate_json_value(
+    rng: &mut Rng,
+    key: &str,
+    value: &Value,
+    renamed: &HashMap<String, String>,
+) -> Value {
+    match value {
+        Value::String(s) => Value::String(mutate_string(rng, key, s, renamed)),
+        // File lists of manifests name the files next to them.
+        Value::Array(items) if key == "files" => Value::Array(items.clone()),
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|v| mutate_json_value(rng, key, v, renamed))
+                .collect(),
+        ),
+        Value::Object(members) => {
+            let mut out = serde_json::Map::new();
+            for (k, v) in members {
+                let new_key = if rng.chance(20) {
+                    mutate_string(rng, "", k, renamed)
+                } else {
+                    k.clone()
+                };
+                let new_value = mutate_json_value(rng, k, v, renamed);
+                out.insert(new_key, new_value);
+            }
+            Value::Object(out)
+        }
+        other => other.clone(),
+    }
+}
+
+/// JSON text with the surrogate stand-ins replaced by escapes.
+fn json_text(value: &Value) -> String {
+    serde_json::to_string_pretty(value)
+        .unwrap()
+        .replace(SURROGATE_PAIR, "\\ud83d\\ude00")
+        .replace(LONE_HIGH, "\\ud800")
+        .replace(LONE_LOW, "\\udfff")
+}
+
+fn mutate_json(rng: &mut Rng, text: &str, renamed: &HashMap<String, String>) -> String {
+    match serde_json::from_str::<Value>(text) {
+        Ok(value) => json_text(&mutate_json_value(rng, "", &value, renamed)),
+        Err(_) => insert_somewhere(rng, text, Slot::Json),
+    }
+}
+
+/// `source` with generated text in its string literals and comments
+/// (Jython only accepts ASCII identifiers, so code stays ASCII).
+fn mutate_python(rng: &mut Rng, source: &str) -> String {
+    let mut out = String::with_capacity(source.len() * 2);
+    let mut chars = source.chars().peekable();
+    let mut quote: Option<(char, bool)> = None;
+    let mut comment = false;
+    while let Some(c) = chars.next() {
+        out.push(c);
+        if comment {
+            comment = c != '\n';
+            continue;
+        }
+        match quote {
+            None if c == '#' => {
+                comment = true;
+                if rng.chance(60) {
+                    out.push_str(&unicode(rng, Slot::Comment));
+                }
+            }
+            None if c == '\'' || c == '"' => {
+                let triple = chars.peek() == Some(&c) && {
+                    let mut ahead = chars.clone();
+                    ahead.next();
+                    ahead.next() == Some(c)
+                };
+                if triple {
+                    out.push(chars.next().unwrap());
+                    out.push(chars.next().unwrap());
+                }
+                quote = Some((c, triple));
+                if rng.chance(60) {
+                    out.push_str(&unicode(rng, Slot::Python));
+                }
+            }
+            None => {}
+            Some(_) if c == '\\' => {
+                if let Some(next) = chars.next() {
+                    out.push(next);
+                }
+            }
+            Some((q, triple)) if c == q => {
+                if !triple {
+                    quote = None;
+                } else if chars.peek() == Some(&q) {
+                    let mut ahead = chars.clone();
+                    ahead.next();
+                    if ahead.next() == Some(q) {
+                        out.push(chars.next().unwrap());
+                        out.push(chars.next().unwrap());
+                        quote = None;
+                    }
+                }
+            }
+            Some((_, false)) if c == '\n' => quote = None,
+            Some(_) => {}
+        }
+    }
+    if rng.chance(30) {
+        out.push_str(&format!("\n# {}\n", unicode(rng, Slot::Comment)));
+    }
+    out
+}
+
+/// Directory names that Ignition gives a meaning to; the others (projects,
+/// resource folders, packages) get generated names.
+const STRUCTURAL: &[&str] = &[
+    "projects",
+    "services",
+    "config",
+    "resources",
+    "ignition",
+    "com.inductiveautomation.perspective",
+    "com.inductiveautomation.webdev",
+    "views",
+    "script-python",
+    "named-query",
+    "timer",
+    "message",
+    "tag-change",
+    "scheduled",
+    "startup",
+    "shutdown",
+    "update",
+    "key-event",
+    "session-props",
+    "page-config",
+    "stylesheet",
+    "tag-definition",
+    "tag-type-definition",
+    "tag-provider",
+    "cases",
+];
+
+/// Writes the public fixture projects (see [`multi_byte_fixture`]) to `to`
+/// with generated names for every resource directory and generated text in
+/// every JSON string and key, script string literal and comment, and the
+/// other text files. Returns how many files were written.
+fn unicode_fixture(rng: &mut Rng, to: &Path) -> usize {
+    let source = tempfile::tempdir().unwrap();
+    multi_byte_fixture(source.path(), &|t: &str| t.to_owned());
+    let mut files = Vec::new();
+    let mut stack = vec![source.path().to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    let mut renamed: HashMap<String, String> = HashMap::new();
+    let mut targets = Vec::new();
+    for file in &files {
+        let rel = file.strip_prefix(source.path()).unwrap();
+        let parts: Vec<String> = rel
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        let mut target = to.to_path_buf();
+        for (i, part) in parts.iter().enumerate() {
+            let is_dir = i + 1 < parts.len();
+            let inside = parts[..i].iter().any(|p| STRUCTURAL.contains(&p.as_str()));
+            if is_dir && inside && !STRUCTURAL.contains(&part.as_str()) {
+                let new = renamed.entry(part.clone()).or_insert_with(|| {
+                    if rng.chance(70) {
+                        unicode(rng, Slot::Name)
+                    } else {
+                        part.clone()
+                    }
+                });
+                target.push(new.as_str());
+            } else {
+                target.push(part);
+            }
+        }
+        targets.push((file.clone(), target));
+    }
+    for (from, target) in &targets {
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        let Ok(text) = std::fs::read_to_string(from) else {
+            std::fs::copy(from, target).unwrap();
+            continue;
+        };
+        let extension = from.extension().and_then(|e| e.to_str()).unwrap_or("");
+        let mut changed = match extension {
+            "json" => mutate_json(rng, &text, &renamed),
+            "py" => mutate_python(rng, &text),
+            _ => insert_somewhere(rng, &text, Slot::Comment),
+        };
+        // Files that start with a multi-byte character (review round 17).
+        if rng.chance(10) {
+            changed.insert_str(0, rng.pick(&["\u{feff}", "\u{e9}", "\u{1f600}"]));
+        }
+        std::fs::write(target, changed).unwrap();
+    }
+    targets.len()
+}
+
+/// A TOML basic string.
+fn toml_string(text: &str) -> String {
+    let mut out = String::from("\"");
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if c.is_control() => out.push_str(&format!("\\u{:04X}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// A script library module that passes generated strings to every API
+/// whose string arguments iglint reads: file paths (POSIX, Windows drive
+/// and UNC paths), URLs, format strings, `getattr` names, component
+/// paths, tag paths, named query paths, message types and credentials.
+fn unicode_module(rng: &mut Rng) -> String {
+    let mut u = || unicode(rng, Slot::Python);
+    let lines = [
+        "import os".to_owned(),
+        "import os.path".to_owned(),
+        "def f(self, event):".to_owned(),
+        format!("    p = u\"{}\"", u()),
+        format!("    print os.path.exists(u\"/{}/report.txt\")", u()),
+        format!("    print os.path.exists(\"/{}/{}\")", u(), u()),
+        format!("    print open(u\"C:\\\\{}\\\\x\").read()", u()),
+        format!("    print open(r\"C:\\{}\\x\", \"w\")", u()),
+        format!("    print os.listdir(u\"\\\\\\\\server\\\\{}\")", u()),
+        format!("    print os.listdir(\"\\\\\\\\{}\\\\share\")", u()),
+        format!("    print open(u\"{}\" + p)", u()),
+        format!("    print open(os.path.join(u\"/{}\", u\"{}\"))", u(), u()),
+        format!("    print u\"{}\".format(1, x=2)", u()),
+        format!("    print \"{}\" % (1,)", u()),
+        format!("    print u\"%({})s\" % {{\"{}\": 1}}", u(), u()),
+        format!("    print getattr(self, \"{}\")", u()),
+        format!("    print getattr(self, u\"{}\", None)", u()),
+        format!("    setattr(self, \"{}\", 1)", u()),
+        format!("    print self.getChild(\"{}\").props.text", u()),
+        format!(
+            "    print self.getSibling(u\"{}\").custom[\"{}\"]",
+            u(),
+            u()
+        ),
+        format!("    print self.parent.getChild(\"{}/{}\")", u(), u()),
+        format!("    print self.view.getChild(\"root/{}\")", u()),
+        format!(
+            "    print system.tag.readBlocking([\"[default]{}/{}\", u\"{}\"])",
+            u(),
+            u(),
+            u()
+        ),
+        format!("    system.tag.writeBlocking([u\"[{}]{}\"], [1])", u(), u()),
+        format!(
+            "    print system.db.runNamedQuery(u\"{}/{}\", {{\"{}\": 1}})",
+            u(),
+            u(),
+            u()
+        ),
+        format!("    system.perspective.navigate(u\"/{}\")", u()),
+        format!(
+            "    system.perspective.sendMessage(u\"{}\", {{}}, scope=\"page\")",
+            u()
+        ),
+        format!("    system.util.getLogger(u\"{}\").info(u\"{}\")", u(), u()),
+        format!("    print system.net.httpGet(u\"http://{}/x\")", u()),
+        format!("    print system.net.httpGet(u\"file:///{}/x\")", u()),
+        format!("    print system.net.httpGet(\"file://{}/{}\")", u(), u()),
+        format!("    system.util.execute([u\"{}\", \"{}\"])", u(), u()),
+        format!("    url = \"https://user:{}@{}/\"", u(), u()),
+        format!("    password = u\"{}\"", u()),
+        format!("    print \"{}\" is \"{}\"", u(), u()),
+        format!(
+            "    print system.{}",
+            ["tag.read", "util.jsonDecode", "x"][0]
+        ),
+        format!("    return p  # {}", unicode(rng, Slot::Comment)),
+    ];
+    let mut text = lines.join("\n");
+    text.push('\n');
+    text
+}
+
+/// A view whose names, keys, values, bindings, expressions, paths and
+/// scripts are generated strings.
+fn unicode_view(rng: &mut Rng) -> String {
+    let mut j = || unicode(rng, Slot::Json);
+    let (custom, param, child) = (j(), j(), j());
+    let script = format!(
+        "\tprint u\"{}\"\n\tself.getSibling(\"{}\").props.text = self.view.custom[\"{}\"]\n",
+        unicode(rng, Slot::Python),
+        unicode(rng, Slot::Python),
+        unicode(rng, Slot::Python)
+    );
+    let mut j = || unicode(rng, Slot::Json);
+    let view = json!({
+        "custom": {custom.clone(): j(), j(): {j(): [j(), 1]}},
+        "params": {param.clone(): j()},
+        "propConfig": {
+            format!("custom.{custom}"): {"persistent": true, "binding": {
+                "type": "expr", "config": {"expression": format!("{{view.params.{param}}} + \"{}\"", j())}
+            }},
+            format!("params.{param}"): {"paramDirection": "input", "persistent": true}
+        },
+        "props": {"defaultSize": {"width": 100, "height": 100}},
+        "root": {
+            "type": "ia.container.flex",
+            "meta": {"name": "root"},
+            "scripts": {
+                "customMethods": [{"name": j(), "params": ["value"], "script": script}],
+                "messageHandlers": [{
+                    "messageType": j(), "pageScope": true, "script": script,
+                    "sessionScope": false, "viewScope": false
+                }]
+            },
+            "children": [
+                {
+                    "type": "ia.display.label",
+                    "meta": {"name": child.clone()},
+                    "custom": {j(): j()},
+                    "props": {"text": j(), "style": {"classes": format!("{} {}", j(), j())}},
+                    "propConfig": {
+                        "props.text": {"binding": {
+                            "type": "expr",
+                            "config": {"expression": format!(
+                                "{{view.custom.{custom}}} + {{../{child}.custom.{}}} + {{this.custom.{}}} + \"{}\" + if(1, '{}', {{session.custom.{}}})",
+                                j(), j(), j(), j(), j()
+                            )},
+                            "transforms": [
+                                {"type": "script", "code": script},
+                                {"type": "expression", "expression": format!("{{value}} + '{}'", j())},
+                                {"type": "map", "inputType": "scalar", "outputType": "scalar",
+                                 "mappings": [{"input": j(), "output": j()}], "fallback": j()},
+                                {"type": "format", "formatType": "numeric", "formatValue": j()}
+                            ]
+                        }},
+                        format!("custom.{}", j()): {"binding": {
+                            "type": "tag", "config": {
+                                "mode": "indirect",
+                                "tagPath": format!("[default]{}/{{{}}}/{}", j(), j(), j()),
+                                "references": {j(): format!("{{view.params.{param}}}")},
+                                "fallbackDelay": 2.5
+                            }
+                        }},
+                        format!("custom.{}", j()): {"binding": {
+                            "type": "tag", "config": {"mode": "direct", "tagPath": format!("[{}]{}", j(), j())}
+                        }},
+                        "props.style.color": {"binding": {
+                            "type": "property", "config": {"path": format!("view.custom.{custom}")}
+                        }},
+                        "position.display": {"binding": {
+                            "type": "query", "config": {
+                                "queryPath": format!("{}/{}", j(), j()),
+                                "parameters": {j(): format!("{{view.params.{param}}}")},
+                                "polling": {"enabled": true, "rate": "1"}
+                            }
+                        }}
+                    },
+                    "events": {
+                        "dom": {"onClick": {"type": "script", "scope": "G", "config": {"script": script}}},
+                        "component": {"onActionPerformed": [
+                            {"type": "nav", "config": {"url": j(), "page": j()}},
+                            {"type": "popup", "config": {"viewPath": j(), "id": j(), "viewParams": {j(): j()}}}
+                        ]}
+                    }
+                },
+                {
+                    "type": "ia.display.view",
+                    "meta": {"name": j()},
+                    "props": {"path": format!("{}/{}", j(), j()), "params": {j(): j()}}
+                },
+                {
+                    "type": "ia.display.flex-repeater",
+                    "meta": {"name": j()},
+                    "props": {"path": j(), "instances": [{j(): j()}, {"instanceStyle": {"classes": j()}}]}
+                },
+                {"type": j(), "meta": {"name": j()}, "props": {j(): j()}}
+            ]
+        }
+    });
+    json_text(&view)
+}
+
+/// Writes generated resources of every kind into the project at
+/// `project`, the gateway collection `gateway`, and the configuration
+/// files at `root`.
+fn unicode_resources(rng: &mut Rng, root: &Path, project: &Path, gateway: &Path) {
+    let manifest = |files: &[&str]| {
+        let files: Vec<Value> = files.iter().map(|f| json!(f)).collect();
+        json!({"scope": "G", "version": 1, "restricted": false, "overridable": true,
+               "files": files, "attributes": {}})
+        .to_string()
+    };
+    let put = |path: &Path, text: &str| {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    let project_json = json!({"title": unicode(rng, Slot::Json), "description": unicode(rng, Slot::Json),
+                              "enabled": true, "inheritable": true});
+    put(&project.join("project.json"), &json_text(&project_json));
+    for _ in 0..2 {
+        let dir = project
+            .join("ignition/script-python")
+            .join(unicode(rng, Slot::Name))
+            .join(unicode(rng, Slot::Name));
+        put(&dir.join("code.py"), &unicode_module(rng));
+        put(&dir.join("resource.json"), &manifest(&["code.py"]));
+        // A file Ignition does not know, with a generated name.
+        put(
+            &dir.join(format!("{}.py", unicode(rng, Slot::Name))),
+            &unicode_module(rng),
+        );
+    }
+    for _ in 0..2 {
+        let dir = project
+            .join("com.inductiveautomation.perspective/views")
+            .join(unicode(rng, Slot::Name))
+            .join(unicode(rng, Slot::Name));
+        put(&dir.join("view.json"), &unicode_view(rng));
+        put(&dir.join("resource.json"), &manifest(&["view.json"]));
+        put(
+            &dir.join(format!("{}.json", unicode(rng, Slot::Name))),
+            &unicode_view(rng),
+        );
+    }
+    let body = unicode_module(rng).replace("def f(self, event):", "if True:");
+    for (kind, file, header) in [
+        ("timer", "handleTimerEvent.py", "def handleTimerEvent():"),
+        ("message", "handleMessage.py", "def handleMessage(payload):"),
+        (
+            "tag-change",
+            "onTagChange.py",
+            "def onTagChange(initialChange, newValue, previousValue, event, executionCount):",
+        ),
+        (
+            "scheduled",
+            "handleScheduleEvent.py",
+            "def handleScheduleEvent():",
+        ),
+    ] {
+        let dir = project
+            .join("ignition")
+            .join(kind)
+            .join(unicode(rng, Slot::Name));
+        let indented: String = body.lines().map(|l| format!("\t{l}\n")).collect();
+        put(&dir.join(file), &format!("{header}\n{indented}"));
+        put(&dir.join("resource.json"), &manifest(&[file]));
+    }
+    let webdev = project
+        .join("com.inductiveautomation.webdev/resources")
+        .join(unicode(rng, Slot::Name));
+    put(
+        &webdev.join("doGet.py"),
+        &format!(
+            "def doGet(request, session):\n\treturn {{\"json\": {{u\"{}\": request[\"params\"].get(\"{}\")}}}}\n",
+            unicode(rng, Slot::Python),
+            unicode(rng, Slot::Python)
+        ),
+    );
+    put(
+        &webdev.join("config.json"),
+        &json_text(
+            &json!({"doGet": {"enabled": true, "require-auth": false}, "description": unicode(rng, Slot::Json)}),
+        ),
+    );
+    put(
+        &webdev.join("resource.json"),
+        &manifest(&["config.json", "doGet.py"]),
+    );
+    let query = project
+        .join("ignition/named-query")
+        .join(unicode(rng, Slot::Name))
+        .join(unicode(rng, Slot::Name));
+    put(
+        &query.join("query.sql"),
+        &format!(
+            "SELECT '{}' FROM t WHERE a = :{} AND b = {{{}}} -- {}\n",
+            unicode(rng, Slot::Python),
+            unicode(rng, Slot::Plain),
+            unicode(rng, Slot::Plain),
+            unicode(rng, Slot::Comment)
+        ),
+    );
+    put(&query.join("resource.json"), &manifest(&["query.sql"]));
+    // Tags and UDTs.
+    put(
+        &gateway.join("config-mode.json"),
+        &json_text(&json!({"title": unicode(rng, Slot::Json)})),
+    );
+    let provider = gateway
+        .join("ignition/tag-provider")
+        .join(unicode(rng, Slot::Name));
+    put(
+        &provider.join("config.json"),
+        r#"{"profile": {"type": "STANDARD"}, "settings": {}}"#,
+    );
+    put(&provider.join("resource.json"), &manifest(&["config.json"]));
+    let tag_script = format!("\tprint u\"{}\"\n", unicode(rng, Slot::Python));
+    let mut j2 = || unicode(rng, Slot::Json);
+    let tags = json!({"tags": [
+        {"name": j2(), "tagType": "AtomicTag", "valueSource": "expr",
+         "expression": format!("{{[.]{}}} + {{[~]{}/{}}} + '{}'", j2(), j2(), j2(), j2()),
+         "eventScripts": [{"eventid": "valueChanged", "script": tag_script}]},
+        {"name": j2(), "tagType": "AtomicTag", "valueSource": "reference", "sourceTagPath": format!("[{}]{}", j2(), j2())},
+        {"name": j2(), "tagType": "Folder", "tags": [
+            {"name": j2(), "tagType": "UdtInstance", "typeId": j2(),
+             "parameters": {j2(): {"dataType": "String", "value": j2()}}, "tags": []}
+        ]}
+    ]});
+    let mut j = || unicode(rng, Slot::Json);
+    let udts = json!({"tags": [
+        {"name": j(), "tagType": "UdtType",
+         "parameters": {j(): {"dataType": "String", "value": j()}},
+         "tags": [{"name": j(), "tagType": "AtomicTag", "valueSource": "opc",
+                   "opcItemPath": format!("ns=1;s={{{}}}.{}", j(), j())}]}
+    ]});
+    let folder = gateway
+        .join("ignition/tag-definition")
+        .join(unicode(rng, Slot::Name));
+    put(&folder.join("tags.json"), &json_text(&tags));
+    put(
+        &folder.join("unary-resource.json"),
+        &manifest(&["tags.json"]),
+    );
+    let types = gateway
+        .join("ignition/tag-type-definition")
+        .join(unicode(rng, Slot::Name));
+    put(&types.join("udts.json"), &json_text(&udts));
+    put(
+        &types.join("unary-resource.json"),
+        &manifest(&["udts.json"]),
+    );
+    // Configuration: iglint.toml, an ign-lint rule_config.json and
+    // whitelist with generated values.
+    let mut p = || toml_string(&unicode(rng, Slot::Plain));
+    let toml = format!(
+        "select = [\"ALL\"]\nignore = [\"SCR900\"]\nexclude = [{}]\n\
+         [rules.NAME001]\nconvention = \"camelCase\"\nforbidden-names = [{}]\nskip-names = [\"root\", {}]\n\
+         allowed-abbreviations = [{}, \"\\u0131\", \"\\u017F\", \"\\u00DF\"]\n\
+         target-node-types = [\"component\", \"property\", \"message_handler\", \"custom_method\"]\n\
+         [rules.VIEW018]\nforbidden-patterns = [{}, \"../\"]\n\
+         [rules.BIND002]\nextra-functions = [{}]\n\
+         [rules.SCR201]\nallow = [{}]\n\
+         [rules.SCR117]\nallowed = [{}]\n\
+         [rules.VIEW003]\nallowed-types = [{}]\n\
+         [rules.VIEW012]\nexempt-props = [{}]\n\
+         [rules.SCR103]\ndummy-pattern = {}\n\
+         [[overrides]]\nfiles = [{}]\nignore = [\"NAME001\"]\n",
+        p(),
+        p(),
+        p(),
+        p(),
+        p(),
+        p(),
+        p(),
+        p(),
+        p(),
+        p(),
+        p(),
+        p()
+    );
+    put(&root.join("iglint.toml"), &toml);
+    let mut j = || unicode(rng, Slot::Json);
+    let rule_config = json!({
+        "NamePatternRule": {"kwargs": {"convention": "PascalCase", "forbidden_names": [j()],
+            "skip_names": ["root", j()], "allowed_abbreviations": [j(), "\u{131}", "\u{17f}"],
+            "target_node_types": ["component", "property", "message_handler", "custom_method"]}},
+        "BadComponentReferenceRule": {"kwargs": {"forbidden_patterns": [j(), "../"]}},
+        "PropertyAccessRule": {"kwargs": {"expected_access": "private", "exempt_props": [j()]}},
+        "PropertyPersistenceRule": {"enabled": true},
+        "ExcessiveContextDataRule": {"enabled": true},
+        "PollingIntervalRule": {"enabled": true},
+        "UnusedCustomPropertiesRule": {"enabled": true},
+        "ComponentReferenceValidationRule": {"enabled": true},
+        "PylintScriptRule": {"enabled": false}
+    });
+    // Without surrogate escapes: ign-lint rejects them in its configuration.
+    put(
+        &root.join("rule_config.json"),
+        &serde_json::to_string_pretty(&rule_config).unwrap(),
+    );
+    let whitelist: String = (0..3)
+        .map(|_| {
+            format!(
+                "{}/{}\n",
+                unicode(rng, Slot::Name),
+                unicode(rng, Slot::Name)
+            )
+        })
+        .collect();
+    put(&root.join(".ignition-lint-whitelist.txt"), &whitelist);
+}
+
+/// The files under `root`, sorted, without `.git`.
+fn files_under(root: &Path) -> Vec<std::path::PathBuf> {
+    let mut files = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for entry in std::fs::read_dir(&d).unwrap().flatten() {
+            let path = entry.path();
+            if entry.file_name() == ".git" {
+                continue;
+            }
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    files
+}
+
+/// `iglint check --stdin-filename` with `text` on standard input.
+fn iglint_stdin(dir: &Path, file: &Path, text: &str) {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_iglint"))
+        .args([
+            "check",
+            "--no-cache",
+            "--output-format",
+            "json",
+            "--stdin-filename",
+        ])
+        .arg(file)
+        .arg("-")
+        .current_dir(dir)
+        .env("NO_COLOR", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(text.as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        matches!(output.status.code(), Some(0 | 1)),
+        "stdin {file:?} failed with {:?}: {stderr}",
+        output.status
+    );
+}
+
+/// Every command over one generated workspace.
+fn unicode_workspace(seed: u64) {
+    let mut rng = Rng(seed);
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    unicode_fixture(&mut rng, &root.join("fixtures"));
+    let project = root.join("projects").join(unicode(&mut rng, Slot::Name));
+    let gateway = root
+        .join("services/gw/config/resources")
+        .join(unicode(&mut rng, Slot::Name));
+    unicode_resources(&mut rng, root, &project, &gateway);
+    let files = files_under(root);
+    let context = format!("seed {seed:#x}");
+    eprintln!("{context}: {} files", files.len());
+    if let Some(keep) = std::env::var_os("IGLINT_UNICODE_KEEP") {
+        let keep = Path::new(&keep).join(format!("{seed:x}"));
+        for file in &files {
+            let target = keep.join(file.strip_prefix(root).unwrap());
+            std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+            std::fs::copy(file, target).unwrap();
+        }
+    }
+
+    for format in [
+        "text",
+        "concise",
+        "grouped",
+        "json",
+        "json-lines",
+        "sarif",
+        "github",
+        "azure",
+        "junit",
+        "pylint",
+        "gitlab",
+    ] {
+        iglint(root, &["check", "--no-cache", "--output-format", format]);
+    }
+    iglint(
+        root,
+        &[
+            "check",
+            "--no-cache",
+            "--isolated",
+            "--select",
+            "ALL",
+            "--ignore",
+            "SCR900",
+            "--statistics",
+        ],
+    );
+    let mut each = vec!["check", "--no-cache", "--output-format", "json"];
+    each.extend(files.iter().map(|f| f.to_str().unwrap()));
+    iglint(root, &each);
+    for file in files.iter().step_by(7) {
+        if let Ok(text) = std::fs::read_to_string(file) {
+            iglint_stdin(root, file, &text);
+        }
+    }
+    iglint(root, &["check", "--no-cache", "--diff", "--unsafe-fixes"]);
+    iglint(root, &["baseline", "--no-cache"]);
+    iglint(root, &["check", "--no-cache", "--output-format", "json"]);
+    iglint(root, &["migrate", "--dry-run"]);
+    iglint(root, &["ign-lint", "--files", "**/view.json"]);
+    iglint(
+        root,
+        &[
+            "ign-lint",
+            "--files",
+            "**/*.json",
+            "--config",
+            "rule_config.json",
+        ],
+    );
+
+    // The language server: open every script and JSON file, ask for code
+    // actions, hover at a few positions, edit inside multi-byte
+    // characters and fix everything.
+    let mut server = Server::start(root);
+    for file in files
+        .iter()
+        .filter(|f| f.extension().is_some_and(|e| e == "json" || e == "py"))
+        .step_by(2)
+    {
+        let text = std::fs::read_to_string(file).unwrap_or_default();
+        let diagnostics = server.edit(file, &text);
+        let uri = file_uri(file);
+        let lines = text.lines().count().max(1);
+        server.request(
+            "textDocument/codeAction",
+            json!({
+                "textDocument": {"uri": uri},
+                "range": {"start": {"line": 0, "character": 0}, "end": {"line": lines + 1, "character": 0}},
+                "context": {"diagnostics": diagnostics}
+            }),
+        );
+        for _ in 0..3 {
+            let position = json!({"line": rng.below(lines), "character": rng.below(40)});
+            server.request(
+                "textDocument/hover",
+                json!({"textDocument": {"uri": uri}, "position": position}),
+            );
+        }
+        let at = json!({"line": rng.below(lines), "character": rng.below(40)});
+        server.notify(
+            "textDocument/didChange",
+            json!({"textDocument": {"uri": uri, "version": 1_000_000},
+                   "contentChanges": [{"range": {"start": at, "end": at}, "text": unicode(&mut rng, Slot::Json)}]}),
+        );
+        server.request(
+            "workspace/executeCommand",
+            json!({"command": "iglint.applyFixAll", "arguments": [{"uri": uri}]}),
+        );
+    }
+    server.request(
+        "workspace/executeCommand",
+        json!({"command": "iglint.ruleDocs", "arguments": [unicode(&mut rng, Slot::Json)]}),
+    );
+    server.stop();
+
+    iglint(root, &["check", "--no-cache", "--fix", "--unsafe-fixes"]);
+    eprintln!("{context}: survived");
+}
+
+/// Review round 18 (Codex): the second character boundary panic in two
+/// rounds. Generated workspaces put random Unicode (multi-byte first
+/// characters, combining marks, emoji, bidirectional controls, NUL and
+/// surrogate escapes where JSON allows them) in every name and string
+/// position: directory and file names, JSON keys and values, component
+/// and property names, bindings, expressions, tag paths, script string
+/// literals and comments, POSIX, Windows and UNC paths in scripts, and
+/// configuration values. Every command and the language server must
+/// survive them. `IGLINT_UNICODE_SEED` replays one seed (hexadecimal);
+/// `IGLINT_UNICODE_KEEP=<dir>` keeps a copy of each generated workspace.
+#[test]
+fn unicode_everywhere_does_not_panic() {
+    match std::env::var("IGLINT_UNICODE_SEED") {
+        Ok(seed) => {
+            let seed = seed.trim_start_matches("0x");
+            unicode_workspace(u64::from_str_radix(seed, 16).unwrap());
+        }
+        Err(_) => {
+            for seed in 0..4 {
+                unicode_workspace(0x18_0000 + seed);
+            }
+        }
+    }
+}
+
+/// The long version: `IGLINT_UNICODE_CASES` workspaces (default 100).
+#[test]
+#[ignore = "long: cargo test --release -p iglint --test stress unicode_everywhere_long -- --ignored"]
+fn unicode_everywhere_long() {
+    let cases: u64 = std::env::var("IGLINT_UNICODE_CASES")
+        .ok()
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(100);
+    for seed in 0..cases {
+        unicode_workspace(0x18_1000 + seed);
     }
 }
