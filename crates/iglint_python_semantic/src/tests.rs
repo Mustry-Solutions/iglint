@@ -673,3 +673,62 @@ fn module_namespaces_read_the_callers_locals() {
         });
     }
 }
+
+/// Review round 26 (M4): the bindings functions make through `global` and
+/// long lists of reaching bindings are shared between references, with
+/// the same answers as listing them for each.
+#[test]
+fn shared_binding_lists_answer_like_lists() {
+    let mut src: String = (0..12)
+        .map(|k| format!("def f{k}():\n    global g\n    g = {k}\n"))
+        .collect();
+    src.push_str("a = 1\n");
+    for k in 0..10 {
+        src.push_str(&format!("if a:\n    g = {k}\n"));
+    }
+    src.push_str("print g\nprint g\ndef h():\n    return g\nclass C:\n    g = g\n");
+    with_model(&src, &[], |m| {
+        let reads: Vec<_> = m
+            .references()
+            .filter(|(_, r)| r.name == "g" && !r.is_implicit())
+            .collect();
+        assert_eq!(reads.len(), 4);
+        let functions: Vec<_> = m
+            .bindings()
+            .filter(|(_, b)| {
+                b.name == "g" && b.site != ScopeId::MODULE && b.scope == ScopeId::MODULE
+            })
+            .map(|(id, _)| id)
+            .collect();
+        let module: Vec<_> = m
+            .bindings()
+            .filter(|(_, b)| {
+                b.name == "g" && b.site == ScopeId::MODULE && b.scope == ScopeId::MODULE
+            })
+            .map(|(id, _)| id)
+            .collect();
+        assert_eq!((functions.len(), module.len()), (12, 10));
+        for (id, r) in &reads {
+            let mut found = r.bindings.to_vec();
+            found.sort();
+            let n = found.len();
+            found.dedup();
+            assert_eq!(n, found.len(), "listed once");
+            assert_eq!(found.len(), r.bindings.len());
+            // Module reads and the function and class reads find every
+            // module binding of `g`, the class read its own too.
+            for b in functions.iter().chain(&module) {
+                assert!(r.bindings.contains(b), "{:?}", r.range);
+                assert!(m.binding(*b).references.contains(id));
+            }
+        }
+        for b in functions.iter().chain(&module) {
+            let mut refs = m.binding(*b).references.to_vec();
+            refs.sort();
+            let n = refs.len();
+            refs.dedup();
+            assert_eq!(n, refs.len());
+            assert!(m.binding(*b).is_used());
+        }
+    });
+}

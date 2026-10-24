@@ -73,6 +73,9 @@ pub struct ScriptUnit<'s, 'a> {
     /// The semantic model, built on first use by the script rules
     /// (`crate::rules::script::semantic`) and shared by all of them.
     pub(crate) semantic: std::cell::OnceCell<iglint_python_semantic::SemanticModel<'s>>,
+    /// Lines of `script.source` ([`iglint_text::LineIndex::python`]),
+    /// built on first use (`crate::rules::script::file_line`).
+    pub(crate) lines: std::cell::OnceCell<iglint_text::LineIndex>,
 }
 
 impl<'s, 'a> ScriptUnit<'s, 'a> {
@@ -88,6 +91,7 @@ impl<'s, 'a> ScriptUnit<'s, 'a> {
             parsed,
             index,
             semantic: std::cell::OnceCell::new(),
+            lines: std::cell::OnceCell::new(),
         }
     }
 }

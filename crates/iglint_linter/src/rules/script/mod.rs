@@ -558,27 +558,21 @@ pub fn file_line(
 ) -> Option<usize> {
     let script = unit.script;
     match script.body {
+        // Line indexes, not a count of the line breaks before the offset
+        // for every finding (review round 26, M4: `SCR104` on `n`
+        // redefinitions took quadratic time).
         ScriptBody::Json(_) => {
-            let start = script.source_map.body_start().to_usize();
-            let at = offset.to_usize().max(start);
-            Some(
-                TextRange::from(start..at)
-                    .slice(&script.source)
-                    .matches('\n')
-                    .count()
-                    + 1,
-            )
+            let start = script.source_map.body_start();
+            let at = offset.max(start);
+            let lines = unit
+                .lines
+                .get_or_init(|| iglint_text::LineIndex::python(&script.source));
+            Some(lines.line_of(at) - lines.line_of(start) + 1)
         }
         ScriptBody::File { .. } => {
             let file = cx.file(unit.file)?;
-            let at = script.source_map.file_offset(offset).to_usize();
-            Some(
-                TextRange::from(0..at)
-                    .slice(file.text())
-                    .matches('\n')
-                    .count()
-                    + 1,
-            )
+            let at = script.source_map.file_offset(offset);
+            Some(file.line_index().line_of(at) + 1)
         }
     }
 }

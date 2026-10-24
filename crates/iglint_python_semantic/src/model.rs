@@ -424,7 +424,7 @@ pub struct Binding<'a> {
     /// `n * n / 2` entries (review round 25, M3).
     pub shadowed: Vec<BindingId>,
     /// References that may read this binding.
-    pub references: Vec<ReferenceId>,
+    pub references: SharedIds<ReferenceId>,
     /// How the code of `site` stores the name (for bindings the source
     /// names; [`NameAccess::Name`] for implicit ones).
     pub access: NameAccess,
@@ -494,6 +494,157 @@ pub enum Resolution {
     Unresolved,
 }
 
+/// A list of ids whose tail may be shared with other lists: the bindings
+/// a module-level read of a name may find include every binding functions
+/// make through `global`, and a function's read of a global every module
+/// binding of the name; each such list is built once per name and shared
+/// by its references, and the reads by the bindings (review round 26, M4:
+/// a module where `n` functions bind one global that module code reads
+/// `n` times held `n * n` entries, and took cubic time to build them).
+/// Iterates the ids of its own part, then those of the shared parts, each
+/// once.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SharedIds<T> {
+    own: Vec<T>,
+    shared: Vec<std::sync::Arc<[T]>>,
+}
+
+impl<T> Default for SharedIds<T> {
+    fn default() -> Self {
+        SharedIds {
+            own: Vec::new(),
+            shared: Vec::new(),
+        }
+    }
+}
+
+impl<T: Copy + PartialEq> SharedIds<T> {
+    /// The ids, own part first.
+    pub fn iter(&self) -> impl Iterator<Item = &T> + Clone + '_ {
+        self.own
+            .iter()
+            .chain(self.shared.iter().flat_map(|s| s.iter()))
+    }
+
+    pub fn len(&self) -> usize {
+        self.own.len() + self.shared.iter().map(|s| s.len()).sum::<usize>()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.own.is_empty() && self.shared.iter().all(|s| s.is_empty())
+    }
+
+    pub fn contains(&self, id: &T) -> bool {
+        self.iter().any(|x| x == id)
+    }
+
+    pub fn first(&self) -> Option<&T> {
+        self.iter().next()
+    }
+
+    pub fn to_vec(&self) -> Vec<T> {
+        self.iter().copied().collect()
+    }
+
+    /// Whether `f` holds for every id, deciding each shared list once per
+    /// `memo` (the answer is kept by the list's identity): `f` must depend
+    /// on the id only. Callers that ask the same question for every
+    /// reference use it so that a list shared by `n` references costs its
+    /// length once, not `n` times.
+    pub fn all_memo(&self, memo: &mut SharedMemo, mut f: impl FnMut(&T) -> bool) -> bool {
+        self.own.iter().all(&mut f)
+            && self.shared.iter().all(|s| {
+                let key = std::sync::Arc::as_ptr(s) as *const T as usize;
+                *memo.0.entry(key).or_insert_with(|| s.iter().all(&mut f))
+            })
+    }
+
+    /// Whether `f` holds for some id, like [`SharedIds::all_memo`].
+    pub fn any_memo(&self, memo: &mut SharedMemo, mut f: impl FnMut(&T) -> bool) -> bool {
+        !self.all_memo(memo, |id| !f(id))
+    }
+
+    /// A list that is all shared.
+    pub(crate) fn shared_from(ids: std::sync::Arc<[T]>) -> Self {
+        SharedIds {
+            own: Vec::new(),
+            shared: vec![ids],
+        }
+    }
+
+    /// Adds the ids of `ids` that are not here yet, to the own part.
+    pub(crate) fn add_all(&mut self, ids: Vec<T>)
+    where
+        T: std::hash::Hash + Eq,
+    {
+        if ids.len().saturating_mul(self.len() + ids.len()) <= 64 {
+            for id in ids {
+                if !self.contains(&id) {
+                    self.own.push(id);
+                }
+            }
+        } else {
+            let mut known: rustc_hash::FxHashSet<T> = self.iter().copied().collect();
+            for id in ids {
+                if known.insert(id) {
+                    self.own.push(id);
+                }
+            }
+        }
+    }
+
+    /// The ids that are not shared.
+    pub(crate) fn own(&self) -> &[T] {
+        &self.own
+    }
+
+    /// The ids that are not shared.
+    pub(crate) fn own_mut(&mut self) -> &mut Vec<T> {
+        &mut self.own
+    }
+
+    /// Appends a shared list (which holds none of the ids already here).
+    pub(crate) fn share(&mut self, ids: std::sync::Arc<[T]>) {
+        self.shared.push(ids);
+    }
+
+    /// The shared lists.
+    pub(crate) fn shared(&self) -> &[std::sync::Arc<[T]>] {
+        &self.shared
+    }
+}
+
+/// The answers of [`SharedIds::all_memo`] for the shared lists of one
+/// model, for one question.
+#[derive(Debug, Default)]
+pub struct SharedMemo(rustc_hash::FxHashMap<usize, bool>);
+
+impl<T> From<Vec<T>> for SharedIds<T> {
+    fn from(own: Vec<T>) -> Self {
+        SharedIds {
+            own,
+            shared: Vec::new(),
+        }
+    }
+}
+
+impl<'s, T: Copy + PartialEq> IntoIterator for &'s SharedIds<T> {
+    type Item = &'s T;
+    type IntoIter = std::iter::Chain<
+        std::slice::Iter<'s, T>,
+        std::iter::FlatMap<
+            std::slice::Iter<'s, std::sync::Arc<[T]>>,
+            std::slice::Iter<'s, T>,
+            fn(&'s std::sync::Arc<[T]>) -> std::slice::Iter<'s, T>,
+        >,
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let f: fn(&'s std::sync::Arc<[T]>) -> std::slice::Iter<'s, T> = |s| s.iter();
+        self.own.iter().chain(self.shared.iter().flat_map(f))
+    }
+}
+
 /// A read (or `del`) of a name.
 #[derive(Debug)]
 pub struct Reference<'a> {
@@ -510,7 +661,7 @@ pub struct Reference<'a> {
     pub scope: ScopeId,
     pub resolution: Resolution,
     /// The bindings the reference may read.
-    pub bindings: Vec<BindingId>,
+    pub bindings: SharedIds<BindingId>,
     /// For local names: no binding reaches the reference on any path (the
     /// read always fails if executed). Always false for other resolutions.
     pub unbound: bool,

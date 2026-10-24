@@ -1106,6 +1106,15 @@ fn large_views_and_modules_take_linear_time() {
 /// times keep the sets of bindings that may reach each point, whose total
 /// size grows with the square of the chain in the worst case (`elif`
 /// branches unwound one by one): they get the budget only.
+///
+/// Review round 26 (M4): one global bound by `n` functions and read `n`
+/// times by module code took cubic time (4,000 of each, 7 s with
+/// `SCR001` only, 21 s with every rule): every read listed every binding,
+/// and the list was searched while it grew. The lists of bindings that
+/// many references find are now held once and shared, with the reads of
+/// each binding; the shapes around it (reads in blocks, by functions and
+/// class bodies, augmented assignments, deletions, module rebinding) are
+/// linear too.
 #[test]
 #[cfg_attr(
     debug_assertions,
@@ -1121,7 +1130,18 @@ fn library_modules_take_linear_time_in_their_names() {
         "--exit-zero",
     ];
     type Shape = fn(usize) -> String;
-    let shapes: [(&str, Shape, bool); 12] = [
+    // `n` functions that bind one global (review round 26, M4: cubic).
+    fn global_writers(n: usize, statement: &str) -> String {
+        (0..n)
+            .map(|i| {
+                format!(
+                    "def f{i}():\n    global g\n    {}\n",
+                    statement.replace("{i}", &i.to_string())
+                )
+            })
+            .collect()
+    }
+    let shapes: [(&str, Shape, bool); 20] = [
         (
             "assignments",
             |n| "a = 1\n".to_owned() + &(0..n).map(|i| format!("b{i} = a\n")).collect::<String>(),
@@ -1223,6 +1243,59 @@ fn library_modules_take_linear_time_in_their_names() {
                         .collect::<String>()
             },
             true,
+        ),
+        (
+            "one global written by every function, read by module code",
+            |n| global_writers(n, "g = {i}") + &"print g\n".repeat(n),
+            true,
+        ),
+        (
+            "the global read in nested blocks",
+            |n| global_writers(n, "g = {i}") + &"if g:\n    print g\n".repeat(n),
+            true,
+        ),
+        (
+            "the global augmented",
+            |n| global_writers(n, "g += {i}") + &"print g\n".repeat(n),
+            true,
+        ),
+        (
+            "the global deleted",
+            |n| global_writers(n, "del g") + "g = 1\n" + &"print g\n".repeat(n),
+            true,
+        ),
+        (
+            "the global read by functions",
+            |n| {
+                global_writers(n, "g = {i}")
+                    + &(0..n)
+                        .map(|i| format!("def h{i}():\n    return g\n"))
+                        .collect::<String>()
+            },
+            true,
+        ),
+        (
+            "the global read by class bodies",
+            |n| global_writers(n, "g = {i}") + &"class C:\n    g = g\n".repeat(n),
+            true,
+        ),
+        (
+            "the global rebound by module code",
+            |n| {
+                global_writers(n, "g = {i}")
+                    + &(0..n)
+                        .map(|i| format!("g = {i}\nprint g\n"))
+                        .collect::<String>()
+            },
+            true,
+        ),
+        // Every read finds every conditional binding: the reaching lists
+        // are held once (review round 26), their merges stay quadratic
+        // with a small constant, like elif branches.
+        (
+            "conditional bindings of one name, read as often",
+            |n| "a = 1\n".to_owned() + &"if a:\n    g = 1\n".repeat(n) + &"print g\n".repeat(n),
+            false,
         ),
         (
             "elif branches",

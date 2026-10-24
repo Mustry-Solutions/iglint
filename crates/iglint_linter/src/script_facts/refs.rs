@@ -30,7 +30,9 @@ use iglint_project::library::{HARMLESS_ATTRIBUTES, is_special_attribute};
 use iglint_project::summary::{MessageSend, MessageTarget, References, UnknownSite};
 use iglint_python::ast::{Expr, ExprContext, Slice, Stmt};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
-use iglint_python_semantic::{BindingKind, Resolution, ScopeId, SemanticModel, UnboundNames};
+use iglint_python_semantic::{
+    BindingKind, Resolution, ScopeId, SemanticModel, SharedMemo, UnboundNames,
+};
 use iglint_text::{Ranged, TextRange};
 
 use super::api::{ApiTarget, api_target};
@@ -106,7 +108,7 @@ pub fn collect(model: &SemanticModel<'_>, ctx: &FactsContext<'_>, refs: &mut Ref
                 UnknownSite::detached(range),
             )
         }));
-    let mut chains = Chains { model, ctx, refs };
+    let mut chains = Chains::new(model, ctx, refs);
     chains.visit_module(model.module);
     // Imports make names attributes of the importing module.
     for (_, b) in model.bindings() {
@@ -320,7 +322,7 @@ fn dynamic_code(
     }
     match call.args.first() {
         Some(e) if matches!(callee, "setattr" | "delattr") => {
-            let mut chains = Chains { model, ctx, refs };
+            let mut chains = Chains::new(model, ctx, refs);
             if let Some(object) = chains.dotted(e) {
                 chains.changed(&call.func, e);
                 let attr = call.args.get(1).and_then(|a| match a {
@@ -474,6 +476,27 @@ struct Chains<'m, 'a, 'c, 'r> {
     model: &'m SemanticModel<'a>,
     ctx: &'c FactsContext<'c>,
     refs: &'r mut References,
+    /// [`Chains::dotted`]'s question for shared binding lists (review
+    /// round 26, M4).
+    module_level: std::cell::RefCell<SharedMemo>,
+    /// [`Chains::library_root`]'s question for shared binding lists.
+    library_level: std::cell::RefCell<SharedMemo>,
+}
+
+impl<'m, 'a, 'c, 'r> Chains<'m, 'a, 'c, 'r> {
+    fn new(
+        model: &'m SemanticModel<'a>,
+        ctx: &'c FactsContext<'c>,
+        refs: &'r mut References,
+    ) -> Self {
+        Chains {
+            model,
+            ctx,
+            refs,
+            module_level: Default::default(),
+            library_level: Default::default(),
+        }
+    }
 }
 
 fn is_chain(e: &Expr) -> bool {
@@ -507,8 +530,9 @@ impl Chains<'_, '_, '_, '_> {
                 };
                 (module_level
                     && r.bindings
-                        .iter()
-                        .all(|b| self.model.binding(*b).scope == ScopeId::MODULE))
+                        .all_memo(&mut self.module_level.borrow_mut(), |b| {
+                            self.model.binding(*b).scope == ScopeId::MODULE
+                        }))
                 .then(|| format!("{module}.{}", n.id))
             }
             Expr::Attribute(a) => {
@@ -614,11 +638,12 @@ impl Chains<'_, '_, '_, '_> {
         }
         let Expr::Name(n) = root else { return false };
         self.model.reference_at(n.range).is_none_or(|r| {
-            r.bindings.iter().all(|b| {
-                let b = self.model.binding(*b);
-                matches!(b.kind, BindingKind::Import | BindingKind::FromImport)
-                    || (self.ctx.module.is_some() && b.scope == ScopeId::MODULE)
-            })
+            r.bindings
+                .all_memo(&mut self.library_level.borrow_mut(), |b| {
+                    let b = self.model.binding(*b);
+                    matches!(b.kind, BindingKind::Import | BindingKind::FromImport)
+                        || (self.ctx.module.is_some() && b.scope == ScopeId::MODULE)
+                })
         })
     }
 

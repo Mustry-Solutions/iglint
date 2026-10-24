@@ -11,9 +11,11 @@
 //! from the state before the `try` plus every binding made in its body.
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 use iglint_python::ast::*;
 use iglint_text::{Ranged, TextRange};
+
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::model::*;
@@ -314,7 +316,13 @@ pub(crate) struct Flow<'a, 'o> {
     dunder_all_dynamic: bool,
     package: PackageImports,
     package_bound_elsewhere: bool,
+    /// Lists of reaching bindings longer than [`SHARED_FROM`], each held
+    /// once for every reference that finds it.
+    lists: FxHashSet<Arc<[BindingId]>>,
 }
+
+/// The length from which the bindings a reference may find are shared.
+const SHARED_FROM: usize = 8;
 
 impl<'a, 'o> Flow<'a, 'o> {
     pub fn new(
@@ -351,6 +359,7 @@ impl<'a, 'o> Flow<'a, 'o> {
             dunder_all_dynamic: table.dunder_all_dynamic,
             package: table.package,
             package_bound_elsewhere: table.package_bound_elsewhere,
+            lists: FxHashSet::default(),
         }
     }
 
@@ -582,7 +591,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                     import_guarded: kind.is_import() && self.import_guard > 0,
                     try_parts: self.try_parts.clone(),
                     shadowed: Vec::new(),
-                    references: Vec::new(),
+                    references: SharedIds::default(),
                     access,
                 });
                 self.binding_at.insert(range.start().to_u32(), id);
@@ -670,7 +679,7 @@ impl<'a, 'o> Flow<'a, 'o> {
             import_guarded: false,
             try_parts: self.try_parts.clone(),
             shadowed: Vec::new(),
-            references: Vec::new(),
+            references: SharedIds::default(),
             access: NameAccess::Name,
         });
         self.binding_at.insert(start.to_u32(), id);
@@ -837,11 +846,7 @@ impl<'a, 'o> Flow<'a, 'o> {
         match existing {
             Some(&id) => {
                 let r = &mut self.references[id.index()];
-                for b in bindings {
-                    if !r.bindings.contains(&b) {
-                        r.bindings.push(b);
-                    }
-                }
+                r.bindings.add_all(bindings);
                 if st.reachable {
                     if r.reachable {
                         r.unbound &= unbound;
@@ -855,6 +860,23 @@ impl<'a, 'o> Flow<'a, 'o> {
             }
             None => {
                 let id = ReferenceId(self.references.len() as u32);
+                // A long list of reaching bindings is held once for every
+                // read that finds the same (review round 26, M4: `n`
+                // conditional bindings of a name read `n` times held `n *
+                // n` entries).
+                let bindings = if bindings.len() > SHARED_FROM {
+                    let ids = match self.lists.get(bindings.as_slice()) {
+                        Some(ids) => Arc::clone(ids),
+                        None => {
+                            let ids: Arc<[BindingId]> = bindings.into();
+                            self.lists.insert(Arc::clone(&ids));
+                            ids
+                        }
+                    };
+                    SharedIds::shared_from(ids)
+                } else {
+                    bindings.into()
+                };
                 self.references.push(Reference {
                     name,
                     source_name,
@@ -997,7 +1019,7 @@ impl<'a, 'o> Flow<'a, 'o> {
             import_guarded: false,
             try_parts: Vec::new(),
             shadowed: Vec::new(),
-            references: Vec::new(),
+            references: SharedIds::default(),
             access: NameAccess::Name,
         });
         self.implicit.insert(name, id);
@@ -1271,7 +1293,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                         import_guarded: false,
                         try_parts: self.try_parts.clone(),
                         shadowed: Vec::new(),
-                        references: Vec::new(),
+                        references: SharedIds::default(),
                         access: NameAccess::Global,
                     });
                     self.global_at.insert(name.range.start().to_u32(), id);
@@ -1727,58 +1749,73 @@ impl<'a, 'o> Flow<'a, 'o> {
     fn finish(mut self) -> Output<'a> {
         // Module names: references resolve to every module binding,
         // including those made by functions through `global`. Module code
-        // adds only the latter, listed once per name (review round 25, M3:
-        // going through every module binding of the name for every read
-        // made a module that binds and reads one name `n` times
-        // quadratic).
-        let mut from_functions: FxHashMap<&str, Vec<BindingId>> = FxHashMap::default();
-        for (name, ids) in &self.scopes[0].bindings {
-            let made: Vec<BindingId> = ids
-                .iter()
-                .copied()
-                .filter(|id| self.bindings[id.index()].site != ScopeId::MODULE)
-                .collect();
-            if !made.is_empty() {
-                from_functions.insert(name, made);
-            }
-        }
-        let add = |into: &mut Vec<BindingId>, ids: &[BindingId]| {
-            if into.len() * ids.len() <= 64 {
-                for id in ids {
-                    if !into.contains(id) {
-                        into.push(*id);
-                    }
-                }
-            } else {
-                let mut known: FxHashSet<BindingId> = into.iter().copied().collect();
-                for id in ids {
-                    if known.insert(*id) {
-                        into.push(*id);
-                    }
-                }
-            }
+        // adds only the latter. Each list is made once per name and shared
+        // by the references that read it, and by the bindings in it (review
+        // round 25, M3: going through every module binding of the name for
+        // every read made a module that binds and reads one name `n` times
+        // quadratic; round 26, M4: so was holding every list `n` times).
+        let module_bindings = &self.scopes[0].bindings;
+        let bindings = &self.bindings;
+        // Shared lists by (name, whether only those made by functions).
+        let mut lists: FxHashMap<(&str, bool), Arc<[BindingId]>> = FxHashMap::default();
+        let mut list = |name: &'a str, from_functions: bool| -> Option<Arc<[BindingId]>> {
+            lists
+                .entry((name, from_functions))
+                .or_insert_with(|| {
+                    module_bindings
+                        .get(name)
+                        .into_iter()
+                        .flatten()
+                        .copied()
+                        .filter(|id| {
+                            !from_functions || bindings[id.index()].site != ScopeId::MODULE
+                        })
+                        .collect()
+                })
+                .clone()
+                .into()
         };
         for r in &mut self.references {
-            match r.resolution {
+            let shared = match r.resolution {
                 Resolution::Global => {
-                    r.bindings = self.scopes[0].bindings_of(r.name).to_vec();
+                    *r.bindings.own_mut() = Vec::new();
+                    list(r.name, false)
                 }
-                Resolution::Local if r.fallback == Some(Resolution::Global) => {
-                    add(&mut r.bindings, self.scopes[0].bindings_of(r.name));
-                }
-                Resolution::Local if r.scope == ScopeId::MODULE => {
-                    if let Some(ids) = from_functions.get(r.name) {
-                        add(&mut r.bindings, ids);
-                    }
-                }
-                _ => {}
+                // A class body's own bindings and the module's are
+                // different bindings.
+                Resolution::Local if r.fallback == Some(Resolution::Global) => list(r.name, false),
+                // Module code's own bindings are made by module code.
+                Resolution::Local if r.scope == ScopeId::MODULE => list(r.name, true),
+                _ => None,
+            };
+            if let Some(ids) = shared.filter(|ids| !ids.is_empty()) {
+                debug_assert!(r.bindings.iter().all(|b| !ids.contains(b)));
+                r.bindings.share(ids);
             }
         }
+        // The reads of each binding: its own, then those that share a list
+        // holding it, as one list per shared list.
+        let mut readers: FxHashMap<*const BindingId, (Arc<[BindingId]>, Vec<ReferenceId>)> =
+            FxHashMap::default();
         for (i, r) in self.references.iter().enumerate() {
-            for b in &r.bindings {
-                self.bindings[b.index()]
-                    .references
-                    .push(ReferenceId(i as u32));
+            let id = ReferenceId(i as u32);
+            for b in r.bindings.own() {
+                self.bindings[b.index()].references.own_mut().push(id);
+            }
+            for ids in r.bindings.shared() {
+                readers
+                    .entry(ids.as_ptr())
+                    .or_insert_with(|| (ids.clone(), Vec::new()))
+                    .1
+                    .push(id);
+            }
+        }
+        let mut readers: Vec<_> = readers.into_values().collect();
+        readers.sort_by_key(|(_, refs)| refs[0]);
+        for (ids, refs) in readers {
+            let refs: Arc<[ReferenceId]> = refs.into();
+            for b in ids.iter() {
+                self.bindings[b.index()].references.share(refs.clone());
             }
         }
         for scope in &mut self.scopes {
