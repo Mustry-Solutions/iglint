@@ -65,7 +65,8 @@ which Perspective reads as a tag path); and no string of the view holds
 the name, as a word, anywhere the fix does not update it. It is *unsafe*
 otherwise, and names the place that keeps it from being safe. Like every
 fix, it is also unsafe while code in the workspace may read the files a
-fix edits (a read whose path is not a literal outside the workspace, or
+fix edits (any file access, read, write, rename or delete, whose path
+is not a literal outside the workspace, or
 code that is not vetted); the project setting `[fix]
 assume-scripts-do-not-read-workspace-files = true` declares that no script
 does (see `docs/internal/fix-safety.md`, "File reads").

@@ -924,6 +924,67 @@ fn quick_fixes_are_unsafe_when_scripts_read_workspace_files() {
     }
 }
 
+/// Reviewer round 11: a rename of a workspace file to a literal outside
+/// path, through a library helper, and an append-mode open (which reveals
+/// the size) count as possible reads in the language server too.
+#[test]
+fn quick_fixes_are_unsafe_when_scripts_move_or_append_to_workspace_files() {
+    let target = "/usr/local/bin/ignition/data/projects/p/ignition/script-python/m/code.py";
+    for text in [
+        format!(
+            "import math\nimport os\nos.rename('{target}', '/tmp/m.py')\nprint open('/tmp/m.py').read()\n"
+        ),
+        format!("import math\nr.mv('{target}', '/tmp/m.py')\nprint open('/tmp/m.py').read()\n"),
+        format!("import math\nf = open('{target}', 'a')\nf.seek(0, 2)\nprint f.tell()\n"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        demo_project(&root);
+        let lib = "projects/demo/ignition/script-python";
+        let manifest = MANIFEST.replace("view.json", "code.py");
+        write(&root, &format!("{lib}/r/resource.json"), &manifest);
+        write(
+            &root,
+            &format!("{lib}/r/code.py"),
+            "import os\ndef mv(a, b):\n    os.rename(a, b)\n",
+        );
+        write(&root, &format!("{lib}/m/resource.json"), &manifest);
+        let path = write(&root, &format!("{lib}/m/code.py"), &text);
+        let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+        let uri = client.open(&path, &text);
+        let published = client.diagnostics(&uri, Some(1));
+        let range = published
+            .diagnostics
+            .iter()
+            .find(|d| {
+                d.code
+                    .as_ref()
+                    .is_some_and(|c| *c == lsp_types::NumberOrString::String("SCR102".to_owned()))
+            })
+            .unwrap_or_else(|| panic!("{published:#?}"))
+            .range;
+        let fixes: Vec<CodeAction> = code_actions(
+            &mut client,
+            &uri,
+            range,
+            Some(vec![CodeActionKind::QUICKFIX]),
+        )
+        .into_iter()
+        .filter(|a| a.title.starts_with("SCR102") && !a.title.contains("suppress"))
+        .collect();
+        assert!(!fixes.is_empty(), "{text}: {fixes:#?}");
+        for fix in &fixes {
+            assert!(
+                fix.title
+                    .contains("(unsafe: code in the workspace may read the files"),
+                "{text}: {fix:#?}"
+            );
+            assert_eq!(fix.is_preferred, Some(false), "{fix:#?}");
+        }
+        client.shutdown();
+    }
+}
+
 /// The NAME001 quick fixes offered for the component `name` of `view`: the
 /// title and whether each is preferred (safe).
 fn name001_fixes(view: &str, name: &str) -> Vec<(String, Option<bool>)> {

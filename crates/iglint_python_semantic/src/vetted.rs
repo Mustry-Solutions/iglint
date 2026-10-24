@@ -799,6 +799,10 @@ fn implicit_bound(name: &str) -> Bound {
     }
 }
 
+/// What a name may stand for, with its qualified name
+/// ([`binding_qualified`]).
+type Candidate = (Bound, Option<String>);
+
 struct Walk<'m, 'a> {
     model: &'m SemanticModel<'a>,
     /// [`binding_bound`] of every binding, by binding id.
@@ -829,9 +833,18 @@ impl Walk<'_, '_> {
     /// [`Walk::candidates`], each with its qualified name
     /// ([`binding_qualified`]).
     fn candidates_with_names(&self, n: &ExprName) -> Vec<(Bound, Option<String>)> {
+        let (mut out, fallback) = self.bindings_and_fallback(n);
+        out.extend(fallback);
+        out
+    }
+
+    /// The bindings the `Load` name `n` may stand for, and separately the
+    /// injected name or builtin that Python looks up when none of them has
+    /// run (module and class bodies, `global` names).
+    fn bindings_and_fallback(&self, n: &ExprName) -> (Vec<Candidate>, Option<Candidate>) {
         let Some(r) = self.model.reference_at(n.range) else {
             // No reference: we cannot say what the name is. Fail closed.
-            return vec![(Bound::Unknown, None)];
+            return (vec![(Bound::Unknown, None)], None);
         };
         let name = &*n.id;
         let of = |scope: ScopeId| {
@@ -867,12 +880,12 @@ impl Walk<'_, '_> {
                 true
             }
             Resolution::Builtin | Resolution::Injected | Resolution::Unresolved => true,
-            Resolution::Dynamic => return vec![(Bound::Unknown, None)],
+            Resolution::Dynamic => return (vec![(Bound::Unknown, None)], None),
         };
-        if fallback {
-            out.push((implicit_bound(name), implicit_qualified(name)));
-        }
-        out
+        (
+            out,
+            fallback.then(|| (implicit_bound(name), implicit_qualified(name))),
+        )
     }
 
     /// Checks an attribute chain rooted at a name: each binding the root
@@ -1044,51 +1057,51 @@ impl Walk<'_, '_> {
             .is_some_and(|p| crate::file_reads::outside_workspace(&p))
     }
 
-    /// Whether the call `c` of the file facility `f` reads no workspace file.
+    /// Whether the call `c` of the file facility `f` touches no workspace
+    /// file: every path argument is present and a literal outside the
+    /// workspace.
     fn facility_call_ok(&self, f: Facility, c: &ExprCall) -> bool {
         if c.starargs.is_some() || c.kwargs.is_some() {
             return false;
         }
         match f {
-            Facility::Path {
-                position,
-                keyword,
-                mode,
-            } => {
-                if let Some((mp, mk)) = mode
-                    && let Some(Expr::Str(m)) = argument(c, mp, mk)
-                    && crate::file_reads::write_only_mode(&m.s.to_latin1())
-                {
-                    return true;
-                }
-                self.literal_outside(argument(c, position, keyword))
-            }
-            Facility::TwoPaths => {
-                self.literal_outside(c.args.first()) && self.literal_outside(c.args.get(1))
-            }
+            Facility::Paths(paths) => paths
+                .iter()
+                .all(|(position, keyword)| self.literal_outside(argument(c, *position, keyword))),
             Facility::Url { position, keyword } => argument(c, position, keyword)
                 .and_then(|e| self.literal_path(e))
                 .is_some_and(|u| crate::file_reads::url_outside_workspace(&u)),
+            Facility::Name { position, keyword } => matches!(
+                argument(c, position, keyword),
+                Some(Expr::Str(s)) if crate::file_reads::bare_name(&s.s.to_latin1())
+            ),
+            Facility::Always => false,
         }
     }
 
-    /// Whether the constructor call `c` of a Java file class reads no
+    /// Whether the constructor call `c` of a Java file class touches no
     /// workspace file.
     fn java_call_ok(&self, policy: JavaPolicy, c: &ExprCall) -> bool {
         if policy == JavaPolicy::Plain {
             return true;
         }
-        if c.starargs.is_some() || c.kwargs.is_some() || !c.keywords.is_empty() || c.args.is_empty()
-        {
+        if c.starargs.is_some() || c.kwargs.is_some() || !c.keywords.is_empty() {
             return false;
         }
+        if c.args.is_empty() {
+            return policy == JavaPolicy::MaybePath;
+        }
         match policy {
-            JavaPolicy::Reader { all: true } => {
+            JavaPolicy::Path { all: true } => {
                 let parts: Option<Vec<String>> =
                     c.args.iter().map(|a| self.literal_path(a)).collect();
                 parts.is_some_and(|p| crate::file_reads::outside_workspace(&p.join("/")))
             }
-            JavaPolicy::Reader { all: false } => self.literal_outside(c.args.first()),
+            JavaPolicy::Path { all: false } => self.literal_outside(c.args.first()),
+            JavaPolicy::MaybePath => {
+                self.literal_outside(c.args.first())
+                    || matches!(&c.args[0], Expr::Call(inner) if self.plain_java_constructor(inner))
+            }
             JavaPolicy::Url => {
                 c.args.len() == 1
                     && self
@@ -1097,6 +1110,26 @@ impl Walk<'_, '_> {
             }
             JavaPolicy::Plain => true,
         }
+    }
+
+    /// Whether `c` constructs a vetted Java class without a file policy
+    /// (`StringWriter()`, `ByteArrayOutputStream()`) on every binding its
+    /// callee may stand for.
+    fn plain_java_constructor(&self, c: &ExprCall) -> bool {
+        let Expr::Name(n) = &*c.func else {
+            return false;
+        };
+        // A name that is bound nowhere else raises `NameError` (or is a
+        // project library name, which a vetted Java import shadows): the
+        // fallback counts only when it is a builtin or injected name.
+        let (bindings, fallback) = self.bindings_and_fallback(n);
+        let fallback = fallback.filter(|f| *f != (Bound::Plain, None));
+        !bindings.is_empty()
+            && bindings.iter().chain(&fallback).all(|(b, q)| {
+                matches!(b, Bound::JavaClass(_))
+                    && q.as_deref()
+                        .is_some_and(|q| crate::file_reads::java_policy(q).is_none())
+            })
     }
 
     fn check_file_call(&mut self, c: &ExprCall) {
@@ -1129,10 +1162,7 @@ impl Walk<'_, '_> {
         }
         let read = self.dotted_names(expr).iter().any(|q| {
             crate::file_reads::facility(q).is_some()
-                || matches!(
-                    crate::file_reads::java_policy(q),
-                    Some(JavaPolicy::Reader { .. } | JavaPolicy::Url)
-                )
+                || crate::file_reads::java_policy(q).is_some_and(|p| p != JavaPolicy::Plain)
         });
         if read {
             self.file_read(expr.range());
@@ -1621,6 +1651,129 @@ mod tests {
 
     /// The generated name and attribute lists are sorted for the binary
     /// searches that consume them.
+    /// Every vetted attribute of `os`, `os.path` and `sys` either takes a
+    /// path or file descriptor (a file facility) or is reviewed as path
+    /// free, never both: a newly vetted attribute fails here until it is
+    /// classified.
+    #[test]
+    fn every_vetted_os_attribute_is_classified() {
+        use crate::file_reads::{FILE_FACILITIES, PATH_FREE, facility};
+        let dunder = |a: &&str| a.starts_with("__") && a.ends_with("__");
+        let os_path = crate::generated::MODULE_VETTED_ATTRS
+            .iter()
+            .find(|(m, _)| *m == "os.path")
+            .map(|(_, a)| *a)
+            .expect("os.path is measured");
+        let mut names: Vec<String> = OS_ATTRIBUTES.iter().map(|a| format!("os.{a}")).collect();
+        names.extend(SYS_ATTRIBUTES.iter().map(|a| format!("sys.{a}")));
+        names.extend(
+            os_path
+                .iter()
+                .filter(|a| !dunder(a))
+                .map(|a| format!("os.path.{a}")),
+        );
+        for n in &names {
+            let path_taking = facility(n).is_some();
+            let free = PATH_FREE.contains(&n.as_str());
+            assert!(
+                path_taking != free,
+                "{n} is {}",
+                if free {
+                    "both path free and a file facility"
+                } else {
+                    "not classified as path taking or path free"
+                }
+            );
+        }
+        for n in PATH_FREE {
+            assert!(names.iter().any(|v| v == n), "{n} is not vetted");
+        }
+        for (q, _) in FILE_FACILITIES {
+            if q.starts_with("os.") || q.starts_with("sys.") {
+                assert!(names.iter().any(|v| v == q), "{q} is not vetted");
+            }
+        }
+        assert!(PATH_FREE.windows(2).all(|w| w[0] < w[1]));
+    }
+
+    /// Every `system.*` function with a parameter that may name a local
+    /// file (by name or type) is a file facility or reviewed as not
+    /// touching local files; functions that run code are unknown code
+    /// anyway.
+    #[test]
+    fn every_system_file_parameter_is_classified() {
+        use crate::file_reads::{FILE_FACILITIES, SYSTEM_NOT_LOCAL_FILES, facility};
+        // The words of a camelCase parameter name (`localFilePath`: local,
+        // file, path), or a type that mentions a file.
+        let looks_like_file = |p: &iglint_stubs::Param| {
+            let name = p.name.unwrap_or("");
+            let mut words = Vec::new();
+            let mut word = String::new();
+            for c in name.chars() {
+                if c.is_ascii_uppercase() && !word.is_empty() {
+                    words.push(std::mem::take(&mut word));
+                }
+                word.push(c.to_ascii_lowercase());
+            }
+            words.push(word);
+            words.iter().any(|w| {
+                matches!(
+                    w.as_str(),
+                    "file"
+                        | "filename"
+                        | "filepath"
+                        | "url"
+                        | "uri"
+                        | "location"
+                        | "wav"
+                        | "destination"
+                        | "dir"
+                        | "directory"
+                        | "folder"
+                )
+            }) || p.ty.is_some_and(|t| t.contains("File"))
+        };
+        let mut functions = Vec::new();
+        for package in iglint_stubs::system_packages() {
+            for member in iglint_stubs::system_members(package.path) {
+                if let iglint_stubs::Member::Function(f) = member {
+                    functions.push(f.path);
+                    if SYSTEM_RUNS_CODE.contains(&f.path) {
+                        continue;
+                    }
+                    let file_like = f
+                        .variants
+                        .iter()
+                        .flat_map(|v| v.overloads)
+                        .flat_map(|o| o.params)
+                        .any(looks_like_file);
+                    if file_like {
+                        let path_taking = facility(f.path).is_some();
+                        let reviewed = SYSTEM_NOT_LOCAL_FILES.contains(&f.path);
+                        assert!(
+                            path_taking != reviewed,
+                            "{} has a parameter that may name a file and is {}",
+                            f.path,
+                            if reviewed {
+                                "classified twice"
+                            } else {
+                                "not classified"
+                            }
+                        );
+                    }
+                }
+            }
+        }
+        for (q, _) in FILE_FACILITIES {
+            if q.starts_with("system.") {
+                assert!(functions.contains(q), "{q} is not a system function");
+            }
+        }
+        for q in SYSTEM_NOT_LOCAL_FILES {
+            assert!(functions.contains(q), "{q} is not a system function");
+        }
+    }
+
     #[test]
     fn generated_lists_are_sorted() {
         assert!(
@@ -1717,6 +1870,43 @@ mod tests {
             "x = context.getSystemManager().getDataDir()\n",
             "x = request['context'].getProjectManager()\n",
             "x = request['context'].projectManager\n",
+            // Default deny: every path-taking facility, whatever the
+            // mode or direction (round 11).
+            "x = open(p, 'w')\n",
+            "x = open(p, mode='wb')\n",
+            "x = open(name=p, mode='w')\n",
+            "def size(p):\n    f = open(p, 'a')\n    f.seek(0, 2)\n    return f.tell()\n",
+            "x = file(p, 'a')\n",
+            "import os\nx = os.listdir(p)\n",
+            "import os\nfor d, ds, fs in os.walk(p):\n    pass\n",
+            "import os\nx = os.path.exists(p) and os.path.isfile(p) and os.path.isdir(p)\n",
+            "import os\nos.rename('/usr/local/bin/ignition/data/projects/p/ignition/script-python/m/code.py', '/tmp/m.py')\nprint open('/tmp/m.py').read().startswith('import math\\n')\n",
+            "import os\nos.rename('/tmp/a', p)\n",
+            "import os\nos.renames(p, '/tmp/b')\n",
+            "import os\nos.remove(p)\n",
+            "import os\nos.unlink(p)\n",
+            "import os\nos.makedirs(p)\n",
+            "import os\nos.utime(p, None)\n",
+            "import os\nos.rmdir(p)\n",
+            "import os\nx = os.path.realpath(p)\n",
+            "import os\nx = os.path.islink(p)\n",
+            "import os\nx = os.listdir()\n",
+            "import os\nx = filter(os.path.isfile, ps)\n",
+            "x = system.file.fileExists(p)\n",
+            "system.file.writeFile(p, data)\n",
+            "system.file.writeFile('data/x.txt', data, True)\n",
+            "x = system.file.getTempFile(ext)\n",
+            "x = system.file.getTempFile('../../projects/p/x')\n",
+            "system.tag.exportTags(p, ['[default]A'])\n",
+            "system.report.executeAndDistribute('r', 'p', {}, 'save', {})\n",
+            "system.dataset.exportCSV(p, True, ds)\n",
+            "from java.io import FileOutputStream\nx = FileOutputStream(p)\n",
+            "from java.io import FileOutputStream\nx = FileOutputStream(p, True).getChannel().size()\n",
+            "from java.io import FileWriter\nx = FileWriter(p, True)\n",
+            "from java.io import PrintWriter\nx = PrintWriter(p)\n",
+            "from java.io import PrintWriter\nx = PrintWriter(w)\n",
+            "from java.util import Formatter\nx = Formatter(p)\n",
+            "from java.io import FileWriter\nW = FileWriter\n",
         ] {
             let found = unknown(src);
             assert!(found.file_read.is_some(), "no file read in:\n{src}");
@@ -1726,28 +1916,31 @@ mod tests {
             "x = open('C:\\\\exports\\\\x.csv').read()\n",
             "x = open('/tmp/' + 'x.csv')\n",
             "import os\nx = open(os.path.join('/tmp', 'x.csv'))\n",
-            "x = open(p, 'w')\n",
-            "x = open(p, mode='wb')\n",
-            "x = open(p, 'a')\n",
-            "import os\nx = os.listdir(p)\n",
-            "import os\nfor d, ds, fs in os.walk(p):\n    pass\n",
-            "import os\nx = os.path.exists(p) and os.path.isfile(p) and os.path.isdir(p)\n",
             "import os\nx = os.path.join(a, b)\n",
             "import os\nx = os.stat('/tmp/x')\n",
-            "x = system.file.fileExists(p)\n",
-            "system.file.writeFile(p, data)\n",
             "x = system.file.getTempFile('csv')\n",
             "x = system.net.httpGet('https://example.com/a')\n",
             "from java.io import File\nx = File('/tmp/x').length()\n",
             "from java.io import File\nx = File('/tmp', 'x')\n",
             "from java.io import File\nx = File.separator\n",
-            "from java.io import FileOutputStream, PrintWriter, FileWriter\nx = FileOutputStream(p)\ny = PrintWriter(p)\nz = FileWriter(p, True)\n",
             "from java.io import FileInputStream\nx = FileInputStream('/tmp/x')\n",
             "from java.net import URL\nx = URL('https://example.com').openStream()\n",
             "from java.util import Scanner\nx = Scanner('1 2 3')\n",
             "d = {}\nd.update(x)\n",
             "x = self.getChild('A').parent\n",
             "x = getattr(o, 'value')\n",
+            "import os\nos.rename('/tmp/a', '/tmp/b')\n",
+            "import os\nx = os.path.exists('/tmp/x')\n",
+            "import os\nx = os.listdir('/var/exports')\n",
+            "x = open('/tmp/x.log', 'a')\n",
+            "import os\nx = os.getcwd() + os.sep + os.linesep\n",
+            "import os\nx = os.path.basename(p) + os.path.splitext(p)[1]\n",
+            "import os\nx = os.environ.get('HOME')\n",
+            "system.file.writeFile('/tmp/x.txt', data)\n",
+            "x = system.file.getTempFile('csv')\n",
+            "from java.io import FileOutputStream\nx = FileOutputStream('/tmp/x', True)\n",
+            "from java.io import PrintWriter, StringWriter\nx = PrintWriter(StringWriter())\n",
+            "from java.util import Formatter\nx = Formatter()\n",
         ] {
             let found = unknown(src);
             assert_eq!(found.file_read, None, "file read in:\n{src}");

@@ -613,15 +613,97 @@ fn reads_of_files_outside_the_workspace_keep_fixes_safe() {
     )
     .unwrap();
     let m = dir.path().join("p/ignition/script-python/m/code.py");
-    std::fs::write(&m, "x = open('/tmp/report.csv').read()  \n").unwrap();
-    iglint(dir.path())
-        .args(["--no-cache", "--fix", "--select", "SCR124"])
-        .output()
-        .unwrap();
-    assert_eq!(
-        std::fs::read_to_string(&m).unwrap(),
-        "x = open('/tmp/report.csv').read()\n"
+    for code in [
+        "x = open('/tmp/report.csv').read()",
+        // Writes, appends and renames between literal paths outside the
+        // workspace.
+        "import os\nos.rename('/tmp/a', '/tmp/b')\nf = open('/tmp/x.log', 'a')",
+    ] {
+        std::fs::write(&m, format!("{code}  \n")).unwrap();
+        iglint(dir.path())
+            .args(["--no-cache", "--fix", "--select", "SCR124"])
+            .output()
+            .unwrap();
+        assert_eq!(std::fs::read_to_string(&m).unwrap(), format!("{code}\n"));
+    }
+}
+
+/// Reviewer round 11: moving a workspace file to a literal path outside
+/// the workspace makes that path an observer, and appending to a file
+/// reveals its size (`tell`), so every path-taking facility counts,
+/// whatever its mode or direction (verified on Jython in the 8.3.3 image:
+/// the rename variant prints `True` before `SCR102`'s fix and `False`
+/// after; the append variant prints the size).
+#[test]
+fn moves_and_appends_of_workspace_files_make_fixes_unsafe() {
+    let target = "/usr/local/bin/ignition/data/projects/p/ignition/script-python/m/code.py";
+    let rename = format!(
+        "import math\nimport os\nos.rename('{target}', '/tmp/m.py')\nprint open('/tmp/m.py').read().startswith('import math\\n')\n"
     );
+    let helper = format!(
+        "import math\nh.mv('{target}', '/tmp/m.py')\nprint open('/tmp/m.py').read().startswith('import math\\n')\n"
+    );
+    let append = format!(
+        "import math\ndef size(p):\n    f = open(p, 'a')\n    f.seek(0, 2)\n    return f.tell()\nprint size('{target}')\n"
+    );
+    let keyword =
+        format!("import math\nf = open(name='{target}', mode='a')\nf.seek(0, 2)\nprint f.tell()\n");
+    let file_append = format!("import math\nf = file('{target}', 'a')\nprint f.tell()\n");
+    for (case, code) in [
+        ("rename", &rename),
+        ("helper", &helper),
+        ("append", &append),
+        ("keyword", &keyword),
+        ("file", &file_append),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let write = |rel: &str, text: &str| {
+            let path = dir.path().join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        };
+        write(
+            "p/project.json",
+            r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+        );
+        for (name, text) in [
+            ("m", code.as_str()),
+            ("h", "import os\ndef mv(a, b):\n    os.rename(a, b)\n"),
+        ] {
+            write(
+                &format!("p/ignition/script-python/{name}/resource.json"),
+                r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+            );
+            write(&format!("p/ignition/script-python/{name}/code.py"), text);
+        }
+        let out = iglint(dir.path())
+            .args([
+                "--no-cache",
+                "--output-format",
+                "json",
+                "--select",
+                "SCR102",
+            ])
+            .output()
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+        let found = v.as_array().unwrap();
+        assert_eq!(found.len(), 1, "{case}: {v}");
+        assert_eq!(found[0]["fix"]["applicability"], "unsafe", "{case}: {v}");
+        let message = found[0]["fix"]["unsafe_reason"]["message"]
+            .as_str()
+            .unwrap();
+        assert!(
+            message.contains("may read the files a fix edits"),
+            "{case}: {message}"
+        );
+        let m = dir.path().join("p/ignition/script-python/m/code.py");
+        iglint(dir.path())
+            .args(["--no-cache", "--fix", "--select", "SCR102"])
+            .output()
+            .unwrap();
+        assert_eq!(&std::fs::read_to_string(&m).unwrap(), code, "{case}");
+    }
 }
 
 /// Reviewer round 10, O1 and O2, through the binary: `--fix` must not

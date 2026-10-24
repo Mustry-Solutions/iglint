@@ -144,9 +144,12 @@ severity = { SCR = "info" }
 * `[fix] assume-scripts-do-not-read-workspace-files` (default `false`):
   every fix edits a file of the workspace, and a script that reads that
   file (`open(path).read()`, its size or modification time) sees the
-  edit. So while any code in the workspace may read a workspace file (a
-  read whose path is not a literal outside the workspace, or code that is
-  not vetted), every fix is unsafe and says where that code is. Setting
+  edit; a script that writes, appends to, renames or deletes one changes
+  what the fix edits or moves it where a later read sees it. So while
+  any code in the workspace may access a workspace file (any file
+  operation whose path is not a literal outside the workspace, whatever
+  its mode, or code that is not vetted), every fix is unsafe and says
+  where that code is. Setting
   this to `true` states that no script reads the files of the workspace;
   checking that is your responsibility. It lifts only this condition,
   not the other reasons a fix may be unsafe.

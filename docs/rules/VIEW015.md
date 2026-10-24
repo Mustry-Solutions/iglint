@@ -120,7 +120,8 @@ functions. View parameters are never removed automatically (callers pass
 them).
 
 Like every fix, it is unsafe while code in the workspace may read the
-files a fix edits (a read whose path is not a literal outside the
+files a fix edits (any file access, read, write, rename or delete, whose path
+is not a literal outside the
 workspace, or code that is not vetted); the project setting `[fix]
 assume-scripts-do-not-read-workspace-files = true` declares that no script
 does (see `docs/internal/fix-safety.md`, "File reads").

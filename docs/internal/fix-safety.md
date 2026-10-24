@@ -408,31 +408,76 @@ reason names the first such site in the workspace and the setting.
 **What counts** (`ProjectIndex::may_read_workspace_files`, from
 `References::reads_files`):
 
-* a possible read in vetted code (`iglint_python_semantic::file_reads`,
-  reported by `vetted::unknown_code` as `UnknownCode::file_read`):
-  * the builtins `open` and `file`, unless the mode is a literal without
-    `r`, `+` or `U` (a write-only open observes nothing);
-  * metadata that a fix changes: `os.stat` and `os.lstat` (size, times,
-    inode), `os.access` (a fix replaces the file, see below, and a new
-    owner may change the answer), `os.path.getsize`, `getmtime`,
-    `getatime`, `getctime` and `samefile`;
+* a possible access in vetted code (`iglint_python_semantic::file_reads`,
+  reported by `vetted::unknown_code` as `UnknownCode::file_read`). This is
+  default deny, not a list of reads: every vetted facility that takes a
+  path or a file descriptor counts unless **every** path argument is a
+  literal outside the workspace, whatever the mode or the direction of
+  the operation. Reads observe a fix. Writes and appends observe it too
+  (`f = open(p, "a"); f.seek(0, 2); f.tell()` returns the size, verified
+  on Jython in the 8.3.3 image) or change the files a fix edits; renames,
+  copies and links make a workspace file visible under a literal outside
+  path (`os.rename('<workspace>/m/code.py', '/tmp/m.py')` followed by
+  `open('/tmp/m.py').read().startswith('import math\n')` prints `True`
+  before `SCR102`'s fix and `False` after, verified); deletions and
+  creations change what a fix edits. An earlier version exempted
+  write-only modes of `open` and treated `os.rename`, `os.remove`,
+  listing and existence checks as plain; review round 11 defeated that.
+  The facilities (`file_reads::FILE_FACILITIES`):
+  * the builtins `open` and `file` (the path; no mode is exempt);
+  * every path-taking attribute of `os` and `os.path` that is vetted:
+    `access`, `listdir`, `lstat`, `makedirs`, `mkdir`, `remove`,
+    `removedirs`, `rename` and `renames` (both paths), `rmdir`, `stat`,
+    `unlink`, `utime`, `walk`, and `os.path.exists`, `getatime`,
+    `getctime`, `getmtime`, `getsize`, `isdir`, `isfile`, `islink`,
+    `ismount`, `lexists`, `realpath`, `samefile`, `sameopenfile` and
+    `walk`. Every vetted attribute of `os`, `os.path` and `sys` is either
+    one of these or reviewed as path free (`file_reads::PATH_FREE`:
+    constants, the environment, `getcwd`, `strerror`, `urandom`, the
+    console streams, and the pure string functions of `os.path` such as
+    `join`, `basename`, `splitext`, `normpath`, `abspath`), and
+    `every_vetted_os_attribute_is_classified` fails on a vetted attribute
+    that is neither or both. The other vetted modules take no path
+    (reviewed: `json.load` and `json.dump`, `base64.encode` and
+    `base64.decode` take file objects, whose source is counted where it
+    is made);
   * Ignition: `system.file.readFileAsString`, `readFileAsBytes`,
-    `system.iec61850.writeFile` (it sends a local file to the device),
-    and the legacy `system.net.httpGet`, `httpPost`, `httpPut` and
-    `httpDelete`, which take any URL string (`file:` included, not
-    verified otherwise, so failing closed). `system.net.httpClient` uses
+    `writeFile`, `fileExists`, `getTempFile` (fine with a literal
+    extension without a separator or `..`), `system.tag.exportTags`, the
+    dataset and Vision exports and `printToImage`,
+    `system.iec61850.readFile` and `writeFile` (local paths), the legacy
+    `system.net.httpGet`, `httpPost`, `httpPut` and `httpDelete` and
+    `openURL`, which take any URL string (`file:` included, not verified
+    otherwise, so failing closed), and, on every call, the file dialogs,
+    `system.file.saveToFile`, `system.util.playSoundClip`,
+    `system.report.executeAndDistribute` (its distribution actions write
+    files) and `system.db.addDatasource` and `setDatasourceConnectURL` (a
+    JDBC URL may name a database file). `system.net.httpClient` uses
     Java's `HttpClient`, which rejects `file:` URIs (verified:
-    `IllegalArgumentException: invalid URI scheme file`);
+    `IllegalArgumentException: invalid URI scheme file`). Every `system.*`
+    function with a parameter whose name or type looks like a local file
+    (`file`, `filename`, `filepath`, `url`, `uri`, `location`,
+    `destination`, `dir`, `folder`, `wav`, a `File` type) is a facility or
+    reviewed as not touching local files
+    (`file_reads::SYSTEM_NOT_LOCAL_FILES`: OPC folders and endpoints, the
+    browser's download name and navigation, `system.perspective.print`'s
+    console destination, a report's format, tag paths), checked by
+    `every_system_file_parameter_is_classified`;
   * vetted Java classes that make file handles from strings
     (`file_reads::JAVA_FILE_POLICY`): `java.io.File`, `FileInputStream`,
-    `FileReader` (path arguments), `java.net.URL` and `URI` (an `http`,
-    `https` or `ftp` literal is fine, a `file:` literal is a path).
-    Writers (`FileOutputStream`, `FileWriter`, `PrintWriter`,
-    `java.util.Formatter`) and classes that only take a handle or stream
-    the script already holds (`Scanner`, `HttpURLConnection`) are plain.
-    Which vetted classes take or are handles is measured
-    (`JAVA_FILE_CLASSES`) and `every_measured_file_class_has_a_policy`
-    fails on one without a policy;
+    `FileReader`, `FileOutputStream` and `FileWriter` (path arguments,
+    reading and writing alike), `PrintWriter` and `java.util.Formatter`
+    (fine without arguments, with an outside literal or with a direct
+    constructor call of a vetted Java class without a file policy, as in
+    `PrintWriter(StringWriter())`; anything else may be a file name),
+    `java.net.URL` and `URI` (an `http`, `https` or `ftp` literal is
+    fine, a `file:` literal is a path). Classes that only take a handle
+    or stream the script already holds (`Scanner`, `HttpURLConnection`,
+    readers and writers wrapping a stream) are plain: the handle was
+    counted where it was made. Which vetted classes take or are handles
+    is measured (`JAVA_FILE_CLASSES`) and
+    `every_measured_file_class_has_a_policy` fails on one without a
+    policy;
   * any member named in `JAVA_FILE_MEMBERS`, on any value but a vetted
     Python module, as an attribute or as a literal `getattr` name: the
     members whose declared type mentions a file handle (`java.io.File`,
@@ -473,7 +518,7 @@ reason names the first such site in the workspace and the setting.
   iglint does not read, so a workspace with Vision clients already counts;
   library code runs in a Vision client only when one of those exists.
 
-**A read is fine** only when its path is a string literal, a
+**An access is fine** only when each of its paths is a string literal, a
 concatenation of literals or `os.path.join` of literals, that
 `file_reads::outside_workspace` proves names no file iglint edits. Files
 iglint edits are resources, always below a module directory (`ignition`,
@@ -494,23 +539,43 @@ character (a module id), or is a manifest. `/tmp/report.csv` and
 (`'/tmp/' + name`, `os.path.join('/tmp', name)`, `'/tmp/%s' % name`) is
 not accepted: the rest may hold `../` or, for `os.path.join`, an absolute
 path that discards the prefix. The regression tests are
-`vetted::tests::file_reads`, `file_reads::tests::*`, the rule tests
-`file_reads_make_the_fix_unsafe` (`SCR124`),
+`vetted::tests::file_reads`,
+`every_vetted_os_attribute_is_classified`,
+`every_system_file_parameter_is_classified`, `file_reads::tests::*`, the
+rule tests `file_reads_make_the_fix_unsafe` (`SCR124`),
 `file_reads_make_the_removal_unsafe` (`SCR102`),
 `file_reads_make_fixes_unsafe` (`VIEW015`), the binary tests
-`fixes_are_unsafe_when_scripts_read_workspace_files` and
+`fixes_are_unsafe_when_scripts_read_workspace_files`,
+`moves_and_appends_of_workspace_files_make_fixes_unsafe` and
 `reads_of_files_outside_the_workspace_keep_fixes_safe`, and the language
-server test `quick_fixes_are_unsafe_when_scripts_read_workspace_files`.
+server tests `quick_fixes_are_unsafe_when_scripts_read_workspace_files`
+and `quick_fixes_are_unsafe_when_scripts_move_or_append_to_workspace_files`.
 
-**Listing and existence are not reads.** `os.listdir`, `os.walk`,
-`os.path.exists`, `isfile`, `isdir`, `islink`, `lexists` and
-`system.file.fileExists` stay plain: fixes never create or delete a file.
-A fix writes the new text to a temporary file next to the target and
-renames it over the target, keeping its permissions
-(`engine::write_atomically`), so after the fix the directory holds the
-same names; the temporary name exists only while iglint runs. The rename
-does make a new inode (and, when iglint runs as another user, a new
-owner), which is why `os.stat`, `os.access` and `samefile` count.
+**Why outside literals stay fine.** A literal path outside the workspace
+can name a workspace file only through an alias: a rename, copy, hard
+or symbolic link that puts a workspace file there. Every vetted way to
+make one (`os.rename`, `os.renames`, `File.renameTo` on a `File` made
+from a path, a write of a copy) takes the workspace path as an argument
+and is therefore itself a possible access, so the script that creates
+the alias already withholds safe fixes. Vetted code cannot create links
+(`os.link` and `os.symlink` are not vetted; `java.nio.file` is not
+vetted). Symbolic links that exist before the script runs, made by an
+administrator or another process (`/tmp/x -> .../projects/p`), are
+outside the closed world like other processes (below): a literal path is
+judged by its text, not by resolving links on the machine that lints,
+which is not the gateway. Failing closed for every literal under a
+temporary or world-writable directory was considered and rejected: it
+would make `/tmp/report.csv` count while giving no guarantee for other
+directories, where an administrator can make the same links.
+
+**What fixes do to the files.** A fix writes the new text to a
+temporary file next to the target and renames it over the target,
+keeping its permissions (`engine::write_atomically`), so after the fix
+the directory holds the same names; the temporary name exists only
+while iglint runs. The rename makes a new inode (and, when iglint runs
+as another user, a new owner). Listing and existence checks of
+workspace paths therefore do not observe a fix by themselves, but they
+count anyway under the default-deny rule above.
 
 **Not covered**, outside the closed world like projects outside the
 workspace: other processes that read the files (a database server on the
@@ -546,15 +611,15 @@ as a value is itself a route.
 | `string` | Except `Formatter`, which reads the attributes its format string names (verified). `Template` only looks names up in the mapping it is given (verified: `${x.y}` is rejected). |
 | `collections` | `namedtuple` runs generated code in a namespace of its own and rejects type and field names that are not identifiers (verified). |
 | `operator` | Except `attrgetter` and `methodcaller`, which look attributes up by name (verified). |
-| `os` | Only path and file functions and constants (`path`, `sep`, `getcwd`, `listdir`, `stat`, `environ`, `getenv`, `makedirs`, `remove`, `rename`, `walk`, ...). Not processes or anything else. Their file reads are checked separately (see "File reads"). |
+| `os` | Only path and file functions and constants (`path`, `sep`, `getcwd`, `listdir`, `stat`, `environ`, `getenv`, `makedirs`, `remove`, `rename`, `walk`, ...). Not processes or anything else. Every path-taking one counts as a possible file access (see "File reads"). |
 | `sys` (also as Ignition's implicit global) | Only `version`, `version_info`, `hexversion`, `platform`, `maxint`, `maxsize`, `maxunicode`, `byteorder`, `float_info`, `stdout`, `stderr`, `exit`, `getdefaultencoding`, `getfilesystemencoding`, `getrecursionlimit`. Not `_getframe`, `modules`, `exc_info`, `path` (it decides which module an import loads), trace hooks. |
 | `system` (Ignition's scripting API) | No `system.*` function of 8.3 evaluates Python code in the caller's frame or resolves a callable by name in it (checked against the generated stubs): functions that take callables call the value, message handlers are looked up among the project's handlers, not in the caller. Except the functions that store or run code from run-time values, which are not vetted (see "`system.*` functions that run code"). A `system` package used as a value (`t = system.tag`) is not vetted either. |
 | `__future__` | Compile-time only. |
 | `java.util` (except `ServiceLoader` and the resource bundles, which load classes by name), `java.util.concurrent` (and `atomic`, `locks`), `java.util.function`, `java.util.regex`, `java.util.stream`, `java.math`, `java.text`, `java.time` (and `chrono`, `format`, `temporal`), `java.nio.charset` | Data structures and formatting; no reflection. |
 | `java.lang`: `Math`, `StrictMath`, `String`, `StringBuilder`, `StringBuffer`, the boxed number types, `Boolean`, `Character`, `Number`, `System` (except `load`, `loadLibrary`, `mapLibraryName`, security managers, `inheritedChannel`), `Exception` and common runtime exceptions | Not `Class`, `ClassLoader`, `Thread`, `Throwable`, `Runtime`, `Process*`, reflection, `invoke` or `StackWalker`. The exception classes hand out only stack traces (class, method, file and line), which safe fixes never change. |
-| `java.io`: readers, writers, file and byte streams, `File`, `IOException` | Not object streams: deserialization instantiates classes named by the data. Their file reads are checked separately (see "File reads"). |
+| `java.io`: readers, writers, file and byte streams, `File`, `IOException` | Not object streams: deserialization instantiates classes named by the data. Their file accesses are checked separately (see "File reads"). |
 | `java.net`: `URL`, `URI`, `URLEncoder`, `URLDecoder`, `InetAddress`, `HttpURLConnection`, common exceptions | Not class loaders. |
-| Builtins: every builtin except those below; every exception class | `open` and `file` reads are checked separately (see "File reads"). Not `eval`, `execfile`, `compile`, `__import__`, `reload`, `input` (it evaluates what it reads), `locals`, `globals`, `vars`, `dir`, `help` (it imports modules by name). `getattr`, `setattr`, `delattr` and `hasattr` only as direct calls with a literal name (route 2 of `dynamic`). |
+| Builtins: every builtin except those below; every exception class | `open` and `file` are checked separately, in every mode (see "File reads"). Not `eval`, `execfile`, `compile`, `__import__`, `reload`, `input` (it evaluates what it reads), `locals`, `globals`, `vars`, `dir`, `help` (it imports modules by name). `getattr`, `setattr`, `delattr` and `hasattr` only as direct calls with a literal name (route 2 of `dynamic`). |
 
 Everything else is unknown: `cPickle`, `pickle`, `copy_reg`, `shelve`,
 `marshal`, `warnings`, `logging`, `traceback`, `inspect`, `timeit`, `code`,

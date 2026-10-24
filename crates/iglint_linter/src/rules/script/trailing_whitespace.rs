@@ -52,7 +52,8 @@ def runAction(self, event):
 
 Removes the whitespace. Safe: the whitespace is in no value and no line
 moves. Like every fix, it is unsafe while code in the workspace may read the
-files a fix edits (a read whose path is not a literal outside the
+files a fix edits (any file access, read, write, rename or delete, whose path
+is not a literal outside the
 workspace, or code that is not vetted); the project setting `[fix]
 assume-scripts-do-not-read-workspace-files = true` declares that no script
 does (see `docs/internal/fix-safety.md`, "File reads").
@@ -180,10 +181,27 @@ mod tests {
             f.fixed_assuming(&[("SCR124", "")], false, &library_path(&f, "m"), true),
             "x = 1  # note\n"
         );
+        // Reviewer round 11: writes and listings of computed paths count
+        // too (a write, append, rename or delete changes or reveals the
+        // files a fix edits).
+        for computed in [
+            "def w(p, s):\n    open(p, 'w').write(s)\n",
+            "def a(p):\n    f = open(p, 'a')\n    f.seek(0, 2)\n    return f.tell()\n",
+            "import os\nx = os.listdir(p)\n",
+            "import os\ndef mv(a, b):\n    os.rename(a, b)\n",
+        ] {
+            let f = with_library(library("m", "x = 1  \n"), "r", computed);
+            let d = f.lint(&["SCR124"]);
+            assert_eq!(
+                d[0].fix.as_ref().unwrap().applicability,
+                crate::Applicability::Unsafe,
+                "{computed}"
+            );
+        }
         for outside in [
             "x = open('/tmp/report.csv').read()\n",
-            "def w(p, s):\n    open(p, 'w').write(s)\n",
-            "import os\nx = os.listdir(p)\n",
+            "def w(s):\n    open('/tmp/out.txt', 'w').write(s)\n",
+            "import os\nx = os.listdir('/var/exports')\n",
         ] {
             let f = with_library(library("m", "x = 1  \n"), "r", outside);
             let d = f.lint(&["SCR124"]);

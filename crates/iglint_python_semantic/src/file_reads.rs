@@ -9,30 +9,25 @@
 //! [`crate::vetted::unknown_code`] reports the first possible file read in
 //! [`crate::vetted::UnknownCode::file_read`].
 //!
-//! A read is fine only when its path is a literal (or a constant
-//! concatenation or `os.path.join` of literals) that [`outside_workspace`]
-//! proves to name no file iglint edits. Anything else is a possible read
-//! of a workspace file: a computed path, a file facility used as a value,
-//! a Java file handle reached through a member ([`FILE_MEMBERS`], measured)
-//! and every use of a vetted Java class that makes handles from a string
-//! other than a direct constructor call with such a literal.
-//!
-//! What counts as a read, checked on Ignition 8.3's Jython and in the
-//! image (see `docs/internal/fix-safety.md`, "File reads"):
-//!
-//! * the builtins `open` and `file` unless the mode is a literal without
-//!   `r`, `+` or `U` (a write-only open observes nothing);
-//! * metadata that a fix changes: `os.stat`, `os.lstat` (size, times,
-//!   inode), `os.access` (a fix replaces the file, whose owner may change),
-//!   `os.path.getsize`, `getmtime`, `getatime`, `getctime` and `samefile`
-//!   (a fix replaces the inode). Not `os.path.exists`, `isfile`, `isdir`,
-//!   `islink`, `lexists`, `os.listdir` or `os.walk`: fixes never create or
-//!   delete a file, so names and existence do not change;
-//! * Ignition: `system.file.readFileAsString`, `readFileAsBytes`,
-//!   `system.iec61850.writeFile` (it sends a local file), and the legacy
-//!   `system.net.httpGet`, `httpPost`, `httpPut` and `httpDelete`, which
-//!   open any `java.net.URL`, `file:` included;
-//! * the Java classes of [`JAVA_FILE_POLICY`].
+//! Access is default deny: every vetted facility that takes a path or a
+//! file descriptor ([`FILE_FACILITIES`]: `open` and `file` in every mode,
+//! the path-taking attributes of `os` and `os.path`, the `system.*`
+//! functions that name local files) and every vetted Java class that
+//! makes a file handle from a string ([`JAVA_FILE_POLICY`]) is a possible
+//! access of a workspace file, whatever the direction of the operation:
+//! reads observe a fix, an append reveals the size (`tell`), writes,
+//! renames and deletions change what a fix edits or move a workspace file
+//! to a path that a later literal read observes. An access is fine only
+//! when every path argument is a literal (or a constant concatenation or
+//! `os.path.join` of literals) that [`outside_workspace`] proves to name
+//! no file iglint edits. Anything else counts: a computed path, a
+//! facility used as a value, a Java file handle reached through a member
+//! ([`file_member`], measured). The attributes of `os`, `os.path` and
+//! `sys` that take no path are reviewed one by one (`PATH_FREE`); a test
+//! fails on a vetted attribute in neither list. See
+//! `docs/internal/fix-safety.md`, "File reads", for why literal outside
+//! paths stay fine (an alias needs an operation that is itself counted)
+//! and why pre-existing symbolic links are outside the closed world.
 
 use iglint_python::ast::{Expr, Operator};
 
@@ -70,109 +65,287 @@ pub const FILE_HANDLE_TYPES: &[&str] = &[
     "com.inductiveautomation.ignition.gateway.resourcecollection.StreamingResource",
 ];
 
-/// How a file facility takes the path it reads.
+/// How a file facility takes the paths it may touch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Facility {
-    /// A path argument (position, keyword), and the mode argument of
-    /// `open`: a literal mode without `r`, `+` or `U` writes only.
-    Path {
-        position: usize,
-        keyword: &'static str,
-        mode: Option<(usize, &'static str)>,
-    },
-    /// Two path arguments (`os.path.samefile`).
-    TwoPaths,
+    /// Path (or file descriptor) arguments, by position and keyword: the
+    /// call is fine only when every one of them is present and a literal
+    /// outside the workspace. The mode of `open`, the direction of the
+    /// operation (read, write, append, rename, delete) and the other
+    /// arguments do not matter.
+    Paths(&'static [(usize, &'static str)]),
     /// A URL argument: an `http` or `https` literal is fine, a `file:`
     /// literal is a path.
     Url {
         position: usize,
         keyword: &'static str,
     },
+    /// The name of a file the facility makes in a directory of its own
+    /// choosing (the extension of `system.file.getTempFile`): fine only as
+    /// a literal without a separator or `..`.
+    Name {
+        position: usize,
+        keyword: &'static str,
+    },
+    /// The arguments name files in ways that are not modelled (a file
+    /// dialog, a report's distribution actions, a JDBC URL, a sound clip
+    /// that may be a path): every call counts.
+    Always,
 }
 
-const fn path(position: usize, keyword: &'static str) -> Facility {
-    Facility::Path {
-        position,
-        keyword,
-        mode: None,
-    }
+const fn url(position: usize, keyword: &'static str) -> Facility {
+    Facility::Url { position, keyword }
 }
 
-/// The Python and Ignition facilities that read files or their metadata,
-/// by qualified name (`__builtin__.open`, `os.path.getsize`).
+/// Every vetted facility that takes a path or a file descriptor, by
+/// qualified name (`__builtin__.open`, `os.rename`, `os.path.exists`,
+/// `system.file.writeFile`). Default deny: any of them may touch a
+/// workspace file unless every path argument is a literal outside the
+/// workspace, whatever the operation. Reads observe a fix; writes,
+/// appends (`open(p, "a")` then `tell()` reveals the size), renames,
+/// copies and deletions change the files a fix edits, or move a
+/// workspace file to a path that a later literal read then observes
+/// (`os.rename(<workspace file>, '/tmp/m.py')`). Every attribute of `os`,
+/// `os.path` and `sys` that is vetted is either here or in `PATH_FREE`
+/// (`every_vetted_os_attribute_is_classified`), and every `system.*`
+/// function with a parameter that may name a local file is here or
+/// reviewed (`every_system_file_parameter_is_classified`).
 pub(crate) const FILE_FACILITIES: &[(&str, Facility)] = &[
+    ("__builtin__.file", Facility::Paths(&[(0, "name")])),
+    ("__builtin__.open", Facility::Paths(&[(0, "name")])),
+    ("os.access", Facility::Paths(&[(0, "path")])),
+    ("os.listdir", Facility::Paths(&[(0, "path")])),
+    ("os.lstat", Facility::Paths(&[(0, "path")])),
+    ("os.makedirs", Facility::Paths(&[(0, "name")])),
+    ("os.mkdir", Facility::Paths(&[(0, "path")])),
+    ("os.path.exists", Facility::Paths(&[(0, "path")])),
+    ("os.path.getatime", Facility::Paths(&[(0, "filename")])),
+    ("os.path.getctime", Facility::Paths(&[(0, "filename")])),
+    ("os.path.getmtime", Facility::Paths(&[(0, "filename")])),
+    ("os.path.getsize", Facility::Paths(&[(0, "filename")])),
+    ("os.path.isdir", Facility::Paths(&[(0, "s")])),
+    ("os.path.isfile", Facility::Paths(&[(0, "path")])),
+    ("os.path.islink", Facility::Paths(&[(0, "path")])),
+    ("os.path.ismount", Facility::Paths(&[(0, "path")])),
+    ("os.path.lexists", Facility::Paths(&[(0, "path")])),
+    ("os.path.realpath", Facility::Paths(&[(0, "filename")])),
+    ("os.path.samefile", Facility::Paths(&[(0, "f1"), (1, "f2")])),
     (
-        "__builtin__.file",
-        Facility::Path {
-            position: 0,
-            keyword: "name",
-            mode: Some((1, "mode")),
-        },
+        "os.path.sameopenfile",
+        Facility::Paths(&[(0, "fp1"), (1, "fp2")]),
+    ),
+    ("os.path.walk", Facility::Paths(&[(0, "top")])),
+    ("os.remove", Facility::Paths(&[(0, "path")])),
+    ("os.removedirs", Facility::Paths(&[(0, "name")])),
+    ("os.rename", Facility::Paths(&[(0, "old"), (1, "new")])),
+    ("os.renames", Facility::Paths(&[(0, "old"), (1, "new")])),
+    ("os.rmdir", Facility::Paths(&[(0, "path")])),
+    ("os.stat", Facility::Paths(&[(0, "path")])),
+    ("os.unlink", Facility::Paths(&[(0, "path")])),
+    ("os.utime", Facility::Paths(&[(0, "path")])),
+    ("os.walk", Facility::Paths(&[(0, "top")])),
+    (
+        "system.dataset.exportCSV",
+        Facility::Paths(&[(0, "filename")]),
     ),
     (
-        "__builtin__.open",
-        Facility::Path {
-            position: 0,
-            keyword: "name",
-            mode: Some((1, "mode")),
-        },
-    ),
-    ("os.access", path(0, "path")),
-    ("os.lstat", path(0, "path")),
-    ("os.path.getatime", path(0, "filename")),
-    ("os.path.getctime", path(0, "filename")),
-    ("os.path.getmtime", path(0, "filename")),
-    ("os.path.getsize", path(0, "filename")),
-    ("os.path.samefile", Facility::TwoPaths),
-    ("os.stat", path(0, "path")),
-    ("system.file.readFileAsBytes", path(0, "filepath")),
-    ("system.file.readFileAsString", path(0, "filepath")),
-    ("system.iec61850.writeFile", path(1, "localFilePath")),
-    (
-        "system.net.httpDelete",
-        Facility::Url {
-            position: 0,
-            keyword: "url",
-        },
+        "system.dataset.exportExcel",
+        Facility::Paths(&[(0, "filename")]),
     ),
     (
-        "system.net.httpGet",
-        Facility::Url {
-            position: 0,
-            keyword: "url",
-        },
+        "system.dataset.exportHTML",
+        Facility::Paths(&[(0, "filename")]),
+    ),
+    ("system.db.addDatasource", Facility::Always),
+    ("system.db.setDatasourceConnectURL", Facility::Always),
+    (
+        "system.file.fileExists",
+        Facility::Paths(&[(0, "filepath")]),
     ),
     (
-        "system.net.httpPost",
-        Facility::Url {
+        "system.file.getTempFile",
+        Facility::Name {
             position: 0,
-            keyword: "url",
+            keyword: "extension",
         },
+    ),
+    ("system.file.openFile", Facility::Always),
+    ("system.file.openFiles", Facility::Always),
+    (
+        "system.file.readFileAsBytes",
+        Facility::Paths(&[(0, "filepath")]),
     ),
     (
-        "system.net.httpPut",
-        Facility::Url {
-            position: 0,
-            keyword: "url",
-        },
+        "system.file.readFileAsString",
+        Facility::Paths(&[(0, "filepath")]),
     ),
+    ("system.file.saveFile", Facility::Always),
+    ("system.file.saveToFile", Facility::Always),
+    ("system.file.saveToFileNonBlocking", Facility::Always),
+    ("system.file.writeFile", Facility::Paths(&[(0, "filepath")])),
+    (
+        "system.iec61850.readFile",
+        Facility::Paths(&[(2, "localFilePath")]),
+    ),
+    (
+        "system.iec61850.writeFile",
+        Facility::Paths(&[(1, "localFilePath")]),
+    ),
+    ("system.net.httpDelete", url(0, "url")),
+    ("system.net.httpGet", url(0, "url")),
+    ("system.net.httpPost", url(0, "url")),
+    ("system.net.httpPut", url(0, "url")),
+    ("system.net.openURL", url(0, "url")),
+    (
+        "system.print.printToImage",
+        Facility::Paths(&[(1, "filename")]),
+    ),
+    ("system.report.executeAndDistribute", Facility::Always),
+    ("system.tag.exportTags", Facility::Paths(&[(0, "filePath")])),
+    ("system.util.playSoundClip", Facility::Always),
+    (
+        "system.vision.exportCSV",
+        Facility::Paths(&[(0, "filename")]),
+    ),
+    (
+        "system.vision.exportExcel",
+        Facility::Paths(&[(0, "filename")]),
+    ),
+    (
+        "system.vision.exportHTML",
+        Facility::Paths(&[(0, "filename")]),
+    ),
+    ("system.vision.openFile", Facility::Always),
+    ("system.vision.openFiles", Facility::Always),
+    ("system.vision.openURL", url(0, "url")),
+    (
+        "system.vision.printToImage",
+        Facility::Paths(&[(1, "filename")]),
+    ),
+    ("system.vision.saveFile", Facility::Always),
+];
+
+/// The vetted attributes of `os`, `os.path` and `sys` that take no path
+/// and no file descriptor, reviewed one by one: constants, the
+/// environment, the working directory (a path source: what is done with
+/// the path is checked where it is used), error types, random bytes, the
+/// console streams, and the pure string functions of `os.path`, which
+/// compute a path without touching the file system (`abspath` and
+/// `relpath` only read the working directory, `expanduser` and
+/// `expandvars` the environment).
+#[cfg(test)]
+pub(crate) const PATH_FREE: &[&str] = &[
+    "os.F_OK",
+    "os.R_OK",
+    "os.W_OK",
+    "os.X_OK",
+    "os.altsep",
+    "os.curdir",
+    "os.devnull",
+    "os.environ",
+    "os.error",
+    "os.extsep",
+    "os.getcwd",
+    "os.getcwdu",
+    "os.getenv",
+    "os.linesep",
+    "os.name",
+    "os.pardir",
+    "os.path",
+    "os.path.abspath",
+    "os.path.altsep",
+    "os.path.basename",
+    "os.path.commonprefix",
+    "os.path.curdir",
+    "os.path.defpath",
+    "os.path.devnull",
+    "os.path.dirname",
+    "os.path.expanduser",
+    "os.path.expandvars",
+    "os.path.extsep",
+    "os.path.isabs",
+    "os.path.join",
+    "os.path.normcase",
+    "os.path.normpath",
+    "os.path.pardir",
+    "os.path.pathsep",
+    "os.path.relpath",
+    "os.path.samestat",
+    "os.path.sep",
+    "os.path.split",
+    "os.path.splitdrive",
+    "os.path.splitext",
+    "os.path.supports_unicode_filenames",
+    "os.pathsep",
+    "os.sep",
+    "os.strerror",
+    "os.urandom",
+    "sys.byteorder",
+    "sys.exit",
+    "sys.float_info",
+    "sys.getdefaultencoding",
+    "sys.getfilesystemencoding",
+    "sys.getrecursionlimit",
+    "sys.hexversion",
+    "sys.maxint",
+    "sys.maxsize",
+    "sys.maxunicode",
+    "sys.platform",
+    "sys.stderr",
+    "sys.stdout",
+    "sys.version",
+    "sys.version_info",
+];
+
+/// `system.*` parameters whose names look like local files but are not,
+/// reviewed against the 8.3 documentation: names and URLs that the
+/// browser or a remote device resolves, OPC servers' folders and
+/// endpoints, a report's output format, tag paths.
+#[cfg(test)]
+pub(crate) const SYSTEM_NOT_LOCAL_FILES: &[&str] = &[
+    // Folders of an OPC server's address space.
+    "system.opc.browse",
+    "system.opc.browseSimple",
+    // The URLs of an OPC UA server.
+    "system.opcua.addConnection",
+    // A remote device's file system.
+    "system.iec61850.listFiles",
+    // The name under which the browser saves the data it is sent.
+    "system.perspective.download",
+    // The browser navigates.
+    "system.perspective.navigate",
+    // Prints a message; the destination is the browser console, the
+    // gateway log or both.
+    "system.perspective.print",
+    // The output format (`pdf`, `csv`, ...): the report comes back as bytes.
+    "system.report.executeReport",
+    // Tag paths.
+    "system.tag.move",
 ];
 
 /// What a vetted Java class that makes or takes file handles does with
 /// its constructor arguments.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum JavaPolicy {
-    /// Its instances read a file named by the string arguments: a direct
-    /// constructor call whose path arguments are literals outside the
-    /// workspace is fine; any other use (a computed path, the class used
-    /// as a value) may read a workspace file. `all` when every argument is
-    /// part of the path (`File(parent, child)`), else only the first.
-    Reader { all: bool },
+    /// Its instances open, create or truncate the file named by its
+    /// arguments, for reading or writing alike: a direct constructor call
+    /// whose path arguments are literals outside the workspace is fine;
+    /// any other use (a computed path, the class used as a value) may
+    /// touch a workspace file. `all` when every argument is part of the
+    /// path (`File(parent, child)`), else only the first (the others are
+    /// an append flag or a charset).
+    Path { all: bool },
+    /// The first argument may be a file name or something else (a
+    /// `Writer`, an `OutputStream`, a `Locale`): fine without arguments,
+    /// with a literal outside the workspace, or with a direct constructor
+    /// call of a vetted Java class that has no file policy
+    /// (`PrintWriter(StringWriter())`).
+    MaybePath,
     /// A URL or URI: fine only from an `http`, `https` or outside `file:`
     /// literal.
     Url,
-    /// Writes the file it names, or reads only from a handle or stream the
-    /// script already holds (whose source is checked): plain.
+    /// Takes no path, only a handle or stream the script already holds,
+    /// whose source is checked where it is made: plain.
     Plain,
 }
 
@@ -180,18 +353,23 @@ pub(crate) enum JavaPolicy {
 /// has a public constructor taking one (`JAVA_FILE_CLASSES`, measured;
 /// `every_measured_file_class_has_a_policy` checks this table against it).
 pub(crate) const JAVA_FILE_POLICY: &[(&str, JavaPolicy)] = &[
-    ("java.io.File", JavaPolicy::Reader { all: true }),
-    ("java.io.FileInputStream", JavaPolicy::Reader { all: false }),
-    // Writers: they truncate or append and never read the file.
-    ("java.io.FileOutputStream", JavaPolicy::Plain),
-    ("java.io.FileReader", JavaPolicy::Reader { all: false }),
-    ("java.io.FileWriter", JavaPolicy::Plain),
-    ("java.io.PrintWriter", JavaPolicy::Plain),
+    ("java.io.File", JavaPolicy::Path { all: true }),
+    ("java.io.FileInputStream", JavaPolicy::Path { all: false }),
+    // Writers count too: appending reveals nothing by itself, but a
+    // script that writes, truncates or creates a workspace file changes
+    // what a fix edits.
+    ("java.io.FileOutputStream", JavaPolicy::Path { all: false }),
+    ("java.io.FileReader", JavaPolicy::Path { all: false }),
+    ("java.io.FileWriter", JavaPolicy::Path { all: false }),
+    // `PrintWriter(String fileName)` and `Formatter(String fileName)`
+    // open the file; their other constructors take a writer, a stream or
+    // a locale.
+    ("java.io.PrintWriter", JavaPolicy::MaybePath),
     // Made from a `URL` by `openConnection` (a measured file member).
     ("java.net.HttpURLConnection", JavaPolicy::Plain),
     ("java.net.URI", JavaPolicy::Url),
     ("java.net.URL", JavaPolicy::Url),
-    ("java.util.Formatter", JavaPolicy::Plain),
+    ("java.util.Formatter", JavaPolicy::MaybePath),
     // `Scanner(String)` scans the string; its file constructors take a
     // `File` or `Path`, whose source is checked.
     ("java.util.Scanner", JavaPolicy::Plain),
@@ -335,9 +513,10 @@ pub fn url_outside_workspace(text: &str) -> bool {
     }
 }
 
-/// Whether a literal mode of `open` only writes (`'w'`, `'wb'`, `'a'`).
-pub(crate) fn write_only_mode(mode: &str) -> bool {
-    !mode.is_empty() && !mode.contains(['r', '+', 'U'])
+/// Whether the literal `text` is a bare file name (no separator, no
+/// `..`, no NUL) for [`Facility::Name`].
+pub(crate) fn bare_name(text: &str) -> bool {
+    !text.contains(['/', '\\', '\0', ':']) && !text.contains("..")
 }
 
 #[cfg(test)]
@@ -403,12 +582,12 @@ mod tests {
     }
 
     #[test]
-    fn modes() {
-        for m in ["w", "wb", "a", "ab"] {
-            assert!(write_only_mode(m), "{m}");
+    fn bare_names() {
+        for n in ["csv", "x.csv", ""] {
+            assert!(bare_name(n), "{n}");
         }
-        for m in ["", "r", "rb", "w+", "a+", "rU", "U"] {
-            assert!(!write_only_mode(m), "{m}");
+        for n in ["../x", "a/b", "a\\b", "..", "C:x"] {
+            assert!(!bare_name(n), "{n}");
         }
     }
 

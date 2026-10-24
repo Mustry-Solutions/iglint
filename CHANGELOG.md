@@ -77,6 +77,22 @@ from 0.1.0 on.
 
 ### Fixed
 
+- File access is default deny for the file-read condition of every fix:
+  every vetted facility that takes a path counts unless every path
+  argument is a literal outside the workspace, whatever its mode or
+  direction. `os.rename` of a module to `/tmp/m.py` followed by a read
+  of `/tmp/m.py` kept `SCR102`'s fix safe, and `open(p, "a")` then
+  `tell()` (which reveals the size) counted as write-only; now `open`
+  and `file` in every mode, `os.rename`, `renames`, `remove`, `unlink`,
+  `makedirs`, `mkdir`, `rmdir`, `utime`, `listdir`, `walk`,
+  `os.path.exists`, `isfile`, `isdir`, `realpath` and the other
+  path-taking attributes, `system.file.writeFile`, `fileExists`,
+  `getTempFile`, `system.tag.exportTags`, the dataset exports and the
+  other `system.*` functions that name local files, and the Java
+  `FileOutputStream`, `FileWriter`, `PrintWriter` and `Formatter` count.
+  Every vetted attribute of `os`, `os.path` and `sys`, and every
+  `system.*` function with a file-like parameter, is classified, and a
+  test fails on one that is not.
 - Fixes of every rule were safe even when a script read the file they
   edit: `open(...).read()` of a module saw `SCR102` remove an import,
   `SCR124` trim a comment, `SCR123` remove a suppression and `VIEW015`
