@@ -102,9 +102,15 @@ pub enum FixState {
     DisplayOnly,
 }
 
-/// `path` relative to `cwd` when below it, always `/`-separated.
+/// `path` relative to `cwd` when below it, always `/`-separated; `.` for
+/// `cwd` itself.
 pub fn display_path(path: &Path, cwd: &Path) -> String {
-    iglint_linter::discovery::slash_path(path.strip_prefix(cwd).unwrap_or(path))
+    let shown = iglint_linter::discovery::slash_path(path.strip_prefix(cwd).unwrap_or(path));
+    if shown.is_empty() {
+        ".".to_owned()
+    } else {
+        shown
+    }
 }
 
 /// One-based line and column of `offset` in `file`.

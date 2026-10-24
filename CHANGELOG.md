@@ -97,6 +97,8 @@ from 0.1.0 on.
 
 ### Fixed
 
+- The "nothing to lint" warning shows the working directory as `.`
+  instead of an empty path.
 - `SCR112` missed formatting that certainly fails on Unicode (review round
   14, Codex): a unicode format spec with a character beyond U+00FF
   (`u'{0:\U0001f980^4}'.format(1)`: `ValueError`), a non-ASCII unicode

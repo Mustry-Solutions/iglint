@@ -1272,6 +1272,16 @@ fn directories_without_lintable_files_say_so() {
         "{stderr}"
     );
     assert_eq!(out.status.code(), Some(0), "{stderr}");
+    // Reviewer round 15 N1: the working directory itself is shown as `.`.
+    let out = iglint(&dir.path().join("loose"))
+        .args(["--no-cache"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("lintable files found under . (Python"),
+        "{stderr}"
+    );
     // `--quiet` prints findings only.
     let out = iglint(dir.path())
         .args(["--no-cache", "--quiet", "loose"])
