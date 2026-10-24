@@ -9,6 +9,13 @@ from 0.1.0 on.
 
 ### Changed
 
+- `bench/README.md` re-measured (2026-10-24, small, medium, large and the
+  private project, with and without pylint, all CPUs and 2 CPUs) with
+  every 10x claim qualified: without pylint 10x or more from about 300
+  views on, 8x to 11x on the 50-view corpus depending on the run; a
+  breakdown of the small corpus shows no fixed start-up cost to cut
+  (2.3 ms for an empty directory; most of the time is indexing the rest
+  of the repository).
 - `bench/README.md` and the text summary of `bench/parity.py` say plainly
   that pylint-derived findings (`PylintScriptRule`, `SCR900`) are outside
   the parity comparison, and how they differ by design (the combined-file

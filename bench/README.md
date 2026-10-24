@@ -167,69 +167,115 @@ makes it as cheap as pylint allows:
   `--jobs`.
 
 On very small corpora the fixed pylint cost dominates and the equal-work
-speedup with pylint stays below 10x (small: 50 views); from a few hundred
-views on it is well above. Without pylint every corpus is above 10x.
+speedup with pylint stays below 10x (small: 50 views, 6.9x); from a few
+hundred views on it is well above (medium 28x, large 42x). Without pylint
+the speedup is 10x or more from about 300 views on (private project, 287
+views: 23x; medium 16x; large 25x). On the small corpus it is 8x to 11x
+depending on the run: iglint takes about 20 ms there, where a few
+milliseconds of noise move the ratio (11x in the run below, 8.3x measured
+by a reviewer on a busier machine).
 
-## Results (synthetic corpora)
+### Where the time goes on a small corpus
 
-Development machine: 16 CPUs (8 cores, 2 threads each), 23 GB RAM, Linux,
-otherwise idle (final run, branch `bench` after merging main). Minimum wall
-times; `x` is ign-lint's time divided by iglint's. ign-lint's best working
-configuration is `jobs1` on every corpus (see the batch-mode note above).
+`iglint ign-lint` with `bench/configs/rules-only.json` (minimum of 30
+runs, all CPUs, 2026-10-24):
 
-| | small (50 views) | medium (500) | large (5,000) | xl (20,000) |
+| | wall time |
+|---|---|
+| empty directory (process start, configuration, no files) | 2.3 ms |
+| the small corpus, `--files` matching nothing (discovery only) | 2.4 ms |
+| one view alone in a project | 4.3 ms |
+| one view, with the rest of the small repository (script library, gateway configuration, tags) | 14.4 ms |
+| the whole small corpus (50 views) | 19.9 ms |
+| the same on one CPU | 64.0 ms |
+
+So there is no fixed start-up cost worth removing: starting the process
+and reading the configuration take about 2 ms. Most of the time on a
+small corpus is reading and indexing the repository's other resources,
+which iglint uses to resolve what views refer to; each further view
+costs about 0.1 ms.
+
+## Results
+
+Development machine: 16 CPUs (8 cores, 2 threads each), 23 GB RAM, Linux.
+Measured 2026-10-24 on branch `fix-r21` (release build, one benchmark at
+a time); the machine also ran an Ignition gateway and SQL Server in
+containers (load average about 1.5), so iglint's times are 10 to 60%
+above those of an earlier, idle run of the same code (main and the branch
+measured side by side give the same `iglint ign-lint` times; `iglint
+check` cold on medium is 5% slower on the branch, the safety net's
+resolution map). Minimum wall times; `x` is ign-lint's best working
+configuration (`jobs1`, see the batch-mode note above) divided by
+iglint's. The xl corpus was not re-measured; its column is from the
+earlier idle run.
+
+| | small (50 views) | medium (500) | large (5,000) | xl (20,000, earlier run) |
 |---|---|---|---|---|
-| ign-lint, as shipped (`jobs=4`) | 5.32 s | 74.1 s | 1,172 s | not run ¹ |
-| ign-lint `jobs=1` (best working) | 1.65 s | 16.6 s | 176 s | 713 s |
-| ign-lint `batch_mode` + `jobs=1` (broken output) | 1.15 s | 16.9 s | 1,231 s | not run ¹ |
-| ign-lint without pylint | 236 ms | 1.61 s | 15.9 s | 65.6 s |
-| `iglint ign-lint`, with pylint (equal work) | 230 ms (**7.2x**) | 577 ms (**29x**) | 3.91 s (**45x**) | 16.5 s (**43x**) |
-| same, one CPU | 602 ms (2.7x) | 4.59 s (3.6x) | 46.4 s (3.8x) | 186 s (3.8x) |
-| `iglint ign-lint`, without pylint (equal work) | 16 ms (**15x**) | 62 ms (**26x**) | 372 ms (**43x**) | 1.24 s (**53x**) |
-| same, one CPU | 29 ms (8.1x) | 264 ms (6.1x) | 1.77 s (9.0x) | 5.47 s (12x) |
-| `iglint check`, ign-lint's rules, whole repository | 20 ms (12x) | 106 ms (15x) | 578 ms (28x) | 1.61 s (41x) |
-| `iglint check`, default rules, cold | 22 ms (74x vs best) | 125 ms (133x) | 677 ms (260x) | 1.89 s (377x) |
-| same, one CPU | 80 ms | 729 ms | 4.18 s | 11.0 s |
-| cold, writing the cache | 27 ms | 142 ms | 809 ms | 2.13 s |
-| warm cache / one view changed | 19 / 19 ms | 97 / 97 ms | 537 / 563 ms | 1.51 / 1.51 s |
-| `--select ALL` | 24 ms | 130 ms | 770 ms | 2.42 s |
-| peak RSS: ign-lint `jobs=1` / `iglint check` | 66 / 155 MB | 194 / 281 MB | 1,427 / 1,066 MB | 5,560 / 3,195 MB |
+| ign-lint, as shipped (`jobs=4`) | 5.30 s | 73.6 s | not run ¹ | not run ¹ |
+| ign-lint `jobs=1` (best working) | 1.64 s | 16.4 s | 177 s | 713 s |
+| ign-lint `batch_mode` + `jobs=1` (broken output) | 1.13 s | 16.9 s | not run ¹ | not run ¹ |
+| ign-lint without pylint | 226 ms | 1.60 s | 15.4 s | 65.6 s |
+| `iglint ign-lint`, with pylint (equal work) | 236 ms (6.9x) | 587 ms (**28x**) | 4.25 s (**42x**) | 16.5 s (**43x**) |
+| same, one CPU | 631 ms (2.6x) | 4.95 s (3.3x) | 49.0 s (3.6x) | 186 s (3.8x) |
+| `iglint ign-lint`, without pylint (equal work) | 21 ms (**11x**) | 103 ms (**16x**) | 614 ms (**25x**) | 1.24 s (**53x**) |
+| same, one CPU | 63 ms (3.6x) | 584 ms (2.7x) | 3.70 s (4.2x) | 5.47 s (12x) |
+| `iglint check`, ign-lint's rules, whole repository | 25 ms (9.0x) | 137 ms (12x) | 768 ms (20x) | 1.61 s (41x) |
+| `iglint check`, default rules, cold | 29 ms (57x vs best) | 164 ms (100x) | 878 ms (202x) | 1.89 s (377x) |
+| same, one CPU | 124 ms | 1.16 s | 6.61 s | 11.0 s |
+| cold, writing the cache | 32 ms | 189 ms | 980 ms | 2.13 s |
+| warm cache / one view changed | 23 / 23 ms | 126 / 125 ms | 658 / 664 ms | 1.51 / 1.51 s |
+| `--select ALL` | 30 ms | 169 ms | 964 ms | 2.42 s |
+| peak RSS: ign-lint `jobs=1` / `iglint check` | 66 / 174 MB | 193 / 304 MB | 1,427 / 1,115 MB | 5,560 / 3,195 MB |
 
 ¹ `jobs=4` and batch mode grow superlinearly (about 20 minutes each on
 large); they are never the best working configuration.
 
+"Without pylint" ratios compare ign-lint without pylint to `iglint ign-lint`
+without pylint. "One CPU" is `taskset -c 0`, a CPU the rest of the machine
+also uses; on 2 CPUs (below) iglint is faster per CPU.
+
 Not reached: 10x with pylint on the small corpus (pylint's fixed start-up
-and set-up cost of about 0.2 s against ign-lint's 1.65 s) and 10x on one
-CPU in most columns. Everything else is above 10x on every corpus, and the
-speedup grows with the corpus.
+and set-up cost of about 0.2 s against ign-lint's 1.64 s); 10x for
+`iglint check` with ign-lint's rules on the small corpus (9.0x); 10x
+without pylint on the small corpus in every run (8x to 11x, see above);
+and 10x on one CPU in every column of the re-measured corpora. Everything
+else is 10x or more, and the speedup grows with the corpus.
 
 On a private production project (287 views, its CI command with its own
-`rule_config.json` and whitelist; aggregates only; measured on an earlier
-revision of the project, so the numbers depend on that revision), same
-run: ign-lint
-`jobs=1` 6.28 s, batch mode 2.08 s (broken output), without pylint
-1.94 s; `iglint ign-lint` with pylint 416 ms (**15x**; 1.56 s on one CPU,
-4.0x), without pylint 50 ms (**39x**; 167 ms on one CPU, 12x);
-`iglint check --no-cache projects services` 108 ms (384 ms on one CPU).
+`rule_config.json` and whitelist; aggregates only; measured on a copy of
+the project's revision of 2026-10-21, so the numbers depend on that
+revision), same run: ign-lint as shipped 21.2 s, `jobs=1` 6.12 s, batch
+mode 2.02 s (broken output), without pylint 1.89 s; `iglint ign-lint`
+with pylint 436 ms (**14x**; 1.72 s on one CPU, 3.6x), without pylint
+83 ms (**23x**; 320 ms on one CPU, 5.9x); `iglint check` with ign-lint's
+rules 120 ms (**16x**), `iglint check --no-cache projects services`
+124 ms (540 ms on one CPU); the migrated gate 613 ms (10x).
 
-### Pinned to 2 CPUs and 1 CPU, and the migration path
+### Pinned to 2 CPUs, and the migration path
 
 The CI today runs ign-lint as shipped (bundled rcfile, `jobs=4`) on a
-hosted agent with 2 CPUs. Same machine and branch, pinned with `taskset`
-(minimum wall times; x = ign-lint as shipped / this). The large corpus was
-run without `ign-lint-default` (about 20 minutes per run), so its ratios
-are against `jobs=1`.
+hosted agent with 2 CPUs. Same machine and run, pinned with `taskset -c
+0-1` (minimum wall times; x = ign-lint as shipped / this). The large
+corpus was run without `ign-lint-default` (about 20 minutes per run), so
+its ratios are against `jobs=1`. The runs pinned to one CPU of the earlier
+idle run are not repeated here.
 
-| | small, 2 CPUs | small, 1 CPU | medium, 2 CPUs | medium, 1 CPU | large, 2 CPUs | large, 1 CPU |
-|---|---|---|---|---|---|---|
-| ign-lint as shipped (`jobs=4`) | 5.69 s | 6.19 s | 79.5 s | 85.8 s | not run | not run |
-| ign-lint `jobs=1` | 1.70 s (3.3x) | 1.68 s (3.7x) | 16.8 s (4.7x) | 16.6 s (5.2x) | 178.5 s | 177.3 s |
-| `iglint ign-lint`, with pylint | 381 ms (**15x**) | 616 ms (**10x**) | 2.47 s (**32x**) | 4.57 s (**19x**) | 24.9 s (7.2x vs `jobs=1`) | 46.9 s (3.8x vs `jobs=1`) |
-| `iglint migrate` + `iglint baseline`, then `iglint check` | 402 ms (**14x**) | 653 ms (9.5x) | 2.78 s (**29x**) | 4.96 s (**17x**) | 26.4 s (6.8x vs `jobs=1`) | 48.8 s (3.6x vs `jobs=1`) |
-| `iglint check`, default rules | 51 ms (112x) | 86 ms (72x) | 427 ms (186x) | 781 ms (110x) | 2.44 s | 4.48 s |
+| | small, 2 CPUs | medium, 2 CPUs | large, 2 CPUs | private, 2 CPUs |
+|---|---|---|---|---|
+| ign-lint as shipped (`jobs=4`) | 5.55 s | 75.8 s | not run | 22.2 s |
+| ign-lint `jobs=1` | 1.64 s (3.4x) | 16.4 s (4.6x) | 174.5 s | 6.15 s (3.6x) |
+| `iglint ign-lint`, with pylint | 377 ms (**15x**) | 2.74 s (**28x**) | 26.4 s (6.6x vs `jobs=1`) | 1.10 s (**20x**) |
+| `iglint migrate` + `iglint baseline`, then `iglint check` | 414 ms (**13x**) | 3.08 s (**25x**) | 27.8 s (6.3x vs `jobs=1`) | 1.49 s (**15x**) |
+| `iglint check`, default rules | 70 ms (79x) | 611 ms (124x) | 3.53 s (49x vs `jobs=1`) | 327 ms (68x) |
+| ign-lint without pylint / `iglint ign-lint` without pylint | 228 ms / 37 ms (6.1x) | 1.59 s / 316 ms (5.0x) | 15.4 s / 2.01 s (7.7x) | 1.90 s / 198 ms (9.6x) |
 
-All CPUs (16) for comparison: migrated `iglint check` 248 ms (small),
-651 ms (medium), 4.37 s (large; ign-lint `jobs=1` 172 s).
+On 2 CPUs iglint is 10x or more faster than ign-lint as shipped (the CI
+today) on every corpus measured against it, with and without the
+migration; against ign-lint's best configuration on 2 CPUs it is 4x to 7x
+with pylint (pylint's own per-module cost) and 5x to 10x without.
+
+All CPUs (16) for comparison: migrated `iglint check` 243 ms (small),
+633 ms (medium), 4.54 s (large; ign-lint `jobs=1` 177 s).
 
 With pylint, iglint's time on few CPUs is pylint's own per-module cost:
 `iglint migrate` keeps ign-lint's scope (`SCR900` on `view.json` files
@@ -238,18 +284,6 @@ only), so the migrated gate runs pylint on the same scripts as
 10% more. Before that scope fix the migrated gate ran pylint on library
 modules and WebDev scripts as well (on the private project 4.4x instead of
 16x on 2 CPUs).
-
-On the private production project (287 views, its CI command with its own
-`rule_config.json` and whitelist; aggregates only), on 2 CPUs: ign-lint as
-shipped 23.1 s, `jobs=1` 6.32 s; `iglint ign-lint` 1.00 s (**23x**);
-migrated `iglint check` with its baseline 1.41 s (**16x**); native
-`iglint check` 267 ms (86x). On 1 CPU: 25.2 s, 6.26 s, 1.61 s (16x),
-2.35 s (**11x**), 377 ms (67x). With all 16 CPUs the migrated gate takes
-611 ms (36x). The migrated baseline then held 6,352 findings (13,732
-before the scope fix); on the revision of 2026-10-21 it holds 2,259 (two
-whitelist entries no longer exist). The timings in this section were
-measured on an earlier revision of the private project; they depend on
-the revision and the machine.
 
 ## Profile
 
