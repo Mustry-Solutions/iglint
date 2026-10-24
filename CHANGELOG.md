@@ -97,6 +97,16 @@ from 0.1.0 on.
 
 ### Fixed
 
+- `SCR112` missed formatting that certainly fails on Unicode (review round
+  14, Codex): a unicode format spec with a character beyond U+00FF
+  (`u'{0:\U0001f980^4}'.format(1)`: `ValueError`), a non-ASCII unicode
+  literal made a byte string by a byte string format or `!s`
+  (`UnicodeEncodeError`), a non-ASCII byte string inserted with `%s` into
+  a unicode result (`u'%s' % '\xff'`, also after a unicode value:
+  `UnicodeDecodeError`), and `%c` of a number from 256 on into a byte
+  string (`OverflowError`). Checked against Jython on 16,947 generated
+  cases (`oracle/format-unicode.sh`): no finding where Jython formats,
+  every such failure with literal values reported.
 - With lone CR line ends, findings were shown a line further down than
   Jython reports them (review round 14): Jython numbers lines by `\n`
   only, and a lone CR is a character of the line. Every output format

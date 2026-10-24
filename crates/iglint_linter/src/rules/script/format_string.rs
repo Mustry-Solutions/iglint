@@ -53,6 +53,22 @@ arguments, with Jython 2.7's rules (verified on Jython):
   `d`; for floats `#`, `,` with `n`; for complex numbers `#`, zero padding,
   `=` alignment, `,` with `n`.
 
+* Unicode (verified on Jython on about 17,000 generated cases): a unicode
+  format string whose format spec holds a character beyond U+00FF
+  (`u'{0:\U0001f980^4}'.format(1)`, also through a nested field whose
+  literal value has one: `ValueError: Cannot create PyString with
+  non-byte value`, whatever the argument); a unicode literal with
+  non-ASCII characters made a byte string, by a byte string format
+  (`'{}'.format(u'\xe9')`) or by `!s` (`UnicodeEncodeError`); a byte
+  string with non-ASCII bytes inserted with `%s` into a unicode result,
+  because the format string is unicode or a unicode value was inserted
+  with `%s` or `%c` before it (`u'%s' % '\xff'`, `'%s %s' % (u'a',
+  '\xff')`: `UnicodeDecodeError`); `%c` of a number from 256 on into a
+  byte string result (`'%c' % 300`: `OverflowError`). Jython formats a
+  byte string with non-ASCII bytes into a unicode format with
+  `.format`, and inserts it before any unicode value with `%`; those are
+  not reported.
+
 Only literal format strings (also concatenated with `+`: `('%s' +
 '%s') % (1,)`) with literal arguments (or literal argument lists) are
 checked; anything computed is left alone. `*args` and
@@ -61,8 +77,8 @@ arguments to `.format` are allowed (Python ignores them).
 
 ## Why is this bad?
 
-The expression raises `TypeError`, `ValueError`, `KeyError` or
-`IndexError` when it runs, typically while building a log message or an
+The expression raises `TypeError`, `ValueError`, `KeyError`,
+`IndexError`, `OverflowError` or a Unicode error when it runs, typically while building a log message or an
 alarm text, where the failure hides the original problem.
 
 ## Example
@@ -258,6 +274,23 @@ struct BraceSpec {
     /// Fields of an argument itself with a well-formed literal format
     /// spec (`{0:d}`, `{:.2f}`, `{x!s:>5}`, `{:+}`).
     typed: Vec<TypedField>,
+    /// Every field, in order.
+    fields: Vec<FieldUse>,
+}
+
+/// A replacement field: what it formats and how.
+#[derive(Debug, PartialEq)]
+struct FieldUse {
+    /// The argument formatted, when it is the field itself (no `.attr` or
+    /// `[key]` after the name).
+    argument: Option<FieldArg>,
+    /// `r` or `s` after `!`.
+    conversion: Option<char>,
+    /// The literal text of the format spec, without nested fields.
+    spec_text: String,
+    /// The field is nested in another field's format spec: its value
+    /// becomes part of that spec.
+    nested: bool,
 }
 
 /// A field formatted with a well-formed standard format spec.
@@ -803,6 +836,17 @@ fn field_spec(
     }
     let mut rest = &field[name_end..];
     let converted = rest.starts_with('!');
+    let conversion = rest.strip_prefix('!').and_then(|r| r.chars().next());
+    let spec_text = rest
+        .find(':')
+        .map(|at| without_fields(&rest[at + 1..]))
+        .unwrap_or_default();
+    spec.fields.push(FieldUse {
+        argument: argument.as_ref().map(FieldArg::clone_arg),
+        conversion,
+        spec_text,
+        nested: depth > 0,
+    });
     if let Some(r) = rest.strip_prefix('!') {
         let mut chars = r.chars();
         match chars.next() {
@@ -842,6 +886,21 @@ fn field_spec(
     Ok(())
 }
 
+/// `spec` without its nested replacement fields (`{1}`).
+fn without_fields(spec: &str) -> String {
+    let mut out = String::new();
+    let mut level = 0usize;
+    for c in spec.chars() {
+        match c {
+            '{' => level += 1,
+            '}' => level = level.saturating_sub(1),
+            _ if level == 0 => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
 /// The `.attr` and `[key]` parts after a field's first name, like
 /// `FieldNameIterator`.
 fn field_rest(mut rest: &str) -> Result<(), Bad> {
@@ -868,6 +927,39 @@ fn field_rest(mut rest: &str) -> Result<(), Bad> {
         }
     }
     Ok(())
+}
+
+/// A string literal (or a concatenation of literals of the same kind):
+/// whether it is unicode, and whether it holds a character (unicode) or
+/// byte (byte string) outside ASCII.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct StrLit {
+    unicode: bool,
+    non_ascii: bool,
+}
+
+fn str_lit(e: &Expr) -> Option<StrLit> {
+    match e {
+        Expr::Str(s) => Some(match &s.s {
+            StringValue::Unicode(u) => StrLit {
+                unicode: true,
+                non_ascii: !u.is_ascii(),
+            },
+            StringValue::Bytes(b) => StrLit {
+                unicode: false,
+                non_ascii: !b.is_ascii(),
+            },
+        }),
+        Expr::BinOp(b) if b.op == Operator::Add => {
+            let (l, r) = (str_lit(&b.left)?, str_lit(&b.right)?);
+            // Mixing the kinds decodes the byte string (not modelled).
+            (l.unicode == r.unicode).then_some(StrLit {
+                unicode: l.unicode,
+                non_ascii: l.non_ascii || r.non_ascii,
+            })
+        }
+        _ => None,
+    }
 }
 
 fn string_of(e: &Expr) -> Option<String> {
@@ -921,32 +1013,42 @@ impl ScriptRule for FormatString {
             return;
         }
         let mut found: Vec<(TextRange, String)> = Vec::new();
-        walk_exprs(&unit.parsed.module.body, &mut |e| match e {
-            Expr::BinOp(b) if b.op == Operator::Mod => {
-                let Some(format) = folded_string(&b.left) else {
-                    return;
-                };
-                if let Some(problem) = check_percent(&format, &b.right) {
-                    found.push((e.range(), problem));
-                }
+        walk_exprs(&unit.parsed.module.body, &mut |e| {
+            if let Some(problem) = expression_problem(e) {
+                found.push((e.range(), problem));
             }
-            Expr::Call(c) => {
-                let Expr::Attribute(a) = &*c.func else { return };
-                if &*a.attr.id != "format" {
-                    return;
-                }
-                let Some(format) = folded_string(&a.value) else {
-                    return;
-                };
-                if let Some(problem) = check_format_call(&format, c) {
-                    found.push((e.range(), problem));
-                }
-            }
-            _ => {}
         });
         for (range, message) in found {
             report(cx, unit, range, message);
         }
+    }
+}
+
+/// Why formatting with the expression `e` fails, when it is `%` or
+/// `.format` on a literal format string and certainly fails.
+fn expression_problem(e: &Expr) -> Option<String> {
+    match e {
+        Expr::BinOp(b) if b.op == Operator::Mod => {
+            let format = folded_string(&b.left)?;
+            check_percent(&format, &b.right).or_else(|| {
+                let kind = str_lit(&b.left)?;
+                percent_unicode_error(&format, kind.unicode, &b.right)
+            })
+        }
+        Expr::Call(c) => {
+            let Expr::Attribute(a) = &*c.func else {
+                return None;
+            };
+            if &*a.attr.id != "format" {
+                return None;
+            }
+            let format = folded_string(&a.value)?;
+            check_format_call(&format, c).or_else(|| {
+                let kind = str_lit(&a.value)?;
+                format_unicode_error(&format, kind.unicode, c)
+            })
+        }
+        _ => None,
     }
 }
 
@@ -1025,6 +1127,173 @@ fn check_percent(format: &str, right: &Expr) -> Option<String> {
         }
         _ => None,
     }
+}
+
+/// Whether the result of `%` is a unicode string at a point of the
+/// formatting.
+#[derive(Clone, Copy, PartialEq)]
+enum Mode {
+    Bytes,
+    Unicode,
+    /// A value iglint does not know may have made it unicode.
+    Unknown,
+}
+
+/// The values of `%` that Jython converts, in order: each conversion with
+/// its value (`None` for a `*` width or precision).
+fn percent_values<'e>(
+    spec: &PercentSpec,
+    right: &'e Expr,
+) -> Option<Vec<(Option<char>, &'e Expr)>> {
+    match right {
+        Expr::Tuple(t) => {
+            if spec.conversions.len() != t.elts.len() {
+                return None;
+            }
+            Some(spec.conversions.iter().copied().zip(&t.elts).collect())
+        }
+        Expr::Dict(d) if !spec.keys.is_empty() => {
+            let mut keys = Vec::new();
+            for k in &d.keys {
+                keys.push(string_of(k)?);
+            }
+            spec.key_conversions
+                .iter()
+                .map(|(key, c)| {
+                    let i = keys.iter().rposition(|k| k == key)?;
+                    Some((Some(*c), &d.values[i]))
+                })
+                .collect()
+        }
+        _ if is_single_value(right) && spec.conversions.len() == 1 && spec.keys.is_empty() => {
+            Some(vec![(spec.conversions[0], right)])
+        }
+        _ => None,
+    }
+}
+
+/// A Unicode failure of `%` with literal values (verified on Jython): a
+/// byte string with non-ASCII bytes inserted with `%s` into a result that
+/// is unicode (the format string is unicode, or a unicode value was
+/// inserted with `%s` or `%c` before) is decoded as ASCII
+/// (`UnicodeDecodeError`); `%c` of a number from 256 on into a byte string
+/// result raises `OverflowError`.
+fn percent_unicode_error(format: &str, unicode: bool, right: &Expr) -> Option<String> {
+    let spec = parse_percent(format).ok()?;
+    let values = percent_values(&spec, right)?;
+    let mut mode = if unicode { Mode::Unicode } else { Mode::Bytes };
+    for (conversion, value) in values {
+        let lit = str_lit(value);
+        let unicode_value = lit.is_some_and(|l| l.unicode);
+        match conversion {
+            Some('s') => {
+                if unicode_value {
+                    if mode == Mode::Bytes {
+                        mode = Mode::Unicode;
+                    }
+                } else if lit.is_some_and(|l| l.non_ascii) && mode == Mode::Unicode {
+                    return Some(
+                        "A byte string with non-ASCII bytes is inserted into a unicode result: Jython decodes it as ASCII and raises UnicodeDecodeError".into(),
+                    );
+                } else if lit.is_none() && literal(value).is_none() && mode == Mode::Bytes {
+                    mode = Mode::Unknown;
+                }
+            }
+            Some('c') => {
+                if unicode_value {
+                    if mode == Mode::Bytes {
+                        mode = Mode::Unicode;
+                    }
+                } else if let Some(Literal::Int(Some(n))) = literal(value)
+                    && (256..=0x10_FFFF).contains(&n)
+                    && mode == Mode::Bytes
+                {
+                    return Some(format!(
+                        "`%c` of {n} into a byte string: Jython raises OverflowError (unsigned byte integer is greater than maximum); use a unicode format string"
+                    ));
+                } else if lit.is_none() && literal(value).is_none() && mode == Mode::Bytes {
+                    mode = Mode::Unknown;
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// A Unicode failure of `str.format` (verified on Jython): a unicode
+/// format string whose literal format spec holds a character beyond
+/// U+00FF (`ValueError: Cannot create PyString with non-byte value`,
+/// whatever the argument), or a field that makes a byte string of a
+/// unicode literal with non-ASCII characters (`UnicodeEncodeError`): `!s`,
+/// or no conversion in a byte string format.
+fn format_unicode_error(
+    format: &str,
+    unicode: bool,
+    call: &iglint_python::ast::ExprCall,
+) -> Option<String> {
+    let spec = parse_braces(format).ok()?;
+    if unicode
+        && let Some(wide) = spec
+            .fields
+            .iter()
+            .find(|f| f.spec_text.chars().any(|c| u32::from(c) > 0xFF))
+    {
+        return Some(format!(
+            "Format spec `{}` holds a character beyond U+00FF: Jython raises ValueError (Cannot create PyString with non-byte value)",
+            wide.spec_text
+        ));
+    }
+    let keyword = |name: &str| {
+        call.keywords
+            .iter()
+            .rev()
+            .find(|k| &*k.arg.id == name)
+            .map(|k| &k.value)
+    };
+    let value_of = |field: &FieldUse| match &field.argument {
+        Some(FieldArg::Index(i)) if call.starargs.is_none() => call.args.get(*i),
+        Some(FieldArg::Keyword(k)) if call.kwargs.is_none() => keyword(k),
+        _ => None,
+    };
+    // A nested field's value becomes part of the spec it is in.
+    if unicode {
+        for field in spec.fields.iter().filter(|f| f.nested) {
+            if field.conversion.is_some() || !field.spec_text.is_empty() {
+                continue;
+            }
+            if let Some(Expr::Str(s)) = value_of(field)
+                && let StringValue::Unicode(u) = &s.s
+                && u.chars().any(|c| u32::from(c) > 0xFF)
+            {
+                return Some(
+                    "A nested field puts a character beyond U+00FF into a format spec: Jython raises ValueError (Cannot create PyString with non-byte value)".into(),
+                );
+            }
+        }
+    }
+    for field in &spec.fields {
+        // `!s` makes a byte string of the value; without a conversion, so
+        // does a byte string format.
+        let encodes = match field.conversion {
+            Some('s') => true,
+            None => !unicode,
+            _ => false,
+        };
+        if !encodes {
+            continue;
+        }
+        let value = value_of(field);
+        if value
+            .and_then(str_lit)
+            .is_some_and(|l| l.unicode && l.non_ascii)
+        {
+            return Some(
+                "A unicode string with non-ASCII characters is inserted into a byte string: Jython encodes it as ASCII and raises UnicodeEncodeError".into(),
+            );
+        }
+    }
+    None
 }
 
 /// Whether `e`, the right operand of `%`, is certainly one value that is
@@ -1210,6 +1479,107 @@ mod tests {
         let text = std::fs::read_to_string(path).unwrap();
         let checked = replay_format_specs(&text);
         println!("{checked} cases match Jython");
+    }
+
+    /// Replays Jython's verdicts on `expression<TAB>result` lines
+    /// (`oracle/format-unicode.sh`): no finding where Jython formats, and a
+    /// finding wherever Jython raises one of the Unicode errors this check
+    /// models with literal values only. Returns (cases, Unicode failures
+    /// reported).
+    fn replay_unicode(text: &str) -> (usize, usize) {
+        let (mut cases, mut reported) = (0, 0);
+        for line in text.lines() {
+            let (expression, result) = line.split_once('\t').unwrap();
+            let module = iglint_python::parse_module(expression);
+            let Some(iglint_python::ast::Stmt::Expr(e)) = module.module.body.first() else {
+                panic!("{expression}");
+            };
+            let found = expression_problem(&e.value);
+            cases += 1;
+            if result == "ok" {
+                assert!(
+                    found.is_none(),
+                    "{expression}: Jython formats it, iglint: {found:?}"
+                );
+                continue;
+            }
+            let modelled = result.starts_with("err UnicodeDecodeError")
+                || result.starts_with("err UnicodeEncodeError")
+                || result.starts_with("err OverflowError: unsigned byte")
+                || result.contains("Cannot create PyString with non-byte value");
+            // `x` is a name: its value is not known to iglint; and items of
+            // a value (`{0[0]}`) are not followed.
+            let literal_only = !expression.contains(", x")
+                && !expression.contains("(x")
+                && !expression.contains(" x)")
+                && !expression.contains("% x")
+                && !expression.contains("=x")
+                && !expression.contains(": x")
+                && !expression.contains("{0[0]");
+            if modelled && literal_only {
+                assert!(
+                    found.is_some(),
+                    "{expression}: Jython {result}, iglint nothing"
+                );
+                reported += 1;
+            }
+        }
+        (cases, reported)
+    }
+
+    /// Review round 14 (Codex): Unicode failures of string formatting with
+    /// literals, against every generated case of
+    /// `oracle/format_unicode_cases.py` (`tests/fixtures/format-spec/unicode.tsv`,
+    /// a stratified sample of the recorded results).
+    #[test]
+    fn unicode_formatting_matches_jython() {
+        let (cases, reported) = replay_unicode(include_str!(
+            "../../../tests/fixtures/format-spec/unicode.tsv"
+        ));
+        assert!(cases >= 4000, "{cases}");
+        assert!(reported >= 900, "{reported}");
+    }
+
+    /// Every generated case (`oracle/format-unicode.sh all OUT`, then
+    /// `IGLINT_FORMAT_UNICODE_ORACLE=OUT cargo test -p iglint_linter
+    /// unicode_formatting_matches_jython_everywhere -- --ignored`).
+    #[test]
+    #[ignore]
+    fn unicode_formatting_matches_jython_everywhere() {
+        let path =
+            std::env::var("IGLINT_FORMAT_UNICODE_ORACLE").expect("IGLINT_FORMAT_UNICODE_ORACLE");
+        let (cases, reported) = replay_unicode(&std::fs::read_to_string(path).unwrap());
+        println!("{cases} cases match Jython, {reported} Unicode failures reported");
+    }
+
+    #[test]
+    fn unicode_formatting_errors() {
+        for (code, message) in [
+            (r"x = u'{0:\U0001f980^4}'.format(1)", "beyond U+00FF"),
+            (r"x = u'{:\u0100<3}'.format(y)", "beyond U+00FF"),
+            (r"x = u'%s' % '\xff'", "UnicodeDecodeError"),
+            (r"x = '%s %s' % (u'a', '\xff')", "UnicodeDecodeError"),
+            (r"x = u'%(k)s' % {'k': '\x80'}", "UnicodeDecodeError"),
+            (r"x = '{}'.format(u'\xe9')", "UnicodeEncodeError"),
+            (r"x = '{a!s}'.format(a=u'\xe9')", "UnicodeEncodeError"),
+            (r"x = '%c' % 300", "OverflowError"),
+        ] {
+            let d = lint_module("SCR112", code);
+            assert_eq!(d.len(), 1, "{code}: {d:?}");
+            assert!(d[0].message.contains(message), "{code}: {}", d[0].message);
+        }
+        for code in [
+            r"x = u'{0:\xe9^4}'.format(1)",
+            r"x = '%s %s' % ('\xff', u'a')",
+            r"x = u'%r' % '\xff'",
+            r"x = '%s %s' % (y, '\xff')",
+            r"x = '{!r}'.format(u'\xe9')",
+            r"x = u'{}'.format('\xff')",
+            r"x = '%s%c' % (u'x', 300)",
+            r"x = '{0[0]}'.format(y)",
+        ] {
+            assert!(lint_module("SCR112", code).is_empty(), "{code}");
+        }
     }
 
     #[test]

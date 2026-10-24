@@ -146,6 +146,10 @@ To record new outputs (needs Docker):
   generated `str.format` spec and literal argument (SCR112); the replayed
   sample in `crates/iglint_linter/tests/fixtures/format-spec/` is
   `python3 oracle/format_spec_cases.py stratify OUT 10 4000`.
+* `oracle/format-unicode.sh all OUT` records Jython's verdict on
+  formatting that mixes byte strings and unicode (SCR112); the replayed
+  sample `crates/iglint_linter/tests/fixtures/format-spec/unicode.tsv` is
+  `python3 oracle/format_unicode_cases.py pick OUT 14 5000`.
 * `stubs-gen/run.sh` starts a throwaway gateway, regenerates
   `crates/iglint_stubs` and rewrites `stubs-gen/CROSSCHECK.md`. Review the
   diff of the data files.
