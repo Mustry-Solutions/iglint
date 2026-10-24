@@ -92,6 +92,11 @@ from 0.1.0 on.
 
 ### Fixed
 
+- The scope oracle compares Python 2 tuple parameters too (review round
+  14): the dump has the argument Jython loads (`load fast (b, (c, d))`)
+  and the names its prologue stores, and the generator makes tuple
+  parameters, nested ones included (a fresh run: 20,053 programs, 6,602
+  of them with tuple parameters, 0 differences).
 - Linting part of a workspace (one file, as the pre-commit hooks do, a
   project directory, `cd projects/A && iglint check --fix .`, standard
   input, a language server folder opened on one project) analysed only

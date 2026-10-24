@@ -65,6 +65,16 @@ pub fn scope_dump(model: &SemanticModel<'_>, source: &str) -> String {
             ScopeNode::Module(m) if has_docstring(&m.body) => {
                 add(ops, "store", "global", "__doc__");
             }
+            // A tuple parameter arrives as one argument, named after the
+            // tuple, which the prologue loads and unpacks.
+            ScopeNode::Function(StmtFunctionDef { args, .. })
+            | ScopeNode::Lambda(ExprLambda { args, .. }) => {
+                for arg in &args.args {
+                    if let Expr::Tuple(t) = arg {
+                        add(ops, "load", "fast", &tuple_parameter_name(t));
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -101,7 +111,13 @@ pub fn scope_dump(model: &SemanticModel<'_>, source: &str) -> String {
                 | BindingKind::ExceptVar
                 | BindingKind::WithVar
         );
-        if !stores || !emission.runs(b.site, b.range) {
+        // The names of a tuple parameter are stored by the prologue.
+        let tuple_parameter = b.kind == BindingKind::Parameter && b.unpacked;
+        if tuple_parameter {
+            if emission.dead_scopes.contains(&b.site) {
+                continue;
+            }
+        } else if !stores || !emission.runs(b.site, b.range) {
             continue;
         }
         let access = access_name(model, b.site, b.access, b.name);
@@ -151,6 +167,21 @@ fn access_name(
     } else {
         access.name()
     }
+}
+
+/// The name Jython gives the argument of a tuple parameter: the names in
+/// parentheses, separated by `, ` (`(b, (c, d))`; `(a)` for `(a,)`).
+fn tuple_parameter_name(t: &ExprTuple) -> String {
+    let parts: Vec<String> = t
+        .elts
+        .iter()
+        .map(|e| match e {
+            Expr::Tuple(inner) => tuple_parameter_name(inner),
+            Expr::Name(n) => n.id.to_string(),
+            _ => String::new(),
+        })
+        .collect();
+    format!("({})", parts.join(", "))
 }
 
 fn has_docstring(body: &[Stmt]) -> bool {

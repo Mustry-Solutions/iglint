@@ -10,8 +10,8 @@ Each program mixes the constructs whose name resolution differs between
 scopes: class bodies (at module level, in functions, in classes), private
 names (`__x`) as names, attributes, import aliases, `def`/`class` names,
 `global` names, comprehension, generator and lambda variables, `except`
-and `with` targets, `for` targets, `del`, augmented assignment and tuple
-unpacking; `global` in classes and nested functions; `exec` and
+and `with` targets, `for` targets, `del`, augmented assignment, tuple
+unpacking and tuple parameters; `global` in classes and nested functions; `exec` and
 `import *`; names read before they are bound. Case names carry feature
 tags (`[class]`, `[mangle]`, ...) for stratified sampling. Everything comes
 from the seed; no project data is involved.
@@ -127,10 +127,22 @@ class Gen:
             if n not in names:
                 names.append(n)
         out = []
-        for i, n in enumerate(names):
+        used = set(names)
+        for i, n in enumerate(list(names)):
             if i == len(names) - 1 and self.chance(0.3):
                 out.append('%s=%s' % (n, self.expr(2)))
                 self.tags.add('default')
+            elif self.chance(0.15):
+                # A Python 2 tuple parameter, possibly nested.
+                self.tags.add('tuple-param')
+                inner = [m for m in PRIVATE + ['c', 'd', 'y'] if m not in used]
+                self.r.shuffle(inner)
+                k = self.r.randint(0, 3)
+                parts = [n] + inner[:k]
+                if len(parts) > 2 and self.chance(0.5):
+                    parts = [parts[0], '(%s, %s)' % (parts[1], parts[2])] + parts[3:]
+                used.update(inner[:k])
+                out.append('(%s%s)' % (', '.join(parts), ',' if len(parts) == 1 else ''))
             else:
                 out.append(n)
         if self.chance(0.1) and not out:

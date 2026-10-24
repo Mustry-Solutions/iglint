@@ -303,3 +303,16 @@ class C:
 def f():
     a = y
     y = 1
+### tuple-parameters
+def f(a, (b, (c, d)), e=1):
+    return a
+f = lambda (a, b), c: a
+def g((a,)):
+    pass
+def h(((a, b),), c):
+    def i():
+        return a
+### tuple-parameters-in-class
+class C:
+    def m(self, (__x, y), __z):
+        return __x, __z
