@@ -102,6 +102,27 @@ from 0.1.0 on.
 
 ### Fixed
 
+- A linked Git work tree (`git worktree add`, `.git` is a file that points
+  at `<git dir>/worktrees/<name>`) is a checkout of its own, wherever it
+  lies (review round 17, Opus): a file of `.worktrees/x` or
+  `.claude/worktrees/x` was linted against the main checkout's workspace,
+  whose walk skips hidden directories, so the file-read gate and the
+  closed world came from the main checkout's code (a feature branch's
+  `open(p).read()` did not make SCR123 and SCR124 fixes unsafe), REF009
+  said the walk did not reach `project.json` and `resource.json`, real
+  REF002 and REF012 findings were missed and baseline paths started with
+  `.worktrees/x`. The search for the workspace root stops at a linked work
+  tree; the main checkout's runs (and the language server's folder) no
+  longer enter one, hidden or not. Submodules and repositories made with
+  `--separate-git-dir` still belong to the enclosing work tree.
+- A workspace root candidate counts only when its walk reaches the linted
+  file's project or collection (no hidden or otherwise skipped directory
+  on the way), otherwise the nearest one that does is the root: a project
+  below `node_modules/pkg/projects/` is linted in `node_modules/pkg`. A
+  file whose project the walk did not reach anyway (a language server
+  folder) gets no fixes, and REF009 says that iglint lints it on its own,
+  without saying that the gateway does not load it. In the language
+  server such a file gets a folder of its own.
 - The workspace root no longer depends on what is linted (review round
   15): it is the outermost of the configuration directory, every Ignition
   layout root around the path (up to the Git work tree) and the Git work

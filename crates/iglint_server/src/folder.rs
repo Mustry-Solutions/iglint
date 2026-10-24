@@ -113,8 +113,18 @@ impl Folder {
         self.files.get_or_insert_with(|| self.live.lintable_files())
     }
 
-    /// Whether `path` belongs to this folder.
+    /// Whether `path` belongs to this folder: it is below the folder and
+    /// the folder's workspace walk reached its project or collection (a
+    /// file of a linked Git work tree or of a hidden directory below the
+    /// folder gets a folder of its own).
     pub fn owns(&self, path: &Path) -> bool {
+        self.surrounds(path) && self.live.reaches(path)
+    }
+
+    /// Whether `path` is below the folder or one of its roots, reached by
+    /// its workspace walk or not (a new project's files are not reached
+    /// until the folder is discovered again).
+    pub fn surrounds(&self, path: &Path) -> bool {
         path.starts_with(&self.root) || self.live.covers(path)
     }
 

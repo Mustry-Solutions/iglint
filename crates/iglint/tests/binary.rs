@@ -1454,6 +1454,18 @@ struct Layout {
     collections: &'static [&'static str],
     /// A directory that is a Git work tree of its own inside the top one.
     inner: Option<(&'static str, Inner)>,
+    /// A linked work tree of the top repository (`git worktree add`),
+    /// whose files hold another content (a feature branch).
+    worktree: Option<Worktree>,
+}
+
+/// Where `git worktree add` puts a linked work tree.
+#[derive(Clone, Copy)]
+enum Worktree {
+    /// At this path inside the main checkout.
+    Inside(&'static str),
+    /// Next to the main checkout, outside it.
+    Outside,
 }
 
 /// How a nested work tree is made.
@@ -1475,6 +1487,7 @@ const LAYOUTS: &[Layout] = &[
         projects: &["projects/A"],
         collections: &["gateway/data/config/resources/core"],
         inner: None,
+        worktree: None,
     },
     // Reviewer round 15 B1, variant.
     Layout {
@@ -1484,6 +1497,7 @@ const LAYOUTS: &[Layout] = &[
         projects: &["src/projects/A"],
         collections: &["gateway/config/resources/core"],
         inner: None,
+        worktree: None,
     },
     Layout {
         name: "monorepo with several gateways",
@@ -1495,6 +1509,7 @@ const LAYOUTS: &[Layout] = &[
             "gw2/services/gw/config/resources/core",
         ],
         inner: None,
+        worktree: None,
     },
     Layout {
         name: "layout roots at different depths",
@@ -1503,6 +1518,7 @@ const LAYOUTS: &[Layout] = &[
         projects: &["ignition/projects/A", "x/y/z/projects/C"],
         collections: &["deploy/site/services/gw/config/resources/core"],
         inner: None,
+        worktree: None,
     },
     Layout {
         name: "configuration file in a subdirectory",
@@ -1511,6 +1527,7 @@ const LAYOUTS: &[Layout] = &[
         projects: &["ignition/projects/A", "other/projects/B"],
         collections: &["other/gateway/config/resources/core"],
         inner: None,
+        worktree: None,
     },
     Layout {
         name: "no Git, configuration at the top",
@@ -1519,6 +1536,7 @@ const LAYOUTS: &[Layout] = &[
         projects: &["projects/A"],
         collections: &["gateway/data/config/resources/core"],
         inner: None,
+        worktree: None,
     },
     // Reviewer round 16 B3: the projects in a nested repository, the
     // gateway configuration in the enclosing one.
@@ -1529,6 +1547,7 @@ const LAYOUTS: &[Layout] = &[
         projects: &["ign/projects/A"],
         collections: &["gateway/config/resources/core"],
         inner: Some(("ign", Inner::Repository)),
+        worktree: None,
     },
     Layout {
         name: "submodule",
@@ -1537,6 +1556,46 @@ const LAYOUTS: &[Layout] = &[
         projects: &["ign/projects/A", "other/projects/B"],
         collections: &["gateway/config/resources/core"],
         inner: Some(("ign", Inner::Submodule)),
+        worktree: None,
+    },
+    // Review round 17 (Opus) blocker: a linked work tree is a checkout of
+    // its own, wherever `git worktree add` puts it; the main checkout's
+    // walk skips hidden directories and must not take its files either.
+    Layout {
+        name: "linked work tree in .worktrees",
+        git: true,
+        config: None,
+        projects: &["projects/A"],
+        collections: &["gateway/config/resources/core"],
+        inner: None,
+        worktree: Some(Worktree::Inside(".worktrees/x")),
+    },
+    Layout {
+        name: "linked work tree in .claude/worktrees",
+        git: true,
+        config: None,
+        projects: &["projects/A", "other/projects/B"],
+        collections: &["gateway/data/config/resources/core"],
+        inner: None,
+        worktree: Some(Worktree::Inside(".claude/worktrees/x")),
+    },
+    Layout {
+        name: "linked work tree in a directory that is not hidden",
+        git: true,
+        config: None,
+        projects: &["projects/A"],
+        collections: &["gateway/config/resources/core"],
+        inner: None,
+        worktree: Some(Worktree::Inside("trees/x")),
+    },
+    Layout {
+        name: "linked work tree outside the repository",
+        git: true,
+        config: None,
+        projects: &["src/projects/A"],
+        collections: &["gateway/config/resources/core"],
+        inner: None,
+        worktree: Some(Worktree::Outside),
     },
 ];
 
@@ -1561,12 +1620,34 @@ fn write_layout(layout: &Layout, module: &str, tag_script: &str) -> tempfile::Te
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, text).unwrap();
     };
-    if layout.git && !matches!(layout.inner, Some((_, Inner::Submodule))) {
+    if layout.git
+        && !matches!(layout.inner, Some((_, Inner::Submodule)))
+        && layout.worktree.is_none()
+    {
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
     }
     if let Some(config) = layout.config {
         write(config, "respect-gitignore = true\n");
     }
+    write_contents(dir.path(), layout, module, tag_script);
+    match layout.inner {
+        Some((inner, Inner::Repository)) => {
+            std::fs::create_dir_all(dir.path().join(inner).join(".git")).unwrap();
+        }
+        Some((inner, Inner::Submodule)) => make_submodule(dir.path(), inner),
+        None => {}
+    }
+    dir
+}
+
+/// Writes the projects and collections of `layout` below `top`, with the
+/// library module `m` and the tag event script.
+fn write_contents(top: &std::path::Path, layout: &Layout, module: &str, tag_script: &str) {
+    let write = |rel: &str, text: &str| {
+        let path = top.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
     for (i, project) in layout.projects.iter().enumerate() {
         write(
             &format!("{project}/project.json"),
@@ -1597,44 +1678,70 @@ fn write_layout(layout: &Layout, module: &str, tag_script: &str) -> tempfile::Te
             ),
         );
     }
-    match layout.inner {
-        Some((inner, Inner::Repository)) => {
-            std::fs::create_dir_all(dir.path().join(inner).join(".git")).unwrap();
-        }
-        Some((inner, Inner::Submodule)) => make_submodule(dir.path(), inner),
-        None => {}
-    }
-    dir
+}
+
+/// Runs Git in `cwd` with a fixed identity and settings, and fails the
+/// test when it fails.
+fn git(cwd: &std::path::Path, args: &[&str]) {
+    let out = std::process::Command::new("git")
+        .current_dir(cwd)
+        .args([
+            "-c",
+            "user.name=iglint",
+            "-c",
+            "user.email=iglint@example.invalid",
+            "-c",
+            "protocol.file.allow=always",
+            "-c",
+            "init.defaultBranch=main",
+            "-c",
+            "commit.gpgsign=false",
+        ])
+        .args(args)
+        .output()
+        .expect("git");
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// Commits everything below `top` to a new repository and adds a linked
+/// work tree of it with `git worktree add`; returns the work tree's
+/// directory. Its files are those of the commit until the caller changes
+/// them. Git keeps the work tree's administrative files in
+/// `top/.git/worktrees/<name>`.
+fn make_worktree(top: &std::path::Path, worktree: Worktree) -> std::path::PathBuf {
+    git(top, &["init", "-q"]);
+    git(top, &["add", "-A"]);
+    git(top, &["commit", "-q", "-m", "main"]);
+    let path = match worktree {
+        Worktree::Inside(rel) => top.join(rel),
+        Worktree::Outside => top.with_file_name(format!(
+            "{}-worktree",
+            top.file_name().unwrap().to_string_lossy()
+        )),
+    };
+    git(
+        top,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "feature",
+            path.to_str().unwrap(),
+        ],
+    );
+    assert!(path.join(".git").is_file());
+    path
 }
 
 /// Makes `top` a Git repository and `top/inner` a submodule of it: the
 /// files of `inner` are committed to a repository next to `top` and added
 /// back with `git submodule add` from its `file://` URL.
 fn make_submodule(top: &std::path::Path, inner: &str) {
-    let git = |cwd: &std::path::Path, args: &[&str]| {
-        let out = std::process::Command::new("git")
-            .current_dir(cwd)
-            .args([
-                "-c",
-                "user.name=iglint",
-                "-c",
-                "user.email=iglint@example.invalid",
-                "-c",
-                "protocol.file.allow=always",
-                "-c",
-                "init.defaultBranch=main",
-                "-c",
-                "commit.gpgsign=false",
-            ])
-            .args(args)
-            .output()
-            .expect("git");
-        assert!(
-            out.status.success(),
-            "git {args:?}: {}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-    };
     let source = top.with_file_name(format!(
         "{}-submodule-source",
         top.file_name().unwrap().to_string_lossy()
@@ -1699,21 +1806,80 @@ fn findings(out: &std::process::Output, cwd: &std::path::Path) -> Vec<String> {
 /// fixture gives for it.
 fn single_file_runs_match_the_root_run(
     layout: &Layout,
-    (module, tag, expect): &(&str, &str, &str),
+    content @ (module, tag, expect): &(&str, &str, &str),
 ) {
     let dir = write_layout(layout, module, tag);
     let top = dir.path();
-    let check = |cwd: &std::path::Path, path: Option<&std::path::Path>| {
-        let mut command = iglint(cwd);
-        command.args(["check", "--no-cache", "--output-format", "json"]);
-        if let Some(path) = path {
-            command.arg(path);
+    // A linked work tree with another content: the next one of CONTENTS.
+    let worktree = layout.worktree.map(|w| {
+        let path = make_worktree(top, w);
+        let i = CONTENTS.iter().position(|c| c == content).unwrap();
+        let feature = CONTENTS[(i + 1) % CONTENTS.len()];
+        write_contents(&path, layout, feature.0, feature.1);
+        (path, feature)
+    });
+    let all = check_json(top, None);
+    assert_expected(
+        &all,
+        expect,
+        &format!("{}, {expect}: {all:#?}", layout.name),
+    );
+    let elsewhere = tempfile::tempdir().unwrap();
+    let skip = worktree.as_ref().map(|(p, _)| p.clone());
+    let files = fixture_files(top, skip.as_deref());
+    if let Some(wt) = &skip {
+        assert!(
+            all.iter()
+                .all(|f| !f.starts_with(&wt.display().to_string())),
+            "{}: the main checkout's run reports files of the linked work tree: {all:#?}",
+            layout.name
+        );
+    }
+    for file in &files {
+        let rel = file.strip_prefix(top).unwrap();
+        let expected: Vec<&String> = all
+            .iter()
+            .filter(|f| f.starts_with(&format!("{} ", file.display())))
+            .collect();
+        for (cwd, path) in [
+            (top, rel.to_path_buf()),
+            (elsewhere.path(), file.clone()),
+            (file.parent().unwrap(), file.file_name().unwrap().into()),
+        ] {
+            let got = check_json(cwd, Some(&path));
+            assert_eq!(
+                got.iter().collect::<Vec<_>>(),
+                expected,
+                "{}, {expect}: {} from {}",
+                layout.name,
+                path.display(),
+                cwd.display()
+            );
         }
-        findings(&command.output().unwrap(), cwd)
-    };
-    let all = check(top, None);
-    let shown = format!("{}, {expect}: {all:#?}", layout.name);
-    match *expect {
+    }
+    if let Some((wt, feature)) = worktree {
+        let outcome = linked_worktree_runs_match_own_repository(layout, &wt, feature.2);
+        if matches!(layout.worktree, Some(Worktree::Outside)) {
+            std::fs::remove_dir_all(&wt).unwrap();
+        }
+        outcome();
+    }
+}
+
+/// A JSON run of `iglint check` in `cwd` over `path` (or the working
+/// directory), as [`findings`].
+fn check_json(cwd: &std::path::Path, path: Option<&std::path::Path>) -> Vec<String> {
+    let mut command = iglint(cwd);
+    command.args(["check", "--no-cache", "--output-format", "json"]);
+    if let Some(path) = path {
+        command.arg(path);
+    }
+    findings(&command.output().unwrap(), cwd)
+}
+
+/// Checks what the run over a whole fixture must show for `expect`.
+fn assert_expected(all: &[String], expect: &str, shown: &str) {
+    match expect {
         "no SCR102" => assert!(all.iter().all(|f| !f.contains(" SCR102 ")), "{shown}"),
         "SCR102 unsafe" => assert!(
             all.iter()
@@ -1726,13 +1892,20 @@ fn single_file_runs_match_the_root_run(
             "{shown}"
         ),
     }
-    let elsewhere = tempfile::tempdir().unwrap();
+}
+
+/// The files of a fixture below `top`, sorted, without Git's files and
+/// without the directory `skip`.
+fn fixture_files(top: &std::path::Path, skip: Option<&std::path::Path>) -> Vec<std::path::PathBuf> {
     let mut files = Vec::new();
     let mut stack = vec![top.to_path_buf()];
     while let Some(d) = stack.pop() {
         for entry in std::fs::read_dir(&d).unwrap().flatten() {
             let path = entry.path();
-            if entry.file_name() == ".git" || entry.file_name() == ".gitmodules" {
+            if entry.file_name() == ".git"
+                || entry.file_name() == ".gitmodules"
+                || Some(path.as_path()) == skip
+            {
                 continue;
             }
             if path.is_dir() {
@@ -1743,27 +1916,62 @@ fn single_file_runs_match_the_root_run(
         }
     }
     files.sort();
+    files
+}
+
+/// Every file of the linked work tree `wt`, linted on its own from the
+/// work tree's top, from its own directory and from outside, gives what a
+/// run over a copy of the work tree made its own repository gives for it.
+/// Returns the assertions to run once the caller has cleaned up.
+fn linked_worktree_runs_match_own_repository(
+    layout: &Layout,
+    wt: &std::path::Path,
+    expect: &str,
+) -> impl FnOnce() {
+    let own = tempfile::tempdir().unwrap();
+    let files = fixture_files(wt, None);
     for file in &files {
-        let rel = file.strip_prefix(top).unwrap();
-        let expected: Vec<&String> = all
+        let to = own.path().join(file.strip_prefix(wt).unwrap());
+        std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+        std::fs::copy(file, &to).unwrap();
+    }
+    std::fs::create_dir_all(own.path().join(".git")).unwrap();
+    let own_prefix = own.path().display().to_string();
+    let wt_prefix = wt.display().to_string();
+    let all: Vec<String> = check_json(own.path(), None)
+        .into_iter()
+        .map(|f| f.replace(&own_prefix, &wt_prefix))
+        .collect();
+    let elsewhere = tempfile::tempdir().unwrap();
+    let mut failures = Vec::new();
+    let shown = format!("{} (work tree), {expect}: {all:#?}", layout.name);
+    for file in &files {
+        let rel = file.strip_prefix(wt).unwrap();
+        let expected: Vec<String> = all
             .iter()
             .filter(|f| f.starts_with(&format!("{} ", file.display())))
+            .cloned()
             .collect();
         for (cwd, path) in [
-            (top, rel.to_path_buf()),
+            (wt, rel.to_path_buf()),
             (elsewhere.path(), file.clone()),
             (file.parent().unwrap(), file.file_name().unwrap().into()),
         ] {
-            let got = check(cwd, Some(&path));
-            assert_eq!(
-                got.iter().collect::<Vec<_>>(),
-                expected,
-                "{}, {expect}: {} from {}",
-                layout.name,
-                path.display(),
-                cwd.display()
-            );
+            let got = check_json(cwd, Some(&path));
+            if got != expected {
+                failures.push(format!(
+                    "{} (work tree), {expect}: {} from {}:\n got {got:#?}\n expected {expected:#?}",
+                    layout.name,
+                    path.display(),
+                    cwd.display()
+                ));
+            }
         }
+    }
+    let expect = expect.to_owned();
+    move || {
+        assert_expected(&all, &expect, &shown);
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 }
 
@@ -2476,33 +2684,48 @@ fn directories_that_cannot_be_read_make_the_closed_world_unknown() {
     assert_eq!(fixes(root)[0].1, "safe");
 }
 
-/// Reviewer round 15 B2: a resource file inside a project that the
-/// workspace walk does not reach (below a directory it skips by name) is
-/// not said to be outside every project.
+/// Reviewer round 15 B2: a resource file inside a project below a
+/// directory that the walk from the repository skips by name is not said
+/// to be outside every project. Review round 17 (Opus): nor is it linted
+/// against the repository's workspace, whose walk does not reach it: the
+/// root is the nearest candidate whose walk does (here the layout root
+/// around the project), so REF009 has nothing to say about the walk.
 #[test]
-fn ref009_names_projects_the_walk_did_not_reach() {
+fn files_below_skipped_directories_get_a_root_that_reaches_them() {
     let dir = closed_world_repository("\tprint 1\n");
     let root = dir.path();
     std::fs::create_dir_all(root.join(".git")).unwrap();
-    let hidden = root.join("node_modules/pkg/projects/P/ignition/script-python/n");
+    let pkg = root.join("node_modules/pkg");
+    let hidden = pkg.join("projects/P/ignition/script-python/n");
     std::fs::create_dir_all(&hidden).unwrap();
-    std::fs::write(root.join("node_modules/pkg/projects/P/project.json"), "{}").unwrap();
+    std::fs::write(pkg.join("projects/P/project.json"), "{}").unwrap();
     std::fs::write(
         hidden.join("resource.json"),
         r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
     )
     .unwrap();
-    let out = iglint(root)
-        .args(["check", "--no-cache", "--select", "REF009"])
-        .arg(hidden.join("resource.json"))
-        .output()
-        .unwrap();
-    let text = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        text.contains("is inside `") && text.contains("but the workspace walk did not reach it"),
-        "{text}"
-    );
-    assert!(!text.contains("is not inside a project"), "{text}");
+    std::fs::write(hidden.join("code.py"), "x = 1\n").unwrap();
+    for path in [hidden.join("resource.json"), hidden.join("code.py")] {
+        let out = iglint(root)
+            .args(["check", "--no-cache", "--select", "REF009"])
+            .arg(&path)
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert!(!text.contains("did not reach"), "{text}");
+        assert!(!text.contains("is not inside a project"), "{text}");
+        assert_eq!(out.status.code(), Some(0), "{text}");
+        let out = iglint(root)
+            .args(["check", "--no-cache", "--show-settings"])
+            .arg(&path)
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            text.contains(&format!("Workspace root: {}\n", pkg.display())),
+            "{text}"
+        );
+    }
 }
 
 /// With no workspace root around the file (a project directory on its

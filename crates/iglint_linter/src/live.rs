@@ -253,6 +253,15 @@ impl LiveWorkspace {
         self.roots.iter().any(|r| path.starts_with(r))
     }
 
+    /// Whether the workspace walk reached the project or collection that
+    /// holds `path` on disk (or `path` is outside every one, or behind a
+    /// symbolic link to a directory the walk recorded). A file of a
+    /// project the walk did not reach (a linked Git work tree or a hidden
+    /// directory below the folder) belongs to a workspace of its own.
+    pub fn reaches(&self, path: &Path) -> bool {
+        self.ws.unreached_container(&absolute(path)).is_none()
+    }
+
     /// Whether `path` is excluded from linting by the settings.
     pub fn is_skipped(&self, path: &Path) -> bool {
         self.not_modelled.contains(&absolute(path))
@@ -1152,6 +1161,71 @@ mod tests {
     };
 
     static TEST_RULES: &[&RuleImpl] = &[&BAD_NAME_RULE];
+
+    /// Review round 17 (Opus): a file of a project that the workspace
+    /// walk did not reach (below a hidden directory of the root) is linted
+    /// on its own, gets no fix, and `REF009` says why, without claiming
+    /// that the gateway does not load it.
+    #[test]
+    fn files_of_projects_the_walk_did_not_reach_get_no_fixes() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = absolute(dir.path());
+        let project = root.join(".hidden/projects/P");
+        let module = project.join("ignition/script-python/m");
+        std::fs::create_dir_all(&module).unwrap();
+        std::fs::write(project.join("project.json"), r#"{"title": "P"}"#).unwrap();
+        std::fs::write(
+            module.join("resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        )
+        .unwrap();
+        let code = module.join("code.py");
+        std::fs::write(&code, "x = 1   \n").unwrap();
+        let mut rules = std::collections::BTreeMap::new();
+        for meta in [
+            &crate::rules::script::trailing_whitespace::META,
+            &crate::rules::refs::manifest_mismatch::META,
+        ] {
+            rules.insert(
+                RuleCode::new(meta),
+                RuleSettings {
+                    severity: crate::Severity::Warning,
+                    options: Default::default(),
+                },
+            );
+        }
+        let settings = ProjectSettings {
+            root: root.clone(),
+            base: Arc::new(LinterSettings {
+                rules,
+                strict: false,
+            }),
+            ..ProjectSettings::default()
+        };
+        let mut live = LiveWorkspace::new(settings, vec![root.clone()]);
+        assert!(!live.reaches(&code));
+        let found = live
+            .check(std::slice::from_ref(&code))
+            .remove(0)
+            .diagnostics;
+        let trailing = found
+            .iter()
+            .find(|d| d.rule.code() == "SCR124")
+            .unwrap_or_else(|| panic!("{found:#?}"));
+        assert!(trailing.fix.is_none(), "{trailing:#?}");
+        let ref009: Vec<&str> = found
+            .iter()
+            .filter(|d| d.rule.code() == "REF009")
+            .map(|d| d.message.as_str())
+            .collect();
+        assert_eq!(ref009.len(), 1, "{found:#?}");
+        assert!(
+            ref009[0].contains("but the workspace walk did not reach it")
+                && ref009[0].contains("offers no fixes for it")
+                && !ref009[0].contains("does not load"),
+            "{ref009:?}"
+        );
+    }
 
     #[test]
     fn suppressions_of_embedded_scripts_take_effect() {

@@ -344,6 +344,15 @@ safety of fixes are the same as for a run over the whole repository. A
 warm single-file run takes a few tens of milliseconds on a workspace of
 3,000 files.
 
+A linked Git work tree (`git worktree add`, also one inside the repository
+such as `.worktrees/feature` or `.claude/worktrees/feature`) is a checkout
+of its own: the hook that runs in it analyses the work tree's projects and
+collections, as if it were a separate clone, and runs in the main checkout
+do not read the work tree's files. Submodules and nested repositories
+stay part of the repository around them. iglint reads the `.git` entries
+on disk, not `GIT_DIR` or `GIT_WORK_TREE`, so the hook and a run from a
+shell find the same workspace root.
+
 ## Editors
 
 `iglint server` is a language server (LSP over standard input and output):

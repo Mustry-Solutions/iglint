@@ -388,7 +388,7 @@ impl Server {
                 continue;
             }
             let owners: Vec<usize> = (0..self.folders.len())
-                .filter(|i| self.folders[*i].owns(&path))
+                .filter(|i| self.folders[*i].surrounds(&path))
                 .collect();
             let structural = change.typ != FileChangeType::CHANGED
                 || owners

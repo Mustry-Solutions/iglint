@@ -294,6 +294,12 @@ pub(crate) fn complete_reasons(diagnostics: &mut [Diagnostic], site: Option<&Rea
 ///   gateway does not load the file at that path, and the edit would land
 ///   in the directory the link points to, which may be outside the
 ///   repository and loaded elsewhere. `REF009` reports the file;
+/// * so is a fix that edits a file inside a project or collection that
+///   the workspace walk did not reach
+///   ([`iglint_project::Workspace::unreached_container`]: an editor
+///   folder whose walk skips the hidden directory that holds the file):
+///   the fix was analysed without the file's own project and gateway.
+///   `REF009` reports the file;
 /// * a safe fix that edits a file that is a symbolic link, the target of a
 ///   symbolic link of the workspace, or a file with hard links
 ///   ([`iglint_project::Workspace::shared_file`]) is unsafe, with the
@@ -307,11 +313,9 @@ pub(crate) fn gate_shared_files(diagnostics: &mut [Diagnostic], ws: &iglint_proj
         rustc_hash::FxHashMap::default();
     for d in diagnostics {
         let Some(fix) = d.fix.as_ref() else { continue };
-        if fix
-            .edits
-            .iter()
-            .any(|e| ws.directory_link_above(&e.path).is_some())
-        {
+        if fix.edits.iter().any(|e| {
+            ws.directory_link_above(&e.path).is_some() || ws.unreached_container(&e.path).is_some()
+        }) {
             d.fix = None;
             continue;
         }

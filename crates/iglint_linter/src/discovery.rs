@@ -284,6 +284,14 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
                 return true;
             }
             let is_dir = entry.file_type().is_some_and(|t| t.is_dir());
+            // A linked Git work tree below the walked path is a checkout
+            // of its own (the workspace walk does not enter it either).
+            if is_dir
+                && iglint_project::workspace::git_top(entry.path())
+                    == iglint_project::workspace::GitTop::LinkedWorktree
+            {
+                return false;
+            }
             if entry.file_name().to_string_lossy().starts_with('.')
                 && !(is_dir && hidden_dir_loads(entry.path()))
             {
@@ -385,8 +393,13 @@ pub struct WorkspaceRoots {
 /// names as linting the whole repository.
 ///
 /// The root of a path is the outermost of these candidates, each counted
-/// when it contains the path and is not inside (or equal to) a project or
-/// gateway collection (the rest of the gateway lies outside it):
+/// when it contains the path, is not inside (or equal to) a project or
+/// gateway collection (the rest of the gateway lies outside it), and its
+/// workspace walk reaches the path's project or collection
+/// ([`iglint_project::workspace::walk_reaches`]: no hidden or otherwise
+/// skipped directory and no linked Git work tree on the way; a symbolic
+/// link to a directory on the way counts as reached, since the walk
+/// records it and the files behind it are treated as such):
 ///
 /// 1. the configuration file's directory, when a configuration file was
 ///    found;
@@ -410,13 +423,19 @@ pub struct WorkspaceRoots {
 ///    world unknown at the same limit). Work trees nest: a submodule, or
 ///    a repository made inside another one's work tree, is part of the
 ///    enclosing work tree, whose other directories may hold the rest of
-///    the gateway, so the outermost one that holds a container wins.
+///    the gateway, so the outermost one that holds a container wins. A
+///    linked work tree (`git worktree add`) is not: it is a checkout of
+///    its own wherever it lies, so the search for work trees stops at it,
+///    and the walks of the main checkout do not enter it.
 ///
 /// Without any candidate and without a configuration file, the working
 /// directory is the root when it contains the path and holds a project or
 /// a collection directly, or a `projects/`, `services/` or
 /// `config/resources/` directory: a run from `/` or a home directory does
 /// not walk it.
+///
+/// A root inside another root is kept when the other root's walk does
+/// not reach it.
 ///
 /// Exclusions and `.gitignore` do not apply to the workspace: an excluded
 /// resource still runs on the gateway, so it still counts for the closed
@@ -444,10 +463,18 @@ pub fn workspace_roots(settings: &ProjectSettings, paths: &[PathBuf]) -> Workspa
     for path in paths {
         let path = absolute(path);
         let container = enclosing_container(&path);
+        // A candidate must contain the path, lie outside its container and
+        // reach the container in the workspace walk: a root whose walk
+        // skips a directory on the way (a hidden directory, a linked Git
+        // work tree) would analyse a workspace without the path's own
+        // project.
         let usable = |dir: &Path| {
             path.starts_with(dir)
                 && container.as_ref().is_none_or(|c| !dir.starts_with(c))
                 && !is_container(dir)
+                && container
+                    .as_ref()
+                    .is_none_or(|c| iglint_project::workspace::walk_reaches(dir, c))
         };
         // Every Git work tree around the path, nearest first: a submodule
         // or a nested repository is part of the work tree around it,
@@ -509,10 +536,13 @@ pub fn workspace_roots(settings: &ProjectSettings, paths: &[PathBuf]) -> Workspa
     }
     roots.sort();
     roots.dedup();
-    // Drop roots inside another root.
+    // Drop roots inside another root whose walk reaches them.
     let mut kept: Vec<PathBuf> = Vec::new();
     for root in roots {
-        if !kept.iter().any(|k| root.starts_with(k)) {
+        if !kept
+            .iter()
+            .any(|k| root.starts_with(k) && iglint_project::workspace::walk_reaches(k, &root))
+        {
             kept.push(root);
         }
     }
@@ -601,11 +631,25 @@ fn holds_ignition_layout(dir: &Path) -> bool {
 /// means nested work trees: a submodule (its `.git` is a file that points
 /// into the enclosing repository's `.git/modules`), or a repository made
 /// inside another one's work tree.
+///
+/// A linked work tree (`git worktree add`, see
+/// [`iglint_project::workspace::GitTop::LinkedWorktree`]) is a checkout of
+/// its own: the search stops there, wherever it lies (`.worktrees/x` inside
+/// the main checkout is not part of the main checkout's work tree).
 fn git_work_trees(path: &Path) -> Vec<PathBuf> {
-    path.ancestors()
-        .filter(|d| d.join(".git").exists())
-        .map(Path::to_path_buf)
-        .collect()
+    use iglint_project::workspace::{GitTop, git_top};
+    let mut out = Vec::new();
+    for dir in path.ancestors() {
+        match git_top(dir) {
+            GitTop::None => {}
+            GitTop::Repository => out.push(dir.to_path_buf()),
+            GitTop::LinkedWorktree => {
+                out.push(dir.to_path_buf());
+                break;
+            }
+        }
+    }
+    out
 }
 
 /// Why `file` is not linted (excluded or whitelisted), if it is not.

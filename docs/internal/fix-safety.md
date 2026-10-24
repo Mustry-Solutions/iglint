@@ -510,6 +510,60 @@ inside (or equal to) a project or collection:
   workspace when it holds other projects; the closed world is then
   larger, or unknown at the walk's limit, which only withholds fixes.
 
+  A **linked work tree** is not nested in anything (review round 17,
+  Opus). `git worktree add` makes a directory whose `.git` is a file
+  that points at `<git dir>/worktrees/<name>`, a directory that holds a
+  `commondir` file (`iglint_project::workspace::git_top`); it is a
+  checkout of its own, of another branch, wherever it lies. Before, a
+  work tree in `.worktrees/feat` or `.claude/worktrees/x` of the main
+  checkout had the main checkout as its root, whose walk skips hidden
+  directories: the file-read gate and the closed world were evaluated
+  over the main checkout's code (a feature branch's `open(p).read()` did
+  not make the work tree's SCR123 and SCR124 fixes unsafe, and `--fix`
+  applied them), REF009 said the walk did not reach the work tree's
+  manifests, its REF002 and REF012 findings were missed and baselines
+  were keyed by `.worktrees/feat/...` paths. So the search for work
+  trees stops at a linked work tree (it is the outermost work tree of
+  its paths), and the workspace walk and the walk of linted files do not
+  enter a linked work tree below their root, hidden or not: the main
+  checkout's runs do not include its files. Other `.git` files keep the
+  behaviour above: a submodule's points into
+  `<parent>/.git/modules/...`, and a repository made with
+  `--separate-git-dir` points at a whole Git directory elsewhere; both
+  have no `commondir` and are repositories inside the enclosing work
+  tree. A work tree of a bare repository is a linked work tree like any
+  other; the bare repository itself has no work tree. A `.git` file
+  that cannot be read or does not point at a Git directory counts as a
+  repository. iglint reads the `.git` entries on disk only, not
+  `GIT_DIR` or `GIT_WORK_TREE`: a Git hook sets them and a shell does
+  not, and the root must not depend on how iglint is started. A work
+  tree with no `.git` entry at all (a bare repository checked out with
+  `--work-tree`, dotfiles) is not a Git work tree for the search, so the
+  configuration file and the working directory decide.
+
+**A root candidate must reach the linted path.** Each candidate above
+counts only when the workspace walk from it reaches the path's project
+or collection (`iglint_project::workspace::walk_reaches`): no directory
+on the way is skipped by name (hidden, `node_modules`, `target`,
+`__pycache__`) or is a linked work tree before the walk finds a
+container. Otherwise the nearest candidate that does reach it is the
+root (a project in `node_modules/pkg/projects/P` gets
+`node_modules/pkg`, not the repository), and when no candidate reaches
+it, the path has no root (closed world unknown, below). A symbolic link
+to a directory on the way counts as reached: the walk records the link,
+and the files behind it get the treatment of files behind a link
+(below). Two roots, one inside the other, are both kept when the outer
+one's walk does not reach the inner one. And fail closed: a linted file
+whose project or collection on disk the walk from the chosen root did
+not reach anyway (`Workspace::unreached_container`, for example a
+language server folder whose walk skips the hidden directory of a file
+opened from it) gets no fix (`rules::vetting::gate_shared_files`, like a
+file behind a directory link), and `REF009` says "`<file>` is inside
+`<container>`, but the workspace walk did not reach it (...); iglint
+lints it on its own, without the rest of its gateway, and offers no
+fixes for it", never that the gateway does not load it. The language
+server gives such a file a folder of its own, whose root reaches it.
+
 Without any candidate and without a configuration file, the working
 directory is the root when it contains the path and holds a project, a
 collection, `projects/`, `services/` or `config/resources/` directly. So
@@ -645,11 +699,19 @@ workspace, a link to a file outside it, a hard link),
 `manifests_that_are_links_are_read` and
 `nested_repositories_belong_to_the_enclosing_work_tree` (the layouts of
 the first test include a nested repository and a real `git submodule
-add`), the
+add`, and real `git worktree add` work trees in `.worktrees/x`,
+`.claude/worktrees/x`, a directory that is not hidden and outside the
+repository: every file of a work tree, with a content of its own,
+linted from the work tree's top, its own directory and outside gives the
+findings of a copy of the work tree made its own repository, and the
+main checkout's runs show none of its files),
+`files_below_skipped_directories_get_a_root_that_reaches_them`, the
 `iglint_project` tests of `workspace::tests`, and the language server
 tests `a_folder_inside_the_workspace_sees_the_whole_workspace` and
-`quick_fix_of_a_file_reached_through_a_link_is_unsafe` cover each way of
-linting part of a workspace.
+`quick_fix_of_a_file_reached_through_a_link_is_unsafe` and
+`a_linked_work_tree_below_the_folder_is_its_own_workspace`, and
+`live::tests::files_of_projects_the_walk_did_not_reach_get_no_fixes`
+cover each way of linting part of a workspace.
 
 **Other views.** A Perspective page hands out the views it shows
 (`page.views`, `getViews()`, its primary `page.view`) and a session its

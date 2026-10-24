@@ -800,6 +800,26 @@ impl Workspace {
             .map(PathBuf::as_path)
     }
 
+    /// The project or collection directory on disk that holds `path` when
+    /// the walk did not reach it: no project or collection of the
+    /// workspace holds the path and no symbolic link to a directory is
+    /// above it ([`Workspace::directory_link_above`]). `None` for paths
+    /// outside every project and collection.
+    pub fn unreached_container(&self, path: &Path) -> Option<PathBuf> {
+        let abs = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+        let (dir, _) = enclosing_container(&abs)?;
+        if self.directory_link_above(&abs).is_some() {
+            return None;
+        }
+        let held = self
+            .projects
+            .iter()
+            .map(|p| &p.dir)
+            .chain(self.collections.iter().map(|c| &c.dir))
+            .any(|d| abs.starts_with(d));
+        (!held).then_some(dir)
+    }
+
     /// How the file at `path` is shared with other paths: it is a
     /// symbolic link, other files of the workspace are links to it or the
     /// same file through a link or a hard link, or it has hard links
@@ -1092,6 +1112,86 @@ fn skipped_by_name(name: &std::ffi::OsStr) -> bool {
     is_hidden(name) || name == "node_modules" || name == "target" || name == "__pycache__"
 }
 
+/// What the `.git` entry of a directory makes it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GitTop {
+    /// No `.git` entry.
+    None,
+    /// The top of a repository's work tree: a `.git` directory, or a
+    /// `.git` file that points at a whole Git directory (a submodule, a
+    /// repository made with `--separate-git-dir`) or that cannot be read.
+    Repository,
+    /// A linked work tree (`git worktree add`, also of a bare
+    /// repository): a `.git` file that points at
+    /// `<git dir>/worktrees/<name>`, which holds a `commondir` file. It is
+    /// a checkout of its own, wherever it lies.
+    LinkedWorktree,
+}
+
+/// What the `.git` entry of `dir` makes it. Only the files on disk count,
+/// not `GIT_DIR` or `GIT_WORK_TREE`, so the answer does not depend on how
+/// iglint is started (a Git hook sets them, a shell does not).
+pub fn git_top(dir: &Path) -> GitTop {
+    let dot_git = dir.join(".git");
+    let Ok(meta) = std::fs::metadata(&dot_git) else {
+        return GitTop::None;
+    };
+    if !meta.is_file() || meta.len() > 64 * 1024 {
+        return GitTop::Repository;
+    }
+    let Ok(text) = std::fs::read_to_string(&dot_git) else {
+        return GitTop::Repository;
+    };
+    let Some(target) = text
+        .lines()
+        .next()
+        .and_then(|line| line.strip_prefix("gitdir:"))
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+    else {
+        return GitTop::Repository;
+    };
+    // Relative paths are relative to the directory of the `.git` file
+    // (`worktree.useRelativePaths`, submodules).
+    let git_dir = dir.join(target);
+    if git_dir.join("commondir").is_file() {
+        GitTop::LinkedWorktree
+    } else {
+        GitTop::Repository
+    }
+}
+
+/// Whether the walk of [`Workspace::discover`] from `root` reaches `dir`,
+/// a directory at or below `root`: it does unless a directory on the way
+/// is a linked Git work tree ([`GitTop::LinkedWorktree`], a checkout of
+/// its own) or is skipped by name (a hidden directory, `node_modules`,
+/// ...) before the walk finds a project or collection. A symbolic link to
+/// a directory on the way counts as reached: the walk records it
+/// ([`Workspace::directory_links`]), and what lies behind it gets the
+/// treatment of files behind a link.
+pub fn walk_reaches(root: &Path, dir: &Path) -> bool {
+    let Ok(rel) = dir.strip_prefix(root) else {
+        return false;
+    };
+    let mut at = root.to_path_buf();
+    for component in rel.components() {
+        at.push(component);
+        if git_top(&at) == GitTop::LinkedWorktree {
+            return false;
+        }
+        if at.join(PROJECT_MANIFEST).is_file()
+            || at.join(COLLECTION_MANIFEST).is_file()
+            || is_symlink(&at)
+        {
+            return true;
+        }
+        if skipped_by_name(component.as_os_str()) {
+            return false;
+        }
+    }
+    true
+}
+
 /// Why a symbolic link to a directory is not walked.
 pub const DIRECTORY_LINK: &str = "symbolic link to a directory: Ignition 8.3.3 does not follow \
      symbolic links to directories, so the gateway does not load what it holds at this path";
@@ -1197,6 +1297,11 @@ impl ContainerWalk<'_> {
         for (sub, name, link) in subdirs {
             if self.done() {
                 return;
+            }
+            // A linked Git work tree is another checkout, not part of
+            // this one's gateway, wherever it lies.
+            if git_top(&sub) == GitTop::LinkedWorktree {
+                continue;
             }
             let container = if sub.join(PROJECT_MANIFEST).is_file() {
                 Some(true)
@@ -1472,6 +1577,67 @@ mod tests {
             &format!("{rel}/ignition/script-python/m/code.py"),
             "x = 1\n",
         );
+    }
+
+    /// Review round 17 (Opus): what a `.git` entry makes a directory, as
+    /// Git writes them: a linked work tree's `.git` file points at
+    /// `<git dir>/worktrees/<name>` (absolute, or relative with
+    /// `worktree.useRelativePaths`), which holds `commondir`; a submodule's
+    /// and a `--separate-git-dir` repository's point at a whole Git
+    /// directory.
+    #[test]
+    fn git_tops_and_linked_work_trees() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        write(root, "repo/.git/HEAD", "ref: refs/heads/main\n");
+        write(root, "repo/.git/worktrees/x/commondir", "../..\n");
+        write(root, "repo/.git/modules/sub/HEAD", "ref: refs/heads/main\n");
+        write(
+            root,
+            "repo/.worktrees/x/.git",
+            &format!("gitdir: {}\n", root.join("repo/.git/worktrees/x").display()),
+        );
+        write(root, "repo/rel/x/.git", "gitdir: ../../.git/worktrees/x\n");
+        write(root, "repo/sub/.git", "gitdir: ../.git/modules/sub\n");
+        write(root, "repo/broken/.git", "not a gitdir line\n");
+        write(root, "repo/gone/.git", "gitdir: /nonexistent/worktrees/y\n");
+        assert_eq!(git_top(&root.join("repo")), GitTop::Repository);
+        assert_eq!(
+            git_top(&root.join("repo/.worktrees/x")),
+            GitTop::LinkedWorktree
+        );
+        assert_eq!(git_top(&root.join("repo/rel/x")), GitTop::LinkedWorktree);
+        assert_eq!(git_top(&root.join("repo/sub")), GitTop::Repository);
+        assert_eq!(git_top(&root.join("repo/broken")), GitTop::Repository);
+        assert_eq!(git_top(&root.join("repo/gone")), GitTop::Repository);
+        assert_eq!(git_top(&root.join("repo/.worktrees")), GitTop::None);
+        // The walk does not enter linked work trees, hidden or not, and
+        // `walk_reaches` says so.
+        let repo = root.join("repo");
+        project(&repo, "projects/A");
+        project(&repo, "rel/x/projects/W");
+        project(&repo, ".worktrees/x/projects/H");
+        project(&repo, "sub/projects/S");
+        let ws = Workspace::discover(&[&repo]);
+        assert_eq!(names(&ws), ["project A", "project S"]);
+        assert!(walk_reaches(&repo, &repo.join("projects/A")));
+        assert!(walk_reaches(&repo, &repo.join("sub/projects/S")));
+        assert!(!walk_reaches(&repo, &repo.join("rel/x/projects/W")));
+        assert!(!walk_reaches(&repo, &repo.join(".worktrees/x/projects/H")));
+        assert!(walk_reaches(
+            &repo.join(".worktrees/x"),
+            &repo.join(".worktrees/x/projects/H")
+        ));
+        assert!(!walk_reaches(&repo.join("projects"), &repo));
+        assert_eq!(
+            ws.unreached_container(&repo.join("rel/x/projects/W/project.json")),
+            Some(repo.join("rel/x/projects/W"))
+        );
+        assert_eq!(
+            ws.unreached_container(&repo.join("projects/A/project.json")),
+            None
+        );
+        assert_eq!(ws.unreached_container(&repo.join("README.md")), None);
     }
 
     fn names(ws: &Workspace) -> Vec<String> {

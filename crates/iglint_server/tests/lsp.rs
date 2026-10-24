@@ -1480,3 +1480,98 @@ fn quick_fix_of_a_file_reached_through_a_link_is_unsafe() {
     }
     client.shutdown();
 }
+
+/// Runs Git in `cwd` with a fixed identity; fails the test when it fails.
+fn git(cwd: &std::path::Path, args: &[&str]) {
+    let out = std::process::Command::new("git")
+        .current_dir(cwd)
+        .args([
+            "-c",
+            "user.name=iglint",
+            "-c",
+            "user.email=iglint@example.invalid",
+            "-c",
+            "init.defaultBranch=main",
+            "-c",
+            "commit.gpgsign=false",
+        ])
+        .args(args)
+        .output()
+        .expect("git");
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// Review round 17 (Opus) blocker: a linked work tree in a hidden
+/// directory of the folder (`git worktree add .worktrees/x`) is a
+/// checkout of its own. A file opened from it is linted with the work
+/// tree's workspace, where a library reads files, so the quick fix is
+/// unsafe; the same file of the main checkout keeps its safe fix.
+#[test]
+fn a_linked_work_tree_below_the_folder_is_its_own_workspace() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    write(
+        &root,
+        "projects/A/project.json",
+        r#"{"title": "A", "enabled": true, "inheritable": false}"#,
+    );
+    let manifest = MANIFEST.replace("view.json", "code.py");
+    let lib = "projects/A/ignition/script-python";
+    write(&root, &format!("{lib}/m/resource.json"), &manifest);
+    let text = "import os\n\ndef f():\n    return 1\n";
+    let main = write(&root, &format!("{lib}/m/code.py"), text);
+    git(&root, &["init", "-q"]);
+    git(&root, &["add", "-A"]);
+    git(&root, &["commit", "-q", "-m", "main"]);
+    git(
+        &root,
+        &["worktree", "add", "-q", "-b", "feature", ".worktrees/x"],
+    );
+    let wt = root.join(".worktrees/x");
+    write(&wt, &format!("{lib}/r/resource.json"), &manifest);
+    write(
+        &wt,
+        &format!("{lib}/r/code.py"),
+        "def last(p):\n    return open(p).read()\n",
+    );
+    let feature = wt.join(lib).join("m/code.py");
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    for (path, unsafe_fix) in [(&feature, true), (&main, false)] {
+        let uri = client.open(path, text);
+        let published = client.diagnostics(&uri, Some(1));
+        assert!(
+            !codes(&published).contains(&"REF009".to_owned()),
+            "{published:#?}"
+        );
+        let range = published
+            .diagnostics
+            .iter()
+            .find(|d| d.code == Some(lsp_types::NumberOrString::String("SCR102".into())))
+            .unwrap_or_else(|| panic!("{published:#?}"))
+            .range;
+        let fixes: Vec<CodeAction> = code_actions(
+            &mut client,
+            &uri,
+            range,
+            Some(vec![CodeActionKind::QUICKFIX]),
+        )
+        .into_iter()
+        .filter(|a| a.title.starts_with("SCR102") && !a.title.contains("suppress"))
+        .collect();
+        assert!(!fixes.is_empty(), "{fixes:#?}");
+        for fix in &fixes {
+            assert_eq!(
+                fix.title
+                    .contains("(unsafe: code in the workspace may read the files"),
+                unsafe_fix,
+                "{} {fix:#?}",
+                path.display()
+            );
+        }
+    }
+    client.shutdown();
+}
