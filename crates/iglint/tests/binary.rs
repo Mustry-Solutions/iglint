@@ -1406,6 +1406,61 @@ fn fixes_near_the_method_limit_are_reported_unsafe() {
     assert_eq!(after, code);
 }
 
+/// Reviewer round 20 (Codex) blocker, through the binary: the review's
+/// repro (an import in a function of 1,683 reads of an attribute of
+/// 16,001 characters, which Jython rejects and compiles without the
+/// import) is reported with an unsafe fix that names the identifier, and
+/// `--fix` leaves the file as it is.
+#[test]
+fn fixes_in_scripts_with_long_identifiers_are_reported_unsafe() {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        "p/project.json",
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    );
+    write(
+        "p/ignition/script-python/m/resource.json",
+        r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+    );
+    let mut code = String::from("def work(obj):\n    import math\n");
+    for _ in 0..1_683 {
+        code.push_str(&format!("    obj.{}\n", "n".repeat(16_001)));
+    }
+    code.push_str("    return 1\nprint \"loaded\"\n");
+    write("p/ignition/script-python/m/code.py", &code);
+    let out = iglint(dir.path())
+        .args([
+            "--no-cache",
+            "--select",
+            "SCR102",
+            "--output-format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let fix = &v[0]["fix"];
+    assert_eq!(fix["applicability"], "unsafe", "{}", v[0]["code"]);
+    assert_eq!(
+        fix["unsafe_reason"]["message"],
+        "the safe fix could change what the code does (it changes a script whose compile status is not known: identifier of 16,001 characters: Jython's code size cannot be bounded precisely)",
+    );
+    let out = iglint(dir.path())
+        .args(["--no-cache", "--select", "SCR102", "--fix"])
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(!text.contains("fix not applied"), "{}", text.len());
+    let after =
+        std::fs::read_to_string(dir.path().join("p/ignition/script-python/m/code.py")).unwrap();
+    assert!(after == code, "the file changed");
+}
+
 /// Reviewer round 11: a directory of loose `.py` files has no Ignition
 /// project, so nothing under it is linted; the run says so (exit 0)
 /// instead of only "All checks passed!". Named on the command line, the

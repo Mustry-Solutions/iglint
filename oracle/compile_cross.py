@@ -67,6 +67,34 @@ CONSTRUCTS = {
     'import-star': ['from os import *'],
     'del-cell': ['v = 1', 'def inner():', '    return v', 'del v'],
     'exec-with-free-nested': ['exec "x"', 'def inner():', '    return v', 'v = 1'],
+    # A `yield` in an exception type: NegativeArraySizeException (review
+    # round 20, Opus). Not in a lambda or in the clause's target.
+    'except-yield-type': ['try:', '    pass', 'except (yield):', '    pass'],
+    'except-yield-type-name': ['try:', '    pass', 'except (yield), e:', '    pass'],
+    'except-yield-tuple': ['try:', '    pass', 'except (E, (yield)):', '    pass'],
+    'except-yield-call': ['try:', '    pass', 'except E((yield)):', '    pass'],
+    'except-yield-lambda': ['try:', '    pass', 'except (lambda: (yield))():', '    pass'],
+    'except-yield-target': ['try:', '    pass', 'except E, a[(yield)]:', '    pass'],
+    # A `yield` in an attribute or subscript target of an unpacking:
+    # IllegalArgumentException (review round 20, Opus). Single targets,
+    # chains of them, augmented assignments and `del` compile.
+    'unpack-yield-subscript': ['b, a[(yield)] = 1, 2'],
+    'unpack-yield-attribute': ['b, (yield).x = 1, 2'],
+    'unpack-yield-slice': ['b, a[(yield):2] = 1, 2'],
+    'unpack-yield-nested': ['(b, a[(yield)]), c = (1, 2), 3'],
+    'unpack-yield-list': ['[b, a[(yield)]] = 1, 2'],
+    'unpack-yield-chained': ['c = b, a[(yield)] = 1, 2'],
+    'unpack-yield-for': ['for b, a[(yield)] in s:', '    pass'],
+    'unpack-yield-with': ['with c as (b, a[(yield)]):', '    pass'],
+    'unpack-yield-except': ['try:', '    pass', 'except E, (b, a[(yield)]):', '    pass'],
+    'unpack-yield-genexp-target': ['x = list(1 for b, a[(yield)] in s)'],
+    'unpack-yield-single': ['a[(yield)] = 1'],
+    'unpack-yield-single-chained': ['a[(yield)] = b = 1'],
+    'unpack-yield-for-single': ['for a[(yield)] in s:', '    pass'],
+    'unpack-yield-aug': ['a[(yield)] += 1'],
+    'unpack-yield-del': ['del b, a[(yield)]'],
+    'unpack-yield-lambda': ['b, a[lambda: (yield)] = 1, 2'],
+    'unpack-yield-value': ['b, a[0] = (yield), 2'],
 }
 
 # Where the prefix and the construct go: `{}` is the indented block.

@@ -555,9 +555,17 @@ Jython runtime facts that rules rely on (checked with IA's Jython 2.7.3):
   with a value in a generator, `import *` and unqualified `exec` in
   functions with nested free variables, `del` of a closure variable,
   assignments to `__debug__`, misplaced `from __future__`), and crashes on
-  some assignment targets its parser accepts (`-a = 1`, `for f() in x`):
-  see `crates/iglint_python_semantic/tests/oracle/compile.cases`, recorded
-  with `oracle/run-oracle.sh --compile`.
+  some assignment targets its parser accepts (`-a = 1`, `for f() in x`)
+  and on some positions of `yield` in generated code: inside a list
+  comprehension (`VerifyError`), in the exception type of an `except`
+  clause (`except (yield):`, `NegativeArraySizeException`) and in an
+  attribute or subscript target inside an unpacking target (`b, a[(yield)]
+  = 1, 2`, also in `for`, `with ... as` and `except E, (b, a[(yield)])`
+  targets; `IllegalArgumentException`; a single target, a chain of single
+  targets, an augmented assignment and `del` compile): see
+  `crates/iglint_python_semantic/tests/oracle/compile.cases` and
+  `oracle/compile_cross.py`, recorded with `oracle/run-oracle.sh
+  --compile`.
 
 #### Names that statements create [oracle]
 
@@ -614,10 +622,29 @@ and with `-Xss16m`.
   first body line are limited: with `def runAction(self, event):` a first
   body line of 99,971 characters (tab included) compiles, 99,972 fails.
   Lines from 3 on have no limit: 1,000,000-character string literals
-  (`str` and `unicode`, any characters and escapes), identifiers, a
-  1,000,000-character comment and 100,000-digit numbers compile. There is
-  no 65,535-byte limit on a string constant. `SCR002` reports this limit
-  exactly.
+  (`str` and `unicode`, any characters and escapes), a 1,000,000-character
+  comment and 100,000-digit numbers compile. There is no 65,535-byte limit
+  on a string constant. `SCR002` reports this limit exactly.
+* **Names: 65,535 bytes for a method name.** Jython names the Java method
+  (and the field holding its code object) of every function and class
+  body `<name>$<number>`, with a private name mangled in a class
+  (`_K__name$2`), and a class file constant holds at most 65,535 bytes of
+  modified UTF-8: a function or class of the module (numbered 1) compiles
+  with a name of 65,533 characters and fails with 65,534
+  (`java.lang.IllegalArgumentException: UTF8 string too large`); a method
+  of class `K` named `__` plus 65,529 characters compiles, plus 65,530
+  fails. A `def` in code Jython does not generate has no method and no
+  limit. Every other name is loaded with `Code.ldc`, which builds a string
+  of more than 16,000 UTF-16 units from chunks: variable, parameter,
+  `global`, imported and free variable names, attributes, keywords and
+  docstrings of 1,000,000 characters compile
+  (`crates/iglint_python_semantic/tests/limits_oracle.rs`). Each chunk
+  costs bytecode: 1,000 reads of an attribute of 16,001 characters take
+  38,889 bytes, of 10 characters 17,889. `SCR002` reports the method name
+  limit exactly for these positions; a method numbered 10 or more fails a
+  character earlier per further digit, which `SCR002` leaves unreported
+  (it counts one digit). The safety net treats the compile status of any
+  script with an identifier of more than 1,000 characters as unknown.
 * **Method too large.** The module body, each function and class body,
   each lambda and each generator expression compile to one Java method of
   at most 65,535 bytes of bytecode (`java.lang.RuntimeException: Module

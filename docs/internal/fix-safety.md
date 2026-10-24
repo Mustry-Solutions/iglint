@@ -1566,13 +1566,14 @@ remaining documented assumption.
   | Emission site | Bytes charged | Repeated |
   |---|---|---|
   | `setline` | 7 (`aload_1`, `iconst` of the line, `invokevirtual`) | per statement, and per `IfExp`, lambda, generator expression, `yield` and synthetic statement of a comprehension |
-  | `visitName` | 7 (`aload_1`, `ldc` of the name or `iconst` of its index, `invokevirtual`); a store adds the `aload` of the value | per name |
+  | `Code.ldc` of a string the generator emits (every name, attribute, keyword, imported name and module, class name, string literal, and in `<init>` every variable, cell and free variable name and the code object's name) | 3 up to 16,000 UTF-16 units; beyond, a `StringBuilder`: 13 + `iconst` of the length + 6 per chunk of 16,000. A name counts as long as Jython may spell it: mangled (`_<class>__x`) wherever a class may mangle it, a tuple parameter as `(a, (b, c))` | per string, at each emission below |
+  | `visitName` | 4 (`aload_1`, `invokevirtual`) and the `ldc` of the name (or `iconst` of its index, never more); a store adds the `aload` of the value | per name |
   | `visitNum`, `visitStr` (`Module.*Constant.get`) | `iconst`/`ldc`/`ldc2_w` and `invokestatic`, at most 6; a string of more than 16,000 UTF-16 units goes through a `StringBuilder` (`Code.ldc`): 13 + `iconst` + 6 per chunk | per literal |
-  | `visitAttribute` | value, `ldc`, `invokevirtual` (store: and `aload`) | per attribute |
+  | `visitAttribute` | value, `ldc` of the attribute name, `invokevirtual` (store: and `aload`) | per attribute |
   | `visitSubscript`, `Slice` | value, index or the parts of a simple slice (`aconst_null` for a missing one), `invokevirtual` (store: and `aload`); `visitExtSlice` an array of the dimensions, `new PyTuple` and `freeArray`; `visitSlice` `getstatic None` per missing part and a temporary | per subscript, per dimension |
   | `visitCall`, `invokeNoKeywords` | up to 4 positional arguments on the stack: `aload_2`, `invokevirtual` (an attribute call adds `ldc` and `__getattr__`); otherwise `makeArray` of the values and `makeStrings` of the keywords, the star arguments or `aconst_null`, `dup2_x2`, `pop2`, `_callextra` or `__call__`, `freeArrayRef` | per argument, per keyword |
   | `makeArray` | `iconst`, `anewarray`, `astore`; per element the value, `aload`, `swap`, `iconst`, `swap`, `aastore` | per element (call arguments, defaults, bases, displays in a generator, dimensions) |
-  | `makeStrings` | `iconst`, `anewarray`, `astore`; per name `aload`, `iconst`, `ldc`, `aastore` | per keyword, per name of a `from` import |
+  | `makeStrings` | `iconst`, `anewarray`, `astore`; per name `aload`, `iconst`, the `ldc` of the name, `aastore` | per keyword, per name of a `from` import |
   | `loadArray` (displays outside generators) | `iconst`, `anewarray`; per element `dup`, `iconst`, the value, `aastore`. 100 or more elements that are all number or string literals (`Module.emitPrimitiveArraySetters`): `dup` and `invokestatic` per 4,096 elements here, and a `set$$N` method of `aload_0`, `iconst`, the constant and `aastore` per element | per element |
   | `visitBoolOp` | `dup`, `invokevirtual __nonzero__`, a jump, `pop` | per operand after the first |
   | `visitCompare` | two temporaries; per comparator but the last `aload`, `swap`, `dup`, `astore`, the comparison, `dup`, `astore`, `__nonzero__`, a jump; the last `aload`, `swap`, the comparison | per comparator |
@@ -1587,7 +1588,7 @@ remaining documented assumption.
   | `seqSet` (unpacking) | `aload`, `iconst`, `invokestatic unpackSequence`, `astore`; per element `aload`, `iconst`, `aaload` and a `set` of it | per element, at every nesting level |
   | `visitAugAssign` | the target's parts into 2 temporaries (a simple slice 4, `saveAugTmps`), the load, the value, the operator, the result into a temporary, the parts back (`restoreAugTmps`), the store | per statement |
   | `visitPrint` | per value the destination's `aload`, the value, `invokestatic` | per value |
-  | `visitImport`, `visitImportFrom` | per name `ldc`, `aload_1`, `iconst`, `invokestatic` and a `set`; a `from` import `makeStrings` of the names, `importFrom`, and per name `aload`, `iconst`, `aaload` and a `set` | per name |
+  | `visitImport`, `visitImportFrom` | per name the `ldc` of the dotted name, `aload_1`, `iconst`, `invokestatic` and a `set` of the alias or first part; a `from` import the `ldc` of the module, `makeStrings` of the names, `importFrom`, and per name `aload`, `iconst`, `aaload` and a `set` of the alias or name | per name |
   | `visitDelete`, `visitExec`, `visitAssert`, `visitRaise` | each part, `invokestatic`/`athrow`; `assert` the `__debug__` test, two jumps and `AssertionError` | per target, per part |
   | `visitIf`, `doTest` | line of the test, test, `__nonzero__`, `ifeq`, `goto` past the `else` after a body that does not exit | per `if` and `elif` |
   | `visitWhile`, `visitFor` | two jumps; `for` two temporaries, `__iter__`, `__iternext__`, the line twice | per loop |
@@ -1597,12 +1598,13 @@ remaining documented assumption.
   | `visitReturn`, `visitBreak`, `visitContinue` | the `finally` bodies and `with` exits of every handler down to the loop (`return`: all), then `goto`, or the value through the return local, `f_lasti = -1`, `areturn` | per statement |
   | `visitYield` | the line; `saveStack` (per recorded stack item `aload`, `swap`, `iconst`, `swap`, `aastore`; per thread state `pop`) and `restoreStack`; `f_lasti`; `saveLocals` (per active temporary `aload`, `iconst`, `aload`, `aastore`) and `restoreLocals` (`aload`, `iconst`, `aaload`, `checkcast`, `astore`); the restart's 18 bytes. The active temporaries are every JVM local live at the `yield`: two per enclosing `for`, the manager of each enclosing `with`, the exception local of each enclosing `try`/`finally`, the temporaries of an enclosing comparison or call | per `yield`, per live temporary and stack item |
   | `parse` | a class body's `__module__` (14) and docstring; per parameter that is a cell `aload_1`, two `iconst`, `invokevirtual to_cell`; the `with` exits array; `f_lasti = -1`, `None`, `areturn` (a class body `getf_locals`); a generator's `tableswitch` (16 and 4 per `yield`) and the `goto` to it | per unit |
-  | `ArgListCompiler.appendInitCode` | the unpacking of tuple parameters, prepended to the function's statement list at every compile: the n-th copy of a `def` in a `finally` body has it n times | per copy |
-  | `<init>` (`PyCodeConstant.put`) | per compiled unit `iconst` of the argument count, the variable names, cell and free variables (`makeStrings`, the free variables per `setup_closure` call), name, line, flags, `Py.newCode`, `putstatic`; `aload_0`, `invokespecial` and `return` once | per compiled unit, per name |
+  | `ArgListCompiler.appendInitCode` | the load of the tuple's name (`(a, b)`) and the unpacking of tuple parameters, prepended to the function's statement list at every compile: the n-th copy of a `def` in a `finally` body has it n times | per copy |
+  | `<init>` (`PyCodeConstant.put`) | per compiled unit `iconst` of the argument count, the variable names, cell and free variables (`makeStrings`, the free variables per `setup_closure` call, each name's `ldc` by its length), the code object's name (`ldc`), line, flags, `Py.newCode`, `putstatic`; `aload_0`, `invokespecial` and `return` once | per compiled unit, per name |
   | `call_function` (`Module.addFunctions`) | 25, and `tableswitch` entry, `invokevirtual`, `areturn` per compiled unit (8) | per compiled unit |
 
   The constant pool's bound counts every distinct string and name (also
-  as Jython mangles private names in a class), chunks of long strings,
+  as Jython mangles private names in a class), chunks of long strings and
+  names,
   the names Jython makes (`_[n]`, `_(n)`, `_(x)`, `(a, b)`), numbers, 24
   entries per compiled unit, line numbers beyond `sipush` and 600 entries
   for the runtime's classes, methods and fields, with a twentieth on top.
@@ -1675,11 +1677,58 @@ remaining documented assumption.
   committed sample that Jython rejects and none that compile; the verdict
   between the bounds is open. The constant pool is reported whenever its
   lower bound (two entries per distinct string literal) exceeds the
-  limit, and open between the bounds.On the private project no script
+  limit, and open between the bounds. On the private project no script
   has an open verdict (1,600 scripts: 458 library modules and the scripts
   of its views; the largest unit's upper bound is 23,246 bytes, where the
   round 18 bound said 50,874), and the findings and their applicability
   are the same as before (all its fixes are unsafe for other reasons).
+
+  *Long names (review round 20, Codex, blocker).* The mirror charged a
+  flat `ldc` per name. `Code.ldc` builds a string of more than 16,000
+  UTF-16 units with a `StringBuilder`, for names as for string literals,
+  and the mirror modelled that only for literals: a function of 1,683
+  reads of an attribute of 16,001 characters had an upper bound below
+  the limit, Jython rejects it with an `import math` and compiles it with
+  the import's line blanked (65,528 bytes), and `SCR102`'s safe fix
+  blanked the import. On the oracle 1,000 such reads take 38,889 bytes,
+  where the bound said 21,045. Every string the generator loads is now
+  charged by its length (the `Code.ldc` row of the table): the bound of
+  the repro's function is 72,388 bytes without the import and 72,414 with
+  it, so its verdict is open. Two more layers fail closed. A script with
+  an identifier (a name, attribute, keyword, imported name, module or
+  alias, `global` name, function, class or parameter name, in code Jython
+  generates or not) of more than 1,000 characters
+  (`limits::IDENTIFIER_LIMIT`) has an unknown compile status whatever the
+  bounds say ("identifier of N characters: Jython's code size cannot be
+  bounded precisely"): Jython changes how it encodes a name at 16,000
+  units and limits method names at 65,535 bytes, so this keeps every fix
+  a factor of 16 away from any error in the model of either, and real
+  code has no such names (the longest identifier of the private
+  project's 1,600 scripts has 79 characters). String literals are not
+  limited: the mirror charges them exactly, and real scripts hold long
+  ones. And `SCR002` reports a `def` or `class` whose Java method name
+  (`<name>$<number>`, mangled in a class) exceeds the 65,535 bytes of a
+  class file constant (`UTF8 string too large`), measured exactly for
+  functions, classes, methods, nested functions and private methods
+  (`tests/limits_oracle.rs`); every other position of a name, and
+  docstrings and string literals, compile at 1,000,000 characters
+  (`docs/internal/ignition-format.md`, "Size limits").
+
+  The calibration has an adversarial family for names (`long-names`, 30
+  programs): every position above (attribute loads, stores, augmented
+  assignments, calls and `del`, local, global and deleted names,
+  keywords with and without star arguments, every form of import, `global`,
+  nested `def` and `class` names, parameters, tuple parameters, star
+  parameters, lambda parameters, cells and free variables, docstrings,
+  `str` and `unicode` literals, comprehension and generator targets,
+  `except` and `with` targets, `getattr` with a literal, private names in
+  a class, `yield` of an attribute) at 15,999 to 70,000 characters, and
+  dense functions of 1,000 to 2,300 reads of names of 16,001 or 32,001
+  characters near the method limit; and the review's repro and probe. No
+  method, `<init>` or pool is above its bound (the family fails without
+  the change: 38 bounds below Jython's size). Smallest margins: methods
+  of 200 bytes or more 1.070 (22 bytes), `<init>` 1.083 (11 bytes),
+  constant pools 3.3.
 * **Import side effects.** Removing an import is safe only with positive
   evidence that the import succeeds and has no effect: a Java class
   measured to exist in the image (a public top-level class of a vetted

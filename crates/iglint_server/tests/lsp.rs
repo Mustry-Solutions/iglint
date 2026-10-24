@@ -1029,6 +1029,63 @@ fn quick_fix_near_the_method_limit_is_unsafe() {
     client.shutdown();
 }
 
+/// Reviewer round 20 (Codex) blocker, through the language server: the
+/// quick fix of the review's repro (an import in a function of 1,683
+/// reads of an attribute of 16,001 characters) is unsafe, names the
+/// identifier and is not preferred.
+#[test]
+fn quick_fix_with_long_identifiers_is_unsafe() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    demo_project(&root);
+    let lib = "projects/demo/ignition/script-python/m";
+    write(
+        &root,
+        &format!("{lib}/resource.json"),
+        &MANIFEST.replace("view.json", "code.py"),
+    );
+    let mut text = String::from("def work(obj):\n    import math\n");
+    for _ in 0..1_683 {
+        text.push_str(&format!("    obj.{}\n", "n".repeat(16_001)));
+    }
+    text.push_str("    return 1\nprint \"loaded\"\n");
+    let path = write(&root, &format!("{lib}/code.py"), &text);
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&path, &text);
+    let published = client.diagnostics(&uri, Some(1));
+    let range = published
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.code
+                .as_ref()
+                .is_some_and(|c| *c == lsp_types::NumberOrString::String("SCR102".to_owned()))
+        })
+        .unwrap_or_else(|| panic!("{published:#?}"))
+        .range;
+    let fixes: Vec<CodeAction> = code_actions(
+        &mut client,
+        &uri,
+        range,
+        Some(vec![CodeActionKind::QUICKFIX]),
+    )
+    .into_iter()
+    .filter(|a| a.title.starts_with("SCR102") && !a.title.contains("suppress"))
+    .collect();
+    assert!(!fixes.is_empty());
+    for f in &fixes {
+        assert!(
+            f.title.ends_with(
+                "(unsafe: the safe fix could change what the code does (it changes a script whose compile status is not known: identifier of 16,001 characters: Jython's code size cannot be bounded precisely))"
+            ),
+            "{}",
+            f.title
+        );
+        assert_ne!(f.is_preferred, Some(true), "{}", f.title);
+    }
+    client.shutdown();
+}
+
 /// Reviewer round 9 (Codex) blocker, through the language server: removing
 /// an import that fails (a class that does not exist) changes what the
 /// program does when the caller catches the error, so the quick fix is

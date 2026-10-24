@@ -47,6 +47,76 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/none/except-yield-type
+try:
+    pass
+except (yield):
+    pass
+### module/none/except-yield-type-name
+try:
+    pass
+except (yield), e:
+    pass
+### module/none/except-yield-tuple
+try:
+    pass
+except (E, (yield)):
+    pass
+### module/none/except-yield-call
+try:
+    pass
+except E((yield)):
+    pass
+### module/none/except-yield-lambda
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/none/except-yield-target
+try:
+    pass
+except E, a[(yield)]:
+    pass
+### module/none/unpack-yield-subscript
+b, a[(yield)] = 1, 2
+### module/none/unpack-yield-attribute
+b, (yield).x = 1, 2
+### module/none/unpack-yield-slice
+b, a[(yield):2] = 1, 2
+### module/none/unpack-yield-nested
+(b, a[(yield)]), c = (1, 2), 3
+### module/none/unpack-yield-list
+[b, a[(yield)]] = 1, 2
+### module/none/unpack-yield-chained
+c = b, a[(yield)] = 1, 2
+### module/none/unpack-yield-for
+for b, a[(yield)] in s:
+    pass
+### module/none/unpack-yield-with
+with c as (b, a[(yield)]):
+    pass
+### module/none/unpack-yield-except
+try:
+    pass
+except E, (b, a[(yield)]):
+    pass
+### module/none/unpack-yield-genexp-target
+x = list(1 for b, a[(yield)] in s)
+### module/none/unpack-yield-single
+a[(yield)] = 1
+### module/none/unpack-yield-single-chained
+a[(yield)] = b = 1
+### module/none/unpack-yield-for-single
+for a[(yield)] in s:
+    pass
+### module/none/unpack-yield-aug
+a[(yield)] += 1
+### module/none/unpack-yield-del
+del b, a[(yield)]
+### module/none/unpack-yield-lambda
+b, a[lambda: (yield)] = 1, 2
+### module/none/unpack-yield-value
+b, a[0] = (yield), 2
 ### module/pass/listcomp-yield-iter
 pass
 [x for x in (yield [])]
@@ -114,6 +184,99 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/pass/except-yield-type
+pass
+try:
+    pass
+except (yield):
+    pass
+### module/pass/except-yield-type-name
+pass
+try:
+    pass
+except (yield), e:
+    pass
+### module/pass/except-yield-tuple
+pass
+try:
+    pass
+except (E, (yield)):
+    pass
+### module/pass/except-yield-call
+pass
+try:
+    pass
+except E((yield)):
+    pass
+### module/pass/except-yield-lambda
+pass
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/pass/except-yield-target
+pass
+try:
+    pass
+except E, a[(yield)]:
+    pass
+### module/pass/unpack-yield-subscript
+pass
+b, a[(yield)] = 1, 2
+### module/pass/unpack-yield-attribute
+pass
+b, (yield).x = 1, 2
+### module/pass/unpack-yield-slice
+pass
+b, a[(yield):2] = 1, 2
+### module/pass/unpack-yield-nested
+pass
+(b, a[(yield)]), c = (1, 2), 3
+### module/pass/unpack-yield-list
+pass
+[b, a[(yield)]] = 1, 2
+### module/pass/unpack-yield-chained
+pass
+c = b, a[(yield)] = 1, 2
+### module/pass/unpack-yield-for
+pass
+for b, a[(yield)] in s:
+    pass
+### module/pass/unpack-yield-with
+pass
+with c as (b, a[(yield)]):
+    pass
+### module/pass/unpack-yield-except
+pass
+try:
+    pass
+except E, (b, a[(yield)]):
+    pass
+### module/pass/unpack-yield-genexp-target
+pass
+x = list(1 for b, a[(yield)] in s)
+### module/pass/unpack-yield-single
+pass
+a[(yield)] = 1
+### module/pass/unpack-yield-single-chained
+pass
+a[(yield)] = b = 1
+### module/pass/unpack-yield-for-single
+pass
+for a[(yield)] in s:
+    pass
+### module/pass/unpack-yield-aug
+pass
+a[(yield)] += 1
+### module/pass/unpack-yield-del
+pass
+del b, a[(yield)]
+### module/pass/unpack-yield-lambda
+pass
+b, a[lambda: (yield)] = 1, 2
+### module/pass/unpack-yield-value
+pass
+b, a[0] = (yield), 2
 ### module/return/listcomp-yield-iter
 return
 [x for x in (yield [])]
@@ -181,6 +344,99 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/return/except-yield-type
+return
+try:
+    pass
+except (yield):
+    pass
+### module/return/except-yield-type-name
+return
+try:
+    pass
+except (yield), e:
+    pass
+### module/return/except-yield-tuple
+return
+try:
+    pass
+except (E, (yield)):
+    pass
+### module/return/except-yield-call
+return
+try:
+    pass
+except E((yield)):
+    pass
+### module/return/except-yield-lambda
+return
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/return/except-yield-target
+return
+try:
+    pass
+except E, a[(yield)]:
+    pass
+### module/return/unpack-yield-subscript
+return
+b, a[(yield)] = 1, 2
+### module/return/unpack-yield-attribute
+return
+b, (yield).x = 1, 2
+### module/return/unpack-yield-slice
+return
+b, a[(yield):2] = 1, 2
+### module/return/unpack-yield-nested
+return
+(b, a[(yield)]), c = (1, 2), 3
+### module/return/unpack-yield-list
+return
+[b, a[(yield)]] = 1, 2
+### module/return/unpack-yield-chained
+return
+c = b, a[(yield)] = 1, 2
+### module/return/unpack-yield-for
+return
+for b, a[(yield)] in s:
+    pass
+### module/return/unpack-yield-with
+return
+with c as (b, a[(yield)]):
+    pass
+### module/return/unpack-yield-except
+return
+try:
+    pass
+except E, (b, a[(yield)]):
+    pass
+### module/return/unpack-yield-genexp-target
+return
+x = list(1 for b, a[(yield)] in s)
+### module/return/unpack-yield-single
+return
+a[(yield)] = 1
+### module/return/unpack-yield-single-chained
+return
+a[(yield)] = b = 1
+### module/return/unpack-yield-for-single
+return
+for a[(yield)] in s:
+    pass
+### module/return/unpack-yield-aug
+return
+a[(yield)] += 1
+### module/return/unpack-yield-del
+return
+del b, a[(yield)]
+### module/return/unpack-yield-lambda
+return
+b, a[lambda: (yield)] = 1, 2
+### module/return/unpack-yield-value
+return
+b, a[0] = (yield), 2
 ### module/raise/listcomp-yield-iter
 raise X
 [x for x in (yield [])]
@@ -248,6 +504,99 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/raise/except-yield-type
+raise X
+try:
+    pass
+except (yield):
+    pass
+### module/raise/except-yield-type-name
+raise X
+try:
+    pass
+except (yield), e:
+    pass
+### module/raise/except-yield-tuple
+raise X
+try:
+    pass
+except (E, (yield)):
+    pass
+### module/raise/except-yield-call
+raise X
+try:
+    pass
+except E((yield)):
+    pass
+### module/raise/except-yield-lambda
+raise X
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/raise/except-yield-target
+raise X
+try:
+    pass
+except E, a[(yield)]:
+    pass
+### module/raise/unpack-yield-subscript
+raise X
+b, a[(yield)] = 1, 2
+### module/raise/unpack-yield-attribute
+raise X
+b, (yield).x = 1, 2
+### module/raise/unpack-yield-slice
+raise X
+b, a[(yield):2] = 1, 2
+### module/raise/unpack-yield-nested
+raise X
+(b, a[(yield)]), c = (1, 2), 3
+### module/raise/unpack-yield-list
+raise X
+[b, a[(yield)]] = 1, 2
+### module/raise/unpack-yield-chained
+raise X
+c = b, a[(yield)] = 1, 2
+### module/raise/unpack-yield-for
+raise X
+for b, a[(yield)] in s:
+    pass
+### module/raise/unpack-yield-with
+raise X
+with c as (b, a[(yield)]):
+    pass
+### module/raise/unpack-yield-except
+raise X
+try:
+    pass
+except E, (b, a[(yield)]):
+    pass
+### module/raise/unpack-yield-genexp-target
+raise X
+x = list(1 for b, a[(yield)] in s)
+### module/raise/unpack-yield-single
+raise X
+a[(yield)] = 1
+### module/raise/unpack-yield-single-chained
+raise X
+a[(yield)] = b = 1
+### module/raise/unpack-yield-for-single
+raise X
+for a[(yield)] in s:
+    pass
+### module/raise/unpack-yield-aug
+raise X
+a[(yield)] += 1
+### module/raise/unpack-yield-del
+raise X
+del b, a[(yield)]
+### module/raise/unpack-yield-lambda
+raise X
+b, a[lambda: (yield)] = 1, 2
+### module/raise/unpack-yield-value
+raise X
+b, a[0] = (yield), 2
 ### module/continue/listcomp-yield-iter
 continue
 [x for x in (yield [])]
@@ -315,6 +664,99 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/continue/except-yield-type
+continue
+try:
+    pass
+except (yield):
+    pass
+### module/continue/except-yield-type-name
+continue
+try:
+    pass
+except (yield), e:
+    pass
+### module/continue/except-yield-tuple
+continue
+try:
+    pass
+except (E, (yield)):
+    pass
+### module/continue/except-yield-call
+continue
+try:
+    pass
+except E((yield)):
+    pass
+### module/continue/except-yield-lambda
+continue
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/continue/except-yield-target
+continue
+try:
+    pass
+except E, a[(yield)]:
+    pass
+### module/continue/unpack-yield-subscript
+continue
+b, a[(yield)] = 1, 2
+### module/continue/unpack-yield-attribute
+continue
+b, (yield).x = 1, 2
+### module/continue/unpack-yield-slice
+continue
+b, a[(yield):2] = 1, 2
+### module/continue/unpack-yield-nested
+continue
+(b, a[(yield)]), c = (1, 2), 3
+### module/continue/unpack-yield-list
+continue
+[b, a[(yield)]] = 1, 2
+### module/continue/unpack-yield-chained
+continue
+c = b, a[(yield)] = 1, 2
+### module/continue/unpack-yield-for
+continue
+for b, a[(yield)] in s:
+    pass
+### module/continue/unpack-yield-with
+continue
+with c as (b, a[(yield)]):
+    pass
+### module/continue/unpack-yield-except
+continue
+try:
+    pass
+except E, (b, a[(yield)]):
+    pass
+### module/continue/unpack-yield-genexp-target
+continue
+x = list(1 for b, a[(yield)] in s)
+### module/continue/unpack-yield-single
+continue
+a[(yield)] = 1
+### module/continue/unpack-yield-single-chained
+continue
+a[(yield)] = b = 1
+### module/continue/unpack-yield-for-single
+continue
+for a[(yield)] in s:
+    pass
+### module/continue/unpack-yield-aug
+continue
+a[(yield)] += 1
+### module/continue/unpack-yield-del
+continue
+del b, a[(yield)]
+### module/continue/unpack-yield-lambda
+continue
+b, a[lambda: (yield)] = 1, 2
+### module/continue/unpack-yield-value
+continue
+b, a[0] = (yield), 2
 ### module/break/listcomp-yield-iter
 break
 [x for x in (yield [])]
@@ -382,6 +824,99 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/break/except-yield-type
+break
+try:
+    pass
+except (yield):
+    pass
+### module/break/except-yield-type-name
+break
+try:
+    pass
+except (yield), e:
+    pass
+### module/break/except-yield-tuple
+break
+try:
+    pass
+except (E, (yield)):
+    pass
+### module/break/except-yield-call
+break
+try:
+    pass
+except E((yield)):
+    pass
+### module/break/except-yield-lambda
+break
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/break/except-yield-target
+break
+try:
+    pass
+except E, a[(yield)]:
+    pass
+### module/break/unpack-yield-subscript
+break
+b, a[(yield)] = 1, 2
+### module/break/unpack-yield-attribute
+break
+b, (yield).x = 1, 2
+### module/break/unpack-yield-slice
+break
+b, a[(yield):2] = 1, 2
+### module/break/unpack-yield-nested
+break
+(b, a[(yield)]), c = (1, 2), 3
+### module/break/unpack-yield-list
+break
+[b, a[(yield)]] = 1, 2
+### module/break/unpack-yield-chained
+break
+c = b, a[(yield)] = 1, 2
+### module/break/unpack-yield-for
+break
+for b, a[(yield)] in s:
+    pass
+### module/break/unpack-yield-with
+break
+with c as (b, a[(yield)]):
+    pass
+### module/break/unpack-yield-except
+break
+try:
+    pass
+except E, (b, a[(yield)]):
+    pass
+### module/break/unpack-yield-genexp-target
+break
+x = list(1 for b, a[(yield)] in s)
+### module/break/unpack-yield-single
+break
+a[(yield)] = 1
+### module/break/unpack-yield-single-chained
+break
+a[(yield)] = b = 1
+### module/break/unpack-yield-for-single
+break
+for a[(yield)] in s:
+    pass
+### module/break/unpack-yield-aug
+break
+a[(yield)] += 1
+### module/break/unpack-yield-del
+break
+del b, a[(yield)]
+### module/break/unpack-yield-lambda
+break
+b, a[lambda: (yield)] = 1, 2
+### module/break/unpack-yield-value
+break
+b, a[0] = (yield), 2
 ### module/if-else-return/listcomp-yield-iter
 if x:
     return
@@ -503,6 +1038,168 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/if-else-return/except-yield-type
+if x:
+    return
+else:
+    return
+try:
+    pass
+except (yield):
+    pass
+### module/if-else-return/except-yield-type-name
+if x:
+    return
+else:
+    return
+try:
+    pass
+except (yield), e:
+    pass
+### module/if-else-return/except-yield-tuple
+if x:
+    return
+else:
+    return
+try:
+    pass
+except (E, (yield)):
+    pass
+### module/if-else-return/except-yield-call
+if x:
+    return
+else:
+    return
+try:
+    pass
+except E((yield)):
+    pass
+### module/if-else-return/except-yield-lambda
+if x:
+    return
+else:
+    return
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/if-else-return/except-yield-target
+if x:
+    return
+else:
+    return
+try:
+    pass
+except E, a[(yield)]:
+    pass
+### module/if-else-return/unpack-yield-subscript
+if x:
+    return
+else:
+    return
+b, a[(yield)] = 1, 2
+### module/if-else-return/unpack-yield-attribute
+if x:
+    return
+else:
+    return
+b, (yield).x = 1, 2
+### module/if-else-return/unpack-yield-slice
+if x:
+    return
+else:
+    return
+b, a[(yield):2] = 1, 2
+### module/if-else-return/unpack-yield-nested
+if x:
+    return
+else:
+    return
+(b, a[(yield)]), c = (1, 2), 3
+### module/if-else-return/unpack-yield-list
+if x:
+    return
+else:
+    return
+[b, a[(yield)]] = 1, 2
+### module/if-else-return/unpack-yield-chained
+if x:
+    return
+else:
+    return
+c = b, a[(yield)] = 1, 2
+### module/if-else-return/unpack-yield-for
+if x:
+    return
+else:
+    return
+for b, a[(yield)] in s:
+    pass
+### module/if-else-return/unpack-yield-with
+if x:
+    return
+else:
+    return
+with c as (b, a[(yield)]):
+    pass
+### module/if-else-return/unpack-yield-except
+if x:
+    return
+else:
+    return
+try:
+    pass
+except E, (b, a[(yield)]):
+    pass
+### module/if-else-return/unpack-yield-genexp-target
+if x:
+    return
+else:
+    return
+x = list(1 for b, a[(yield)] in s)
+### module/if-else-return/unpack-yield-single
+if x:
+    return
+else:
+    return
+a[(yield)] = 1
+### module/if-else-return/unpack-yield-single-chained
+if x:
+    return
+else:
+    return
+a[(yield)] = b = 1
+### module/if-else-return/unpack-yield-for-single
+if x:
+    return
+else:
+    return
+for a[(yield)] in s:
+    pass
+### module/if-else-return/unpack-yield-aug
+if x:
+    return
+else:
+    return
+a[(yield)] += 1
+### module/if-else-return/unpack-yield-del
+if x:
+    return
+else:
+    return
+del b, a[(yield)]
+### module/if-else-return/unpack-yield-lambda
+if x:
+    return
+else:
+    return
+b, a[lambda: (yield)] = 1, 2
+### module/if-else-return/unpack-yield-value
+if x:
+    return
+else:
+    return
+b, a[0] = (yield), 2
 ### module/if-else-raise/listcomp-yield-iter
 if x:
     raise X
@@ -624,6 +1321,168 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/if-else-raise/except-yield-type
+if x:
+    raise X
+else:
+    raise Y
+try:
+    pass
+except (yield):
+    pass
+### module/if-else-raise/except-yield-type-name
+if x:
+    raise X
+else:
+    raise Y
+try:
+    pass
+except (yield), e:
+    pass
+### module/if-else-raise/except-yield-tuple
+if x:
+    raise X
+else:
+    raise Y
+try:
+    pass
+except (E, (yield)):
+    pass
+### module/if-else-raise/except-yield-call
+if x:
+    raise X
+else:
+    raise Y
+try:
+    pass
+except E((yield)):
+    pass
+### module/if-else-raise/except-yield-lambda
+if x:
+    raise X
+else:
+    raise Y
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/if-else-raise/except-yield-target
+if x:
+    raise X
+else:
+    raise Y
+try:
+    pass
+except E, a[(yield)]:
+    pass
+### module/if-else-raise/unpack-yield-subscript
+if x:
+    raise X
+else:
+    raise Y
+b, a[(yield)] = 1, 2
+### module/if-else-raise/unpack-yield-attribute
+if x:
+    raise X
+else:
+    raise Y
+b, (yield).x = 1, 2
+### module/if-else-raise/unpack-yield-slice
+if x:
+    raise X
+else:
+    raise Y
+b, a[(yield):2] = 1, 2
+### module/if-else-raise/unpack-yield-nested
+if x:
+    raise X
+else:
+    raise Y
+(b, a[(yield)]), c = (1, 2), 3
+### module/if-else-raise/unpack-yield-list
+if x:
+    raise X
+else:
+    raise Y
+[b, a[(yield)]] = 1, 2
+### module/if-else-raise/unpack-yield-chained
+if x:
+    raise X
+else:
+    raise Y
+c = b, a[(yield)] = 1, 2
+### module/if-else-raise/unpack-yield-for
+if x:
+    raise X
+else:
+    raise Y
+for b, a[(yield)] in s:
+    pass
+### module/if-else-raise/unpack-yield-with
+if x:
+    raise X
+else:
+    raise Y
+with c as (b, a[(yield)]):
+    pass
+### module/if-else-raise/unpack-yield-except
+if x:
+    raise X
+else:
+    raise Y
+try:
+    pass
+except E, (b, a[(yield)]):
+    pass
+### module/if-else-raise/unpack-yield-genexp-target
+if x:
+    raise X
+else:
+    raise Y
+x = list(1 for b, a[(yield)] in s)
+### module/if-else-raise/unpack-yield-single
+if x:
+    raise X
+else:
+    raise Y
+a[(yield)] = 1
+### module/if-else-raise/unpack-yield-single-chained
+if x:
+    raise X
+else:
+    raise Y
+a[(yield)] = b = 1
+### module/if-else-raise/unpack-yield-for-single
+if x:
+    raise X
+else:
+    raise Y
+for a[(yield)] in s:
+    pass
+### module/if-else-raise/unpack-yield-aug
+if x:
+    raise X
+else:
+    raise Y
+a[(yield)] += 1
+### module/if-else-raise/unpack-yield-del
+if x:
+    raise X
+else:
+    raise Y
+del b, a[(yield)]
+### module/if-else-raise/unpack-yield-lambda
+if x:
+    raise X
+else:
+    raise Y
+b, a[lambda: (yield)] = 1, 2
+### module/if-else-raise/unpack-yield-value
+if x:
+    raise X
+else:
+    raise Y
+b, a[0] = (yield), 2
 ### module/if-return/listcomp-yield-iter
 if x:
     return
@@ -657,40 +1516,10 @@ if x:
     return
 for f() in x:
     pass
-### module/if-return/invalid-target-with
-if x:
-    return
-with c as f():
-    pass
 ### module/if-return/invalid-target-listcomp
 if x:
     return
 [1 for f() in y]
-### module/if-return/return-value
-if x:
-    return
-return 1
-### module/if-return/yield-stmt
-if x:
-    return
-yield 1
-### module/if-return/break
-if x:
-    return
-break
-### module/if-return/continue
-if x:
-    return
-continue
-### module/if-return/default-except-not-last
-if x:
-    return
-try:
-    pass
-except:
-    pass
-except E:
-    pass
 ### module/if-return/import-star
 if x:
     return
@@ -709,6 +1538,17 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/if-return/except-yield-lambda
+if x:
+    return
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/if-return/unpack-yield-lambda
+if x:
+    return
+b, a[lambda: (yield)] = 1, 2
 ### module/try-return-finally/listcomp-yield-iter
 try:
     return
@@ -758,54 +1598,12 @@ finally:
     pass
 for f() in x:
     pass
-### module/try-return-finally/invalid-target-with
-try:
-    return
-finally:
-    pass
-with c as f():
-    pass
 ### module/try-return-finally/invalid-target-listcomp
 try:
     return
 finally:
     pass
 [1 for f() in y]
-### module/try-return-finally/return-value
-try:
-    return
-finally:
-    pass
-return 1
-### module/try-return-finally/yield-stmt
-try:
-    return
-finally:
-    pass
-yield 1
-### module/try-return-finally/break
-try:
-    return
-finally:
-    pass
-break
-### module/try-return-finally/continue
-try:
-    return
-finally:
-    pass
-continue
-### module/try-return-finally/default-except-not-last
-try:
-    return
-finally:
-    pass
-try:
-    pass
-except:
-    pass
-except E:
-    pass
 ### module/try-return-finally/import-star
 try:
     return
@@ -830,6 +1628,21 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/try-return-finally/except-yield-lambda
+try:
+    return
+finally:
+    pass
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/try-return-finally/unpack-yield-lambda
+try:
+    return
+finally:
+    pass
+b, a[lambda: (yield)] = 1, 2
 ### module/try-pass-finally-return/listcomp-yield-iter
 try:
     pass
@@ -879,54 +1692,6 @@ finally:
     return
 for f() in x:
     pass
-### module/try-pass-finally-return/invalid-target-with
-try:
-    pass
-finally:
-    return
-with c as f():
-    pass
-### module/try-pass-finally-return/invalid-target-listcomp
-try:
-    pass
-finally:
-    return
-[1 for f() in y]
-### module/try-pass-finally-return/return-value
-try:
-    pass
-finally:
-    return
-return 1
-### module/try-pass-finally-return/yield-stmt
-try:
-    pass
-finally:
-    return
-yield 1
-### module/try-pass-finally-return/break
-try:
-    pass
-finally:
-    return
-break
-### module/try-pass-finally-return/continue
-try:
-    pass
-finally:
-    return
-continue
-### module/try-pass-finally-return/default-except-not-last
-try:
-    pass
-finally:
-    return
-try:
-    pass
-except:
-    pass
-except E:
-    pass
 ### module/try-pass-finally-return/import-star
 try:
     pass
@@ -951,6 +1716,21 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/try-pass-finally-return/except-yield-lambda
+try:
+    pass
+finally:
+    return
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/try-pass-finally-return/unpack-yield-lambda
+try:
+    pass
+finally:
+    return
+b, a[lambda: (yield)] = 1, 2
 ### module/try-return-except-return/listcomp-yield-iter
 try:
     return
@@ -1000,54 +1780,6 @@ except:
     return
 for f() in x:
     pass
-### module/try-return-except-return/invalid-target-with
-try:
-    return
-except:
-    return
-with c as f():
-    pass
-### module/try-return-except-return/invalid-target-listcomp
-try:
-    return
-except:
-    return
-[1 for f() in y]
-### module/try-return-except-return/return-value
-try:
-    return
-except:
-    return
-return 1
-### module/try-return-except-return/yield-stmt
-try:
-    return
-except:
-    return
-yield 1
-### module/try-return-except-return/break
-try:
-    return
-except:
-    return
-break
-### module/try-return-except-return/continue
-try:
-    return
-except:
-    return
-continue
-### module/try-return-except-return/default-except-not-last
-try:
-    return
-except:
-    return
-try:
-    pass
-except:
-    pass
-except E:
-    pass
 ### module/try-return-except-return/import-star
 try:
     return
@@ -1072,6 +1804,21 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/try-return-except-return/except-yield-lambda
+try:
+    return
+except:
+    return
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/try-return-except-return/unpack-yield-lambda
+try:
+    return
+except:
+    return
+b, a[lambda: (yield)] = 1, 2
 ### module/try-return-except-pass/listcomp-yield-iter
 try:
     return
@@ -1121,55 +1868,6 @@ except:
     pass
 for f() in x:
     pass
-### module/try-return-except-pass/invalid-target-with
-try:
-    return
-except:
-    pass
-with c as f():
-    pass
-### module/try-return-except-pass/invalid-target-listcomp
-try:
-    return
-except:
-    pass
-[1 for f() in y]
-### module/try-return-except-pass/return-value
-try:
-    return
-except:
-    pass
-return 1
-### module/try-return-except-pass/yield-stmt
-try:
-    return
-except:
-    pass
-yield 1
-### module/try-return-except-pass/import-star
-try:
-    return
-except:
-    pass
-from os import *
-### module/try-return-except-pass/del-cell
-try:
-    return
-except:
-    pass
-v = 1
-def inner():
-    return v
-del v
-### module/try-return-except-pass/exec-with-free-nested
-try:
-    return
-except:
-    pass
-exec "x"
-def inner():
-    return v
-v = 1
 ### module/try-raise-except-raise/listcomp-yield-iter
 try:
     raise X
@@ -1219,31 +1917,12 @@ except E:
     raise Y
 for f() in x:
     pass
-### module/try-raise-except-raise/invalid-target-with
-try:
-    raise X
-except E:
-    raise Y
-with c as f():
-    pass
 ### module/try-raise-except-raise/invalid-target-listcomp
 try:
     raise X
 except E:
     raise Y
 [1 for f() in y]
-### module/try-raise-except-raise/return-value
-try:
-    raise X
-except E:
-    raise Y
-return 1
-### module/try-raise-except-raise/yield-stmt
-try:
-    raise X
-except E:
-    raise Y
-yield 1
 ### module/try-raise-except-raise/import-star
 try:
     raise X
@@ -1268,6 +1947,21 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/try-raise-except-raise/except-yield-lambda
+try:
+    raise X
+except E:
+    raise Y
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/try-raise-except-raise/unpack-yield-lambda
+try:
+    raise X
+except E:
+    raise Y
+b, a[lambda: (yield)] = 1, 2
 ### module/try-global-except/listcomp-yield-iter
 try:
     global g
@@ -1317,31 +2011,6 @@ except E:
     pass
 for f() in x:
     pass
-### module/try-global-except/invalid-target-with
-try:
-    global g
-except E:
-    pass
-with c as f():
-    pass
-### module/try-global-except/invalid-target-listcomp
-try:
-    global g
-except E:
-    pass
-[1 for f() in y]
-### module/try-global-except/return-value
-try:
-    global g
-except E:
-    pass
-return 1
-### module/try-global-except/yield-stmt
-try:
-    global g
-except E:
-    pass
-yield 1
 ### module/try-global-except/import-star
 try:
     global g
@@ -1366,6 +2035,21 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/try-global-except/except-yield-lambda
+try:
+    global g
+except E:
+    pass
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/try-global-except/unpack-yield-lambda
+try:
+    global g
+except E:
+    pass
+b, a[lambda: (yield)] = 1, 2
 ### module/while-1/listcomp-yield-iter
 while 1:
     pass
@@ -1399,23 +2083,6 @@ while 1:
     pass
 for f() in x:
     pass
-### module/while-1/invalid-target-with
-while 1:
-    pass
-with c as f():
-    pass
-### module/while-1/invalid-target-listcomp
-while 1:
-    pass
-[1 for f() in y]
-### module/while-1/return-value
-while 1:
-    pass
-return 1
-### module/while-1/yield-stmt
-while 1:
-    pass
-yield 1
 ### module/while-1/import-star
 while 1:
     pass
@@ -1434,6 +2101,17 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/while-1/except-yield-lambda
+while 1:
+    pass
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/while-1/unpack-yield-lambda
+while 1:
+    pass
+b, a[lambda: (yield)] = 1, 2
 ### module/while-true-break/listcomp-yield-iter
 while True:
     break
@@ -1467,23 +2145,6 @@ while True:
     break
 for f() in x:
     pass
-### module/while-true-break/invalid-target-with
-while True:
-    break
-with c as f():
-    pass
-### module/while-true-break/invalid-target-listcomp
-while True:
-    break
-[1 for f() in y]
-### module/while-true-break/return-value
-while True:
-    break
-return 1
-### module/while-true-break/yield-stmt
-while True:
-    break
-yield 1
 ### module/while-true-break/import-star
 while True:
     break
@@ -1502,6 +2163,17 @@ exec "x"
 def inner():
     return v
 v = 1
+### module/while-true-break/except-yield-lambda
+while True:
+    break
+try:
+    pass
+except (lambda: (yield))():
+    pass
+### module/while-true-break/unpack-yield-lambda
+while True:
+    break
+b, a[lambda: (yield)] = 1, 2
 ### module/for-else-return/listcomp-yield-iter
 for i in y:
     return
@@ -1551,55 +2223,6 @@ else:
     return
 for f() in x:
     pass
-### module/for-else-return/invalid-target-with
-for i in y:
-    return
-else:
-    return
-with c as f():
-    pass
-### module/for-else-return/invalid-target-listcomp
-for i in y:
-    return
-else:
-    return
-[1 for f() in y]
-### module/for-else-return/return-value
-for i in y:
-    return
-else:
-    return
-return 1
-### module/for-else-return/yield-stmt
-for i in y:
-    return
-else:
-    return
-yield 1
-### module/for-else-return/import-star
-for i in y:
-    return
-else:
-    return
-from os import *
-### module/for-else-return/del-cell
-for i in y:
-    return
-else:
-    return
-v = 1
-def inner():
-    return v
-del v
-### module/for-else-return/exec-with-free-nested
-for i in y:
-    return
-else:
-    return
-exec "x"
-def inner():
-    return v
-v = 1
 ### module/for-return/listcomp-yield-iter
 for i in y:
     return
@@ -1633,41 +2256,6 @@ for i in y:
     return
 for f() in x:
     pass
-### module/for-return/invalid-target-with
-for i in y:
-    return
-with c as f():
-    pass
-### module/for-return/invalid-target-listcomp
-for i in y:
-    return
-[1 for f() in y]
-### module/for-return/return-value
-for i in y:
-    return
-return 1
-### module/for-return/yield-stmt
-for i in y:
-    return
-yield 1
-### module/for-return/import-star
-for i in y:
-    return
-from os import *
-### module/for-return/del-cell
-for i in y:
-    return
-v = 1
-def inner():
-    return v
-del v
-### module/for-return/exec-with-free-nested
-for i in y:
-    return
-exec "x"
-def inner():
-    return v
-v = 1
 ### module/with-return/listcomp-yield-iter
 with c:
     return
@@ -1701,41 +2289,6 @@ with c:
     return
 for f() in x:
     pass
-### module/with-return/invalid-target-with
-with c:
-    return
-with c as f():
-    pass
-### module/with-return/invalid-target-listcomp
-with c:
-    return
-[1 for f() in y]
-### module/with-return/return-value
-with c:
-    return
-return 1
-### module/with-return/yield-stmt
-with c:
-    return
-yield 1
-### module/with-return/import-star
-with c:
-    return
-from os import *
-### module/with-return/del-cell
-with c:
-    return
-v = 1
-def inner():
-    return v
-del v
-### module/with-return/exec-with-free-nested
-with c:
-    return
-exec "x"
-def inner():
-    return v
-v = 1
 ### module/yield/listcomp-yield-iter
 yield 1
 [x for x in (yield [])]
@@ -1761,19 +2314,6 @@ yield 1
 yield 1
 for f() in x:
     pass
-### module/yield/invalid-target-with
-yield 1
-with c as f():
-    pass
-### module/yield/invalid-target-listcomp
-yield 1
-[1 for f() in y]
-### module/yield/return-value
-yield 1
-return 1
-### module/yield/yield-stmt
-yield 1
-yield 1
 ### module/yield-return/listcomp-yield-iter
 yield 1
 return
@@ -1807,23 +2347,6 @@ yield 1
 return
 for f() in x:
     pass
-### module/yield-return/invalid-target-with
-yield 1
-return
-with c as f():
-    pass
-### module/yield-return/invalid-target-listcomp
-yield 1
-return
-[1 for f() in y]
-### module/yield-return/return-value
-yield 1
-return
-return 1
-### module/yield-return/yield-stmt
-yield 1
-return
-yield 1
 ### module/yield-try-return-finally/listcomp-yield-iter
 yield 1
 try:
@@ -1881,35 +2404,6 @@ finally:
     pass
 for f() in x:
     pass
-### module/yield-try-return-finally/invalid-target-with
-yield 1
-try:
-    return
-finally:
-    pass
-with c as f():
-    pass
-### module/yield-try-return-finally/invalid-target-listcomp
-yield 1
-try:
-    return
-finally:
-    pass
-[1 for f() in y]
-### module/yield-try-return-finally/return-value
-yield 1
-try:
-    return
-finally:
-    pass
-return 1
-### module/yield-try-return-finally/yield-stmt
-yield 1
-try:
-    return
-finally:
-    pass
-yield 1
 ### function/none/listcomp-yield-iter
 def f():
     [x for x in (yield [])]
@@ -1935,22 +2429,37 @@ def f():
 def f():
     for f() in x:
         pass
-### function/none/invalid-target-with
-def f():
-    with c as f():
-        pass
-### function/none/invalid-target-listcomp
-def f():
-    [1 for f() in y]
 ### function/none/return-value
 def f():
     return 1
 ### function/none/yield-stmt
 def f():
     yield 1
-### function/none/import-star
+### function/none/except-yield-target
 def f():
-    from os import *
+    try:
+        pass
+    except E, a[(yield)]:
+        pass
+### function/none/unpack-yield-single
+def f():
+    a[(yield)] = 1
+### function/none/unpack-yield-single-chained
+def f():
+    a[(yield)] = b = 1
+### function/none/unpack-yield-for-single
+def f():
+    for a[(yield)] in s:
+        pass
+### function/none/unpack-yield-aug
+def f():
+    a[(yield)] += 1
+### function/none/unpack-yield-del
+def f():
+    del b, a[(yield)]
+### function/none/unpack-yield-value
+def f():
+    b, a[0] = (yield), 2
 ### function/pass/genexp-yield-iter
 def f():
     pass
@@ -1963,10 +2472,38 @@ def f():
 def f():
     pass
     yield 1
-### function/pass/import-star
+### function/pass/except-yield-target
 def f():
     pass
-    from os import *
+    try:
+        pass
+    except E, a[(yield)]:
+        pass
+### function/pass/unpack-yield-single
+def f():
+    pass
+    a[(yield)] = 1
+### function/pass/unpack-yield-single-chained
+def f():
+    pass
+    a[(yield)] = b = 1
+### function/pass/unpack-yield-for-single
+def f():
+    pass
+    for a[(yield)] in s:
+        pass
+### function/pass/unpack-yield-aug
+def f():
+    pass
+    a[(yield)] += 1
+### function/pass/unpack-yield-del
+def f():
+    pass
+    del b, a[(yield)]
+### function/pass/unpack-yield-value
+def f():
+    pass
+    b, a[0] = (yield), 2
 ### function/return/listcomp-yield-iter
 def f():
     return
@@ -2029,17 +2566,111 @@ def f():
         pass
     except E:
         pass
-### function/return/import-star
+### function/return/except-yield-type
 def f():
     return
-    from os import *
-### function/return/del-cell
+    try:
+        pass
+    except (yield):
+        pass
+### function/return/except-yield-type-name
 def f():
     return
-    v = 1
-    def inner():
-        return v
-    del v
+    try:
+        pass
+    except (yield), e:
+        pass
+### function/return/except-yield-tuple
+def f():
+    return
+    try:
+        pass
+    except (E, (yield)):
+        pass
+### function/return/except-yield-call
+def f():
+    return
+    try:
+        pass
+    except E((yield)):
+        pass
+### function/return/except-yield-target
+def f():
+    return
+    try:
+        pass
+    except E, a[(yield)]:
+        pass
+### function/return/unpack-yield-subscript
+def f():
+    return
+    b, a[(yield)] = 1, 2
+### function/return/unpack-yield-attribute
+def f():
+    return
+    b, (yield).x = 1, 2
+### function/return/unpack-yield-slice
+def f():
+    return
+    b, a[(yield):2] = 1, 2
+### function/return/unpack-yield-nested
+def f():
+    return
+    (b, a[(yield)]), c = (1, 2), 3
+### function/return/unpack-yield-list
+def f():
+    return
+    [b, a[(yield)]] = 1, 2
+### function/return/unpack-yield-chained
+def f():
+    return
+    c = b, a[(yield)] = 1, 2
+### function/return/unpack-yield-for
+def f():
+    return
+    for b, a[(yield)] in s:
+        pass
+### function/return/unpack-yield-with
+def f():
+    return
+    with c as (b, a[(yield)]):
+        pass
+### function/return/unpack-yield-except
+def f():
+    return
+    try:
+        pass
+    except E, (b, a[(yield)]):
+        pass
+### function/return/unpack-yield-genexp-target
+def f():
+    return
+    x = list(1 for b, a[(yield)] in s)
+### function/return/unpack-yield-single
+def f():
+    return
+    a[(yield)] = 1
+### function/return/unpack-yield-single-chained
+def f():
+    return
+    a[(yield)] = b = 1
+### function/return/unpack-yield-for-single
+def f():
+    return
+    for a[(yield)] in s:
+        pass
+### function/return/unpack-yield-aug
+def f():
+    return
+    a[(yield)] += 1
+### function/return/unpack-yield-del
+def f():
+    return
+    del b, a[(yield)]
+### function/return/unpack-yield-value
+def f():
+    return
+    b, a[0] = (yield), 2
 ### function/raise/listcomp-yield-iter
 def f():
     raise X
@@ -2102,17 +2733,111 @@ def f():
         pass
     except E:
         pass
-### function/raise/import-star
+### function/raise/except-yield-type
 def f():
     raise X
-    from os import *
-### function/raise/del-cell
+    try:
+        pass
+    except (yield):
+        pass
+### function/raise/except-yield-type-name
 def f():
     raise X
-    v = 1
-    def inner():
-        return v
-    del v
+    try:
+        pass
+    except (yield), e:
+        pass
+### function/raise/except-yield-tuple
+def f():
+    raise X
+    try:
+        pass
+    except (E, (yield)):
+        pass
+### function/raise/except-yield-call
+def f():
+    raise X
+    try:
+        pass
+    except E((yield)):
+        pass
+### function/raise/except-yield-target
+def f():
+    raise X
+    try:
+        pass
+    except E, a[(yield)]:
+        pass
+### function/raise/unpack-yield-subscript
+def f():
+    raise X
+    b, a[(yield)] = 1, 2
+### function/raise/unpack-yield-attribute
+def f():
+    raise X
+    b, (yield).x = 1, 2
+### function/raise/unpack-yield-slice
+def f():
+    raise X
+    b, a[(yield):2] = 1, 2
+### function/raise/unpack-yield-nested
+def f():
+    raise X
+    (b, a[(yield)]), c = (1, 2), 3
+### function/raise/unpack-yield-list
+def f():
+    raise X
+    [b, a[(yield)]] = 1, 2
+### function/raise/unpack-yield-chained
+def f():
+    raise X
+    c = b, a[(yield)] = 1, 2
+### function/raise/unpack-yield-for
+def f():
+    raise X
+    for b, a[(yield)] in s:
+        pass
+### function/raise/unpack-yield-with
+def f():
+    raise X
+    with c as (b, a[(yield)]):
+        pass
+### function/raise/unpack-yield-except
+def f():
+    raise X
+    try:
+        pass
+    except E, (b, a[(yield)]):
+        pass
+### function/raise/unpack-yield-genexp-target
+def f():
+    raise X
+    x = list(1 for b, a[(yield)] in s)
+### function/raise/unpack-yield-single
+def f():
+    raise X
+    a[(yield)] = 1
+### function/raise/unpack-yield-single-chained
+def f():
+    raise X
+    a[(yield)] = b = 1
+### function/raise/unpack-yield-for-single
+def f():
+    raise X
+    for a[(yield)] in s:
+        pass
+### function/raise/unpack-yield-aug
+def f():
+    raise X
+    a[(yield)] += 1
+### function/raise/unpack-yield-del
+def f():
+    raise X
+    del b, a[(yield)]
+### function/raise/unpack-yield-value
+def f():
+    raise X
+    b, a[0] = (yield), 2
 ### function/if-else-return/listcomp-yield-iter
 def f():
     if x:
@@ -2217,16 +2942,174 @@ def f():
         pass
     except E:
         pass
-### function/if-else-return/del-cell
+### function/if-else-return/except-yield-type
 def f():
     if x:
         return
     else:
         return
-    v = 1
-    def inner():
-        return v
-    del v
+    try:
+        pass
+    except (yield):
+        pass
+### function/if-else-return/except-yield-type-name
+def f():
+    if x:
+        return
+    else:
+        return
+    try:
+        pass
+    except (yield), e:
+        pass
+### function/if-else-return/except-yield-tuple
+def f():
+    if x:
+        return
+    else:
+        return
+    try:
+        pass
+    except (E, (yield)):
+        pass
+### function/if-else-return/except-yield-call
+def f():
+    if x:
+        return
+    else:
+        return
+    try:
+        pass
+    except E((yield)):
+        pass
+### function/if-else-return/except-yield-target
+def f():
+    if x:
+        return
+    else:
+        return
+    try:
+        pass
+    except E, a[(yield)]:
+        pass
+### function/if-else-return/unpack-yield-subscript
+def f():
+    if x:
+        return
+    else:
+        return
+    b, a[(yield)] = 1, 2
+### function/if-else-return/unpack-yield-attribute
+def f():
+    if x:
+        return
+    else:
+        return
+    b, (yield).x = 1, 2
+### function/if-else-return/unpack-yield-slice
+def f():
+    if x:
+        return
+    else:
+        return
+    b, a[(yield):2] = 1, 2
+### function/if-else-return/unpack-yield-nested
+def f():
+    if x:
+        return
+    else:
+        return
+    (b, a[(yield)]), c = (1, 2), 3
+### function/if-else-return/unpack-yield-list
+def f():
+    if x:
+        return
+    else:
+        return
+    [b, a[(yield)]] = 1, 2
+### function/if-else-return/unpack-yield-chained
+def f():
+    if x:
+        return
+    else:
+        return
+    c = b, a[(yield)] = 1, 2
+### function/if-else-return/unpack-yield-for
+def f():
+    if x:
+        return
+    else:
+        return
+    for b, a[(yield)] in s:
+        pass
+### function/if-else-return/unpack-yield-with
+def f():
+    if x:
+        return
+    else:
+        return
+    with c as (b, a[(yield)]):
+        pass
+### function/if-else-return/unpack-yield-except
+def f():
+    if x:
+        return
+    else:
+        return
+    try:
+        pass
+    except E, (b, a[(yield)]):
+        pass
+### function/if-else-return/unpack-yield-genexp-target
+def f():
+    if x:
+        return
+    else:
+        return
+    x = list(1 for b, a[(yield)] in s)
+### function/if-else-return/unpack-yield-single
+def f():
+    if x:
+        return
+    else:
+        return
+    a[(yield)] = 1
+### function/if-else-return/unpack-yield-single-chained
+def f():
+    if x:
+        return
+    else:
+        return
+    a[(yield)] = b = 1
+### function/if-else-return/unpack-yield-for-single
+def f():
+    if x:
+        return
+    else:
+        return
+    for a[(yield)] in s:
+        pass
+### function/if-else-return/unpack-yield-aug
+def f():
+    if x:
+        return
+    else:
+        return
+    a[(yield)] += 1
+### function/if-else-return/unpack-yield-del
+def f():
+    if x:
+        return
+    else:
+        return
+    del b, a[(yield)]
+### function/if-else-return/unpack-yield-value
+def f():
+    if x:
+        return
+    else:
+        return
+    b, a[0] = (yield), 2
 ### function/if-else-raise/listcomp-yield-iter
 def f():
     if x:
@@ -2331,16 +3214,174 @@ def f():
         pass
     except E:
         pass
-### function/if-else-raise/del-cell
+### function/if-else-raise/except-yield-type
 def f():
     if x:
         raise X
     else:
         raise Y
-    v = 1
-    def inner():
-        return v
-    del v
+    try:
+        pass
+    except (yield):
+        pass
+### function/if-else-raise/except-yield-type-name
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    try:
+        pass
+    except (yield), e:
+        pass
+### function/if-else-raise/except-yield-tuple
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    try:
+        pass
+    except (E, (yield)):
+        pass
+### function/if-else-raise/except-yield-call
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    try:
+        pass
+    except E((yield)):
+        pass
+### function/if-else-raise/except-yield-target
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    try:
+        pass
+    except E, a[(yield)]:
+        pass
+### function/if-else-raise/unpack-yield-subscript
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    b, a[(yield)] = 1, 2
+### function/if-else-raise/unpack-yield-attribute
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    b, (yield).x = 1, 2
+### function/if-else-raise/unpack-yield-slice
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    b, a[(yield):2] = 1, 2
+### function/if-else-raise/unpack-yield-nested
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    (b, a[(yield)]), c = (1, 2), 3
+### function/if-else-raise/unpack-yield-list
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    [b, a[(yield)]] = 1, 2
+### function/if-else-raise/unpack-yield-chained
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    c = b, a[(yield)] = 1, 2
+### function/if-else-raise/unpack-yield-for
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    for b, a[(yield)] in s:
+        pass
+### function/if-else-raise/unpack-yield-with
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    with c as (b, a[(yield)]):
+        pass
+### function/if-else-raise/unpack-yield-except
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    try:
+        pass
+    except E, (b, a[(yield)]):
+        pass
+### function/if-else-raise/unpack-yield-genexp-target
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    x = list(1 for b, a[(yield)] in s)
+### function/if-else-raise/unpack-yield-single
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    a[(yield)] = 1
+### function/if-else-raise/unpack-yield-single-chained
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    a[(yield)] = b = 1
+### function/if-else-raise/unpack-yield-for-single
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    for a[(yield)] in s:
+        pass
+### function/if-else-raise/unpack-yield-aug
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    a[(yield)] += 1
+### function/if-else-raise/unpack-yield-del
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    del b, a[(yield)]
+### function/if-else-raise/unpack-yield-value
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    b, a[0] = (yield), 2
 ### function/if-return/genexp-yield-iter
 def f():
     if x:
@@ -2356,6 +3397,45 @@ def f():
     if x:
         return
     yield 1
+### function/if-return/except-yield-target
+def f():
+    if x:
+        return
+    try:
+        pass
+    except E, a[(yield)]:
+        pass
+### function/if-return/unpack-yield-single
+def f():
+    if x:
+        return
+    a[(yield)] = 1
+### function/if-return/unpack-yield-single-chained
+def f():
+    if x:
+        return
+    a[(yield)] = b = 1
+### function/if-return/unpack-yield-for-single
+def f():
+    if x:
+        return
+    for a[(yield)] in s:
+        pass
+### function/if-return/unpack-yield-aug
+def f():
+    if x:
+        return
+    a[(yield)] += 1
+### function/if-return/unpack-yield-del
+def f():
+    if x:
+        return
+    del b, a[(yield)]
+### function/if-return/unpack-yield-value
+def f():
+    if x:
+        return
+    b, a[0] = (yield), 2
 ### function/try-return-finally/genexp-yield-iter
 def f():
     try:
@@ -2399,178 +3479,59 @@ def f():
     finally:
         pass
     yield 1
-### function/try-pass-finally-return/genexp-yield-iter
+### function/try-return-finally/except-yield-target
 def f():
     try:
-        pass
+        return
     finally:
-        return
-    list(x for x in (yield []))
-### function/try-pass-finally-return/invalid-target-unary
-def f():
+        pass
     try:
         pass
+    except E, a[(yield)]:
+        pass
+### function/try-return-finally/unpack-yield-single
+def f():
+    try:
+        return
     finally:
-        return
-    -a = 1
-### function/try-pass-finally-return/invalid-target-call-for
+        pass
+    a[(yield)] = 1
+### function/try-return-finally/unpack-yield-single-chained
 def f():
     try:
-        pass
+        return
     finally:
-        return
-    for f() in x:
         pass
-### function/try-pass-finally-return/invalid-target-listcomp
+    a[(yield)] = b = 1
+### function/try-return-finally/unpack-yield-for-single
 def f():
     try:
-        pass
+        return
     finally:
-        return
-    [1 for f() in y]
-### function/try-pass-finally-return/return-value
+        pass
+    for a[(yield)] in s:
+        pass
+### function/try-return-finally/unpack-yield-aug
 def f():
     try:
-        pass
+        return
     finally:
-        return
-    return 1
-### function/try-pass-finally-return/yield-stmt
+        pass
+    a[(yield)] += 1
+### function/try-return-finally/unpack-yield-del
 def f():
     try:
-        pass
+        return
     finally:
-        return
-    yield 1
-### function/try-return-except-return/genexp-yield-iter
-def f():
-    try:
-        return
-    except:
-        return
-    list(x for x in (yield []))
-### function/try-return-except-return/invalid-target-unary
-def f():
-    try:
-        return
-    except:
-        return
-    -a = 1
-### function/try-return-except-return/invalid-target-call-for
-def f():
-    try:
-        return
-    except:
-        return
-    for f() in x:
         pass
-### function/try-return-except-return/invalid-target-listcomp
+    del b, a[(yield)]
+### function/try-return-finally/unpack-yield-value
 def f():
     try:
         return
-    except:
-        return
-    [1 for f() in y]
-### function/try-return-except-return/return-value
-def f():
-    try:
-        return
-    except:
-        return
-    return 1
-### function/try-return-except-return/yield-stmt
-def f():
-    try:
-        return
-    except:
-        return
-    yield 1
-### function/try-return-except-pass/genexp-yield-iter
-def f():
-    try:
-        return
-    except:
+    finally:
         pass
-    list(x for x in (yield []))
-### function/try-return-except-pass/return-value
-def f():
-    try:
-        return
-    except:
-        pass
-    return 1
-### function/try-return-except-pass/yield-stmt
-def f():
-    try:
-        return
-    except:
-        pass
-    yield 1
-### function/try-raise-except-raise/genexp-yield-iter
-def f():
-    try:
-        raise X
-    except E:
-        raise Y
-    list(x for x in (yield []))
-### function/try-raise-except-raise/invalid-target-unary
-def f():
-    try:
-        raise X
-    except E:
-        raise Y
-    -a = 1
-### function/try-raise-except-raise/invalid-target-call-for
-def f():
-    try:
-        raise X
-    except E:
-        raise Y
-    for f() in x:
-        pass
-### function/try-raise-except-raise/invalid-target-listcomp
-def f():
-    try:
-        raise X
-    except E:
-        raise Y
-    [1 for f() in y]
-### function/try-raise-except-raise/return-value
-def f():
-    try:
-        raise X
-    except E:
-        raise Y
-    return 1
-### function/try-raise-except-raise/yield-stmt
-def f():
-    try:
-        raise X
-    except E:
-        raise Y
-    yield 1
-### function/for-else-return/invalid-target-unary
-def f():
-    for i in y:
-        return
-    else:
-        return
-    -a = 1
-### function/for-else-return/invalid-target-call-for
-def f():
-    for i in y:
-        return
-    else:
-        return
-    for f() in x:
-        pass
-### function/for-else-return/invalid-target-listcomp
-def f():
-    for i in y:
-        return
-    else:
-        return
-    [1 for f() in y]
+    b, a[0] = (yield), 2
 ### function/yield-return/listcomp-yield-iter
 def f():
     yield 1
@@ -2616,6 +3577,93 @@ def f():
         pass
     except E:
         pass
+### function/yield-return/except-yield-type
+def f():
+    yield 1
+    return
+    try:
+        pass
+    except (yield):
+        pass
+### function/yield-return/except-yield-type-name
+def f():
+    yield 1
+    return
+    try:
+        pass
+    except (yield), e:
+        pass
+### function/yield-return/except-yield-tuple
+def f():
+    yield 1
+    return
+    try:
+        pass
+    except (E, (yield)):
+        pass
+### function/yield-return/except-yield-call
+def f():
+    yield 1
+    return
+    try:
+        pass
+    except E((yield)):
+        pass
+### function/yield-return/unpack-yield-subscript
+def f():
+    yield 1
+    return
+    b, a[(yield)] = 1, 2
+### function/yield-return/unpack-yield-attribute
+def f():
+    yield 1
+    return
+    b, (yield).x = 1, 2
+### function/yield-return/unpack-yield-slice
+def f():
+    yield 1
+    return
+    b, a[(yield):2] = 1, 2
+### function/yield-return/unpack-yield-nested
+def f():
+    yield 1
+    return
+    (b, a[(yield)]), c = (1, 2), 3
+### function/yield-return/unpack-yield-list
+def f():
+    yield 1
+    return
+    [b, a[(yield)]] = 1, 2
+### function/yield-return/unpack-yield-chained
+def f():
+    yield 1
+    return
+    c = b, a[(yield)] = 1, 2
+### function/yield-return/unpack-yield-for
+def f():
+    yield 1
+    return
+    for b, a[(yield)] in s:
+        pass
+### function/yield-return/unpack-yield-with
+def f():
+    yield 1
+    return
+    with c as (b, a[(yield)]):
+        pass
+### function/yield-return/unpack-yield-except
+def f():
+    yield 1
+    return
+    try:
+        pass
+    except E, (b, a[(yield)]):
+        pass
+### function/yield-return/unpack-yield-genexp-target
+def f():
+    yield 1
+    return
+    x = list(1 for b, a[(yield)] in s)
 ### nested-function/none/listcomp-yield-iter
 def outer():
     def f():
@@ -2649,23 +3697,6 @@ def outer():
     def f():
         for f() in x:
             pass
-### nested-function/none/invalid-target-with
-def outer():
-    def f():
-        with c as f():
-            pass
-### nested-function/none/invalid-target-listcomp
-def outer():
-    def f():
-        [1 for f() in y]
-### nested-function/none/return-value
-def outer():
-    def f():
-        return 1
-### nested-function/none/yield-stmt
-def outer():
-    def f():
-        yield 1
 ### nested-function/return/listcomp-yield-iter
 def outer():
     def f():
@@ -2711,6 +3742,93 @@ def outer():
             pass
         except E:
             pass
+### nested-function/return/except-yield-type
+def outer():
+    def f():
+        return
+        try:
+            pass
+        except (yield):
+            pass
+### nested-function/return/except-yield-type-name
+def outer():
+    def f():
+        return
+        try:
+            pass
+        except (yield), e:
+            pass
+### nested-function/return/except-yield-tuple
+def outer():
+    def f():
+        return
+        try:
+            pass
+        except (E, (yield)):
+            pass
+### nested-function/return/except-yield-call
+def outer():
+    def f():
+        return
+        try:
+            pass
+        except E((yield)):
+            pass
+### nested-function/return/unpack-yield-subscript
+def outer():
+    def f():
+        return
+        b, a[(yield)] = 1, 2
+### nested-function/return/unpack-yield-attribute
+def outer():
+    def f():
+        return
+        b, (yield).x = 1, 2
+### nested-function/return/unpack-yield-slice
+def outer():
+    def f():
+        return
+        b, a[(yield):2] = 1, 2
+### nested-function/return/unpack-yield-nested
+def outer():
+    def f():
+        return
+        (b, a[(yield)]), c = (1, 2), 3
+### nested-function/return/unpack-yield-list
+def outer():
+    def f():
+        return
+        [b, a[(yield)]] = 1, 2
+### nested-function/return/unpack-yield-chained
+def outer():
+    def f():
+        return
+        c = b, a[(yield)] = 1, 2
+### nested-function/return/unpack-yield-for
+def outer():
+    def f():
+        return
+        for b, a[(yield)] in s:
+            pass
+### nested-function/return/unpack-yield-with
+def outer():
+    def f():
+        return
+        with c as (b, a[(yield)]):
+            pass
+### nested-function/return/unpack-yield-except
+def outer():
+    def f():
+        return
+        try:
+            pass
+        except E, (b, a[(yield)]):
+            pass
+### nested-function/return/unpack-yield-genexp-target
+def outer():
+    def f():
+        return
+        x = list(1 for b, a[(yield)] in s)
 ### nested-function/raise/listcomp-yield-iter
 def outer():
     def f():
@@ -2756,6 +3874,93 @@ def outer():
             pass
         except E:
             pass
+### nested-function/raise/except-yield-type
+def outer():
+    def f():
+        raise X
+        try:
+            pass
+        except (yield):
+            pass
+### nested-function/raise/except-yield-type-name
+def outer():
+    def f():
+        raise X
+        try:
+            pass
+        except (yield), e:
+            pass
+### nested-function/raise/except-yield-tuple
+def outer():
+    def f():
+        raise X
+        try:
+            pass
+        except (E, (yield)):
+            pass
+### nested-function/raise/except-yield-call
+def outer():
+    def f():
+        raise X
+        try:
+            pass
+        except E((yield)):
+            pass
+### nested-function/raise/unpack-yield-subscript
+def outer():
+    def f():
+        raise X
+        b, a[(yield)] = 1, 2
+### nested-function/raise/unpack-yield-attribute
+def outer():
+    def f():
+        raise X
+        b, (yield).x = 1, 2
+### nested-function/raise/unpack-yield-slice
+def outer():
+    def f():
+        raise X
+        b, a[(yield):2] = 1, 2
+### nested-function/raise/unpack-yield-nested
+def outer():
+    def f():
+        raise X
+        (b, a[(yield)]), c = (1, 2), 3
+### nested-function/raise/unpack-yield-list
+def outer():
+    def f():
+        raise X
+        [b, a[(yield)]] = 1, 2
+### nested-function/raise/unpack-yield-chained
+def outer():
+    def f():
+        raise X
+        c = b, a[(yield)] = 1, 2
+### nested-function/raise/unpack-yield-for
+def outer():
+    def f():
+        raise X
+        for b, a[(yield)] in s:
+            pass
+### nested-function/raise/unpack-yield-with
+def outer():
+    def f():
+        raise X
+        with c as (b, a[(yield)]):
+            pass
+### nested-function/raise/unpack-yield-except
+def outer():
+    def f():
+        raise X
+        try:
+            pass
+        except E, (b, a[(yield)]):
+            pass
+### nested-function/raise/unpack-yield-genexp-target
+def outer():
+    def f():
+        raise X
+        x = list(1 for b, a[(yield)] in s)
 ### nested-function/if-else-return/listcomp-yield-iter
 def outer():
     def f():
@@ -2825,128 +4030,135 @@ def outer():
             pass
         except E:
             pass
-### nested-function/if-else-raise/listcomp-yield-iter
+### nested-function/if-else-return/except-yield-type
 def outer():
     def f():
         if x:
-            raise X
+            return
         else:
-            raise Y
-        [x for x in (yield [])]
-### nested-function/if-else-raise/listcomp-yield-elt
-def outer():
-    def f():
-        if x:
-            raise X
-        else:
-            raise Y
-        [(yield x) for x in y]
-### nested-function/if-else-raise/listcomp-yield-if
-def outer():
-    def f():
-        if x:
-            raise X
-        else:
-            raise Y
-        [x for x in y if (yield x)]
-### nested-function/if-else-raise/setcomp-yield-iter
-def outer():
-    def f():
-        if x:
-            raise X
-        else:
-            raise Y
-        {x for x in (yield [])}
-### nested-function/if-else-raise/dictcomp-yield-iter
-def outer():
-    def f():
-        if x:
-            raise X
-        else:
-            raise Y
-        {x: 1 for x in (yield [])}
-### nested-function/if-else-raise/break
-def outer():
-    def f():
-        if x:
-            raise X
-        else:
-            raise Y
-        break
-### nested-function/if-else-raise/continue
-def outer():
-    def f():
-        if x:
-            raise X
-        else:
-            raise Y
-        continue
-### nested-function/if-else-raise/default-except-not-last
-def outer():
-    def f():
-        if x:
-            raise X
-        else:
-            raise Y
+            return
         try:
             pass
-        except:
+        except (yield):
             pass
-        except E:
-            pass
-### nested-function/yield-return/listcomp-yield-iter
+### nested-function/if-else-return/except-yield-type-name
 def outer():
     def f():
-        yield 1
-        return
-        [x for x in (yield [])]
-### nested-function/yield-return/listcomp-yield-elt
-def outer():
-    def f():
-        yield 1
-        return
-        [(yield x) for x in y]
-### nested-function/yield-return/listcomp-yield-if
-def outer():
-    def f():
-        yield 1
-        return
-        [x for x in y if (yield x)]
-### nested-function/yield-return/setcomp-yield-iter
-def outer():
-    def f():
-        yield 1
-        return
-        {x for x in (yield [])}
-### nested-function/yield-return/dictcomp-yield-iter
-def outer():
-    def f():
-        yield 1
-        return
-        {x: 1 for x in (yield [])}
-### nested-function/yield-return/break
-def outer():
-    def f():
-        yield 1
-        return
-        break
-### nested-function/yield-return/continue
-def outer():
-    def f():
-        yield 1
-        return
-        continue
-### nested-function/yield-return/default-except-not-last
-def outer():
-    def f():
-        yield 1
-        return
+        if x:
+            return
+        else:
+            return
         try:
             pass
-        except:
+        except (yield), e:
             pass
-        except E:
+### nested-function/if-else-return/except-yield-tuple
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        try:
             pass
+        except (E, (yield)):
+            pass
+### nested-function/if-else-return/except-yield-call
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        try:
+            pass
+        except E((yield)):
+            pass
+### nested-function/if-else-return/unpack-yield-subscript
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        b, a[(yield)] = 1, 2
+### nested-function/if-else-return/unpack-yield-attribute
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        b, (yield).x = 1, 2
+### nested-function/if-else-return/unpack-yield-slice
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        b, a[(yield):2] = 1, 2
+### nested-function/if-else-return/unpack-yield-nested
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        (b, a[(yield)]), c = (1, 2), 3
+### nested-function/if-else-return/unpack-yield-list
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        [b, a[(yield)]] = 1, 2
+### nested-function/if-else-return/unpack-yield-chained
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        c = b, a[(yield)] = 1, 2
+### nested-function/if-else-return/unpack-yield-for
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        for b, a[(yield)] in s:
+            pass
+### nested-function/if-else-return/unpack-yield-with
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        with c as (b, a[(yield)]):
+            pass
+### nested-function/if-else-return/unpack-yield-except
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        try:
+            pass
+        except E, (b, a[(yield)]):
+            pass
+### nested-function/if-else-return/unpack-yield-genexp-target
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        x = list(1 for b, a[(yield)] in s)
 ### method/none/listcomp-yield-iter
 class C:
     def f(self):
@@ -2980,113 +4192,6 @@ class C:
     def f(self):
         for f() in x:
             pass
-### method/none/invalid-target-with
-class C:
-    def f(self):
-        with c as f():
-            pass
-### method/none/invalid-target-listcomp
-class C:
-    def f(self):
-        [1 for f() in y]
-### method/none/return-value
-class C:
-    def f(self):
-        return 1
-### method/none/yield-stmt
-class C:
-    def f(self):
-        yield 1
-### method/return/listcomp-yield-iter
-class C:
-    def f(self):
-        return
-        [x for x in (yield [])]
-### method/return/listcomp-yield-elt
-class C:
-    def f(self):
-        return
-        [(yield x) for x in y]
-### method/return/listcomp-yield-if
-class C:
-    def f(self):
-        return
-        [x for x in y if (yield x)]
-### method/return/setcomp-yield-iter
-class C:
-    def f(self):
-        return
-        {x for x in (yield [])}
-### method/return/dictcomp-yield-iter
-class C:
-    def f(self):
-        return
-        {x: 1 for x in (yield [])}
-### method/return/break
-class C:
-    def f(self):
-        return
-        break
-### method/return/continue
-class C:
-    def f(self):
-        return
-        continue
-### method/return/default-except-not-last
-class C:
-    def f(self):
-        return
-        try:
-            pass
-        except:
-            pass
-        except E:
-            pass
-### method/raise/listcomp-yield-iter
-class C:
-    def f(self):
-        raise X
-        [x for x in (yield [])]
-### method/raise/listcomp-yield-elt
-class C:
-    def f(self):
-        raise X
-        [(yield x) for x in y]
-### method/raise/listcomp-yield-if
-class C:
-    def f(self):
-        raise X
-        [x for x in y if (yield x)]
-### method/raise/setcomp-yield-iter
-class C:
-    def f(self):
-        raise X
-        {x for x in (yield [])}
-### method/raise/dictcomp-yield-iter
-class C:
-    def f(self):
-        raise X
-        {x: 1 for x in (yield [])}
-### method/raise/break
-class C:
-    def f(self):
-        raise X
-        break
-### method/raise/continue
-class C:
-    def f(self):
-        raise X
-        continue
-### method/raise/default-except-not-last
-class C:
-    def f(self):
-        raise X
-        try:
-            pass
-        except:
-            pass
-        except E:
-            pass
 ### class/none/listcomp-yield-iter
 class C:
     [x for x in (yield [])]
@@ -3112,49 +4217,6 @@ class C:
 class C:
     for f() in x:
         pass
-### class/none/invalid-target-with
-class C:
-    with c as f():
-        pass
-### class/none/invalid-target-listcomp
-class C:
-    [1 for f() in y]
-### class/none/return-value
-class C:
-    return 1
-### class/none/yield-stmt
-class C:
-    yield 1
-### class/none/exec-with-free-nested
-class C:
-    exec "x"
-    def inner():
-        return v
-    v = 1
-### class/pass/exec-with-free-nested
-class C:
-    pass
-    exec "x"
-    def inner():
-        return v
-    v = 1
-### class/raise/exec-with-free-nested
-class C:
-    raise X
-    exec "x"
-    def inner():
-        return v
-    v = 1
-### class/if-else-raise/exec-with-free-nested
-class C:
-    if x:
-        raise X
-    else:
-        raise Y
-    exec "x"
-    def inner():
-        return v
-    v = 1
 ### for-in-function/none/listcomp-yield-iter
 def f():
     for i in z:
@@ -3188,23 +4250,6 @@ def f():
     for i in z:
         for f() in x:
             pass
-### for-in-function/none/invalid-target-with
-def f():
-    for i in z:
-        with c as f():
-            pass
-### for-in-function/none/invalid-target-listcomp
-def f():
-    for i in z:
-        [1 for f() in y]
-### for-in-function/none/return-value
-def f():
-    for i in z:
-        return 1
-### for-in-function/none/yield-stmt
-def f():
-    for i in z:
-        yield 1
 ### while-in-function/none/listcomp-yield-iter
 def f():
     while z:
@@ -3238,23 +4283,6 @@ def f():
     while z:
         for f() in x:
             pass
-### while-in-function/none/invalid-target-with
-def f():
-    while z:
-        with c as f():
-            pass
-### while-in-function/none/invalid-target-listcomp
-def f():
-    while z:
-        [1 for f() in y]
-### while-in-function/none/return-value
-def f():
-    while z:
-        return 1
-### while-in-function/none/yield-stmt
-def f():
-    while z:
-        yield 1
 ### try-in-function/none/listcomp-yield-iter
 def f():
     try:
@@ -3302,31 +4330,6 @@ def f():
     try:
         for f() in x:
             pass
-    except:
-        pass
-### try-in-function/none/invalid-target-with
-def f():
-    try:
-        with c as f():
-            pass
-    except:
-        pass
-### try-in-function/none/invalid-target-listcomp
-def f():
-    try:
-        [1 for f() in y]
-    except:
-        pass
-### try-in-function/none/return-value
-def f():
-    try:
-        return 1
-    except:
-        pass
-### try-in-function/none/yield-stmt
-def f():
-    try:
-        yield 1
     except:
         pass
 ### except-in-function/none/listcomp-yield-iter
@@ -3378,31 +4381,6 @@ def f():
     except:
         for f() in x:
             pass
-### except-in-function/none/invalid-target-with
-def f():
-    try:
-        pass
-    except:
-        with c as f():
-            pass
-### except-in-function/none/invalid-target-listcomp
-def f():
-    try:
-        pass
-    except:
-        [1 for f() in y]
-### except-in-function/none/return-value
-def f():
-    try:
-        pass
-    except:
-        return 1
-### except-in-function/none/yield-stmt
-def f():
-    try:
-        pass
-    except:
-        yield 1
 ### finally-in-function/none/listcomp-yield-iter
 def f():
     try:
@@ -3452,31 +4430,6 @@ def f():
     finally:
         for f() in x:
             pass
-### finally-in-function/none/invalid-target-with
-def f():
-    try:
-        pass
-    finally:
-        with c as f():
-            pass
-### finally-in-function/none/invalid-target-listcomp
-def f():
-    try:
-        pass
-    finally:
-        [1 for f() in y]
-### finally-in-function/none/return-value
-def f():
-    try:
-        pass
-    finally:
-        return 1
-### finally-in-function/none/yield-stmt
-def f():
-    try:
-        pass
-    finally:
-        yield 1
 ### with-in-function/none/listcomp-yield-iter
 def f():
     with c:
@@ -3510,23 +4463,6 @@ def f():
     with c:
         for f() in x:
             pass
-### with-in-function/none/invalid-target-with
-def f():
-    with c:
-        with c as f():
-            pass
-### with-in-function/none/invalid-target-listcomp
-def f():
-    with c:
-        [1 for f() in y]
-### with-in-function/none/return-value
-def f():
-    with c:
-        return 1
-### with-in-function/none/yield-stmt
-def f():
-    with c:
-        yield 1
 ### if-in-function/none/listcomp-yield-iter
 def f():
     if z:
@@ -3560,23 +4496,6 @@ def f():
     if z:
         for f() in x:
             pass
-### if-in-function/none/invalid-target-with
-def f():
-    if z:
-        with c as f():
-            pass
-### if-in-function/none/invalid-target-listcomp
-def f():
-    if z:
-        [1 for f() in y]
-### if-in-function/none/return-value
-def f():
-    if z:
-        return 1
-### if-in-function/none/yield-stmt
-def f():
-    if z:
-        yield 1
 ### for-in-module/none/listcomp-yield-iter
 for i in z:
     [x for x in (yield [])]
@@ -3602,19 +4521,6 @@ for i in z:
 for i in z:
     for f() in x:
         pass
-### for-in-module/none/invalid-target-with
-for i in z:
-    with c as f():
-        pass
-### for-in-module/none/invalid-target-listcomp
-for i in z:
-    [1 for f() in y]
-### for-in-module/none/return-value
-for i in z:
-    return 1
-### for-in-module/none/yield-stmt
-for i in z:
-    yield 1
 ### generator/none/listcomp-yield-iter
 def f():
     yield 0
@@ -3648,20 +4554,3 @@ def f():
     yield 0
     for f() in x:
         pass
-### generator/none/invalid-target-with
-def f():
-    yield 0
-    with c as f():
-        pass
-### generator/none/invalid-target-listcomp
-def f():
-    yield 0
-    [1 for f() in y]
-### generator/none/return-value
-def f():
-    yield 0
-    return 1
-### generator/none/yield-stmt
-def f():
-    yield 0
-    yield 1

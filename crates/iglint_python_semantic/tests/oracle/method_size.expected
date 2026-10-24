@@ -14058,6 +14058,123 @@ ok
 methods f$ 44 big$ 7808 f$ 614 f$ 614 f$ 164 f$ 614 f$ 614 <init> 5067 getMain 4 main 21 getCodeBootstrap 6 call_function 78
 pool 368
 ok
+### adv-long-names-0
+methods f$ 44 big$ 123 <init> 157 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 160
+ok
+### adv-long-names-1
+methods f$ 44 big$ 1482 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 <init> 1151 getMain 4 main 20 getCodeBootstrap 6 call_function 134
+pool 241
+ok
+### adv-long-names-2
+methods f$ 44 big$ 23989 <init> 82 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 147
+ok
+### adv-long-names-3
+methods f$ 44 big$ 1525 h$ 19 h$ 19 h$ 19 h$ 19 h$ 19 h$ 19 h$ 19 h$ 19 h$ 19 <init> 955 getMain 4 main 20 getCodeBootstrap 6 call_function 110
+pool 212
+ok
+### adv-long-names-4
+methods f$ 44 big$ 681 <init> 108 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 172
+ok
+### adv-long-names-5
+methods f$ 44 big$ 1510 <init> 113 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 173
+ok
+### adv-long-names-6
+units error
+error java.lang.RuntimeException: Module or method too large in `<script>`.
+### adv-long-names-7
+methods f$ 44 big$ 1342 h$ 19 h$ 19 h$ 19 h$ 19 h$ 19 h$ 19 h$ 19 h$ 19 h$ 19 <init> 1089 getMain 4 main 20 getCodeBootstrap 6 call_function 110
+pool 243
+ok
+### adv-long-names-8
+methods f$ 44 big$ 1746 dddddddddddddddd~65001$ 22 dddddddddddddddd~65001$ 23 dddddddddddddddd~65001$ 23 dddddddddddddddd~65001$ 23 dddddddddddddddd~65001$ 23 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 f$ 19 <init> 1254 getMain 4 main 20 getCodeBootstrap 6 call_function 174
+pool 296
+ok
+### adv-long-names-9
+methods f$ 44 big$ 1514 f$ 208 f$ 208 f$ 208 f$ 168 f$ 168 f$ 168 f$ 168 f$ 168 f$ 168 f$ 168 f$ 168 f$ 168 f$ 168 f$ 168 f$ 168 <init> 1111 getMain 4 main 20 getCodeBootstrap 6 call_function 158
+pool 319
+ok
+### adv-long-names-10
+methods f$ 44 big$ 136 <init> 82 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 130
+ok
+### adv-long-names-11
+methods f$ 44 big$ 54209 <init> 77 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 148
+ok
+### adv-long-names-12
+methods f$ 44 big$ 260 f$ 18 f$ 18 f$ 19 f$ 19 f$ 19 f$ 19 <init> 418 getMain 4 main 20 getCodeBootstrap 6 call_function 86
+pool 182
+ok
+### adv-long-names-13
+methods f$ 44 big$ 689 f$ 204 f$ 204 f$ 208 f$ 208 f$ 208 f$ 208 f$ 208 f$ 208 f$ 208 <init> 767 getMain 4 main 20 getCodeBootstrap 6 call_function 110
+pool 261
+ok
+### adv-long-names-14
+methods f$ 44 big$ 2194 <init> 175 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 196
+ok
+### adv-long-names-15
+methods f$ 44 big$ 503 <init> 112 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 162
+ok
+### adv-long-names-16
+methods f$ 44 big$ 95 <init> 77 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 156
+ok
+### adv-long-names-17
+methods f$ 44 big$ 961 <init> 77 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 160
+ok
+### adv-long-names-18
+methods f$ 44 big$ 377 h$ 41 h$ 42 h$ 42 h$ 42 h$ 42 h$ 42 <init> 263 getMain 4 main 20 getCodeBootstrap 6 call_function 86
+pool 179
+ok
+### adv-long-names-19
+methods f$ 44 big$ 1940 h$ 19 h$ 19 <init> 381 getMain 4 main 20 getCodeBootstrap 6 call_function 54
+pool 224
+ok
+### adv-long-names-20
+methods f$ 44 big$ 1316 f$ 19 f$ 19 <init> 217 getMain 4 main 20 getCodeBootstrap 6 call_function 54
+pool 182
+ok
+### adv-long-names-21
+methods f$ 44 big$ 46885 <init> 82 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 147
+ok
+### adv-long-names-22
+methods f$ 44 big$ 1544 <init> 82 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 168
+ok
+### adv-long-names-23
+units error
+error java.lang.RuntimeException: Module or method too large in `<script>`.
+### adv-long-names-24
+methods f$ 44 big$ 51880 <init> 82 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 147
+ok
+### adv-long-names-25
+methods f$ 44 big$ 36421 <init> 82 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 147
+ok
+### adv-long-names-26
+units error
+error java.lang.RuntimeException: Module or method too large in `<script>`.
+### adv-long-names-27
+methods f$ 44 big$ 578 h$ 18 h$ 19 h$ 19 h$ 19 h$ 19 f$ 19 <init> 498 getMain 4 main 20 getCodeBootstrap 6 call_function 86
+pool 209
+ok
+### adv-long-names-28
+methods f$ 44 big$ 219 h$ 132 h$ 136 h$ 136 h$ 136 <init> 251 getMain 4 main 20 getCodeBootstrap 6 call_function 70
+pool 199
+ok
+### adv-long-names-29
+methods f$ 44 big$ 774 <init> 122 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 180
+ok
 ### review19-lambda-150
 methods f$ 44 big$ 48723 f$ 1558 f$ 1558 f$ 1558 f$ 1558 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 <init> 34344 getMain 4 main 21 getCodeBootstrap 6 call_function 278
 pool 650
@@ -14079,4 +14196,19 @@ error java.lang.RuntimeException: Module or method too large in `<script>`.
 ### review19-repro-false
 methods f$ 44 big$ 65517 f$ 1558 f$ 1558 f$ 1558 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 f$ 1559 <init> 29280 getMain 4 main 21 getCodeBootstrap 6 call_function 238
 pool 654
+ok
+### review20-repro-true
+units error
+error java.lang.RuntimeException: Module or method too large in `<script>`.
+### review20-repro-false
+methods f$ 59 work$ 65528 <init> 72 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 158
+ok
+### review20-attributes-16001
+methods f$ 44 work$ 38889 <init> 72 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 146
+ok
+### review20-attributes-10
+methods f$ 44 work$ 17889 <init> 72 getMain 4 main 20 getCodeBootstrap 6 call_function 38
+pool 132
 ok

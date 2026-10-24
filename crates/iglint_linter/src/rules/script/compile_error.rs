@@ -42,6 +42,13 @@ with Jython's message:
   verifier rejects (`java.lang.VerifyError`). A `yield` in the element,
   filter or later iterables of a set, dict or generator comprehension, and
   in the first iterable of a generator expression, compiles.
+* a `yield` in the exception type of an `except` clause (`except
+  (yield):`, `except E((yield)):`; Jython's code generator fails with
+  `NegativeArraySizeException`), or in an attribute or subscript target
+  inside an unpacking target (`b, a[(yield)] = 1, 2`, also in `for` and
+  `with ... as` targets; `IllegalArgumentException`). A single target
+  (`a[(yield)] = 1`), an augmented assignment and `del` compile, and so
+  does a `yield` inside a `lambda` there.
 
 It also reports scripts that are too large for Jython:
 
@@ -76,7 +83,15 @@ It also reports scripts that are too large for Jython:
   reports these from 900;
 * a module with more than 32,767 distinct string literals (`Class too
   large`: one module is one Java class, with at most 65,535 constants;
-  Jython fails from 32,594).
+  Jython fails from 32,594);
+* a function or class whose name makes the name of its Java method too
+  long (`java.lang.IllegalArgumentException: UTF8 string too large`):
+  Jython names the method of a body `<name>$<number>`, with a private
+  name mangled in a class, and a class file holds names of at most 65,535
+  bytes, so a function or class of the module fails from 65,534
+  characters. Long names elsewhere (variables, attributes, keywords,
+  imports, docstrings) and long strings compile: Jython loads them in
+  chunks.
 
 Jython generates no code for the rest of a block after `return`, `raise`,
 `continue` or an `if`/`else` whose every branch ends that way (but not
@@ -232,6 +247,50 @@ mod tests {
             "def f():\n    x = {i: (yield i) for i in range(3)}\n",
             "def f():\n    x = {j for i in r for j in (yield)}\n",
             "def f():\n    x = [g() for i in r]\n    def g():\n        yield i\n",
+        ] {
+            assert!(lint_module("SCR002", code).is_empty(), "{code}");
+        }
+    }
+
+    /// Review round 20 (Codex): a function name of 70,000 characters
+    /// (`UTF8 string too large` on Jython).
+    #[test]
+    fn names_too_long_for_a_java_method() {
+        let code = format!("\n\ndef {}():\n    return 1\n", "n".repeat(70_000));
+        let d = lint_module("SCR002", &code);
+        assert_eq!(d.len(), 1, "{d:?}");
+        assert!(d[0].message.contains("UTF8 string too large"), "{d:?}");
+        let code = format!("\n\n{} = 1\n", "n".repeat(70_000));
+        assert!(lint_module("SCR002", &code).is_empty());
+    }
+
+    /// Review round 20 (Opus): a `yield` in an exception type or in an
+    /// attribute or subscript target of an unpacking (verified against
+    /// Jython, `oracle/compile_cross.py`).
+    #[test]
+    fn yield_in_except_types_and_unpacking_targets_crashes_jython() {
+        for code in [
+            "def f():\n    try:\n        pass\n    except (yield):\n        pass\n",
+            "def f():\n    try:\n        pass\n    except (E, (yield)), e:\n        pass\n",
+            "def f():\n    b, a[(yield)] = 1, 2\n",
+            "def f():\n    (b, (yield).x), c = (1, 2), 3\n",
+            "def f():\n    for b, a[(yield):2] in s:\n        pass\n",
+            "def f():\n    with c as [b, a[(yield)]]:\n        pass\n",
+        ] {
+            let d = lint_module("SCR002", code);
+            assert_eq!(d.len(), 1, "{code}");
+            assert!(d[0].message.contains("crashes Jython's compiler"), "{code}");
+        }
+        for code in [
+            "def f():\n    try:\n        pass\n    except E, a[(yield)]:\n        pass\n",
+            "def f():\n    try:\n        pass\n    except (lambda: (yield))():\n        pass\n",
+            "def f():\n    a[(yield)] = 1\n",
+            "def f():\n    a[(yield)] = b = 1\n",
+            "def f():\n    a[(yield)] += 1\n",
+            "def f():\n    del b, a[(yield)]\n",
+            "def f():\n    for a[(yield)] in s:\n        pass\n",
+            "def f():\n    b, a[0] = (yield), 2\n",
+            "def f():\n    yield 1\n    return\n    b, a[(yield)] = 1, 2\n",
         ] {
             assert!(lint_module("SCR002", code).is_empty(), "{code}");
         }

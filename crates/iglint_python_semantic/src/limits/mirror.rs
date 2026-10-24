@@ -27,6 +27,15 @@
 //! `wide`; `iconst` 1 (-1 to 5), 2 (`bipush`), 3 (`sipush` or `ldc_w`);
 //! `ldc` 3 (`ldc_w`); field and method references, `new`, `anewarray`,
 //! `checkcast` and `instanceof` 3; `invokeinterface` 5.
+//!
+//! Every string the generator loads goes through `Code.ldc`, which builds
+//! a string of more than 16,000 UTF-16 units with a `StringBuilder`
+//! ([`ldc_string`]): names, attribute names, keywords, imported names and
+//! modules, class names, the variable, cell and free variable names and
+//! the name of every code object in `<init>`, as well as string literals.
+//! The mirror charges each by its length ([`ldc_spelled`]), private names
+//! as the class mangles them (review round 20, Codex, blocker: a flat
+//! `ldc` per name let 1,683 attribute reads of 16,001 characters fit).
 
 use iglint_python::ast::*;
 use rustc_hash::FxHashMap;
@@ -35,7 +44,7 @@ use super::scopes::{Facts, UnitRef, facts};
 use super::{Bytes, b, count};
 
 /// `ldc`/`ldc_w` of a constant.
-const LDC: u64 = 3;
+pub(super) const LDC: u64 = 3;
 /// A field or method reference, `new`, `anewarray`, `checkcast`.
 const REF: u64 = 3;
 /// `invokeinterface`.
@@ -178,13 +187,41 @@ fn iconst(v: usize) -> u64 {
 /// built with a `StringBuilder` (`new`, `dup`, `iconst`, `invokespecial`,
 /// an `ldc` and `invokevirtual append` per chunk, `invokevirtual
 /// toString`).
-fn ldc_string(len: usize) -> Bytes {
+pub(super) fn ldc_string(len: usize) -> Bytes {
     if len > LDC_CHUNK {
         let chunks = len.div_ceil(LDC_CHUNK);
         sum(&[REF, 1, iconst(len), REF, REF]) + count(chunks) * sum(&[LDC, REF])
     } else {
         b(LDC)
     }
+}
+
+/// The length of `s` in UTF-16 code units (Java's `String.length`).
+pub(super) fn utf16_len(s: &str) -> usize {
+    if s.is_ascii() {
+        s.len()
+    } else {
+        s.encode_utf16().count()
+    }
+}
+
+/// At least the length of `name` as the code generator spells it in a
+/// unit inside class `class` (`CodeCompiler.getName`: a private name is
+/// mangled to `_<class>__x`; counted mangled wherever Jython may mangle
+/// it).
+pub(super) fn spelled_len(class: Option<&str>, name: &str) -> usize {
+    let len = utf16_len(name);
+    match class {
+        Some(c) if crate::mangle::is_private(name) => len
+            .saturating_add(utf16_len(c.trim_start_matches('_')))
+            .saturating_add(1),
+        _ => len,
+    }
+}
+
+/// `Code.ldc` of `name` as spelled in a unit inside class `class`.
+pub(super) fn ldc_spelled(class: Option<&str>, name: &str) -> Bytes {
+    ldc_string(spelled_len(class, name))
 }
 
 /// A number or string constant (`Module.*Constant.get`): the value and
@@ -295,7 +332,11 @@ impl<'a> Mirror<'a> {
         self.code.wide
     }
 
-    /// A jump over `span` bytes (`None`: not known).
+    /// A jump over `span` bytes (`None`: not known). Callers measure the
+    /// span on the code emitted so far and add what lies between it and
+    /// the jump's target but is not emitted yet: the jumps themselves at
+    /// their widest (8 for a conditional jump, 16 for two) and fixed code
+    /// after them.
     fn jump(&mut self, kind: Jump, span: Option<Bytes>) {
         self.code.narrow += b(3);
         let short = span.is_some_and(|s| s.0 <= SHORT_SPAN);
@@ -317,6 +358,16 @@ impl<'a> Mirror<'a> {
             self.report.saturated = true;
         }
         self.report.saturated
+    }
+
+    /// `Code.ldc` of a name the unit spells (mangled in a class).
+    fn ldc_name(&self, name: &str) -> Bytes {
+        ldc_spelled(self.code.class_name, name)
+    }
+
+    /// `visitName` of `name`: [`NAME`] with the `ldc` of its spelling.
+    fn name_bytes(&self, name: &str) -> Bytes {
+        b(NAME) - b(LDC) + self.ldc_name(name)
     }
 
     // ---- Locals (`Code.getLocal`, `freeLocal`) ----
@@ -420,12 +471,18 @@ impl<'a> Mirror<'a> {
             UnitRef::Module(_) => (format!("f${id}"), None),
             UnitRef::Lambda(..) | UnitRef::Gen(_) => (format!("f${id}"), class_name),
         };
+        // The code object's name (`co_name`).
+        let co_name = match unit {
+            UnitRef::Function(_, f) => ldc_spelled(class_name, f.name.as_str()),
+            UnitRef::Class(_, c) => ldc_spelled(class_name, c.name.as_str()),
+            _ => b(LDC),
+        };
         self.report.methods.push(Compiled {
             key,
             name,
             bytes: b(0),
         });
-        self.report.init += init_bytes(&facts, unit, closures, id);
+        self.report.init += init_bytes(&facts, unit, closures, id, co_name);
         let mut code = Code::new(facts.generator);
         code.class_name = own_class;
         let parent = std::mem::replace(&mut self.code, code);
@@ -520,7 +577,9 @@ impl<'a> Mirror<'a> {
     fn init_code(&mut self, args: &'a Arguments) {
         for a in &args.args {
             if matches!(a, Expr::Tuple(_) | Expr::List(_)) {
-                self.emit_all(&[SETLINE, NAME]);
+                // The tuple's name, `(a, b)`.
+                self.emit(SETLINE);
+                self.emit_bytes(b(NAME) - b(LDC) + ldc_string(tuple_name_len(a)));
                 self.set(a);
             }
         }
@@ -634,6 +693,8 @@ impl<'a> Mirror<'a> {
                 // `invokestatic makeException`, `athrow`.
                 self.emit_all(&[1, LDC, REF, 1, REF, 1]);
                 let (all, rest) = (self.since(from), self.since(jump_at));
+                // The `ifeq` past the whole check and the `ifne` past the
+                // raise: each also spans both jumps (at most 16 bytes).
                 self.jump(Jump::Cond, Some(all + b(16)));
                 self.jump(Jump::Cond, Some(rest + b(8)));
                 false
@@ -655,29 +716,39 @@ impl<'a> Mirror<'a> {
             }
             Stmt::Import(x) => {
                 self.emit(SETLINE);
-                for _ in &x.names {
-                    // `ldc` of the name, `aload_1`, `iconst` of the level,
-                    // `invokestatic importOne`.
-                    self.emit_all(&[LDC, 1, 1, REF]);
-                    self.set_name();
+                for a in &x.names {
+                    // `ldc` of the (dotted) name, `aload_1`, `iconst` of the
+                    // level, `invokestatic importOne`; the `set` of the alias
+                    // or the first part.
+                    self.emit_bytes(ldc_string(utf16_len(a.name.as_str())));
+                    self.emit_all(&[1, 1, REF]);
+                    let bound = a.asname.as_ref().map_or_else(
+                        || a.name.as_str().split('.').next().unwrap_or(""),
+                        |n| n.as_str(),
+                    );
+                    self.set_name(self.ldc_name(bound));
                 }
                 false
             }
             Stmt::ImportFrom(x) => {
-                self.emit_all(&[SETLINE, LDC]);
+                self.emit(SETLINE);
+                // `ldc` of the module (empty for `from . import`).
+                let module = x.module.as_ref().map_or("", |m| m.as_str());
+                self.emit_bytes(ldc_string(utf16_len(module)));
                 let level = iconst(usize::try_from(x.level).unwrap_or(usize::MAX));
                 if x.names.first().is_some_and(|a| a.name.as_str() == "*") {
                     self.emit_all(&[1, level, REF]);
                 } else {
-                    let strings = self.make_strings(x.names.len());
+                    let names: Vec<&str> = x.names.iter().map(|a| a.name.as_str()).collect();
+                    let strings = self.make_strings(&names);
                     self.emit(var(strings));
                     self.free_local(strings);
                     self.emit_all(&[1, level, REF]);
                     let tmp = self.store_top();
-                    for i in 0..x.names.len() {
+                    for (i, a) in x.names.iter().enumerate() {
                         // `aload`, `iconst`, `aaload`.
                         self.emit_all(&[var(tmp), iconst(i), 1]);
-                        self.set_name();
+                        self.set_name(self.ldc_name(a.asname.as_ref().unwrap_or(&a.name).as_str()));
                     }
                     self.free_local(tmp);
                 }
@@ -757,13 +828,15 @@ impl<'a> Mirror<'a> {
                 self.make_closure(closures, &facts);
                 self.emit(REF);
                 self.decorators(&f.decorator_list);
-                self.set_name();
+                self.set_name(self.ldc_name(f.name.as_str()));
                 false
             }
             Stmt::ClassDef(c) => {
                 self.emit(SETLINE);
                 let bases = self.make_array(&c.bases.iter().collect::<Vec<_>>());
-                self.emit_all(&[LDC, var(bases)]);
+                // `ldc` of the class's name.
+                self.emit_bytes(self.ldc_name(c.name.as_str()));
+                self.emit(var(bases));
                 let unit = UnitRef::Class(s, c);
                 let (closures, facts) = self.setup_closure(unit);
                 self.compile(unit, self.code.class_name, closures);
@@ -772,7 +845,7 @@ impl<'a> Mirror<'a> {
                 // `invokestatic makeClass`.
                 self.emit(REF);
                 self.decorators(&c.decorator_list);
-                self.set_name();
+                self.set_name(self.ldc_name(c.name.as_str()));
                 self.free_array(bases);
                 false
             }
@@ -946,12 +1019,16 @@ impl<'a> Mirror<'a> {
         self.code.handlers.pop();
         if !exit {
             self.emit_bytes(with_exit(mgr));
+            // Past the handler below (at most 23 bytes and its jump, 8)
+            // and itself (5): 40 bounds it.
             self.jump(Jump::Goto, Some(b(40)));
         }
         // `aload_1`, `invokestatic setException`, `aload`, `swap`,
         // `aload_2`, `swap`, `invokeinterface __exit__`, `ifne`,
         // `invokestatic makeException`, `checkcast`, `athrow`.
         self.emit_all(&[1, REF, var(mgr), 1, 1, 1, IFACE]);
+        // Past `makeException`, `checkcast`, `athrow` (7 bytes) and
+        // itself.
         self.jump(Jump::Cond, Some(b(16)));
         self.emit_all(&[REF, REF, 1]);
         self.free_local(mgr);
@@ -986,13 +1063,13 @@ impl<'a> Mirror<'a> {
         self.emit(SETLINE);
         // Load the target (keeping its parts in temporaries).
         let parts = match &*x.target {
-            Expr::Name(_) => {
-                self.emit(NAME);
+            Expr::Name(n) => {
+                self.emit_bytes(self.name_bytes(&n.id));
                 0
             }
             Expr::Attribute(a) => {
                 self.expr(&a.value);
-                self.emit(LDC);
+                self.emit_bytes(self.ldc_name(a.attr.as_str()));
                 self.save_aug(2);
                 self.emit(REF);
                 2
@@ -1029,9 +1106,13 @@ impl<'a> Mirror<'a> {
         self.free_local(target);
         let tmp = self.store_top();
         self.code.temporary = tmp;
-        match parts {
-            0 => self.emit_all(&[NAME, var(tmp)]),
-            n => {
+        match (parts, &*x.target) {
+            (0, Expr::Name(n)) => {
+                self.emit_bytes(self.name_bytes(&n.id));
+                self.emit(var(tmp));
+            }
+            (0, _) => self.emit_all(&[NAME, var(tmp)]),
+            (n, _) => {
                 self.restore_aug(n);
                 self.emit_all(&[var(tmp), REF]);
             }
@@ -1087,18 +1168,21 @@ impl<'a> Mirror<'a> {
             Expr::Tuple(ExprTuple { elts, .. }) | Expr::List(ExprList { elts, .. }) => {
                 self.seq_set(elts)
             }
-            Expr::Name(_) => {
+            Expr::Name(n) => {
                 let t = self.code.temporary;
-                self.emit_all(&[NAME, var(t)]);
+                self.emit_bytes(self.name_bytes(&n.id));
+                self.emit(var(t));
             }
             other => self.expr(other),
         }
     }
 
-    /// `set` of a name the generator makes (`def`, `class`, `import`).
-    fn set_name(&mut self) {
+    /// `set` of a name the generator makes (`def`, `class`, `import`),
+    /// whose `ldc` costs `ldc`.
+    fn set_name(&mut self, ldc: Bytes) {
         let tmp = self.store_top();
-        self.emit_all(&[NAME, var(tmp)]);
+        self.emit_bytes(b(NAME) - b(LDC) + ldc);
+        self.emit(var(tmp));
         self.emit_all(&[1, var(tmp)]);
         self.free_local(tmp);
     }
@@ -1148,13 +1232,15 @@ impl<'a> Mirror<'a> {
         self.free_local(array);
     }
 
-    /// `makeStrings`: an array of `n` names in a new local.
-    fn make_strings(&mut self, n: usize) -> usize {
-        self.emit_all(&[iconst(n), REF]);
+    /// `makeStrings`: an array of `names` in a new local.
+    fn make_strings(&mut self, names: &[&str]) -> usize {
+        self.emit_all(&[iconst(names.len()), REF]);
         let s = self.get_local();
         self.emit(var(s));
-        for i in 0..n {
-            self.emit_all(&[var(s), iconst(i), LDC, 1]);
+        for (i, name) in names.iter().enumerate() {
+            self.emit_all(&[var(s), iconst(i)]);
+            self.emit_bytes(self.ldc_name(name));
+            self.emit(1);
         }
         s
     }
@@ -1236,6 +1322,7 @@ impl<'a> Mirror<'a> {
         for i in 0..n {
             self.emit_all(&[var(tmp), iconst(i), 1, 3, REF, 1]);
             self.emit_bytes(back);
+            // Count work per 4,096 cells (iglint's own granularity).
             if i % 4096 == 0 && self.tick() {
                 return;
             }
@@ -1334,13 +1421,14 @@ impl<'a> Mirror<'a> {
 
     // ---- Expressions ----
 
-    fn name(&mut self, ctx: ExprContext) {
-        match ctx {
-            ExprContext::Store | ExprContext::Param | ExprContext::AugStore => {
-                let t = self.code.temporary;
-                self.emit_all(&[NAME, var(t)]);
-            }
-            _ => self.emit(NAME),
+    fn name(&mut self, id: &str, ctx: ExprContext) {
+        self.emit_bytes(self.name_bytes(id));
+        if matches!(
+            ctx,
+            ExprContext::Store | ExprContext::Param | ExprContext::AugStore
+        ) {
+            let t = self.code.temporary;
+            self.emit(var(t));
         }
     }
 
@@ -1349,16 +1437,17 @@ impl<'a> Mirror<'a> {
             return;
         }
         match e {
-            Expr::Name(n) => self.name(n.ctx),
+            Expr::Name(n) => self.name(&n.id, n.ctx),
             Expr::Num(_) | Expr::Str(_) => self.emit_bytes(constant(e)),
             Expr::Attribute(a) => {
                 self.expr(&a.value);
+                self.emit_bytes(self.ldc_name(a.attr.as_str()));
                 match a.ctx {
                     ExprContext::Store | ExprContext::Param | ExprContext::AugStore => {
                         let t = self.code.temporary;
-                        self.emit_all(&[LDC, var(t), REF]);
+                        self.emit_all(&[var(t), REF]);
                     }
-                    _ => self.emit_all(&[LDC, REF]),
+                    _ => self.emit(REF),
                 }
             }
             Expr::Subscript(s) => {
@@ -1478,7 +1567,8 @@ impl<'a> Mirror<'a> {
                 // `new PyList`, `dup`, `invokespecial`, `dup`, `ldc
                 // append`, `invokevirtual __getattr__`, `set` of `_[n]`.
                 self.emit_all(&[REF, 1, REF, 1, LDC, REF]);
-                self.set_name();
+                // `_[n]` is short.
+                self.set_name(b(LDC));
                 let elt = &x.elt;
                 self.comprehension(&x.generators, 0, false, &mut |m| {
                     // `_[n](elt)` as a statement: the line, the name,
@@ -1607,7 +1697,8 @@ impl<'a> Mirror<'a> {
             // __getattr__`, `aload_2`.
             self.expr(&a.value);
             self.push(false);
-            self.emit_all(&[LDC, REF, 1]);
+            self.emit_bytes(self.ldc_name(a.attr.as_str()));
+            self.emit_all(&[REF, 1]);
             self.push(true);
             self.call_args(&values);
             return;
@@ -1616,7 +1707,8 @@ impl<'a> Mirror<'a> {
         self.push(false);
         if c.starargs.is_some() || c.kwargs.is_some() {
             let array = self.make_array(&values);
-            let strings = self.make_strings(c.keywords.len());
+            let keywords: Vec<&str> = c.keywords.iter().map(|k| k.arg.as_str()).collect();
+            let strings = self.make_strings(&keywords);
             for part in [&c.starargs, &c.kwargs] {
                 match part.as_deref() {
                     Some(e) => self.expr(e),
@@ -1635,7 +1727,8 @@ impl<'a> Mirror<'a> {
             self.emit(1);
             self.push(true);
             let array = self.make_array(&values);
-            let strings = self.make_strings(c.keywords.len());
+            let keywords: Vec<&str> = c.keywords.iter().map(|k| k.arg.as_str()).collect();
+            let strings = self.make_strings(&keywords);
             self.emit_all(&[var(array), var(strings)]);
             self.free_local(strings);
             self.pop(2);
@@ -1714,6 +1807,8 @@ impl<'a> Mirror<'a> {
         let locals = self.get_local();
         self.emit(var(locals));
         for &i in &active {
+            // `CodeCompiler.saveLocals` stores `aconst_null` instead of
+            // `aload` for local 2222 (a debugging leftover in Jython).
             let load = if i == 2222 { 1 } else { var(i) };
             self.emit_all(&[var(locals), iconst(i), load, 1]);
         }
@@ -1755,32 +1850,59 @@ fn with_exit(mgr: usize) -> Bytes {
     sum(&[var(mgr), 1, 1, IFACE, 1])
 }
 
+/// The length of the name Jython gives a tuple parameter
+/// (`ArgListCompiler.visitTuple`: `(a, (b, c))`), at least.
+pub(super) fn tuple_name_len(e: &Expr) -> usize {
+    match e {
+        Expr::Tuple(ExprTuple { elts, .. }) | Expr::List(ExprList { elts, .. }) => {
+            elts.iter().map(tuple_name_len).fold(
+                2usize.saturating_mul(elts.len()).saturating_add(2),
+                usize::saturating_add,
+            )
+        }
+        Expr::Name(n) => utf16_len(&n.id),
+        _ => 0,
+    }
+}
+
 /// The code of `PyCodeConstant.put` in `<init>` for one compiled unit:
 /// the argument count, an array of the variable names (none for a class
-/// body), the name, line and flags, the cell and free variable arrays,
-/// `invokestatic Py.newCode`, `putstatic`.
-fn init_bytes(facts: &Facts, unit: UnitRef<'_>, closures: usize, id: usize) -> Bytes {
-    let strings = |n: usize| -> Bytes {
-        // `iconst`, `anewarray`, `astore_1`, per name `aload_1`, `iconst`,
-        // `ldc`, `aastore`; then `aload_1`.
+/// body), the name (`co_name`, whose `ldc` costs `co_name`), line and
+/// flags, the cell and free variable arrays, `invokestatic Py.newCode`,
+/// `putstatic`.
+fn init_bytes(
+    facts: &Facts,
+    unit: UnitRef<'_>,
+    closures: usize,
+    id: usize,
+    co_name: Bytes,
+) -> Bytes {
+    // `iconst`, `anewarray`, `astore_1`, per name `aload_1`, `iconst`,
+    // the `ldc` (`ldc` bytes in all), `aastore`; then `aload_1`.
+    let strings = |n: usize, ldc: Bytes| -> Bytes {
         let mut s = sum(&[iconst(n), REF, 1, 1]);
         for i in 0..n {
-            s += sum(&[1, iconst(i), LDC, 1]);
+            s += sum(&[1, iconst(i), 1]);
         }
-        s
+        s + ldc
     };
-    let optional = |n: usize| if n == 0 { b(1) } else { strings(n) };
-    let names = match unit {
-        UnitRef::Class(..) => 0,
-        _ => facts.names,
+    let optional = |n: usize, ldc: Bytes| if n == 0 { b(1) } else { strings(n, ldc) };
+    let (names, names_ldc) = match unit {
+        UnitRef::Class(..) => (0, b(0)),
+        _ => (facts.names, facts.names_ldc),
     };
     b(iconst(facts.argcount))
-        + strings(names)
-        // `aload_1`, `ldc` name, `iconst` line, two `iconst`, `getstatic
+        + strings(names, names_ldc)
+        // `aload_1`, the name, `iconst` line, two `iconst`, `getstatic
         // self`, `iconst` id.
-        + sum(&[1, LDC, 3, 1, 1, REF, iconst(id)])
-        + optional(facts.cells)
-        + optional(facts.free.saturating_mul(closures))
+        + b(1)
+        + co_name
+        + sum(&[3, 1, 1, REF, iconst(id)])
+        + optional(facts.cells, facts.cells_ldc)
+        + optional(
+            facts.free.saturating_mul(closures),
+            facts.free_ldc * count(closures),
+        )
         // `iconst` pure cells, `iconst` flags, `invokestatic`, `putstatic`.
         + sum(&[iconst(facts.cells), 3, REF, REF])
 }

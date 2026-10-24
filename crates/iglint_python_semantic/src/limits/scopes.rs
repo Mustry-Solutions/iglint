@@ -15,6 +15,9 @@ use iglint_python::ast::*;
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use super::mirror::{LDC, ldc_spelled, ldc_string};
+use super::{Bytes, b};
+
 /// A code unit: the node Jython compiles into one Java method.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum UnitRef<'a> {
@@ -70,6 +73,11 @@ pub(crate) struct Facts {
     pub cells: usize,
     /// Free variables per `setup_closure` call.
     pub free: usize,
+    /// The `ldc` of every variable name, cell and free variable (per
+    /// `setup_closure` call): a long name costs more (`Code.ldc`).
+    pub names_ldc: Bytes,
+    pub cells_ldc: Bytes,
+    pub free_ldc: Bytes,
     /// Parameters that are cells.
     pub paramcells: usize,
     /// `argcount` of the code object.
@@ -87,6 +95,9 @@ impl Default for Facts {
             names: 0,
             cells: 0,
             free: 0,
+            names_ldc: b(0),
+            cells_ldc: b(0),
+            free_ldc: b(0),
             paramcells: 0,
             argcount: 0,
             distance: 1,
@@ -104,6 +115,9 @@ struct Own<'a> {
     /// Names nobody can spell (`_[1_4]`, `_(1_4)`, `_(x)`, `(a, b)`),
     /// each a distinct bound name.
     synthetic: usize,
+    /// The `ldc` of the synthetic names (a tuple parameter's is as long
+    /// as its names).
+    synthetic_ldc: Bytes,
     argcount: usize,
     children: Vec<UnitRef<'a>>,
     generator: bool,
@@ -134,6 +148,7 @@ impl<'a> Own<'a> {
             if !matches!(a, Expr::Name(_)) {
                 // The tuple's name, `(a, b)`.
                 self.synthetic = self.synthetic.saturating_add(1);
+                self.synthetic_ldc += ldc_string(super::mirror::tuple_name_len(a));
             }
             param(self, a);
         }
@@ -164,6 +179,7 @@ impl<'a> Own<'a> {
                 // The parameter `_(x)`, the element, the targets, the
                 // conditions and the iterables after the first.
                 self.synthetic = self.synthetic.saturating_add(1);
+                self.synthetic_ldc += b(LDC);
                 self.argcount = 1;
                 self.generator = true;
                 let (elts, generators): (Vec<&'a Expr>, &'a [Comprehension]) = match e {
@@ -244,11 +260,13 @@ impl<'a> Visitor<'a> for Own<'a> {
                 }
                 // `_(line_col)`, bound here.
                 self.synthetic = self.synthetic.saturating_add(1);
+                self.synthetic_ldc += b(LDC);
                 self.children.push(UnitRef::Gen(e));
             }
             Expr::ListComp(_) => {
                 // `_[line_col]`, bound here.
                 self.synthetic = self.synthetic.saturating_add(1);
+                self.synthetic_ldc += b(LDC);
                 walk_expr(self, e);
             }
             Expr::Yield(_) => {
@@ -264,14 +282,15 @@ impl<'a> Visitor<'a> for Own<'a> {
 pub(crate) fn facts(module: &Module) -> FxHashMap<usize, Facts> {
     let mut out = FxHashMap::default();
     let mut ancestors: Vec<(Kind, FxHashSet<&str>)> = Vec::new();
-    analyse(UnitRef::Module(module), &mut ancestors, &mut out);
+    analyse(UnitRef::Module(module), None, &mut ancestors, &mut out);
     out
 }
 
-/// Analyses `unit` and its nested units; returns the names that occur in
-/// its subtree.
+/// Analyses `unit` (inside class `class`, the innermost around it) and
+/// its nested units; returns the names that occur in its subtree.
 fn analyse<'a>(
     unit: UnitRef<'a>,
+    class: Option<&'a str>,
     ancestors: &mut Vec<(Kind, FxHashSet<&'a str>)>,
     out: &mut FxHashMap<usize, Facts>,
 ) -> FxHashSet<&'a str> {
@@ -285,37 +304,49 @@ fn analyse<'a>(
     let children = std::mem::take(&mut own.children);
     ancestors.push((kind, std::mem::take(&mut own.bound)));
     let mut below: FxHashSet<&'a str> = FxHashSet::default();
+    let inner = match unit {
+        UnitRef::Class(_, c) => Some(c.name.as_str()),
+        _ => class,
+    };
     for child in children {
-        let names = analyse(child, ancestors, out);
+        let names = analyse(child, inner, ancestors, out);
         below.extend(names);
     }
     let (_, bound) = ancestors.pop().unwrap_or((kind, FxHashSet::default()));
     let mut subtree = own.all;
     subtree.extend(below.iter().copied());
     let function = kind == Kind::Function;
-    let free = subtree
+    let ldc = |names: &mut dyn Iterator<Item = &&'a str>| -> (usize, Bytes) {
+        names.fold((0usize, b(0)), |(n, bytes), name| {
+            (n.saturating_add(1), bytes + ldc_spelled(class, name))
+        })
+    };
+    let (free, free_ldc) = ldc(&mut subtree
         .iter()
         .filter(|n| !(function && bound.contains(*n)))
         .filter(|n| {
             ancestors
                 .iter()
                 .any(|(k, b)| *k == Kind::Function && b.contains(*n))
-        })
-        .count();
+        }));
     let distance = ancestors
         .iter()
         .rev()
         .take_while(|(k, _)| *k == Kind::Class)
         .count()
         .saturating_add(1);
-    let (names, cells, paramcells) = if function {
+    let (names, names_ldc, cells, cells_ldc, paramcells) = if function {
+        let (cells, cells_ldc) = ldc(&mut bound.iter().filter(|n| below.contains(*n)));
+        let (_, bound_ldc) = ldc(&mut bound.iter());
         (
             bound.len().saturating_add(own.synthetic),
-            bound.iter().filter(|n| below.contains(*n)).count(),
+            bound_ldc + own.synthetic_ldc,
+            cells,
+            cells_ldc,
             own.params.iter().filter(|n| below.contains(*n)).count(),
         )
     } else {
-        (0, 0, 0)
+        (0, b(0), 0, b(0), 0)
     };
     out.insert(
         unit.key(),
@@ -325,6 +356,9 @@ fn analyse<'a>(
             names,
             cells,
             free: if ancestors.is_empty() { 0 } else { free },
+            names_ldc,
+            cells_ldc,
+            free_ldc: if ancestors.is_empty() { b(0) } else { free_ldc },
             paramcells,
             argcount: own.argcount,
             distance,

@@ -376,3 +376,120 @@ fn closures_count_per_creation_and_free_variable() {
         assert!(big.upper >= 65_517, "{}", big.upper);
     }
 }
+
+/// Review round 20 (Codex, blocker): Jython loads a name of more than
+/// 16,000 characters in chunks (`Code.ldc`), and the bound charged one
+/// `ldc` per name. Its repro (1,683 reads of an attribute of 16,001
+/// characters) fails with the import and compiles with the import's line
+/// blanked (65,528 bytes): the bounds now enclose it, and the identifier
+/// alone makes the verdict open.
+#[test]
+fn long_names_are_charged_by_length() {
+    for import in [true, false] {
+        let mut s = String::from("def work(obj):\n");
+        s.push_str(if import { "    import math\n" } else { "\n" });
+        for _ in 0..1_683 {
+            s.push_str(&format!("    obj.{}\n", "n".repeat(16_001)));
+        }
+        s.push_str("    return 1\nprint \"loaded\"\n");
+        let parsed = iglint_python::parse_module(&s);
+        assert!(size_errors(&parsed.module, &s).is_empty());
+        let work = code_units(&parsed.module, &s)
+            .into_iter()
+            .find(|u| u.name == "work")
+            .unwrap();
+        assert!(work.upper >= 65_528, "{}", work.upper);
+        assert!(work.bytes <= 65_528, "{}", work.bytes);
+        assert_eq!(
+            size_unknown(&parsed.module, &s).as_deref(),
+            Some("identifier of 16,001 characters: Jython's code size cannot be bounded precisely")
+        );
+    }
+}
+
+/// Identifiers in every position count for [`IDENTIFIER_LIMIT`], also in
+/// code Jython does not generate.
+#[test]
+fn long_identifiers_make_the_size_verdict_open() {
+    let at = |n: usize| "n".repeat(n);
+    let positions = [
+        "x = {N}",
+        "o.{N} = 1",
+        "o({N}=1)",
+        "import {N}",
+        "import m as {N}",
+        "from {N} import x",
+        "from m import {N}",
+        "from m import x as {N}",
+        "def f():\n    global {N}",
+        "def {N}(): pass",
+        "class {N}: pass",
+        "def f({N}): pass",
+        "def f(*{N}): pass",
+        "def f(**{N}): pass",
+        "l = lambda *{N}: 1",
+        "def f():\n    return\n    x = {N}",
+    ];
+    for position in positions {
+        for (n, open) in [(IDENTIFIER_LIMIT, false), (IDENTIFIER_LIMIT + 1, true)] {
+            let s = format!("{}\n", position.replace("{N}", &at(n)));
+            let parsed = iglint_python::parse_module(&s);
+            assert!(parsed.errors.is_empty(), "{position}");
+            assert_eq!(longest_identifier(&parsed.module), n, "{position}");
+            assert_eq!(
+                size_unknown(&parsed.module, &s).is_some(),
+                open,
+                "{position}"
+            );
+        }
+    }
+    // Strings are modelled exactly: no limit.
+    let s = format!("x = '{}'\n", at(100_000));
+    let parsed = iglint_python::parse_module(&s);
+    assert_eq!(size_unknown(&parsed.module, &s), None);
+}
+
+/// Review round 20 (Codex): the Java method of a `def` or `class` body is
+/// named `<name>$<id>` (mangled in a class), at most 65,535 bytes.
+#[test]
+fn names_too_long_for_a_java_method() {
+    let n = |len: usize| "n".repeat(len);
+    let cases = [
+        (format!("\n\ndef {}():\n    return 1\n", n(65_533)), false),
+        (format!("\n\ndef {}():\n    return 1\n", n(65_534)), true),
+        (format!("\n\nclass {}:\n    pass\n", n(65_534)), true),
+        (
+            format!(
+                "\n\nclass K:\n    def __{}(self):\n        return 1\n",
+                n(65_529)
+            ),
+            false,
+        ),
+        (
+            format!(
+                "\n\nclass K:\n    def __{}(self):\n        return 1\n",
+                n(65_530)
+            ),
+            true,
+        ),
+        // Not generated: no method.
+        (
+            format!(
+                "\n\ndef f():\n    return\n    def {}():\n        pass\n",
+                n(70_000)
+            ),
+            false,
+        ),
+        // Names elsewhere are loaded in chunks.
+        (format!("\n\n{} = 1\n", n(70_000)), false),
+    ];
+    for (source, fails) in cases {
+        let kinds = sizes(&source);
+        assert_eq!(
+            kinds.contains(&CompileErrorKind::NameTooLong),
+            fails,
+            "{}",
+            source.len()
+        );
+    }
+}

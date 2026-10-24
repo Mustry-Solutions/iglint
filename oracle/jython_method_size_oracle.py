@@ -16,7 +16,9 @@
 #
 #   ### <name>
 #   methods <method> <bytes> ...   every method of the class, in class order
-#                                  (`name$` for a code unit `name$N`)
+#                                  (`name$` for a code unit `name$N`; a name
+#                                  of more than 64 characters as its first
+#                                  16 and `~<length>`)
 #   pool <entries>                 the constant pool count of the class
 #   ok | error <first line of the message>
 #
@@ -107,8 +109,18 @@ def split_cases(data):
 
 
 def first_line(text):
-    text = '%s' % text
+    # `u'%s'`: a message may hold non-ASCII text (a BOM, a name), which
+    # `'%s'` cannot convert.
+    text = u'%s' % text
     return text.split('\n')[0][:200]
+
+
+def short(name):
+    """A method name of more than 64 characters as its first 16 and its
+    length (`nnnnnnnnnnnnnnnn~70000`), to keep the file small."""
+    if len(name) > 64:
+        return '%s~%d' % (name[:16], len(name))
+    return name
 
 
 def record(out, name, data):
@@ -120,7 +132,8 @@ def record(out, name, data):
         # The number after the `$` of a code unit's or display filler's
         # name (its index in the class) is left out to keep the file small.
         out.write('methods %s\n' % ' '.join(
-            '%s %d' % (m.rsplit('$', 1)[0] + '$' if '$' in m else m, c or 0) for m, c in methods))
+            '%s %d' % (short(m.rsplit('$', 1)[0]) + '$' if '$' in m else m, c or 0)
+            for m, c in methods))
         out.write('pool %d\n' % pool_count(generated))
     except (Exception, Throwable):
         out.write('units error\n')

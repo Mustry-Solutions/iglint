@@ -8,7 +8,17 @@
 //!   with a 100,000 character limit while it looks for an encoding
 //!   declaration. When the end of line 2 lies at or beyond that limit,
 //!   reading fails with `java.io.IOException: Mark invalid`. This is
-//!   exact. No other line, literal or identifier has a length limit.
+//!   exact. No other line or literal has a length limit.
+//! * The name of every Java method and field is one constant of modified
+//!   UTF-8, at most 65,535 bytes (ASM: `java.lang.IllegalArgumentException:
+//!   UTF8 string too large`). Jython names the method and the field of a
+//!   function or class body `<name>$<id>`, with the name mangled in a
+//!   class, so a `def` or `class` name of 65,534 characters cannot compile
+//!   ([`name_errors`]). Every other name, attribute, keyword, imported
+//!   name, docstring and string literal is loaded with `Code.ldc`, which
+//!   splits a string of more than 16,000 UTF-16 units into constants of
+//!   at most 48,000 bytes: 1,000,000 characters compile in each of those
+//!   positions (measured on the oracle, `tests/limits_oracle.rs`).
 //! * Every code unit (the module body, each function and class body)
 //!   becomes one Java method, limited to 65,535 bytes of bytecode
 //!   (`Module or method too large`). [`code_units`] adds a lower bound of
@@ -74,6 +84,18 @@ pub const MARK_LIMIT: usize = 100_000;
 const METHOD_LIMIT: u64 = 65_535;
 /// The largest constant pool of a Java class.
 const CONSTANT_POOL_LIMIT: u64 = 65_535;
+/// The longest constant of modified UTF-8 in a class file, in bytes.
+const UTF8_LIMIT: usize = 65_535;
+
+/// Identifiers longer than this, in characters, make the compile status
+/// of a script unknown ([`size_unknown`]), whatever the bounds say. Jython
+/// loads names with `Code.ldc`, which changes how it encodes a string at
+/// 16,000 UTF-16 units, and names its methods after functions and
+/// classes, limited at 65,535 bytes: the mirror models both, and this
+/// keeps fixes away from any error in that model by a factor of 16. Real
+/// code has no such names (the longest identifier of the private project
+/// has 79 characters).
+pub const IDENTIFIER_LIMIT: usize = 1_000;
 
 /// The `Mark invalid` failure: the first two lines of `source` (as Jython
 /// compiles it, with the generated header of an embedded script) reach
@@ -142,7 +164,7 @@ fn mark_error(range: TextRange, units: usize) -> CompileError {
 /// is the text `module` was parsed from (with the generated header of an
 /// embedded script).
 pub fn size_errors(module: &Module, source: &str) -> Vec<CompileError> {
-    let mut out = Vec::new();
+    let mut out = name_errors(module);
     let units = units(module, source, None);
     for unit in &units {
         let Some(crossing) = unit.crossing else {
@@ -215,7 +237,20 @@ pub fn size_errors(module: &Module, source: &str) -> Vec<CompileError> {
 /// methods have none), the upper bounds are [`upper`]'s. A fix that
 /// changes such a module may change whether it compiles without the
 /// bounds seeing it, so the safety net does not trust it.
+///
+/// Independently of the bounds, a script with an identifier (a name,
+/// attribute, keyword, imported name or alias, `global` name, function,
+/// class or parameter name) of more than [`IDENTIFIER_LIMIT`] characters
+/// has an unknown status (review round 20, Codex: names of 16,001
+/// characters escaped an earlier bound).
 pub fn size_unknown(module: &Module, source: &str) -> Option<String> {
+    let longest = longest_identifier(module);
+    if longest > IDENTIFIER_LIMIT {
+        return Some(format!(
+            "identifier of {} characters: Jython's code size cannot be bounded precisely",
+            group(count(longest))
+        ));
+    }
     let report = mirror::report(module);
     if report.saturated {
         // Too much to mirror (nested `finally` bodies are copied at every
@@ -275,6 +310,124 @@ pub fn size_unknown(module: &Module, source: &str) -> Option<String> {
         ));
     }
     None
+}
+
+/// The length in characters (UTF-16 units) of the longest identifier of
+/// `module`, in code Jython generates or not: names, attributes, keyword
+/// arguments, imported names, modules and aliases, `global` names and the
+/// names of functions, classes and parameters.
+pub fn longest_identifier(module: &Module) -> usize {
+    #[derive(Default)]
+    struct Longest(usize);
+    impl Longest {
+        fn see(&mut self, s: &str) {
+            self.0 = self.0.max(mirror::utf16_len(s));
+        }
+    }
+    impl<'a> Visitor<'a> for Longest {
+        fn visit_stmt(&mut self, stmt: &'a Stmt) {
+            match stmt {
+                Stmt::FunctionDef(f) => {
+                    self.see(f.name.as_str());
+                    for n in f.args.vararg.iter().chain(&f.args.kwarg) {
+                        self.see(n.as_str());
+                    }
+                }
+                Stmt::ClassDef(c) => self.see(c.name.as_str()),
+                Stmt::Global(g) => g.names.iter().for_each(|n| self.see(n.as_str())),
+                Stmt::ImportFrom(i) => {
+                    if let Some(m) = &i.module {
+                        self.see(m.as_str());
+                    }
+                }
+                _ => {}
+            }
+            iglint_python::visitor::walk_stmt(self, stmt);
+        }
+
+        fn visit_expr(&mut self, expr: &'a Expr) {
+            match expr {
+                Expr::Name(n) => self.see(&n.id),
+                Expr::Attribute(a) => self.see(a.attr.as_str()),
+                Expr::Lambda(l) => {
+                    for n in l.args.vararg.iter().chain(&l.args.kwarg) {
+                        self.see(n.as_str());
+                    }
+                }
+                _ => {}
+            }
+            walk_expr(self, expr);
+        }
+
+        fn visit_keyword(&mut self, keyword: &'a Keyword) {
+            self.see(keyword.arg.as_str());
+            self.visit_expr(&keyword.value);
+        }
+
+        fn visit_alias(&mut self, alias: &'a Alias) {
+            self.see(alias.name.as_str());
+            if let Some(n) = &alias.asname {
+                self.see(n.as_str());
+            }
+        }
+    }
+    let mut v = Longest::default();
+    v.visit_module(module);
+    v.0
+}
+
+/// `def` and `class` statements Jython compiles whose Java method name
+/// (`<name>$<id>`, the name mangled in a class, `<id>` at least one
+/// digit) exceeds the 65,535 bytes of a class file constant: Jython's
+/// code generator fails (`java.lang.IllegalArgumentException: UTF8 string
+/// too large`). Measured on the oracle: a function or class of the
+/// module, numbered 1, compiles with a name of 65,533 characters and
+/// fails with 65,534.
+fn name_errors(module: &Module) -> Vec<CompileError> {
+    fn walk(body: &[Stmt], whole: bool, class: Option<&str>, out: &mut Vec<CompileError>) {
+        for stmt in emitted(body, whole) {
+            let (name, inner) = match stmt {
+                Stmt::FunctionDef(f) => (Some(&f.name), class),
+                Stmt::ClassDef(c) => (Some(&c.name), Some(c.name.as_str())),
+                _ => (None, class),
+            };
+            if let Some(name) = name {
+                // Python 2 identifiers are ASCII: one byte per character.
+                let spelled = match class {
+                    Some(c) if crate::mangle::is_private(name.as_str()) => {
+                        crate::mangle::mangle(c, name.as_str()).len()
+                    }
+                    _ => name.as_str().len(),
+                };
+                let least = spelled.saturating_add(2);
+                if least > UTF8_LIMIT {
+                    let what = if matches!(stmt, Stmt::ClassDef(_)) {
+                        "class"
+                    } else {
+                        "function"
+                    };
+                    out.push(CompileError {
+                        range: name.range,
+                        message: format!(
+                            "Jython cannot compile this {what}: it names the Java method of its body after it, and a name of {} characters makes the method name longer than a class file allows ({} bytes, UTF8 string too large)",
+                            group(count(name.as_str().len())),
+                            group(count(UTF8_LIMIT))
+                        ),
+                        anchor: None,
+                        kind: CompileErrorKind::NameTooLong,
+                    });
+                }
+            }
+            let mut suites = Vec::new();
+            for_each_child_body(stmt, &mut |b| suites.push(b));
+            for suite in suites {
+                walk(suite, false, inner, out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(&module.body, true, None, &mut out);
+    out
 }
 
 /// Least bytes of `iconst(v)`: 1 up to 5, 2 up to 127, 3 beyond (`sipush`,
@@ -1145,15 +1298,23 @@ pub mod upper {
     }
 
     impl<'a> Texts<'a> {
+        /// A name, also as a class mangles it. `Code.ldc` loads a name of
+        /// more than 16,000 UTF-16 units in chunks, each a constant of
+        /// its own.
         fn text(&mut self, t: &'a str) {
             if let Some(class) = self.class
                 && t.starts_with("__")
                 && !t.ends_with("__")
             {
-                self.texts
-                    .insert(Cow::Owned(format!("_{}{t}", class.trim_start_matches('_'))));
+                let mangled = format!("_{}{t}", class.trim_start_matches('_'));
+                let len = mirror::utf16_len(&mangled);
+                if self.texts.insert(Cow::Owned(mangled)) {
+                    self.chunks += count(len / 16_000);
+                }
             }
-            self.texts.insert(Cow::Borrowed(t));
+            if self.texts.insert(Cow::Borrowed(t)) {
+                self.chunks += count(mirror::utf16_len(t) / 16_000);
+            }
         }
 
         fn stmts(&mut self, body: &'a [Stmt]) {

@@ -1696,6 +1696,31 @@ mod tests {
         assert!(!safe_fix_applies(&f, "SCR102", "m"));
     }
 
+    /// Reviewer round 20 (Codex) blocker: Jython loads names of more than
+    /// 16,000 characters in chunks, which the upper bound did not charge,
+    /// so it said this function fits: Jython rejects it, and compiles it
+    /// with the import's line blanked (65,528 bytes). Such an identifier
+    /// makes the compile status unknown, and the fix is withheld.
+    #[test]
+    fn removals_from_functions_with_long_names_are_unsafe() {
+        let mut code = String::from("def work(obj):\n    import math\n");
+        for _ in 0..1_683 {
+            code.push_str(&format!("    obj.{}\n", "n".repeat(16_001)));
+        }
+        code.push_str("    return 1\nprint \"loaded\"\n");
+        let f = library("m", &code);
+        let d = f.lint(&["SCR102"]);
+        assert_eq!(applicability(&d), [Some(crate::Applicability::Unsafe)]);
+        let reason = d[0].fix.as_ref().unwrap().unsafe_reason.as_ref().unwrap();
+        assert!(
+            reason.message.contains(
+                "compile status is not known: identifier of 16,001 characters: Jython's code size cannot be bounded precisely"
+            ),
+            "{reason:?}"
+        );
+        assert!(!safe_fix_applies(&f, "SCR102", "m"));
+    }
+
     #[test]
     fn removing_an_import_that_fails_is_unsafe() {
         let code = "def f():\n    from java.util import MissingReviewClass\ntry:\n    f()\nexcept Exception:\n    print \"failed\"\nelse:\n    print \"succeeded\"\n";

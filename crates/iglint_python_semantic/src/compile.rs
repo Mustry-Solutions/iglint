@@ -55,6 +55,16 @@ pub enum CompileErrorKind {
     /// case by case against Jython 2.7 (`tests/oracle/compile.cases`,
     /// the `yield-comp-*` cases).
     YieldInComprehension,
+    /// A `yield` in the exception type of an `except` clause makes
+    /// Jython's code generator fail (`NegativeArraySizeException`).
+    /// Verified case by case (`oracle/compile_cross.py`, the `except-yield-*`
+    /// constructs).
+    YieldInExceptType,
+    /// A `yield` in an attribute or subscript target inside an unpacking
+    /// target (`b, a[(yield)] = 1, 2`) makes Jython's code generator fail
+    /// (`IllegalArgumentException`). Verified case by case
+    /// (`oracle/compile_cross.py`, the `unpack-yield-*` constructs).
+    YieldInUnpackingTarget,
     /// The first two lines reach [`crate::MARK_LIMIT`] characters
     /// (`java.io.IOException: Mark invalid`).
     MarkInvalid,
@@ -63,6 +73,9 @@ pub enum CompileErrorKind {
     MethodTooLarge,
     /// A module has more constants than a Java class can hold.
     ClassTooLarge,
+    /// A function or class name makes the name of its Java method longer
+    /// than a class file constant can be (65,535 bytes).
+    NameTooLong,
     /// A private name (`__x`) that Jython has to mangle inside a class whose
     /// name is only underscores (`class ___:`): its code generator fails
     /// (`StringIndexOutOfBoundsException`, see [`crate::mangle`]).
@@ -78,6 +91,8 @@ impl CompileErrorKind {
             self,
             CompileErrorKind::InvalidTarget
                 | CompileErrorKind::YieldInComprehension
+                | CompileErrorKind::YieldInExceptType
+                | CompileErrorKind::YieldInUnpackingTarget
                 | CompileErrorKind::PrivateNameInUnderscoreClass
         )
     }
@@ -101,7 +116,7 @@ pub fn compile_errors(model: &SemanticModel<'_>) -> Vec<CompileError> {
                 scope: ScopeId::MODULE,
                 in_loop: false,
                 dead: false,
-                yield_crashes: false,
+                yield_crashes: None,
             },
         );
     }
@@ -148,15 +163,32 @@ struct Ctx {
     /// errors its code generator raises do not occur, errors of its
     /// symbol table pass still do.
     dead: bool,
-    /// A `yield` evaluated in this position is compiled into the current
-    /// function's code object by way of a list comprehension (inlined in
-    /// Python 2) or as the first iterable of a set or dict comprehension
-    /// (evaluated in the enclosing scope). Jython's verifier then rejects
-    /// the method ([`CompileErrorKind::YieldInComprehension`]). The flag
-    /// is set while walking those positions and cleared at every new code
-    /// object (a `def`, `lambda` body or the inner scope of a
-    /// comprehension or generator expression). Verified against Jython.
-    yield_crashes: bool,
+    /// A `yield` evaluated in this position, and compiled into the
+    /// current function's code object, crashes Jython's compiler, and how
+    /// ([`YieldCrash`]). Set while walking those positions and cleared at
+    /// every new code object (a `def`, `lambda` body or the inner scope of
+    /// a comprehension or generator expression). Verified against Jython.
+    yield_crashes: Option<YieldCrash>,
+}
+
+/// Positions where a `yield` crashes Jython's compiler.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum YieldCrash {
+    /// Inside a list comprehension (inlined in Python 2) or the first
+    /// iterable of a set or dict comprehension (evaluated in the
+    /// enclosing scope): Jython's verifier rejects the method
+    /// ([`CompileErrorKind::YieldInComprehension`]).
+    Comprehension,
+    /// In the exception type of an `except` clause: the code generator
+    /// fails (`NegativeArraySizeException`,
+    /// [`CompileErrorKind::YieldInExceptType`]).
+    ExceptType,
+    /// In an attribute or subscript target inside an unpacking target
+    /// (`b, a[(yield)] = ...`, also of `for`, `with`, `except` and
+    /// comprehension targets): the code generator fails
+    /// (`IllegalArgumentException`,
+    /// [`CompileErrorKind::YieldInUnpackingTarget`]).
+    UnpackingTarget,
 }
 
 struct Checker<'m, 'a> {
@@ -329,7 +361,7 @@ impl<'a> Checker<'_, 'a> {
                     scope,
                     in_loop: false,
                     dead: ctx.dead,
-                    yield_crashes: false,
+                    yield_crashes: None,
                 };
                 self.body(&f.body, inner);
             }
@@ -343,7 +375,7 @@ impl<'a> Checker<'_, 'a> {
                     scope,
                     in_loop: false,
                     dead: ctx.dead,
-                    yield_crashes: false,
+                    yield_crashes: None,
                 };
                 self.body(&c.body, inner);
             }
@@ -432,7 +464,11 @@ impl<'a> Checker<'_, 'a> {
                             "default 'except:' must be last",
                         );
                     }
-                    self.opt_expr(h.type_.as_deref(), ctx);
+                    let type_ = Ctx {
+                        yield_crashes: ctx.yield_crashes.or(Some(YieldCrash::ExceptType)),
+                        ..ctx
+                    };
+                    self.opt_expr(h.type_.as_deref(), type_);
                     if let Some(n) = &h.name {
                         self.target(n, TargetContext::Except, ctx);
                     }
@@ -503,20 +539,32 @@ impl<'a> Checker<'_, 'a> {
                         Some(y.anchor),
                         "'yield' outside function",
                     );
-                } else if ctx.yield_crashes && self.generated(ctx.scope, y.range) {
-                    // Compiled into a method whose bytecode Jython's own
-                    // verifier rejects (`java.lang.VerifyError`): a `yield`
-                    // inside a list comprehension or in the first iterable
-                    // of a set or dict comprehension.
-                    self.codegen_error(
-                        ctx,
-                        CompileErrorKind::YieldInComprehension,
-                        y.range,
-                        Some(y.anchor),
-                        "a 'yield' inside a list comprehension, or in the first iterable of a \
-                         set or dict comprehension, crashes Jython's compiler (internal error); \
-                         the script cannot be compiled",
-                    );
+                } else if let Some(crash) = ctx.yield_crashes
+                    && self.generated(ctx.scope, y.range)
+                {
+                    let (kind, message) = match crash {
+                        // Compiled into a method whose bytecode Jython's
+                        // own verifier rejects (`java.lang.VerifyError`).
+                        YieldCrash::Comprehension => (
+                            CompileErrorKind::YieldInComprehension,
+                            "a 'yield' inside a list comprehension, or in the first iterable of \
+                             a set or dict comprehension, crashes Jython's compiler (internal \
+                             error); the script cannot be compiled",
+                        ),
+                        YieldCrash::ExceptType => (
+                            CompileErrorKind::YieldInExceptType,
+                            "a 'yield' in the exception type of an 'except' clause crashes \
+                             Jython's compiler (internal error, NegativeArraySizeException); the \
+                             script cannot be compiled",
+                        ),
+                        YieldCrash::UnpackingTarget => (
+                            CompileErrorKind::YieldInUnpackingTarget,
+                            "a 'yield' in an attribute or subscript target of an unpacking \
+                             assignment crashes Jython's compiler (internal error, \
+                             IllegalArgumentException); the script cannot be compiled",
+                        ),
+                    };
+                    self.codegen_error(ctx, kind, y.range, Some(y.anchor), message);
                 }
                 self.opt_expr(y.value.as_deref(), ctx);
             }
@@ -530,7 +578,7 @@ impl<'a> Checker<'_, 'a> {
                             scope,
                             in_loop: false,
                             dead: ctx.dead,
-                            yield_crashes: false,
+                            yield_crashes: None,
                         },
                     );
                 }
@@ -540,7 +588,7 @@ impl<'a> Checker<'_, 'a> {
                 // every part is compiled into the current function, so a
                 // `yield` anywhere in it crashes the verifier.
                 let lc = Ctx {
-                    yield_crashes: true,
+                    yield_crashes: Some(YieldCrash::Comprehension),
                     ..ctx
                 };
                 for g in &e.generators {
@@ -564,7 +612,7 @@ impl<'a> Checker<'_, 'a> {
                     scope,
                     in_loop: false,
                     dead: ctx.dead,
-                    yield_crashes: false,
+                    yield_crashes: None,
                 };
                 // The first iterable is evaluated in the enclosing scope.
                 // For a set or dict comprehension a `yield` there crashes
@@ -573,7 +621,7 @@ impl<'a> Checker<'_, 'a> {
                 // carries. Every other part is a new code object.
                 let first_iter = if matches!(expr, Expr::SetComp(_) | Expr::DictComp(_)) {
                     Ctx {
-                        yield_crashes: true,
+                        yield_crashes: Some(YieldCrash::Comprehension),
                         ..ctx
                     }
                 } else {
@@ -606,14 +654,18 @@ impl<'a> Checker<'_, 'a> {
                     );
                 }
             }
-            Expr::Tuple(t) => {
-                for e in &t.elts {
-                    self.target(e, context, ctx);
-                }
-            }
-            Expr::List(t) => {
-                for e in &t.elts {
-                    self.target(e, context, ctx);
+            Expr::Tuple(ExprTuple { elts, .. }) | Expr::List(ExprList { elts, .. }) => {
+                // Unpacking (`del` of a tuple deletes each element).
+                let inner = if context == TargetContext::Delete {
+                    ctx
+                } else {
+                    Ctx {
+                        yield_crashes: ctx.yield_crashes.or(Some(YieldCrash::UnpackingTarget)),
+                        ..ctx
+                    }
+                };
+                for e in elts {
+                    self.target(e, context, inner);
                 }
             }
             Expr::Attribute(a) => self.expr(&a.value, ctx),

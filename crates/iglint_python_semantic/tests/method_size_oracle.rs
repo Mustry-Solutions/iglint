@@ -751,7 +751,35 @@ fn review_sources() -> Vec<(String, String)> {
     for import in [true, false] {
         out.push((format!("review19-repro-{import}"), review_repro(import)));
     }
+    // Review round 20 (Codex, blocker): attribute names of 16,001
+    // characters, which Jython loads in chunks; the repro and the
+    // calibration probe (1,000 such reads: 38,889 bytes).
+    for import in [true, false] {
+        out.push((format!("review20-repro-{import}"), review20_repro(import)));
+    }
+    for (len, n) in [(16_001, 1_000), (10, 1_000)] {
+        let mut s = String::from("def work(obj):\n");
+        for _ in 0..n {
+            s.push_str(&format!("    obj.{}\n", "n".repeat(len)));
+        }
+        s.push_str("    return 1\n");
+        out.push((format!("review20-attributes-{len}"), s));
+    }
     out
+}
+
+/// Review round 20's end-to-end repro (Codex, blocker): Jython rejects
+/// it ("Module or method too large"), and compiles it with the import's
+/// line blanked (65,528 bytes).
+pub(crate) fn review20_repro(import: bool) -> String {
+    let mut s = String::from("def work(obj):\n");
+    // The safe fix blanks the import's line.
+    s.push_str(if import { "    import math\n" } else { "\n" });
+    for _ in 0..1_683 {
+        s.push_str(&format!("    obj.{}\n", "n".repeat(16_001)));
+    }
+    s.push_str("    return 1\nprint \"loaded\"\n");
+    s
 }
 
 /// Review round 19's end-to-end repro: Jython rejects it, and compiles it
@@ -928,12 +956,15 @@ fn bound_never_exceeds_here() {
         for (n, size) in sizes {
             real.entry(n.as_str()).or_default().push(*size);
         }
-        let mut lower: std::collections::BTreeMap<&str, Vec<usize>> = Default::default();
+        let mut lower: std::collections::BTreeMap<String, Vec<usize>> = Default::default();
         for bound in &bounds {
-            lower.entry(bound.name).or_default().push(bound.bytes);
+            lower
+                .entry(short(bound.name))
+                .or_default()
+                .push(bound.bytes);
         }
         for (unit, bounds) in &mut lower {
-            let Some(sizes) = real.get_mut(unit) else {
+            let Some(sizes) = real.get_mut(unit.as_str()) else {
                 panic!("{name}: no unit `{unit}` where the bound has one");
             };
             assert!(
@@ -1046,6 +1077,20 @@ impl Margins {
     }
 }
 
+/// A method name as the oracle records it: a name of more than 64
+/// characters as its first 16 and `~<length>`.
+fn short(name: &str) -> String {
+    if name.len() > 64 {
+        format!(
+            "{}~{}",
+            name.chars().take(16).collect::<String>(),
+            name.len()
+        )
+    } else {
+        name.to_owned()
+    }
+}
+
 /// The family of a program: `adv-<family>-<n>`, else the name up to its
 /// first `-`.
 fn family(name: &str) -> String {
@@ -1151,8 +1196,9 @@ fn check_upper(
     }
     let family = family(name);
     for ((n, size), (bn, bound)) in real.iter().map(|m| (&m.0, m.1)).zip(&bounds) {
-        // The oracle leaves out the number after the `$`.
-        let unnumbered = |m: &str| m.rsplit_once('$').map_or(m, |p| p.0).to_owned();
+        // The oracle leaves out the number after the `$` and shortens
+        // long names.
+        let unnumbered = |m: &str| short(m.rsplit_once('$').map_or(m, |p| p.0));
         if unnumbered(n) != unnumbered(bn) {
             out.push(format!("{name}: method `{n}` where the mirror has `{bn}`"));
         }
@@ -1258,7 +1304,9 @@ fn shapes_are_reported_here() {
 }
 
 /// How many `.py` files below `IGLINT_SIZE_SCAN` (a private corpus, read
-/// only) have a size verdict the bounds leave open: aggregate counts only.
+/// only, or the scripts `oracle/extract_view_scripts.py` extracts from
+/// one) have a size verdict the bounds leave open, and their longest
+/// identifier: aggregate counts only.
 #[test]
 #[ignore = "needs IGLINT_SIZE_SCAN"]
 fn open_size_verdicts_in_a_corpus() {
@@ -1266,7 +1314,7 @@ fn open_size_verdicts_in_a_corpus() {
         return;
     };
     let mut stack = vec![std::path::PathBuf::from(root)];
-    let (mut files, mut open, mut largest) = (0, 0, 0);
+    let (mut files, mut open, mut largest, mut longest) = (0, 0, 0, 0);
     while let Some(dir) = stack.pop() {
         for entry in std::fs::read_dir(&dir).unwrap().flatten() {
             let path = entry.path();
@@ -1284,13 +1332,16 @@ fn open_size_verdicts_in_a_corpus() {
                 }
                 files += 1;
                 open += usize::from(size_unknown(&parsed.module, &source).is_some());
+                longest = longest.max(iglint_python_semantic::longest_identifier(&parsed.module));
                 for unit in code_units(&parsed.module, &source) {
                     largest = largest.max(unit.upper);
                 }
             }
         }
     }
-    eprintln!("{files} files, {open} with an open size verdict, largest upper bound {largest}");
+    eprintln!(
+        "{files} files, {open} with an open size verdict, largest upper bound {largest}, longest identifier {longest} characters"
+    );
 }
 
 /// Prints, for the sources of the `.cases` file `IGLINT_PROBE_CASES` and

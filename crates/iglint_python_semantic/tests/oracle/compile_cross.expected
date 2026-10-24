@@ -49,6 +49,73 @@ ok
 ok
 ### module/none/exec-with-free-nested
 ok
+### module/none/except-yield-type
+error 3 8
+'yield' outside function
+### module/none/except-yield-type-name
+error 3 8
+'yield' outside function
+### module/none/except-yield-tuple
+error 3 12
+'yield' outside function
+### module/none/except-yield-call
+error 3 10
+'yield' outside function
+### module/none/except-yield-lambda
+ok
+### module/none/except-yield-target
+error 3 13
+'yield' outside function
+### module/none/unpack-yield-subscript
+error 1 6
+'yield' outside function
+### module/none/unpack-yield-attribute
+error 1 4
+'yield' outside function
+### module/none/unpack-yield-slice
+error 1 6
+'yield' outside function
+### module/none/unpack-yield-nested
+error 1 7
+'yield' outside function
+### module/none/unpack-yield-list
+error 1 7
+'yield' outside function
+### module/none/unpack-yield-chained
+error 1 10
+'yield' outside function
+### module/none/unpack-yield-for
+error 1 10
+'yield' outside function
+### module/none/unpack-yield-with
+error 1 17
+'yield' outside function
+### module/none/unpack-yield-except
+error 3 17
+'yield' outside function
+### module/none/unpack-yield-genexp-target
+error 0 0
+internal error: java.lang.IllegalArgumentException
+### module/none/unpack-yield-single
+error 1 3
+'yield' outside function
+### module/none/unpack-yield-single-chained
+error 1 3
+'yield' outside function
+### module/none/unpack-yield-for-single
+error 1 7
+'yield' outside function
+### module/none/unpack-yield-aug
+error 1 3
+'yield' outside function
+### module/none/unpack-yield-del
+error 1 10
+'yield' outside function
+### module/none/unpack-yield-lambda
+ok
+### module/none/unpack-yield-value
+error 1 11
+'yield' outside function
 ### module/pass/listcomp-yield-iter
 error 2 13
 'yield' outside function
@@ -100,6 +167,73 @@ ok
 ok
 ### module/pass/exec-with-free-nested
 ok
+### module/pass/except-yield-type
+error 4 8
+'yield' outside function
+### module/pass/except-yield-type-name
+error 4 8
+'yield' outside function
+### module/pass/except-yield-tuple
+error 4 12
+'yield' outside function
+### module/pass/except-yield-call
+error 4 10
+'yield' outside function
+### module/pass/except-yield-lambda
+ok
+### module/pass/except-yield-target
+error 4 13
+'yield' outside function
+### module/pass/unpack-yield-subscript
+error 2 6
+'yield' outside function
+### module/pass/unpack-yield-attribute
+error 2 4
+'yield' outside function
+### module/pass/unpack-yield-slice
+error 2 6
+'yield' outside function
+### module/pass/unpack-yield-nested
+error 2 7
+'yield' outside function
+### module/pass/unpack-yield-list
+error 2 7
+'yield' outside function
+### module/pass/unpack-yield-chained
+error 2 10
+'yield' outside function
+### module/pass/unpack-yield-for
+error 2 10
+'yield' outside function
+### module/pass/unpack-yield-with
+error 2 17
+'yield' outside function
+### module/pass/unpack-yield-except
+error 4 17
+'yield' outside function
+### module/pass/unpack-yield-genexp-target
+error 0 0
+internal error: java.lang.IllegalArgumentException
+### module/pass/unpack-yield-single
+error 2 3
+'yield' outside function
+### module/pass/unpack-yield-single-chained
+error 2 3
+'yield' outside function
+### module/pass/unpack-yield-for-single
+error 2 7
+'yield' outside function
+### module/pass/unpack-yield-aug
+error 2 3
+'yield' outside function
+### module/pass/unpack-yield-del
+error 2 10
+'yield' outside function
+### module/pass/unpack-yield-lambda
+ok
+### module/pass/unpack-yield-value
+error 2 11
+'yield' outside function
 ### module/return/listcomp-yield-iter
 error 1 0
 'return' outside function
@@ -154,6 +288,75 @@ error 1 0
 ### module/return/exec-with-free-nested
 error 1 0
 'return' outside function
+### module/return/except-yield-type
+error 1 0
+'return' outside function
+### module/return/except-yield-type-name
+error 1 0
+'return' outside function
+### module/return/except-yield-tuple
+error 1 0
+'return' outside function
+### module/return/except-yield-call
+error 1 0
+'return' outside function
+### module/return/except-yield-lambda
+error 1 0
+'return' outside function
+### module/return/except-yield-target
+error 1 0
+'return' outside function
+### module/return/unpack-yield-subscript
+error 1 0
+'return' outside function
+### module/return/unpack-yield-attribute
+error 1 0
+'return' outside function
+### module/return/unpack-yield-slice
+error 1 0
+'return' outside function
+### module/return/unpack-yield-nested
+error 1 0
+'return' outside function
+### module/return/unpack-yield-list
+error 1 0
+'return' outside function
+### module/return/unpack-yield-chained
+error 1 0
+'return' outside function
+### module/return/unpack-yield-for
+error 1 0
+'return' outside function
+### module/return/unpack-yield-with
+error 1 0
+'return' outside function
+### module/return/unpack-yield-except
+error 1 0
+'return' outside function
+### module/return/unpack-yield-genexp-target
+error 1 0
+'return' outside function
+### module/return/unpack-yield-single
+error 1 0
+'return' outside function
+### module/return/unpack-yield-single-chained
+error 1 0
+'return' outside function
+### module/return/unpack-yield-for-single
+error 1 0
+'return' outside function
+### module/return/unpack-yield-aug
+error 1 0
+'return' outside function
+### module/return/unpack-yield-del
+error 1 0
+'return' outside function
+### module/return/unpack-yield-lambda
+error 1 0
+'return' outside function
+### module/return/unpack-yield-value
+error 1 0
+'return' outside function
 ### module/raise/listcomp-yield-iter
 error 2 13
 'yield' outside function
@@ -202,6 +405,73 @@ ok
 ok
 ### module/raise/exec-with-free-nested
 ok
+### module/raise/except-yield-type
+error 4 8
+'yield' outside function
+### module/raise/except-yield-type-name
+error 4 8
+'yield' outside function
+### module/raise/except-yield-tuple
+error 4 12
+'yield' outside function
+### module/raise/except-yield-call
+error 4 10
+'yield' outside function
+### module/raise/except-yield-lambda
+ok
+### module/raise/except-yield-target
+error 4 13
+'yield' outside function
+### module/raise/unpack-yield-subscript
+error 2 6
+'yield' outside function
+### module/raise/unpack-yield-attribute
+error 2 4
+'yield' outside function
+### module/raise/unpack-yield-slice
+error 2 6
+'yield' outside function
+### module/raise/unpack-yield-nested
+error 2 7
+'yield' outside function
+### module/raise/unpack-yield-list
+error 2 7
+'yield' outside function
+### module/raise/unpack-yield-chained
+error 2 10
+'yield' outside function
+### module/raise/unpack-yield-for
+error 2 10
+'yield' outside function
+### module/raise/unpack-yield-with
+error 2 17
+'yield' outside function
+### module/raise/unpack-yield-except
+error 4 17
+'yield' outside function
+### module/raise/unpack-yield-genexp-target
+error 0 0
+internal error: java.lang.IllegalArgumentException
+### module/raise/unpack-yield-single
+error 2 3
+'yield' outside function
+### module/raise/unpack-yield-single-chained
+error 2 3
+'yield' outside function
+### module/raise/unpack-yield-for-single
+error 2 7
+'yield' outside function
+### module/raise/unpack-yield-aug
+error 2 3
+'yield' outside function
+### module/raise/unpack-yield-del
+error 2 10
+'yield' outside function
+### module/raise/unpack-yield-lambda
+ok
+### module/raise/unpack-yield-value
+error 2 11
+'yield' outside function
 ### module/continue/listcomp-yield-iter
 error 1 0
 'continue' not properly in loop
@@ -254,6 +524,75 @@ error 1 0
 error 1 0
 'continue' not properly in loop
 ### module/continue/exec-with-free-nested
+error 1 0
+'continue' not properly in loop
+### module/continue/except-yield-type
+error 1 0
+'continue' not properly in loop
+### module/continue/except-yield-type-name
+error 1 0
+'continue' not properly in loop
+### module/continue/except-yield-tuple
+error 1 0
+'continue' not properly in loop
+### module/continue/except-yield-call
+error 1 0
+'continue' not properly in loop
+### module/continue/except-yield-lambda
+error 1 0
+'continue' not properly in loop
+### module/continue/except-yield-target
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-subscript
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-attribute
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-slice
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-nested
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-list
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-chained
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-for
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-with
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-except
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-genexp-target
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-single
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-single-chained
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-for-single
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-aug
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-del
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-lambda
+error 1 0
+'continue' not properly in loop
+### module/continue/unpack-yield-value
 error 1 0
 'continue' not properly in loop
 ### module/break/listcomp-yield-iter
@@ -310,6 +649,75 @@ error 1 0
 ### module/break/exec-with-free-nested
 error 1 0
 'break' outside loop
+### module/break/except-yield-type
+error 1 0
+'break' outside loop
+### module/break/except-yield-type-name
+error 1 0
+'break' outside loop
+### module/break/except-yield-tuple
+error 1 0
+'break' outside loop
+### module/break/except-yield-call
+error 1 0
+'break' outside loop
+### module/break/except-yield-lambda
+error 1 0
+'break' outside loop
+### module/break/except-yield-target
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-subscript
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-attribute
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-slice
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-nested
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-list
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-chained
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-for
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-with
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-except
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-genexp-target
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-single
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-single-chained
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-for-single
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-aug
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-del
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-lambda
+error 1 0
+'break' outside loop
+### module/break/unpack-yield-value
+error 1 0
+'break' outside loop
 ### module/if-else-return/listcomp-yield-iter
 error 2 4
 'return' outside function
@@ -364,6 +772,75 @@ error 2 4
 ### module/if-else-return/exec-with-free-nested
 error 2 4
 'return' outside function
+### module/if-else-return/except-yield-type
+error 2 4
+'return' outside function
+### module/if-else-return/except-yield-type-name
+error 2 4
+'return' outside function
+### module/if-else-return/except-yield-tuple
+error 2 4
+'return' outside function
+### module/if-else-return/except-yield-call
+error 2 4
+'return' outside function
+### module/if-else-return/except-yield-lambda
+error 2 4
+'return' outside function
+### module/if-else-return/except-yield-target
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-subscript
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-attribute
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-slice
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-nested
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-list
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-chained
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-for
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-with
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-except
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-genexp-target
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-single
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-single-chained
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-for-single
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-aug
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-del
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-lambda
+error 2 4
+'return' outside function
+### module/if-else-return/unpack-yield-value
+error 2 4
+'return' outside function
 ### module/if-else-raise/listcomp-yield-iter
 error 5 13
 'yield' outside function
@@ -412,6 +889,73 @@ ok
 ok
 ### module/if-else-raise/exec-with-free-nested
 ok
+### module/if-else-raise/except-yield-type
+error 7 8
+'yield' outside function
+### module/if-else-raise/except-yield-type-name
+error 7 8
+'yield' outside function
+### module/if-else-raise/except-yield-tuple
+error 7 12
+'yield' outside function
+### module/if-else-raise/except-yield-call
+error 7 10
+'yield' outside function
+### module/if-else-raise/except-yield-lambda
+ok
+### module/if-else-raise/except-yield-target
+error 7 13
+'yield' outside function
+### module/if-else-raise/unpack-yield-subscript
+error 5 6
+'yield' outside function
+### module/if-else-raise/unpack-yield-attribute
+error 5 4
+'yield' outside function
+### module/if-else-raise/unpack-yield-slice
+error 5 6
+'yield' outside function
+### module/if-else-raise/unpack-yield-nested
+error 5 7
+'yield' outside function
+### module/if-else-raise/unpack-yield-list
+error 5 7
+'yield' outside function
+### module/if-else-raise/unpack-yield-chained
+error 5 10
+'yield' outside function
+### module/if-else-raise/unpack-yield-for
+error 5 10
+'yield' outside function
+### module/if-else-raise/unpack-yield-with
+error 5 17
+'yield' outside function
+### module/if-else-raise/unpack-yield-except
+error 7 17
+'yield' outside function
+### module/if-else-raise/unpack-yield-genexp-target
+error 0 0
+internal error: java.lang.IllegalArgumentException
+### module/if-else-raise/unpack-yield-single
+error 5 3
+'yield' outside function
+### module/if-else-raise/unpack-yield-single-chained
+error 5 3
+'yield' outside function
+### module/if-else-raise/unpack-yield-for-single
+error 5 7
+'yield' outside function
+### module/if-else-raise/unpack-yield-aug
+error 5 3
+'yield' outside function
+### module/if-else-raise/unpack-yield-del
+error 5 10
+'yield' outside function
+### module/if-else-raise/unpack-yield-lambda
+ok
+### module/if-else-raise/unpack-yield-value
+error 5 11
+'yield' outside function
 ### module/if-return/listcomp-yield-iter
 error 2 4
 'return' outside function
@@ -436,25 +980,7 @@ error 2 4
 ### module/if-return/invalid-target-call-for
 error 2 4
 'return' outside function
-### module/if-return/invalid-target-with
-error 3 10
-can't assign to function call
 ### module/if-return/invalid-target-listcomp
-error 2 4
-'return' outside function
-### module/if-return/return-value
-error 2 4
-'return' outside function
-### module/if-return/yield-stmt
-error 2 4
-'return' outside function
-### module/if-return/break
-error 2 4
-'return' outside function
-### module/if-return/continue
-error 2 4
-'return' outside function
-### module/if-return/default-except-not-last
 error 2 4
 'return' outside function
 ### module/if-return/import-star
@@ -464,6 +990,12 @@ error 2 4
 error 2 4
 'return' outside function
 ### module/if-return/exec-with-free-nested
+error 2 4
+'return' outside function
+### module/if-return/except-yield-lambda
+error 2 4
+'return' outside function
+### module/if-return/unpack-yield-lambda
 error 2 4
 'return' outside function
 ### module/try-return-finally/listcomp-yield-iter
@@ -490,25 +1022,7 @@ error 2 4
 ### module/try-return-finally/invalid-target-call-for
 error 2 4
 'return' outside function
-### module/try-return-finally/invalid-target-with
-error 5 10
-can't assign to function call
 ### module/try-return-finally/invalid-target-listcomp
-error 2 4
-'return' outside function
-### module/try-return-finally/return-value
-error 2 4
-'return' outside function
-### module/try-return-finally/yield-stmt
-error 2 4
-'return' outside function
-### module/try-return-finally/break
-error 2 4
-'return' outside function
-### module/try-return-finally/continue
-error 2 4
-'return' outside function
-### module/try-return-finally/default-except-not-last
 error 2 4
 'return' outside function
 ### module/try-return-finally/import-star
@@ -518,6 +1032,12 @@ error 2 4
 error 2 4
 'return' outside function
 ### module/try-return-finally/exec-with-free-nested
+error 2 4
+'return' outside function
+### module/try-return-finally/except-yield-lambda
+error 2 4
+'return' outside function
+### module/try-return-finally/unpack-yield-lambda
 error 2 4
 'return' outside function
 ### module/try-pass-finally-return/listcomp-yield-iter
@@ -544,27 +1064,6 @@ error 4 4
 ### module/try-pass-finally-return/invalid-target-call-for
 error 4 4
 'return' outside function
-### module/try-pass-finally-return/invalid-target-with
-error 5 10
-can't assign to function call
-### module/try-pass-finally-return/invalid-target-listcomp
-error 4 4
-'return' outside function
-### module/try-pass-finally-return/return-value
-error 4 4
-'return' outside function
-### module/try-pass-finally-return/yield-stmt
-error 4 4
-'return' outside function
-### module/try-pass-finally-return/break
-error 4 4
-'return' outside function
-### module/try-pass-finally-return/continue
-error 4 4
-'return' outside function
-### module/try-pass-finally-return/default-except-not-last
-error 4 4
-'return' outside function
 ### module/try-pass-finally-return/import-star
 error 4 4
 'return' outside function
@@ -572,6 +1071,12 @@ error 4 4
 error 4 4
 'return' outside function
 ### module/try-pass-finally-return/exec-with-free-nested
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/except-yield-lambda
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/unpack-yield-lambda
 error 4 4
 'return' outside function
 ### module/try-return-except-return/listcomp-yield-iter
@@ -598,27 +1103,6 @@ error 2 4
 ### module/try-return-except-return/invalid-target-call-for
 error 2 4
 'return' outside function
-### module/try-return-except-return/invalid-target-with
-error 5 10
-can't assign to function call
-### module/try-return-except-return/invalid-target-listcomp
-error 2 4
-'return' outside function
-### module/try-return-except-return/return-value
-error 2 4
-'return' outside function
-### module/try-return-except-return/yield-stmt
-error 2 4
-'return' outside function
-### module/try-return-except-return/break
-error 2 4
-'return' outside function
-### module/try-return-except-return/continue
-error 2 4
-'return' outside function
-### module/try-return-except-return/default-except-not-last
-error 2 4
-'return' outside function
 ### module/try-return-except-return/import-star
 error 2 4
 'return' outside function
@@ -626,6 +1110,12 @@ error 2 4
 error 2 4
 'return' outside function
 ### module/try-return-except-return/exec-with-free-nested
+error 2 4
+'return' outside function
+### module/try-return-except-return/except-yield-lambda
+error 2 4
+'return' outside function
+### module/try-return-except-return/unpack-yield-lambda
 error 2 4
 'return' outside function
 ### module/try-return-except-pass/listcomp-yield-iter
@@ -652,27 +1142,6 @@ error 2 4
 ### module/try-return-except-pass/invalid-target-call-for
 error 2 4
 'return' outside function
-### module/try-return-except-pass/invalid-target-with
-error 5 10
-can't assign to function call
-### module/try-return-except-pass/invalid-target-listcomp
-error 2 4
-'return' outside function
-### module/try-return-except-pass/return-value
-error 2 4
-'return' outside function
-### module/try-return-except-pass/yield-stmt
-error 2 4
-'return' outside function
-### module/try-return-except-pass/import-star
-error 2 4
-'return' outside function
-### module/try-return-except-pass/del-cell
-error 2 4
-'return' outside function
-### module/try-return-except-pass/exec-with-free-nested
-error 2 4
-'return' outside function
 ### module/try-raise-except-raise/listcomp-yield-iter
 error 5 13
 'yield' outside function
@@ -695,22 +1164,17 @@ error 5 17
 ok
 ### module/try-raise-except-raise/invalid-target-call-for
 ok
-### module/try-raise-except-raise/invalid-target-with
-error 5 10
-can't assign to function call
 ### module/try-raise-except-raise/invalid-target-listcomp
 ok
-### module/try-raise-except-raise/return-value
-error 5 0
-'return' outside function
-### module/try-raise-except-raise/yield-stmt
-error 5 0
-'yield' outside function
 ### module/try-raise-except-raise/import-star
 ok
 ### module/try-raise-except-raise/del-cell
 ok
 ### module/try-raise-except-raise/exec-with-free-nested
+ok
+### module/try-raise-except-raise/except-yield-lambda
+ok
+### module/try-raise-except-raise/unpack-yield-lambda
 ok
 ### module/try-global-except/listcomp-yield-iter
 error 5 13
@@ -736,23 +1200,15 @@ internal error: java.lang.VerifyError
 ### module/try-global-except/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### module/try-global-except/invalid-target-with
-error 5 10
-can't assign to function call
-### module/try-global-except/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### module/try-global-except/return-value
-error 5 0
-'return' outside function
-### module/try-global-except/yield-stmt
-error 5 0
-'yield' outside function
 ### module/try-global-except/import-star
 ok
 ### module/try-global-except/del-cell
 ok
 ### module/try-global-except/exec-with-free-nested
+ok
+### module/try-global-except/except-yield-lambda
+ok
+### module/try-global-except/unpack-yield-lambda
 ok
 ### module/while-1/listcomp-yield-iter
 error 3 13
@@ -778,23 +1234,15 @@ internal error: java.lang.VerifyError
 ### module/while-1/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### module/while-1/invalid-target-with
-error 3 10
-can't assign to function call
-### module/while-1/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### module/while-1/return-value
-error 3 0
-'return' outside function
-### module/while-1/yield-stmt
-error 3 0
-'yield' outside function
 ### module/while-1/import-star
 ok
 ### module/while-1/del-cell
 ok
 ### module/while-1/exec-with-free-nested
+ok
+### module/while-1/except-yield-lambda
+ok
+### module/while-1/unpack-yield-lambda
 ok
 ### module/while-true-break/listcomp-yield-iter
 error 3 13
@@ -820,23 +1268,15 @@ internal error: java.lang.VerifyError
 ### module/while-true-break/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### module/while-true-break/invalid-target-with
-error 3 10
-can't assign to function call
-### module/while-true-break/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### module/while-true-break/return-value
-error 3 0
-'return' outside function
-### module/while-true-break/yield-stmt
-error 3 0
-'yield' outside function
 ### module/while-true-break/import-star
 ok
 ### module/while-true-break/del-cell
 ok
 ### module/while-true-break/exec-with-free-nested
+ok
+### module/while-true-break/except-yield-lambda
+ok
+### module/while-true-break/unpack-yield-lambda
 ok
 ### module/for-else-return/listcomp-yield-iter
 error 2 4
@@ -860,27 +1300,6 @@ error 2 4
 error 2 4
 'return' outside function
 ### module/for-else-return/invalid-target-call-for
-error 2 4
-'return' outside function
-### module/for-else-return/invalid-target-with
-error 5 10
-can't assign to function call
-### module/for-else-return/invalid-target-listcomp
-error 2 4
-'return' outside function
-### module/for-else-return/return-value
-error 2 4
-'return' outside function
-### module/for-else-return/yield-stmt
-error 2 4
-'return' outside function
-### module/for-else-return/import-star
-error 2 4
-'return' outside function
-### module/for-else-return/del-cell
-error 2 4
-'return' outside function
-### module/for-else-return/exec-with-free-nested
 error 2 4
 'return' outside function
 ### module/for-return/listcomp-yield-iter
@@ -907,27 +1326,6 @@ error 2 4
 ### module/for-return/invalid-target-call-for
 error 2 4
 'return' outside function
-### module/for-return/invalid-target-with
-error 3 10
-can't assign to function call
-### module/for-return/invalid-target-listcomp
-error 2 4
-'return' outside function
-### module/for-return/return-value
-error 2 4
-'return' outside function
-### module/for-return/yield-stmt
-error 2 4
-'return' outside function
-### module/for-return/import-star
-error 2 4
-'return' outside function
-### module/for-return/del-cell
-error 2 4
-'return' outside function
-### module/for-return/exec-with-free-nested
-error 2 4
-'return' outside function
 ### module/with-return/listcomp-yield-iter
 error 2 4
 'return' outside function
@@ -950,27 +1348,6 @@ error 2 4
 error 2 4
 'return' outside function
 ### module/with-return/invalid-target-call-for
-error 2 4
-'return' outside function
-### module/with-return/invalid-target-with
-error 3 10
-can't assign to function call
-### module/with-return/invalid-target-listcomp
-error 2 4
-'return' outside function
-### module/with-return/return-value
-error 2 4
-'return' outside function
-### module/with-return/yield-stmt
-error 2 4
-'return' outside function
-### module/with-return/import-star
-error 2 4
-'return' outside function
-### module/with-return/del-cell
-error 2 4
-'return' outside function
-### module/with-return/exec-with-free-nested
 error 2 4
 'return' outside function
 ### module/yield/listcomp-yield-iter
@@ -997,18 +1374,6 @@ error 1 0
 ### module/yield/invalid-target-call-for
 error 1 0
 'yield' outside function
-### module/yield/invalid-target-with
-error 2 10
-can't assign to function call
-### module/yield/invalid-target-listcomp
-error 1 0
-'yield' outside function
-### module/yield/return-value
-error 2 0
-'return' with argument inside generator
-### module/yield/yield-stmt
-error 1 0
-'yield' outside function
 ### module/yield-return/listcomp-yield-iter
 error 1 0
 'yield' outside function
@@ -1031,18 +1396,6 @@ error 1 0
 error 1 0
 'yield' outside function
 ### module/yield-return/invalid-target-call-for
-error 1 0
-'yield' outside function
-### module/yield-return/invalid-target-with
-error 3 10
-can't assign to function call
-### module/yield-return/invalid-target-listcomp
-error 1 0
-'yield' outside function
-### module/yield-return/return-value
-error 3 0
-'return' with argument inside generator
-### module/yield-return/yield-stmt
 error 1 0
 'yield' outside function
 ### module/yield-try-return-finally/listcomp-yield-iter
@@ -1069,18 +1422,6 @@ error 1 0
 ### module/yield-try-return-finally/invalid-target-call-for
 error 1 0
 'yield' outside function
-### module/yield-try-return-finally/invalid-target-with
-error 6 10
-can't assign to function call
-### module/yield-try-return-finally/invalid-target-listcomp
-error 1 0
-'yield' outside function
-### module/yield-try-return-finally/return-value
-error 6 0
-'return' with argument inside generator
-### module/yield-try-return-finally/yield-stmt
-error 1 0
-'yield' outside function
 ### function/none/listcomp-yield-iter
 error 0 0
 internal error: java.lang.VerifyError
@@ -1104,17 +1445,23 @@ internal error: java.lang.VerifyError
 ### function/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### function/none/invalid-target-with
-error 2 14
-can't assign to function call
-### function/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
 ### function/none/return-value
 ok
 ### function/none/yield-stmt
 ok
-### function/none/import-star
+### function/none/except-yield-target
+ok
+### function/none/unpack-yield-single
+ok
+### function/none/unpack-yield-single-chained
+ok
+### function/none/unpack-yield-for-single
+ok
+### function/none/unpack-yield-aug
+ok
+### function/none/unpack-yield-del
+ok
+### function/none/unpack-yield-value
 ok
 ### function/pass/genexp-yield-iter
 ok
@@ -1122,7 +1469,19 @@ ok
 ok
 ### function/pass/yield-stmt
 ok
-### function/pass/import-star
+### function/pass/except-yield-target
+ok
+### function/pass/unpack-yield-single
+ok
+### function/pass/unpack-yield-single-chained
+ok
+### function/pass/unpack-yield-for-single
+ok
+### function/pass/unpack-yield-aug
+ok
+### function/pass/unpack-yield-del
+ok
+### function/pass/unpack-yield-value
 ok
 ### function/return/listcomp-yield-iter
 ok
@@ -1152,9 +1511,47 @@ ok
 ok
 ### function/return/default-except-not-last
 ok
-### function/return/import-star
+### function/return/except-yield-type
 ok
-### function/return/del-cell
+### function/return/except-yield-type-name
+ok
+### function/return/except-yield-tuple
+ok
+### function/return/except-yield-call
+ok
+### function/return/except-yield-target
+ok
+### function/return/unpack-yield-subscript
+ok
+### function/return/unpack-yield-attribute
+ok
+### function/return/unpack-yield-slice
+ok
+### function/return/unpack-yield-nested
+ok
+### function/return/unpack-yield-list
+ok
+### function/return/unpack-yield-chained
+ok
+### function/return/unpack-yield-for
+ok
+### function/return/unpack-yield-with
+ok
+### function/return/unpack-yield-except
+ok
+### function/return/unpack-yield-genexp-target
+ok
+### function/return/unpack-yield-single
+ok
+### function/return/unpack-yield-single-chained
+ok
+### function/return/unpack-yield-for-single
+ok
+### function/return/unpack-yield-aug
+ok
+### function/return/unpack-yield-del
+ok
+### function/return/unpack-yield-value
 ok
 ### function/raise/listcomp-yield-iter
 ok
@@ -1184,9 +1581,47 @@ ok
 ok
 ### function/raise/default-except-not-last
 ok
-### function/raise/import-star
+### function/raise/except-yield-type
 ok
-### function/raise/del-cell
+### function/raise/except-yield-type-name
+ok
+### function/raise/except-yield-tuple
+ok
+### function/raise/except-yield-call
+ok
+### function/raise/except-yield-target
+ok
+### function/raise/unpack-yield-subscript
+ok
+### function/raise/unpack-yield-attribute
+ok
+### function/raise/unpack-yield-slice
+ok
+### function/raise/unpack-yield-nested
+ok
+### function/raise/unpack-yield-list
+ok
+### function/raise/unpack-yield-chained
+ok
+### function/raise/unpack-yield-for
+ok
+### function/raise/unpack-yield-with
+ok
+### function/raise/unpack-yield-except
+ok
+### function/raise/unpack-yield-genexp-target
+ok
+### function/raise/unpack-yield-single
+ok
+### function/raise/unpack-yield-single-chained
+ok
+### function/raise/unpack-yield-for-single
+ok
+### function/raise/unpack-yield-aug
+ok
+### function/raise/unpack-yield-del
+ok
+### function/raise/unpack-yield-value
 ok
 ### function/if-else-return/listcomp-yield-iter
 ok
@@ -1216,7 +1651,47 @@ ok
 ok
 ### function/if-else-return/default-except-not-last
 ok
-### function/if-else-return/del-cell
+### function/if-else-return/except-yield-type
+ok
+### function/if-else-return/except-yield-type-name
+ok
+### function/if-else-return/except-yield-tuple
+ok
+### function/if-else-return/except-yield-call
+ok
+### function/if-else-return/except-yield-target
+ok
+### function/if-else-return/unpack-yield-subscript
+ok
+### function/if-else-return/unpack-yield-attribute
+ok
+### function/if-else-return/unpack-yield-slice
+ok
+### function/if-else-return/unpack-yield-nested
+ok
+### function/if-else-return/unpack-yield-list
+ok
+### function/if-else-return/unpack-yield-chained
+ok
+### function/if-else-return/unpack-yield-for
+ok
+### function/if-else-return/unpack-yield-with
+ok
+### function/if-else-return/unpack-yield-except
+ok
+### function/if-else-return/unpack-yield-genexp-target
+ok
+### function/if-else-return/unpack-yield-single
+ok
+### function/if-else-return/unpack-yield-single-chained
+ok
+### function/if-else-return/unpack-yield-for-single
+ok
+### function/if-else-return/unpack-yield-aug
+ok
+### function/if-else-return/unpack-yield-del
+ok
+### function/if-else-return/unpack-yield-value
 ok
 ### function/if-else-raise/listcomp-yield-iter
 ok
@@ -1246,13 +1721,67 @@ ok
 ok
 ### function/if-else-raise/default-except-not-last
 ok
-### function/if-else-raise/del-cell
+### function/if-else-raise/except-yield-type
+ok
+### function/if-else-raise/except-yield-type-name
+ok
+### function/if-else-raise/except-yield-tuple
+ok
+### function/if-else-raise/except-yield-call
+ok
+### function/if-else-raise/except-yield-target
+ok
+### function/if-else-raise/unpack-yield-subscript
+ok
+### function/if-else-raise/unpack-yield-attribute
+ok
+### function/if-else-raise/unpack-yield-slice
+ok
+### function/if-else-raise/unpack-yield-nested
+ok
+### function/if-else-raise/unpack-yield-list
+ok
+### function/if-else-raise/unpack-yield-chained
+ok
+### function/if-else-raise/unpack-yield-for
+ok
+### function/if-else-raise/unpack-yield-with
+ok
+### function/if-else-raise/unpack-yield-except
+ok
+### function/if-else-raise/unpack-yield-genexp-target
+ok
+### function/if-else-raise/unpack-yield-single
+ok
+### function/if-else-raise/unpack-yield-single-chained
+ok
+### function/if-else-raise/unpack-yield-for-single
+ok
+### function/if-else-raise/unpack-yield-aug
+ok
+### function/if-else-raise/unpack-yield-del
+ok
+### function/if-else-raise/unpack-yield-value
 ok
 ### function/if-return/genexp-yield-iter
 ok
 ### function/if-return/return-value
 ok
 ### function/if-return/yield-stmt
+ok
+### function/if-return/except-yield-target
+ok
+### function/if-return/unpack-yield-single
+ok
+### function/if-return/unpack-yield-single-chained
+ok
+### function/if-return/unpack-yield-for-single
+ok
+### function/if-return/unpack-yield-aug
+ok
+### function/if-return/unpack-yield-del
+ok
+### function/if-return/unpack-yield-value
 ok
 ### function/try-return-finally/genexp-yield-iter
 ok
@@ -1266,53 +1795,19 @@ ok
 ok
 ### function/try-return-finally/yield-stmt
 ok
-### function/try-pass-finally-return/genexp-yield-iter
+### function/try-return-finally/except-yield-target
 ok
-### function/try-pass-finally-return/invalid-target-unary
+### function/try-return-finally/unpack-yield-single
 ok
-### function/try-pass-finally-return/invalid-target-call-for
+### function/try-return-finally/unpack-yield-single-chained
 ok
-### function/try-pass-finally-return/invalid-target-listcomp
+### function/try-return-finally/unpack-yield-for-single
 ok
-### function/try-pass-finally-return/return-value
+### function/try-return-finally/unpack-yield-aug
 ok
-### function/try-pass-finally-return/yield-stmt
+### function/try-return-finally/unpack-yield-del
 ok
-### function/try-return-except-return/genexp-yield-iter
-ok
-### function/try-return-except-return/invalid-target-unary
-ok
-### function/try-return-except-return/invalid-target-call-for
-ok
-### function/try-return-except-return/invalid-target-listcomp
-ok
-### function/try-return-except-return/return-value
-ok
-### function/try-return-except-return/yield-stmt
-ok
-### function/try-return-except-pass/genexp-yield-iter
-ok
-### function/try-return-except-pass/return-value
-ok
-### function/try-return-except-pass/yield-stmt
-ok
-### function/try-raise-except-raise/genexp-yield-iter
-ok
-### function/try-raise-except-raise/invalid-target-unary
-ok
-### function/try-raise-except-raise/invalid-target-call-for
-ok
-### function/try-raise-except-raise/invalid-target-listcomp
-ok
-### function/try-raise-except-raise/return-value
-ok
-### function/try-raise-except-raise/yield-stmt
-ok
-### function/for-else-return/invalid-target-unary
-ok
-### function/for-else-return/invalid-target-call-for
-ok
-### function/for-else-return/invalid-target-listcomp
+### function/try-return-finally/unpack-yield-value
 ok
 ### function/yield-return/listcomp-yield-iter
 ok
@@ -1329,6 +1824,34 @@ ok
 ### function/yield-return/continue
 ok
 ### function/yield-return/default-except-not-last
+ok
+### function/yield-return/except-yield-type
+ok
+### function/yield-return/except-yield-type-name
+ok
+### function/yield-return/except-yield-tuple
+ok
+### function/yield-return/except-yield-call
+ok
+### function/yield-return/unpack-yield-subscript
+ok
+### function/yield-return/unpack-yield-attribute
+ok
+### function/yield-return/unpack-yield-slice
+ok
+### function/yield-return/unpack-yield-nested
+ok
+### function/yield-return/unpack-yield-list
+ok
+### function/yield-return/unpack-yield-chained
+ok
+### function/yield-return/unpack-yield-for
+ok
+### function/yield-return/unpack-yield-with
+ok
+### function/yield-return/unpack-yield-except
+ok
+### function/yield-return/unpack-yield-genexp-target
 ok
 ### nested-function/none/listcomp-yield-iter
 error 0 0
@@ -1353,16 +1876,6 @@ internal error: java.lang.VerifyError
 ### nested-function/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### nested-function/none/invalid-target-with
-error 3 18
-can't assign to function call
-### nested-function/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### nested-function/none/return-value
-ok
-### nested-function/none/yield-stmt
-ok
 ### nested-function/return/listcomp-yield-iter
 ok
 ### nested-function/return/listcomp-yield-elt
@@ -1378,6 +1891,34 @@ ok
 ### nested-function/return/continue
 ok
 ### nested-function/return/default-except-not-last
+ok
+### nested-function/return/except-yield-type
+ok
+### nested-function/return/except-yield-type-name
+ok
+### nested-function/return/except-yield-tuple
+ok
+### nested-function/return/except-yield-call
+ok
+### nested-function/return/unpack-yield-subscript
+ok
+### nested-function/return/unpack-yield-attribute
+ok
+### nested-function/return/unpack-yield-slice
+ok
+### nested-function/return/unpack-yield-nested
+ok
+### nested-function/return/unpack-yield-list
+ok
+### nested-function/return/unpack-yield-chained
+ok
+### nested-function/return/unpack-yield-for
+ok
+### nested-function/return/unpack-yield-with
+ok
+### nested-function/return/unpack-yield-except
+ok
+### nested-function/return/unpack-yield-genexp-target
 ok
 ### nested-function/raise/listcomp-yield-iter
 ok
@@ -1395,6 +1936,34 @@ ok
 ok
 ### nested-function/raise/default-except-not-last
 ok
+### nested-function/raise/except-yield-type
+ok
+### nested-function/raise/except-yield-type-name
+ok
+### nested-function/raise/except-yield-tuple
+ok
+### nested-function/raise/except-yield-call
+ok
+### nested-function/raise/unpack-yield-subscript
+ok
+### nested-function/raise/unpack-yield-attribute
+ok
+### nested-function/raise/unpack-yield-slice
+ok
+### nested-function/raise/unpack-yield-nested
+ok
+### nested-function/raise/unpack-yield-list
+ok
+### nested-function/raise/unpack-yield-chained
+ok
+### nested-function/raise/unpack-yield-for
+ok
+### nested-function/raise/unpack-yield-with
+ok
+### nested-function/raise/unpack-yield-except
+ok
+### nested-function/raise/unpack-yield-genexp-target
+ok
 ### nested-function/if-else-return/listcomp-yield-iter
 ok
 ### nested-function/if-else-return/listcomp-yield-elt
@@ -1411,37 +1980,33 @@ ok
 ok
 ### nested-function/if-else-return/default-except-not-last
 ok
-### nested-function/if-else-raise/listcomp-yield-iter
+### nested-function/if-else-return/except-yield-type
 ok
-### nested-function/if-else-raise/listcomp-yield-elt
+### nested-function/if-else-return/except-yield-type-name
 ok
-### nested-function/if-else-raise/listcomp-yield-if
+### nested-function/if-else-return/except-yield-tuple
 ok
-### nested-function/if-else-raise/setcomp-yield-iter
+### nested-function/if-else-return/except-yield-call
 ok
-### nested-function/if-else-raise/dictcomp-yield-iter
+### nested-function/if-else-return/unpack-yield-subscript
 ok
-### nested-function/if-else-raise/break
+### nested-function/if-else-return/unpack-yield-attribute
 ok
-### nested-function/if-else-raise/continue
+### nested-function/if-else-return/unpack-yield-slice
 ok
-### nested-function/if-else-raise/default-except-not-last
+### nested-function/if-else-return/unpack-yield-nested
 ok
-### nested-function/yield-return/listcomp-yield-iter
+### nested-function/if-else-return/unpack-yield-list
 ok
-### nested-function/yield-return/listcomp-yield-elt
+### nested-function/if-else-return/unpack-yield-chained
 ok
-### nested-function/yield-return/listcomp-yield-if
+### nested-function/if-else-return/unpack-yield-for
 ok
-### nested-function/yield-return/setcomp-yield-iter
+### nested-function/if-else-return/unpack-yield-with
 ok
-### nested-function/yield-return/dictcomp-yield-iter
+### nested-function/if-else-return/unpack-yield-except
 ok
-### nested-function/yield-return/break
-ok
-### nested-function/yield-return/continue
-ok
-### nested-function/yield-return/default-except-not-last
+### nested-function/if-else-return/unpack-yield-genexp-target
 ok
 ### method/none/listcomp-yield-iter
 error 0 0
@@ -1466,48 +2031,6 @@ internal error: java.lang.VerifyError
 ### method/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### method/none/invalid-target-with
-error 3 18
-can't assign to function call
-### method/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### method/none/return-value
-ok
-### method/none/yield-stmt
-ok
-### method/return/listcomp-yield-iter
-ok
-### method/return/listcomp-yield-elt
-ok
-### method/return/listcomp-yield-if
-ok
-### method/return/setcomp-yield-iter
-ok
-### method/return/dictcomp-yield-iter
-ok
-### method/return/break
-ok
-### method/return/continue
-ok
-### method/return/default-except-not-last
-ok
-### method/raise/listcomp-yield-iter
-ok
-### method/raise/listcomp-yield-elt
-ok
-### method/raise/listcomp-yield-if
-ok
-### method/raise/setcomp-yield-iter
-ok
-### method/raise/dictcomp-yield-iter
-ok
-### method/raise/break
-ok
-### method/raise/continue
-ok
-### method/raise/default-except-not-last
-ok
 ### class/none/listcomp-yield-iter
 error 2 17
 'yield' outside function
@@ -1532,26 +2055,6 @@ internal error: java.lang.VerifyError
 ### class/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### class/none/invalid-target-with
-error 2 14
-can't assign to function call
-### class/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### class/none/return-value
-error 2 4
-'return' outside function
-### class/none/yield-stmt
-error 2 4
-'yield' outside function
-### class/none/exec-with-free-nested
-ok
-### class/pass/exec-with-free-nested
-ok
-### class/raise/exec-with-free-nested
-ok
-### class/if-else-raise/exec-with-free-nested
-ok
 ### for-in-function/none/listcomp-yield-iter
 error 0 0
 internal error: java.lang.VerifyError
@@ -1575,16 +2078,6 @@ internal error: java.lang.ArrayIndexOutOfBoundsException
 ### for-in-function/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### for-in-function/none/invalid-target-with
-error 3 18
-can't assign to function call
-### for-in-function/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### for-in-function/none/return-value
-ok
-### for-in-function/none/yield-stmt
-ok
 ### while-in-function/none/listcomp-yield-iter
 error 0 0
 internal error: java.lang.VerifyError
@@ -1608,16 +2101,6 @@ internal error: java.lang.ArrayIndexOutOfBoundsException
 ### while-in-function/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### while-in-function/none/invalid-target-with
-error 3 18
-can't assign to function call
-### while-in-function/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### while-in-function/none/return-value
-ok
-### while-in-function/none/yield-stmt
-ok
 ### try-in-function/none/listcomp-yield-iter
 error 0 0
 internal error: java.lang.NegativeArraySizeException
@@ -1641,16 +2124,6 @@ internal error: java.lang.ArrayIndexOutOfBoundsException
 ### try-in-function/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### try-in-function/none/invalid-target-with
-error 3 18
-can't assign to function call
-### try-in-function/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### try-in-function/none/return-value
-ok
-### try-in-function/none/yield-stmt
-ok
 ### except-in-function/none/listcomp-yield-iter
 error 0 0
 internal error: java.lang.VerifyError
@@ -1674,16 +2147,6 @@ internal error: java.lang.ArrayIndexOutOfBoundsException
 ### except-in-function/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### except-in-function/none/invalid-target-with
-error 5 18
-can't assign to function call
-### except-in-function/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### except-in-function/none/return-value
-ok
-### except-in-function/none/yield-stmt
-ok
 ### finally-in-function/none/listcomp-yield-iter
 error 0 0
 internal error: java.lang.NegativeArraySizeException
@@ -1707,16 +2170,6 @@ internal error: java.lang.ArrayIndexOutOfBoundsException
 ### finally-in-function/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### finally-in-function/none/invalid-target-with
-error 5 18
-can't assign to function call
-### finally-in-function/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### finally-in-function/none/return-value
-ok
-### finally-in-function/none/yield-stmt
-ok
 ### with-in-function/none/listcomp-yield-iter
 error 0 0
 internal error: java.lang.NegativeArraySizeException
@@ -1740,16 +2193,6 @@ internal error: java.lang.ArrayIndexOutOfBoundsException
 ### with-in-function/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### with-in-function/none/invalid-target-with
-error 3 18
-can't assign to function call
-### with-in-function/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### with-in-function/none/return-value
-ok
-### with-in-function/none/yield-stmt
-ok
 ### if-in-function/none/listcomp-yield-iter
 error 0 0
 internal error: java.lang.VerifyError
@@ -1773,16 +2216,6 @@ internal error: java.lang.ArrayIndexOutOfBoundsException
 ### if-in-function/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### if-in-function/none/invalid-target-with
-error 3 18
-can't assign to function call
-### if-in-function/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### if-in-function/none/return-value
-ok
-### if-in-function/none/yield-stmt
-ok
 ### for-in-module/none/listcomp-yield-iter
 error 2 17
 'yield' outside function
@@ -1807,18 +2240,6 @@ internal error: java.lang.ArrayIndexOutOfBoundsException
 ### for-in-module/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### for-in-module/none/invalid-target-with
-error 2 14
-can't assign to function call
-### for-in-module/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### for-in-module/none/return-value
-error 2 4
-'return' outside function
-### for-in-module/none/yield-stmt
-error 2 4
-'yield' outside function
 ### generator/none/listcomp-yield-iter
 error 0 0
 internal error: java.lang.VerifyError
@@ -1842,14 +2263,3 @@ internal error: java.lang.VerifyError
 ### generator/none/invalid-target-call-for
 error 0 0
 internal error: java.lang.ArrayIndexOutOfBoundsException
-### generator/none/invalid-target-with
-error 3 14
-can't assign to function call
-### generator/none/invalid-target-listcomp
-error 0 0
-internal error: java.lang.ArrayIndexOutOfBoundsException
-### generator/none/return-value
-error 3 4
-'return' with argument inside generator
-### generator/none/yield-stmt
-ok

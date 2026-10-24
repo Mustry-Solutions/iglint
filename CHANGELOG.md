@@ -159,6 +159,37 @@ from 0.1.0 on.
   adversarial shapes per term: no method or constant pool above its
   bound, median margin 7%. The review's repro now gets "compile status is
   not known".
+- Long names no longer escape the upper bounds of Jython's code size
+  (review round 20, Codex, blocker): Jython loads a name of more than
+  16,000 characters in chunks, and the bounds charged one constant per
+  name, so a function of 1,683 reads of an attribute of 16,001 characters
+  seemed to fit, and `SCR102` blanked an import Jython needs removed to
+  compile it. Every name, attribute, keyword, imported name, class name
+  and the names of every code object are now charged by their length (as
+  Jython mangles them in a class), checked on the oracle with a family of
+  long names in every position (smallest margin 7%). Independently, a
+  script with an identifier of more than 1,000 characters has an unknown
+  compile status ("identifier of N characters: Jython's code size cannot
+  be bounded precisely"), so no fix of it is safe; the private project's
+  longest identifier has 79 characters.
+- `SCR002` reports a function or class whose name makes the name of its
+  Java method longer than a class file allows (65,535 bytes,
+  `UTF8 string too large`; a function of the module fails from 65,534
+  characters), measured on the oracle. The documentation said that
+  identifiers have no length limit: names in every other position compile
+  at 1,000,000 characters.
+- `SCR002` reports two more crashes of Jython's code generator (review
+  round 20, Opus): a `yield` in the exception type of an `except` clause
+  (`except (yield):`, `NegativeArraySizeException`) and a `yield` in an
+  attribute or subscript target inside an unpacking target (`b, a[(yield)]
+  = 1, 2`, also in `for`, `with` and `except` targets,
+  `IllegalArgumentException`). Single targets, augmented assignments,
+  `del` and unreachable copies compile and are not reported; the cross
+  product of `oracle/compile_cross.py` (13,202 cases) has no difference
+  from Jython.
+- `oracle/jython_method_size_oracle.py` no longer aborts on a compile
+  error message with non-ASCII text (review round 20, Opus), and records
+  method names of more than 64 characters shortened.
 - Size bounds saturate instead of overflowing (review round 19, Codex):
   nested `try`/`finally` chains with a `return` in each `finally` made the
   bound wrap in release builds (the `SCR124` fix of a 64-level chain was

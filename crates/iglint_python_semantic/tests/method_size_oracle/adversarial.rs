@@ -27,6 +27,7 @@ pub(crate) const FAMILIES: &[(&str, usize)] = &[
     ("names", 30),
     ("wide", 20),
     ("combo", 30),
+    ("long-names", 30),
 ];
 
 /// Programs per family: the committed count times
@@ -96,8 +97,96 @@ fn creation(r: &mut Rng, i: usize, vars: &str) -> String {
     }
 }
 
+/// A statement (in a function body, at four spaces) that puts the name
+/// `n` in one of the positions where Jython's code generator emits it.
+const LONG_NAME_POSITIONS: &[&str] = &[
+    "x = o.{N}",
+    "o.{N} = 1",
+    "o.{N} += 1",
+    "o.{N}(1)",
+    "del o.{N}",
+    "{N} = 1\ny = {N}",
+    "y = {N}",
+    "{N} = 1\ndel {N}",
+    "{N} += 1",
+    "o({N}=1)",
+    "o(1, {N}=2, *a)",
+    "o(a, b, c, d, e, {N}=2, **a)",
+    "import {N}",
+    "import {N}.{N}",
+    "import m as {N}",
+    "from {N} import x",
+    "from .{N} import x",
+    "from m import {N}",
+    "from m import x as {N}",
+    "global {N}\n{N} = 1",
+    "def {D}():\n    return 1",
+    "class {D}:\n    pass",
+    "def h({N}):\n    return {N}",
+    "def h(({N}, b), c):\n    return b",
+    "def h(*{N}, **k{N}):\n    return {N}",
+    "l = lambda {N}: {N}",
+    "{N} = 1\ndef h():\n    return {N}",
+    "{N} = 1\nl = lambda: {N}",
+    "def h():\n    '{N}'",
+    "x = '{N}'",
+    "x = u'{N}'",
+    "x = list({N} for {N} in o)",
+    "x = [{N} for {N} in o]",
+    "x = {{N}: 1 for {N} in o}",
+    "try:\n    pass\nexcept E, {N}:\n    pass",
+    "with o as {N}:\n    pass",
+    "for {N} in o:\n    pass",
+    "x = getattr(o, '{N}')",
+    "class K:\n    __{N} = 1\n    def m(self):\n        return self.__{N}",
+    "def h():\n    yield o.{N}",
+];
+
 fn program(family: &str, r: &mut Rng) -> String {
     match family {
+        "long-names" => {
+            // Names of every position around `Code.ldc`'s chunk of 16,000
+            // UTF-16 units, at 65,535 bytes and beyond (review round 20,
+            // Codex): Jython loads each in chunks (`StringBuilder`). The
+            // first two lines stay short (the 100,000-character limit).
+            let mut s = String::from("# long names\n\ndef big(o, a):\n");
+            if r.chance(15) {
+                // Dense: one position repeated close to the method limit.
+                let position = [
+                    "x = o.{N}",
+                    "o({N}=1)",
+                    "from m import {N}",
+                    "y = {N}",
+                    "o.{N}(1)",
+                ][r.below(5)];
+                let len = [16_001, 32_001][r.below(2)];
+                let reps = (1_000 + r.below(1_300)) * 16_001 / len;
+                for _ in 0..reps {
+                    let name = "n".repeat(len);
+                    s.push_str(&indent(&position.replace("{N}", &name), "    "));
+                }
+                s.push_str("    return 1\n");
+                return s;
+            }
+            const LENGTHS: &[usize] = &[
+                15_999, 16_000, 16_001, 31_999, 32_000, 32_001, 48_000, 48_001, 65_000, 65_535,
+                65_536, 70_000,
+            ];
+            for i in 0..1 + r.below(4) {
+                let position = LONG_NAME_POSITIONS[r.below(LONG_NAME_POSITIONS.len())];
+                let len = LENGTHS[r.below(LENGTHS.len())];
+                // Distinct names per statement; a `def` or `class` name
+                // short enough for the method name (65,535 bytes).
+                let name = format!("{}{i}", "n".repeat(len));
+                let def = format!("{}{i}", "d".repeat(len.min(65_000)));
+                let stmt = position.replace("{N}", &name).replace("{D}", &def);
+                for _ in 0..1 + r.below(12) {
+                    s.push_str(&indent(&stmt, "    "));
+                }
+            }
+            s.push_str("    return 1\n");
+            s
+        }
         "closure" => {
             // Many creations times many free variables, up to three
             // levels deep, classes in between.

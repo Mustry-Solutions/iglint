@@ -100,6 +100,37 @@ fn source(kind: &str, n: usize) -> String {
         ),
         "live-module" => format!("raise X\n{}", "pass\n".repeat(n)),
         "live-same-line" => "pass; ".repeat(n * 10) + "\n",
+        // Names: only the Java method of a `def` or `class` body, named
+        // `<name>$<id>`, is limited (65,535 bytes of a class file
+        // constant); every other position is loaded in chunks. The first
+        // two lines stay short.
+        "def-name" => format!("\n\ndef {}():\n    return 1\n", "n".repeat(n)),
+        "class-name" => format!("\n\nclass {}:\n    pass\n", "n".repeat(n)),
+        "method-name" => format!(
+            "\n\nclass K:\n    def {}(self):\n        return 1\n",
+            "n".repeat(n)
+        ),
+        "private-method" => format!(
+            "\n\nclass K:\n    def __{}(self):\n        return 1\n",
+            "n".repeat(n)
+        ),
+        "nested-def" => format!(
+            "\n\ndef f():\n    def {}():\n        return 1\n    return 1\n",
+            "n".repeat(n)
+        ),
+        "dead-def-name" => format!(
+            "\n\ndef f():\n    return\n    def {}():\n        pass\n",
+            "n".repeat(n)
+        ),
+        "name-positions" => {
+            let v = "v".repeat(n);
+            format!(
+                "\n\n{v} = 1\nprint {v}\ndef g({v}, o, *a{v}, **k{v}):\n    '{v}'\n    \
+                 global g{v}\n    import {v}.{v} as i{v}\n    from {v} import {v} as f{v}\n    \
+                 o.{v} = o.{v}\n    o.{v}(1, {v}=2)\n    l = lambda {v}: {v}\n    \
+                 x = u'{v}' + '{v}'\n    def h():\n        return {v}\n    return h\n"
+            )
+        }
         "strings" => (0..n)
             .map(|i| format!("'s{i}'"))
             .collect::<Vec<_>>()
@@ -251,6 +282,42 @@ const CASES: &[(&str, usize, bool)] = &[
     ("live-with", 10922, false),
     ("live-with", 10923, false),
     ("live-with", 10924, false),
+    // `java.lang.IllegalArgumentException: UTF8 string too large`.
+    ("def-name", 65532, true),
+    ("def-name", 65533, true),
+    ("def-name", 65534, false),
+    ("def-name", 65535, false),
+    ("class-name", 65532, true),
+    ("class-name", 65533, true),
+    ("class-name", 65534, false),
+    ("class-name", 65535, false),
+    ("method-name", 65532, true),
+    ("method-name", 65533, true),
+    ("method-name", 65534, false),
+    ("method-name", 65535, false),
+    ("nested-def", 65532, true),
+    ("nested-def", 65533, true),
+    ("nested-def", 65534, false),
+    ("nested-def", 65535, false),
+    ("private-method", 65528, true),
+    ("private-method", 65529, true),
+    ("private-method", 65530, false),
+    ("private-method", 65531, false),
+    ("dead-def-name", 70000, true),
+    ("name-positions", 70000, true),
+    ("name-positions", 1000000, true),
+];
+
+/// The sources whose only possible failure is a name too long for a Java
+/// method name: `SCR002` reports exactly those Jython rejects.
+const NAME_KINDS: &[&str] = &[
+    "def-name",
+    "class-name",
+    "method-name",
+    "private-method",
+    "nested-def",
+    "dead-def-name",
+    "name-positions",
 ];
 
 /// The sources whose only possible failure is the first-two-lines limit.
@@ -320,6 +387,13 @@ fn sizes() -> Vec<(&'static str, usize)> {
     around("dead-strings", 32_768, &mut out);
     around("dead-string-lines", 32_768, &mut out);
     out.push(("live-same-line", 2_000));
+    for kind in ["def-name", "class-name", "method-name", "nested-def"] {
+        around(kind, 65_534, &mut out);
+    }
+    around("private-method", 65_530, &mut out);
+    out.push(("dead-def-name", 70_000));
+    out.push(("name-positions", 70_000));
+    out.push(("name-positions", 1_000_000));
     out
 }
 
@@ -330,7 +404,9 @@ fn verdicts(source: &str) -> (bool, bool) {
         && size_errors(&parsed.module, source).iter().any(|e| {
             matches!(
                 e.kind,
-                CompileErrorKind::MethodTooLarge | CompileErrorKind::ClassTooLarge
+                CompileErrorKind::MethodTooLarge
+                    | CompileErrorKind::ClassTooLarge
+                    | CompileErrorKind::NameTooLong
             )
         });
     (mark, size)
@@ -360,6 +436,9 @@ fn limits_match_jython() {
         if MARK_KINDS.contains(&kind) {
             // The first-two-lines limit is exact.
             assert_eq!(mark, !compiles, "{which}");
+        }
+        if NAME_KINDS.contains(&kind) {
+            assert_eq!(size, !compiles, "{which}");
         }
         if mark || size {
             assert!(!compiles, "{which}: iglint reports what Jython compiles");
