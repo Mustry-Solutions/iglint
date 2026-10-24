@@ -1,6 +1,8 @@
 //! BIND005 unresolved-property-reference.
 
-use iglint_expression::{PropertyRef, PropertyTarget, Reference};
+use iglint_expression::{
+    PropertyRef, PropertyTarget, Reference, ReferenceContext, misspaced_property_ref,
+};
 use iglint_project::view::{Binding, BindingConfig, RefResolution, Unresolved, View};
 use iglint_project::{EmbeddedExpression, Existence, ExpressionKind, FileId};
 use iglint_text::TextRange;
@@ -31,6 +33,10 @@ reports those that point nowhere:
   component name that does not exist at that point of the tree;
 * relative references that climb above the root container (or start from a
   view-level property, which has no component);
+* `{ view.custom.x }`: whitespace inside the braces makes a property
+  reference unparseable for Perspective's `PropertyRef` and
+  `LegacyPropertyRef`, so it is read as a tag path (checked against
+  Ignition 8.3.3's parsers);
 * `{this.custom.x}`, `{view.params.y}`, `{view.custom.z}`, `{parent.custom.w}`
   where the custom property or view parameter is not defined;
 * with `strict`, `{session.custom.x}` where the project's session
@@ -352,6 +358,21 @@ impl ExpressionRule for UnresolvedPropertyReference {
         };
         let mut findings = Vec::new();
         for (bound, reference) in e.references() {
+            if let Reference::Tag(_) = reference
+                && e.context != ReferenceContext::Gateway
+                && misspaced_property_ref(&bound.path, bound.path_range.start()).is_some()
+            {
+                findings.push(Finding {
+                    range: bound.path_range,
+                    message: format!(
+                        "`{{{}}}` is not a valid property reference: Perspective reads it as a \
+                         tag path because of the whitespace inside the braces",
+                        bound.path
+                    ),
+                    ign_lint_message: None,
+                });
+                continue;
+            }
             let Reference::Property(p) = reference else {
                 continue;
             };
@@ -573,5 +594,48 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    /// Reviewer round 10, O1: references in HTTP header values and tag
+    /// history date ranges are resolved like any other.
+    #[test]
+    fn references_in_measured_binding_fields() {
+        let f = tree(
+            "",
+            r#""props.text": {"binding": {"type": "http", "config": {"request": {"url": "'u'", "method": "GET",
+                "header": [{"key": "A", "value": "{../Ghost.props.text}"}], "body": "{this.custom.nope}"}}}},
+               "props.style": {"binding": {"type": "tag-history", "config": {"dateRange": {"startDate": "{../Left.custom.lc}", "endDate": "{../Gone.props.value}"},
+                "tags": [{"path": "[default]A"}]}}}"#,
+            "",
+        );
+        assert_eq!(
+            flagged(&f.lint(&["BIND005"])),
+            vec!["Ghost", "nope", "Gone"]
+        );
+    }
+
+    /// Reviewer round 10, O3: whitespace inside the braces makes
+    /// Perspective read a property reference as a tag path (checked with
+    /// the expression oracle on 8.3.3).
+    #[test]
+    fn whitespace_inside_the_braces_is_not_a_property_reference() {
+        let f = tree(
+            &expr("{ view.custom.c } + {view.custom.c }").replace("props.text", "custom.x"),
+            &expr("{ ../Panel/Inner.props.text}"),
+            "",
+        );
+        let d = f.lint(&["BIND005"]);
+        let texts: Vec<String> = d.iter().map(|d| d.message.clone()).collect();
+        assert_eq!(
+            texts,
+            vec![
+                "`{ view.custom.c }` is not a valid property reference: Perspective reads it as a tag path because of the whitespace inside the braces",
+                "`view.custom.c `: custom property `c ` is not defined",
+                "`{ ../Panel/Inner.props.text}` is not a valid property reference: Perspective reads it as a tag path because of the whitespace inside the braces",
+            ]
+        );
+        // Tag paths with whitespace stay tag paths.
+        let f = tree(&expr("{ [default]A/B } + { Folder/Tag }"), "", "");
+        assert!(f.lint(&["BIND005"]).is_empty());
     }
 }

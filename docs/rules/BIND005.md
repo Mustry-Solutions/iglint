@@ -24,6 +24,10 @@ reports those that point nowhere:
   component name that does not exist at that point of the tree;
 * relative references that climb above the root container (or start from a
   view-level property, which has no component);
+* `{ view.custom.x }`: whitespace inside the braces makes a property
+  reference unparseable for Perspective's `PropertyRef` and
+  `LegacyPropertyRef`, so it is read as a tag path (checked against
+  Ignition 8.3.3's parsers);
 * `{this.custom.x}`, `{view.params.y}`, `{view.custom.z}`, `{parent.custom.w}`
   where the custom property or view parameter is not defined;
 * with `strict`, `{session.custom.x}` where the project's session

@@ -118,7 +118,7 @@ pub use parser::{MAX_DEPTH, ParseError, ParseErrorKind, Parsed, parse};
 pub use printer::{dump, quote_string, to_source};
 pub use reference::{
     PropertyRef, PropertySegment, PropertyTarget, Reference, ReferenceContext, SegmentKind,
-    classify, is_property_ref, parse_property_ref,
+    classify, is_property_ref, misspaced_property_ref, parse_property_ref,
 };
 pub use tag_path::{TagPath, TagPathError, TagPathErrorKind, TagPathPart, parse_tag_path};
 pub use visitor::{Visitor, walk_call, walk_expr};

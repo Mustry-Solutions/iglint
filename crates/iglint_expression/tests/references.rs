@@ -343,3 +343,34 @@ fn ranges_are_offset() {
         TextRange::new(TextSize::new(22), TextSize::new(23))
     );
 }
+
+/// `{ view.custom.x }`: Ignition's lexer keeps the spaces and neither
+/// `PropertyRef` nor `LegacyPropertyRef` accepts a leading space (checked
+/// with `oracle/expression/ignition_oracle.py` on 8.3.3: `" view.custom.vx "`
+/// is rejected by both, `"view.custom.vx "` only by `PropertyRef`), so
+/// Perspective reads it as a tag path.
+#[test]
+fn spaces_inside_the_braces_make_a_tag_path() {
+    use iglint_expression::{
+        Reference, ReferenceContext, is_property_ref, misspaced_property_ref, parse,
+    };
+    assert!(!is_property_ref(" view.custom.vx "));
+    assert!(!is_property_ref(" view.custom.vx"));
+    assert!(!is_property_ref("\tview.custom.vx"));
+    assert!(is_property_ref("view.custom.vx "));
+    let parsed = parse("{ view.custom.vx }");
+    let refs = parsed.expr.references();
+    assert_eq!(refs[0].path, " view.custom.vx ");
+    assert!(matches!(
+        refs[0].resolve(ReferenceContext::PerspectiveBinding),
+        Reference::Tag(_)
+    ));
+    let p = misspaced_property_ref(&refs[0].path, refs[0].path_range.start()).unwrap();
+    assert_eq!(p.range.start().to_u32(), 2);
+    assert!(misspaced_property_ref("view.custom.vx", iglint_text::TextSize::new(0)).is_none());
+    assert!(misspaced_property_ref(" [default]A/B ", iglint_text::TextSize::new(0)).is_none());
+    assert!(misspaced_property_ref(" Folder/Tag ", iglint_text::TextSize::new(0)).is_none());
+    assert!(
+        misspaced_property_ref(" ../Label.props.text", iglint_text::TextSize::new(0)).is_some()
+    );
+}

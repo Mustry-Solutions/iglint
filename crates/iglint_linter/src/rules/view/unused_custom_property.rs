@@ -1,6 +1,6 @@
 //! VIEW015 unused-custom-property.
 
-use iglint_expression::{Reference, parse_property_ref};
+use iglint_expression::{Reference, misspaced_property_ref, parse_property_ref};
 use iglint_project::view::{
     BindingConfig, ParamDirection, PropCategory, PropertyDef, RefResolution, RefTarget, View,
 };
@@ -259,6 +259,7 @@ fn braced_refs(text: &str) -> Vec<iglint_expression::PropertyRef> {
         };
         if after.as_bytes()[end] == b'}'
             && let Some(r) = parse_property_ref(&after[..end], TextSize::ZERO)
+                .or_else(|| misspaced_property_ref(&after[..end], TextSize::ZERO))
         {
             out.push(r);
         }
@@ -280,9 +281,20 @@ pub(crate) fn usage(view: &View<'_>, accesses: &[PropertyAccess]) -> Usage {
     };
     // Expressions.
     for e in &view.expressions {
-        for (_, reference) in e.references() {
-            if let Reference::Property(p) = reference {
-                credit(view, &mut usage, view.resolve_ref(e.owner, &p), false);
+        for (bound, reference) in e.references() {
+            match reference {
+                Reference::Property(p) => {
+                    credit(view, &mut usage, view.resolve_ref(e.owner, &p), false);
+                }
+                // `{ view.custom.x }` is a tag path to Perspective (BIND005
+                // reports it), but the author means the property: fail
+                // closed.
+                Reference::Tag(_) => {
+                    if let Some(p) = misspaced_property_ref(&bound.path, TextSize::ZERO) {
+                        credit(view, &mut usage, view.resolve_ref(e.owner, &p), false);
+                    }
+                }
+                _ => {}
             }
         }
         if !e.parsed.is_valid() {
@@ -867,6 +879,26 @@ mod tests {
                 "root/A.custom.y"
             ]
         );
+    }
+
+    /// Reviewer round 10, O3: `{ view.custom.vx }` is a tag path to
+    /// Perspective (BIND005 reports it), but the author means `vx`: the
+    /// property is not reported unused, so no fix deletes it.
+    #[test]
+    fn references_with_whitespace_inside_the_braces_count_as_reads() {
+        let v = view(
+            r#"{"vx": 1, "vy": 2, "other": 3}"#,
+            "{}",
+            &[label(
+                "A",
+                r#", "propConfig": {"props.text": {"binding": {"type": "expr", "config": {"expression": "{ view.custom.vx } + {view.custom.vy }"}}}},
+                    "props.style": {"binding": {"type": "http", "config": {"request": {"url": "'u'", "method": "GET", "header": [{"key": "A", "value": "{  view.custom.other}"}]}}}}"#,
+            )],
+            "{}",
+        );
+        // `{view.custom.vy }` is a property reference to `vy ` (with the
+        // space), so `vy` itself is unread.
+        assert_eq!(unused(&v), vec!["view.custom.vy"]);
     }
 
     #[test]

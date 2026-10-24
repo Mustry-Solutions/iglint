@@ -205,6 +205,25 @@ pub fn is_property_ref(path: &str) -> bool {
     matches_grammar(path, Names::Modern) || matches_grammar(path, Names::Legacy)
 }
 
+/// A reference path that Perspective's `PropertyRef` and
+/// `LegacyPropertyRef` reject only because of whitespace at its start or
+/// end (`{ view.custom.x }`; verified with the expression oracle on 8.3.3:
+/// the lexer keeps the spaces and both grammars reject a leading one), so
+/// Perspective reads it as a tag path: the property reference it would be
+/// without the whitespace. `offset` is the position of `path`.
+pub fn misspaced_property_ref(path: &str, offset: TextSize) -> Option<PropertyRef> {
+    if path.starts_with('[') || is_property_ref(path) {
+        return None;
+    }
+    let start = path.trim_start();
+    let trimmed = start.trim_end();
+    if trimmed.len() == path.len() || trimmed.is_empty() {
+        return None;
+    }
+    let lead = TextSize::of(&path[..path.len() - start.len()]);
+    parse_property_ref(trimmed, offset + lead)
+}
+
 /// Parses `path` as a Perspective property reference.
 pub fn parse_property_ref(path: &str, offset: TextSize) -> Option<PropertyRef> {
     let legacy = if matches_grammar(path, Names::Modern) {
