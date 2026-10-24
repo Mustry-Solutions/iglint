@@ -164,7 +164,7 @@ impl World {
             let pkg = top_packages[index % top_packages.len()].clone();
             let mut path = vec![pkg];
             if rng.chance(0.35) {
-                path.push(names::lower_first(rng.pick(names::EQUIPMENT)));
+                path.push(names::lower_first(rng.pick::<&str>(names::EQUIPMENT)));
             }
             let mut leaf = rng.pick(names::MODULE_WORDS).to_string();
             if !module_paths.insert(format!("{}/{leaf}", path.join("/"))) {
@@ -184,7 +184,7 @@ impl World {
                 let arity = rng.weighted(&[(0usize, 10), (1, 35), (2, 35), (3, 15), (4, 5)]);
                 let mut params: Vec<String> = Vec::new();
                 while params.len() < arity {
-                    let p = lower_first(rng.pick(names::NOUNS));
+                    let p = lower_first(rng.pick::<&str>(names::NOUNS));
                     if !params.contains(&p) {
                         params.push(p);
                     }
@@ -209,7 +209,7 @@ impl World {
             let folder = rng.pick(names::EQUIPMENT);
             let mut name = format!(
                 "{}{}",
-                capital(rng.pick(names::VERBS)),
+                capital(rng.pick::<&str>(names::VERBS)),
                 rng.pick(names::NOUNS)
             );
             if !qseen.insert(format!("{folder}/{name}")) {

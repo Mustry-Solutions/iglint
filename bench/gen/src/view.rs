@@ -471,7 +471,10 @@ impl Gen<'_> {
                 let mut st = Map::new();
                 for i in 0..n {
                     st.insert(
-                        format!("{}{i}", names::lower_first(self.rng.pick(names::ASPECTS))),
+                        format!(
+                            "{}{i}",
+                            names::lower_first(self.rng.pick::<&str>(names::ASPECTS))
+                        ),
                         json!(self.expression(siblings, own, false)),
                     );
                 }
@@ -493,7 +496,7 @@ impl Gen<'_> {
             }
             "tag-history" => {
                 let tags: Vec<Value> = (0..self.rng.range(1, 4))
-                    .map(|_| json!({"aggregate": "Average", "alias": names::lower_first(self.rng.pick(names::ASPECTS)), "path": self.w.tag_path(&mut self.rng)}))
+                    .map(|_| json!({"aggregate": "Average", "alias": names::lower_first(self.rng.pick::<&str>(names::ASPECTS)), "path": self.w.tag_path(&mut self.rng)}))
                     .collect();
                 json!({
                     "aggregate": "MinMax",
@@ -610,7 +613,7 @@ impl Gen<'_> {
         if self.defect("name-pattern", self.d / 4.0) {
             let bad = format!(
                 "{}_{}",
-                names::lower_first(self.rng.pick(names::EQUIPMENT)),
+                names::lower_first(self.rng.pick::<&str>(names::EQUIPMENT)),
                 kind.suffix().to_lowercase()
             );
             taken.insert(bad.clone());
