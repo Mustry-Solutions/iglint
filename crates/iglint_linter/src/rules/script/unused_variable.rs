@@ -248,6 +248,24 @@ mod tests {
         );
     }
 
+    /// Review round 26 (Opus, M2): the namespace of a module holds its
+    /// `__builtins__`, whose `locals()` reads the caller's frame (measured
+    /// on 8.3.3: `vars(json)['__builtins__']['locals']()` returns the
+    /// caller's locals), so the variable may be read. The namespace of a
+    /// parameter is a first hop: the finding stays.
+    #[test]
+    fn module_namespaces_read_locals() {
+        for code in [
+            "import json\ndef f():\n    x = 1\n    return vars(json)['__builtins__']['locals']()\n",
+            "import json\ndef f():\n    x = 1\n    return json.__dict__['__builtins__']['locals']()\n",
+            "def f():\n    x = 1\n    return core.util.dict['__builtins__']['locals']()\n",
+        ] {
+            assert!(lint_module("SCR103", code).is_empty(), "{code}");
+        }
+        let code = "def f(o):\n    x = 1\n    return vars(o)\n";
+        assert_eq!(flagged(&lint_module("SCR103", code)), ["x"]);
+    }
+
     #[test]
     fn exemptions() {
         // Module level, tuple targets, dummy names, loop variables, params.
