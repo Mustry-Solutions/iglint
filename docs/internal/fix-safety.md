@@ -2208,7 +2208,7 @@ remaining documented assumption.
   continuations, brackets and blocks, fixes them with the safe fixes of
   `SCR101`, `SCR123` and `SCR124`, and has Jython run both versions,
   recording the output, the exception with its line and every global:
-  6,000 programs (seeds 25 to 27), 5,455 changed by the fixes, no
+  8,000 programs (seeds 25 to 28), 7,296 changed by the fixes, no
   difference. With changes 1 to 3 switched off, the same run of seed 25
   found 714 programs whose behaviour the fixes changed. A sample of 303
   pairs is replayed without Docker (`replayed_sample_is_unchanged`).

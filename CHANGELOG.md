@@ -180,9 +180,9 @@ from 0.1.0 on.
   reason (whitespace after a stray backslash, `print 1, \ `, or a comment
   removed after one). The safety net also compares the reads that a fix
   removes and the literals of each script. A differential test
-  (`layout_oracle`, `oracle/run-oracle.sh --run`) ran 6,000 generated
-  programs through these fixes and Jython: no behaviour change (714 with
-  the old code). SCR124's fix safety is now "depends". On the private
+  (`layout_oracle`, `oracle/run-oracle.sh --run`) ran 8,000 generated
+  programs through these fixes and Jython: no behaviour change (714 of
+  2,000 with the old code). SCR124's fix safety is now "depends". On the private
   corpus no finding or fix changed.
 - A safe fix in a module that fails to compile on its size either way
   was reported safe by `check` and refused by `--fix` as making the file
