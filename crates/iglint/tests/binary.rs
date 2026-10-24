@@ -3471,3 +3471,104 @@ fn positions_follow_jython_lines_with_lone_cr() {
     }
     assert!(checked >= 7, "{checked}");
 }
+
+/// Review round 24 (recall): a route that is only a first hop into
+/// reflection (a measured reflective Java member such as `.type`) used to
+/// make the whole module a frame escape, so `SCR102`, `SCR103`, `REF002`
+/// and `REF012` reported nothing in it. They report now, and every fix
+/// that depends on what code reads stays unsafe, naming the route. A
+/// route that reads names (`sys._getframe(0).f_locals`) still silences
+/// them.
+#[test]
+fn fix_only_routes_keep_findings() {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        "p/project.json",
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    );
+    let module = |name: &str, text: &str| {
+        write(
+            &format!("p/ignition/script-python/{name}/resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        );
+        write(&format!("p/ignition/script-python/{name}/code.py"), text);
+    };
+    let repro = "def g(o):\n    return o.type\ndef f():\n    import os\n    x = 1\n    return y\n";
+    module("m", repro);
+    module(
+        "u",
+        "import m\ndef run():\n    return m.g(1) + m.missing()\n",
+    );
+    let findings = |dir: &std::path::Path| -> Vec<(String, String, String, String)> {
+        let out = iglint(dir)
+            .args([
+                "check",
+                "--no-cache",
+                "--output-format",
+                "json",
+                "--select",
+                "SCR101,SCR102,SCR103,REF002,REF012",
+                "--unsafe-fixes",
+            ])
+            .output()
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+        let text = |v: &serde_json::Value| v.as_str().unwrap_or_default().to_owned();
+        v.as_array()
+            .unwrap()
+            .iter()
+            .filter(|d| text(&d["filename"]).ends_with("m/code.py") || text(&d["code"]) == "REF002")
+            .map(|d| {
+                (
+                    text(&d["code"]),
+                    text(&d["message"]),
+                    text(&d["fix"]["applicability"]),
+                    text(&d["fix"]["unsafe_reason"]["what"]),
+                )
+            })
+            .collect()
+    };
+    let got = findings(dir.path());
+    let codes: Vec<&str> = got.iter().map(|f| f.0.as_str()).collect();
+    for code in ["SCR101", "SCR102", "SCR103", "REF002", "REF012"] {
+        assert!(codes.contains(&code), "{code}: {got:?}");
+    }
+    let import = got.iter().find(|f| f.0 == "SCR102").unwrap();
+    assert_eq!(
+        (import.2.as_str(), import.3.as_str()),
+        ("unsafe", "o.type"),
+        "{got:?}"
+    );
+    let missing = got.iter().find(|f| f.0 == "REF002").unwrap();
+    assert!(missing.1.contains("`missing`"), "{got:?}");
+    for f in &got {
+        assert_ne!(f.2, "safe", "{f:?}");
+    }
+    // `--fix` leaves the module as it is.
+    iglint(dir.path())
+        .args([
+            "check",
+            "--no-cache",
+            "--select",
+            "SCR102,SCR103",
+            "--fix",
+            "--exit-zero",
+        ])
+        .assert()
+        .success();
+    let m = dir.path().join("p/ignition/script-python/m/code.py");
+    assert_eq!(std::fs::read_to_string(&m).unwrap(), repro);
+    // A route that reads names silences them.
+    module(
+        "m",
+        "import sys\ndef g():\n    return sys._getframe(0).f_locals\ndef f():\n    import os\n    x = 1\n    return y\n",
+    );
+    let got = findings(dir.path());
+    let codes: Vec<&str> = got.iter().map(|f| f.0.as_str()).collect();
+    assert_eq!(codes, ["SCR101"], "{got:?}");
+}

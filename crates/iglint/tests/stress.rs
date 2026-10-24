@@ -510,7 +510,9 @@ fn deep_tags() {
 /// Reviewer round 19 (Codex) major: nested `try`/`finally` chains made
 /// the size bounds overflow (a debug panic; in release a wrapped bound
 /// that let the fix of a 64-level chain through as safe). In a release
-/// build too, no fix of such a script is safe and nothing panics.
+/// build too, no fix that changes the tokens of such a script is safe and
+/// nothing panics; since review round 24 one that leaves every token where
+/// it was (trailing whitespace) compiles to the same code and is safe.
 #[test]
 #[cfg_attr(
     debug_assertions,
@@ -518,7 +520,7 @@ fn deep_tags() {
 )]
 fn nested_finally_chains_are_never_safe() {
     for depth in [50, 64, 200] {
-        let mut source = String::from("def f():\n");
+        let mut source = String::from("def g():\n    import math\n    return 1\ndef f():\n");
         for d in 0..depth {
             source.push_str(&format!("{}try:\n", "    ".repeat(d + 1)));
         }
@@ -534,7 +536,7 @@ fn nested_finally_chains_are_never_safe() {
             &[
                 "--no-cache",
                 "--select",
-                "SCR124,SCR002,SCR001",
+                "SCR102,SCR124,SCR002,SCR001",
                 "--output-format",
                 "json",
             ],
@@ -542,10 +544,8 @@ fn nested_finally_chains_are_never_safe() {
         let shown = stdout(&output);
         let findings: Value = serde_json::from_str(&shown).unwrap();
         for finding in findings.as_array().unwrap() {
-            assert_ne!(
-                finding["fix"]["applicability"], "safe",
-                "{depth}: {finding}"
-            );
+            let safe = finding["fix"]["applicability"] == "safe";
+            assert_eq!(safe, finding["code"] == "SCR124", "{depth}: {finding}");
         }
         if depth < 100 {
             assert!(
@@ -554,6 +554,122 @@ fn nested_finally_chains_are_never_safe() {
             );
         }
     }
+}
+
+/// Review round 24, item 2: when a script's compile status is not known,
+/// the net used to reject the combined safe fixes and then check each
+/// alone, quadratic in the size of the file (1,400 lines with trailing
+/// whitespace took 3.2 s, 12,000 lines 95 s, 16,000 more than 120 s).
+/// Edits that leave every token where it was are now proven neutral by
+/// lexing, fixes that may change a token of such a script are dropped
+/// without evaluating the net, and the rest is bisected. `check` and
+/// `--fix` stay within a budget on the reviewer's shapes and on a module
+/// whose every fix fails.
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
+)]
+fn unknown_compile_status_is_not_quadratic() {
+    const BUDGET: Duration = Duration::from_secs(20);
+    // 1,400 statements make the module's size bounds lie on both sides of
+    // Jython's method limit; comment lines pad it to `lines`. Every line
+    // ends in whitespace, and `g` has an unused import whose removal
+    // changes tokens.
+    let shape = |lines: usize| {
+        let mut source = String::from("def g():\n    import math\n    return 1\n");
+        for i in 0..lines {
+            if i < 1_400 {
+                source.push_str(&format!("x{i} = ({i}, {i})   \n"));
+            } else {
+                source.push_str(&format!("# note {i}   \n"));
+            }
+        }
+        source
+    };
+    for lines in [1_400, 12_000, 16_000] {
+        let dir = module(&shape(lines));
+        let args = [
+            "--no-cache",
+            "--select",
+            "SCR102,SCR124",
+            "--output-format",
+            "json",
+            "--exit-zero",
+        ];
+        let start = Instant::now();
+        let findings: Value = serde_json::from_str(&stdout(&iglint(dir.path(), &args))).unwrap();
+        let checked = start.elapsed();
+        let findings = findings.as_array().unwrap();
+        assert_eq!(findings.len(), lines + 1, "{lines}");
+        for finding in findings {
+            let safe = finding["fix"]["applicability"] == "safe";
+            assert_eq!(safe, finding["code"] == "SCR124", "{lines}: {finding}");
+            if !safe {
+                let reason = finding["fix"]["unsafe_reason"]["message"].as_str().unwrap();
+                assert!(reason.contains("compile status is not known"), "{reason}");
+            }
+        }
+        let start = Instant::now();
+        let output = iglint(
+            dir.path(),
+            &[
+                "--no-cache",
+                "--select",
+                "SCR102,SCR124",
+                "--fix",
+                "--exit-zero",
+            ],
+        );
+        let fixed = start.elapsed();
+        assert!(output.status.success(), "{lines}");
+        let text = std::fs::read_to_string(dir.path().join(MODULE)).unwrap();
+        assert!(!text.lines().any(|l| l.ends_with(' ')), "{lines}");
+        assert!(text.contains("import math"), "{lines}");
+        assert!(
+            checked < BUDGET && fixed < BUDGET,
+            "{lines} lines: check {checked:?}, --fix {fixed:?}"
+        );
+    }
+    // Every safe fix fails on its own: 2,000 functions with an unused
+    // import each, in a module whose status is not known.
+    let source: String = (0..2_000)
+        .map(|i| format!("def f{i}():\n    import math\n    return {i}\n"))
+        .collect();
+    let dir = module(&source);
+    for args in [
+        &[
+            "--no-cache",
+            "--select",
+            "SCR102",
+            "--output-format",
+            "json",
+            "--exit-zero",
+        ][..],
+        &["--no-cache", "--select", "SCR102", "--fix", "--exit-zero"][..],
+    ] {
+        let start = Instant::now();
+        let output = iglint(dir.path(), args);
+        let took = start.elapsed();
+        assert!(output.status.success(), "{args:?}");
+        assert!(took < BUDGET, "{args:?}: {took:?}");
+    }
+    let shown = stdout(&iglint(
+        dir.path(),
+        &[
+            "--no-cache",
+            "--select",
+            "SCR102",
+            "--output-format",
+            "json",
+            "--exit-zero",
+        ],
+    ));
+    assert_eq!(shown.matches("compile status is not known").count(), 2_000);
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join(MODULE)).unwrap(),
+        source
+    );
 }
 
 #[test]

@@ -116,6 +116,64 @@ from 0.1.0 on.
 
 ### Fixed
 
+- A reflection or introspection route that is only a first hop no
+  longer silences findings: any of the 145 measured reflective Java
+  member names (`.type`, `.base`, `.fields`, `.module`, `getType()`,
+  `getColumnType(i)`, `__class__`, ...), a computed `getattr`,
+  `sys.exc_info()`, `import traceback` or a line number anywhere in a
+  module used to make every scope read its locals, so SCR102, SCR103,
+  REF002, REF003 and REF012 (and SCR104 and SCR118) reported nothing in
+  that module. Routes are now of two kinds (`dynamic::Route`, table in
+  `docs/internal/fix-safety.md`, "Frame routes: findings and fixes"):
+  those that read or write a frame's or a module's names by themselves
+  (`sys._getframe`, `.f_locals`, `.tb_frame`, `e = eval`,
+  `import __builtin__`, `get = getattr`, ...) still silence findings;
+  every route of either kind still makes the safe fixes that depend on
+  what code reads unsafe (SCR102's reason names the route), keeps the
+  module's code unknown for the closed world, keeps library symbols
+  variables for every fix-side consumer, and the safety net drops a safe
+  fix that adds or removes one. On the private corpus: SCR102 5 to 10,
+  SCR103 39 to 55, REF002 75 to 76, REF012 21 to 24, every other rule and
+  every existing fix unchanged; all 25 new findings checked by hand and
+  true, and each of their fixes unsafe.
+- A Java class or `type(x)` in a comparison other than `is` / `is not`,
+  in `in`, as the operand of `%` on anything but a string literal, or as
+  the first argument of `issubclass` is unknown code: these hand the
+  class to special methods user code may define (`E() == AbstractMap`
+  gave `E.__eq__` the class, which could `del o.SimpleEntry` for every
+  later script; measured on 8.3.3 for `==`, `!=`, `%`, `in` and
+  `__subclasscheck__`). No change on the private corpus.
+- `docs/internal/fix-safety.md` ("The binding rule") said that a module
+  object in a read-only place (a comparison, `print`, `str`, `%`) is
+  allowed; the code allows read-only places only for Java classes and
+  `type` and fails closed for module objects. The text now says so.
+- The safe-fix net was quadratic when a script's compile status is not
+  known: it rejected the safe fixes together and then checked each alone.
+  An edit that leaves every token where it was (trailing whitespace, an
+  edit in a comment) is proven neutral by lexing both versions and
+  passes whatever the status; a script with a certain error (a lower
+  size bound above a limit included) has a known status (it fails), and
+  the net compares which limit fails rather than the numbers; failing
+  fixes are found by halving groups (O(k log n) evaluations, at most
+  `2n`) in `check`, `--fix` and the language server; and a safe fix that
+  may change a token of a script whose status is not known is dropped
+  without evaluating the net. Measured in release builds on one machine
+  (1,400 statements padded with comment lines, every line ending in
+  whitespace; `--select SCR102,SCR124`): 1,400 lines 1.7 s to 0.03 s,
+  12,000 lines 18 s to 0.12 s (`--fix` 0.6 s), 16,000 lines 26 s to
+  0.16 s (`--fix` 1.0 s), and 2,000 functions whose every safe fix fails
+  from more than 150 s to 0.4 s. A release-only stress test
+  (`unknown_compile_status_is_not_quadratic`) keeps these shapes under
+  20 s.
+- SCR120 reports lambdas in comprehensions that read a comprehension
+  variable (`[lambda: k for k in range(3)]`, also generator expressions
+  and set and dict comprehensions: Jython gives `[2, 2, 2]` for each) and
+  closures in a loop that read an `except` target (`except ValueError,
+  error: callbacks.append(lambda: error.args[0])` gives `[1, 1]`). It no
+  longer reports a closure that runs in the iteration that creates it: a
+  lambda called where it is written (`(lambda: u)()`) and a `def` or a
+  name bound to a lambda whose every use is a call later in the same
+  block (Jython: `[0, 1, 2]`).
 - An import in a class body is unknown code at the import: `class K:
   import math` stores the module as the attribute `K.math`, which the
   vetting walker did not follow, so `del K.math.pi`,

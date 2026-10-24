@@ -1481,8 +1481,32 @@ impl<'w> ProjectIndex<'w> {
     /// Resolves `pkg.mod.func` in a project. Missing results are `Unknown`
     /// when the project's ancestry is incomplete.
     pub fn resolve_library(&self, project: ProjectId, dotted: &str) -> LibraryLookup<'_> {
+        self.resolve_library_with(project, dotted, false)
+    }
+
+    /// [`ProjectIndex::resolve_library`] with the symbols for findings
+    /// ([`ModuleSymbols::for_findings`]): a module whose only escape
+    /// routes do not observe names is not dynamic there. For rules that
+    /// report findings; fixes resolve with [`ProjectIndex::resolve_library`].
+    pub fn resolve_library_for_findings(
+        &self,
+        project: ProjectId,
+        dotted: &str,
+    ) -> LibraryLookup<'_> {
+        self.resolve_library_with(project, dotted, true)
+    }
+
+    fn resolve_library_with(
+        &self,
+        project: ProjectId,
+        dotted: &str,
+        findings: bool,
+    ) -> LibraryLookup<'_> {
         let data = &self.projects[project.index()];
-        let result = data.library.resolve(dotted, |r| self.module_symbols(r));
+        let result = data.library.resolve(dotted, |r| {
+            self.module_symbols(r)
+                .map(|s| if findings { s.for_findings() } else { s })
+        });
         match result {
             LibraryLookup::Missing { .. }
             | LibraryLookup::MissingAttribute { .. }

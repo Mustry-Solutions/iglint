@@ -60,9 +60,21 @@ pub struct ModuleSymbols {
     pub system: Vec<String>,
     /// Dotted names the module uses that may be library names.
     pub library_names: Vec<String>,
+    /// The symbols for findings, when they differ: the module has an
+    /// escape route that does not observe names by itself (a reflective
+    /// Java member such as `.type`), which makes every name a variable and
+    /// the namespace dynamic here, for fixes, but not for findings
+    /// ([`ModuleSymbols::for_findings`]).
+    pub findings: Option<Box<ModuleSymbols>>,
 }
 
 impl ModuleSymbols {
+    /// The symbols rules that report findings use (see
+    /// [`ModuleSymbols::findings`]). Fixes use `self`.
+    pub fn for_findings(&self) -> &ModuleSymbols {
+        self.findings.as_deref().unwrap_or(self)
+    }
+
     /// The last definition of `name` (later definitions win).
     pub fn get(&self, name: &str) -> Option<&Symbol> {
         self.symbols.iter().rev().find(|s| s.name == name)

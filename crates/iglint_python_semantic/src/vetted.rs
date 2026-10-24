@@ -47,7 +47,7 @@
 //! (the binding rule, `Walk::check_attribute_namespaces`).
 
 use iglint_python::ast::{
-    Alias, Expr, ExprCall, ExprContext, ExprName, Operator, Stmt, StmtImportFrom,
+    Alias, CmpOp, Expr, ExprCall, ExprContext, ExprName, Operator, Stmt, StmtImportFrom,
 };
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
 use iglint_text::{Ranged, TextRange};
@@ -973,10 +973,12 @@ struct Walk<'m, 'a> {
     /// The callee of the call being visited: not a use as a value.
     callee: Option<TextRange>,
     /// Expressions where a class object (a Java class, `type(x)`) is only
-    /// read, never kept or changed: callees, the object of an attribute
-    /// read, `except` clauses, comparison operands, the class arguments
-    /// of `isinstance` and `issubclass`, the argument of `str`, `repr` and
-    /// `unicode`, `print` and the operand of `%` ([`Walk::class_read`]).
+    /// read, never kept or changed, and reaches no special method that user
+    /// code may define: callees, the object of an attribute read, `except`
+    /// clauses, operands of `is` and `is not`, the class arguments of
+    /// `isinstance` and the second of `issubclass`, the arguments of
+    /// `super`, the argument of `str`, `repr` and `unicode`, `print` and
+    /// the right operand of `%` on a string literal ([`Walk::class_read`]).
     class_ok: FxHashSet<TextRange>,
     /// The objects (and the objects they are read from) of attribute
     /// stores, deletions and mutating attributes whose chain is not rooted
@@ -1539,8 +1541,11 @@ impl Walk<'_, '_> {
                 self.class_read(classes);
             }
         } else if self.only_builtin(&c.func, "issubclass") {
-            for a in c.args.iter().take(2) {
-                self.class_read(a);
+            // The second argument's metaclass receives the first through
+            // `__subclasscheck__`, which user code may define (measured on
+            // 8.3.3): only the second is a read.
+            if let Some(classes) = c.args.get(1) {
+                self.class_read(classes);
             }
         } else if ["str", "repr", "unicode"]
             .iter()
@@ -1755,12 +1760,27 @@ impl<'a> Visitor<'a> for Walk<'_, '_> {
                 self.class_ok.insert(c.func.range());
             }
             Expr::Compare(c) => {
-                self.class_read(&c.left);
-                for e in &c.comparators {
-                    self.class_read(e);
+                // Only an identity test is a read: every other comparison
+                // (and `in`) hands its operands to the other operand's
+                // special methods, which user code may define (`E() ==
+                // AbstractMap` calls `E.__eq__` with the class; measured on
+                // 8.3.3, review round 24). An operand is read only when
+                // every operator next to it is `is` or `is not`.
+                let identity =
+                    |op: Option<&CmpOp>| op.is_none_or(|op| matches!(op, CmpOp::Is | CmpOp::IsNot));
+                for (i, e) in std::iter::once(&*c.left).chain(&c.comparators).enumerate() {
+                    let before = i.checked_sub(1).and_then(|j| c.ops.get(j));
+                    if identity(before) && identity(c.ops.get(i)) {
+                        self.class_read(e);
+                    }
                 }
             }
-            Expr::BinOp(b) if b.op == Operator::Mod => self.class_read(&b.right),
+            // `'%s' % C`: a string literal's own `%` formats the class with
+            // `str`/`repr`; any other left operand may be a value whose
+            // `__mod__` receives it.
+            Expr::BinOp(b) if b.op == Operator::Mod && matches!(&*b.left, Expr::Str(_)) => {
+                self.class_read(&b.right)
+            }
             Expr::Attribute(a) => {
                 // Reading an attribute of a class object does not keep or
                 // change it; writing one does.
@@ -1992,7 +2012,10 @@ mod tests {
             "from java.util import ArrayList\nl = ArrayList()\nl.add(1)\n",
             "from java.util import ArrayList\nok = isinstance(x, ArrayList)\n",
             "from java.util import ArrayList, List\nok = isinstance(x, (ArrayList, List))\n",
-            "from java.util import ArrayList\nok = type(x) == ArrayList\n",
+            "from java.util import ArrayList\nok = type(x) is ArrayList\n",
+            "from java.util import ArrayList\nok = x is not None is not ArrayList\n",
+            "from java.util import ArrayList\nok = issubclass(x, ArrayList)\n",
+            "from java.util import ArrayList\ns = '%s' % (ArrayList,)\n",
             "from java.util import ArrayList\nn = type(x).__name__\n",
             "from java.util import ArrayList\ns = str(type(x))\n",
             "from java.util import ArrayList\ns = '%s' % type(x)\n",
@@ -2210,7 +2233,7 @@ mod tests {
             "def f(o):\n    return o.__class__.__name__\n",
             "def f(o):\n    return o.__class__(1)\n",
             "def f(o):\n    return isinstance(x, o.__class__)\n",
-            "def f(o):\n    return o.__class__ == C\n",
+            "def f(o):\n    return o.__class__ is C\n",
             "def f(o):\n    return str(o.__class__)\n",
             "class C(object):\n    def f(self):\n        return super(self.__class__, self).f()\n",
             "def f(o):\n    o.__class__ = C\n",
@@ -2219,6 +2242,63 @@ mod tests {
             "def f(o):\n    return type(o).__name__\n",
         ] {
             assert!(unknown(src).is_empty(), "{src}: {:?}", unknown(src));
+        }
+    }
+
+    /// Review round 24: a comparison other than `is` / `is not`, `in`,
+    /// `%` on anything but a string literal and the first argument of
+    /// `issubclass` hand a class to special methods user code may define:
+    /// `E() == AbstractMap` gives `E.__eq__` the class, which may `del
+    /// o.SimpleEntry` for every later script (measured on 8.3.3, as `!=`,
+    /// `%`, `in` and `__subclasscheck__`). They are not read-only places.
+    #[test]
+    fn classes_reaching_special_methods_are_unknown() {
+        for (src, site) in [
+            (
+                "from java.util import AbstractMap\nE() == AbstractMap\n",
+                "AbstractMap",
+            ),
+            (
+                "from java.util import HashMap\nok = HashMap != e\n",
+                "HashMap",
+            ),
+            (
+                "from java.util import HashMap\nok = e < HashMap\n",
+                "HashMap",
+            ),
+            (
+                "from java.util import TreeMap\nx = e % TreeMap\n",
+                "TreeMap",
+            ),
+            (
+                "from java.util import TreeMap\nok = TreeMap in e\n",
+                "TreeMap",
+            ),
+            (
+                "from java.util import TreeMap\nok = e not in [TreeMap]\n",
+                "TreeMap",
+            ),
+            (
+                "from java.util import TreeMap\nok = e is TreeMap == f\n",
+                "TreeMap",
+            ),
+            (
+                "from java.util import ArrayList\nok = issubclass(ArrayList, U)\n",
+                "ArrayList",
+            ),
+            (
+                "from java.util import ArrayList\nok = type(x) == ArrayList\n",
+                "type(x)",
+            ),
+            ("def f(o):\n    return o.__class__ == C\n", "o.__class__"),
+            ("def f(o):\n    return type(o) == C\n", "type(o)"),
+        ] {
+            let found = unknown(src).other.unwrap_or_else(|| panic!("{src}"));
+            assert_eq!(
+                src.get(usize::from(found.start())..usize::from(found.end())),
+                Some(site),
+                "{src}"
+            );
         }
     }
 

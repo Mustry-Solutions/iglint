@@ -4,10 +4,17 @@
 //!
 //! # Role
 //!
-//! These are the routes that the analyses of iglint *understand*: when a
-//! module takes one, every scope of the module is treated as reading its
-//! locals and writing its globals (the module **fails closed**). They are
-//! not the safety argument for fixes on their own: an enumerated list of
+//! These are the routes that the analyses of iglint *understand*. Each
+//! route is one of two kinds ([`Route`]): one that reads or writes a
+//! frame's or a module's names by itself ([`Route::Observes`],
+//! [`frame_observer`]) makes every scope of the module read its locals and
+//! write its globals, which silences findings; any route
+//! ([`frame_escape`]), a first hop into reflection included (a measured
+//! reflective Java member such as `.type`, a computed `getattr`, a line
+//! number), makes the safe fixes that depend on what code reads unsafe
+//! (fixes **fail closed** on every route, findings only on the routes
+//! that make them likely false). The routes are not the safety argument
+//! for fixes on their own: an enumerated list of
 //! routes was defeated in six review rounds in a row. Safe fixes that
 //! depend on what code can read also require the code to be **vetted**
 //! ([`crate::vetted`]: default deny over modules, Java classes, builtins
@@ -108,11 +115,6 @@ pub const FRAME_BUILTINS: &[&str] = &[
     "__import__",
     "compile",
 ];
-
-/// Frame builtins that are an escape even when called directly by their
-/// bare name: `__import__` hands out any module (the builtins too) and
-/// `compile` builds code for `exec` / `eval`.
-const INTERP_BUILTINS: &[&str] = &["__import__", "compile"];
 
 /// Reflective accessors: understood only as direct calls with a literal
 /// name (route 2); a string-literal name is handled by the string-literal
@@ -313,6 +315,45 @@ fn is_introspection_name(name: &str) -> bool {
             .is_ok()
 }
 
+/// Introspection names that reach a frame's namespace, a function's or
+/// frame's globals, the builtins or a trace hook (which receives frames)
+/// by themselves: [`Route::Observes`]. Every other introspection name
+/// ([`is_introspection_name`]: line numbers, code objects, class
+/// hierarchies, method internals, Java reflection, the measured
+/// [`crate::generated::JAVA_REFLECTIVE_MEMBERS`]) is [`Route::FixOnly`]:
+/// a first hop that only further routes turn into a read of names.
+const OBSERVING_NAMES: &[&str] = &[
+    "f_back",
+    "f_locals",
+    "f_globals",
+    "f_builtins",
+    "f_trace",
+    "tb_frame",
+    "gi_frame",
+    "func_globals",
+    "__globals__",
+    "__builtins__",
+    "_getframe",
+    "_current_frames",
+    "currentframe",
+    "getouterframes",
+    "getinnerframes",
+    "getframeinfo",
+    "settrace",
+    "setprofile",
+];
+
+/// The route an introspection name takes, if it is one.
+fn introspection_route(name: &str) -> Option<Route> {
+    if OBSERVING_NAMES.contains(&name) {
+        Some(Route::Observes)
+    } else if is_introspection_name(name) {
+        Some(Route::FixOnly)
+    } else {
+        None
+    }
+}
+
 /// Whether a string literal names an introspection attribute in one of its
 /// identifier / dotted segments (`'tb_frame'`,
 /// `'tb_frame.f_back.f_locals'`). Splits on every character that cannot be
@@ -324,11 +365,12 @@ fn is_introspection_name(name: &str) -> bool {
 /// must not be read as empty, which would miss the name and leave a fix
 /// unsafely applied. Non-ASCII bytes are not identifier characters, so
 /// they only ever act as separators here.
-fn string_names_introspection(value: &StringValue) -> bool {
+fn string_names_introspection(value: &StringValue) -> Option<Route> {
     value
         .to_latin1()
         .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
-        .any(is_introspection_name)
+        .filter_map(introspection_route)
+        .max()
 }
 
 /// Whether an import of `module` is a Java or Jython reflection API:
@@ -351,16 +393,102 @@ fn is_reflection_from_java_lang(module: &str, imported: &str) -> bool {
     module == "java.lang" && matches!(imported, "Class" | "ClassLoader")
 }
 
-/// The first escape route of `body` (nested scopes included), if any.
+/// The route an import of `module` takes ([`FRAME_MODULES`] and
+/// [`is_reflection_import`]), and for `from module import name`, of
+/// `name`. The builtins module hands out `eval` and `locals`, and the
+/// interpreter's own classes (`org.python.core.Py`, `PyFrame`,
+/// `ThreadState`, `PySystemState`, a package of them as a value) hand out
+/// the current frame: they observe. Module loaders, the traceback module
+/// (text and line numbers), Java reflection, `javax.script` (an engine
+/// with its own namespace) and Jython's value classes (`PyString`,
+/// `PyList`) reach frames only through further routes: fix only.
+fn import_route(module: &str, name: Option<&str>) -> Route {
+    let root = module.split('.').next().unwrap_or("");
+    if root == "__builtin__" {
+        return Route::Observes;
+    }
+    if module == "org.python" || module.starts_with("org.python.") {
+        return match name {
+            Some(n) if !OBSERVING_PYTHON_CLASSES.contains(&n) => Route::FixOnly,
+            _ => Route::Observes,
+        };
+    }
+    Route::FixOnly
+}
+
+/// Classes of `org.python.*` that hand out the running frame, the module
+/// table or the builtins (`Py.getFrame()`, `ThreadState.frame`,
+/// `PySystemState.modules`, `__builtin__.locals`), and the star import.
+const OBSERVING_PYTHON_CLASSES: &[&str] = &[
+    "*",
+    "Py",
+    "PyFrame",
+    "ThreadState",
+    "PySystemState",
+    "PyTraceback",
+    "__builtin__",
+    "imp",
+    "core",
+];
+
+/// The route of a name imported from a module of
+/// [`PARTLY_FRAME_MODULES`] (`from sys import _getframe`), or of the
+/// attribute read from it (`sys._getframe`). Frame, module table and
+/// trace hook functions observe; the exception state (`sys.exc_info`,
+/// whose traceback reaches a frame only through `tb_frame`, itself a
+/// route), member listings and line numbers are fix only.
+fn module_member_route(module: &str, name: &str) -> Route {
+    match (module, name) {
+        ("sys", "exc_info" | "exc_traceback" | "last_traceback")
+        | ("inspect", "getmembers" | "getlineno") => Route::FixOnly,
+        _ => Route::Observes,
+    }
+}
+
+/// How far an escape route reaches, for the two uses of the routes.
+///
+/// Fixes trust no route: any route makes the safe fixes that depend on
+/// what code can read unsafe ([`frame_escape`]). Findings are silenced
+/// only by a route that reads or writes a frame's or a module's names by
+/// itself, so that names the code does not visibly use may be used
+/// ([`frame_observer`]): a finding there would likely be false. A route
+/// that is only a first hop (a reflective Java member such as `.type`, a
+/// computed `getattr`, a line number) keeps the findings and makes the
+/// fixes unsafe. The table is in `docs/internal/fix-safety.md`, "Frame
+/// routes: findings and fixes".
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Route {
+    /// A first hop into reflection or the interpreter: fixes are unsafe,
+    /// findings stay.
+    FixOnly,
+    /// Reads or writes a frame's or module's names: the module's scopes
+    /// are treated as reading their locals and writing their globals.
+    Observes,
+}
+
+/// The first escape route of `body` (nested scopes included) of either
+/// kind, if any: what makes fixes unsafe.
 pub fn frame_escape(body: &[Stmt]) -> Option<TextRange> {
+    escapes(body).0
+}
+
+/// The first escape route of `body` that observes names
+/// ([`Route::Observes`]), if any: what silences findings.
+pub fn frame_observer(body: &[Stmt]) -> Option<TextRange> {
+    escapes(body).1
+}
+
+/// [`frame_escape`] and [`frame_observer`] in one walk.
+pub fn escapes(body: &[Stmt]) -> (Option<TextRange>, Option<TextRange>) {
     let mut v = Escapes {
         modules: module_names(body),
         found: None,
+        observed: None,
     };
     for stmt in body {
         v.visit_stmt(stmt);
     }
-    v.found
+    (v.found, v.observed)
 }
 
 /// The first place where `body` (nested scopes included) reads frames
@@ -406,6 +534,32 @@ pub fn reads_frames(body: &[Stmt]) -> Option<TextRange> {
     v.0
 }
 
+/// The route of a direct `__import__(...)` call: it hands out any module,
+/// the builtins too. A literal name of a module that hands out frames,
+/// the builtins or the interpreter (or a name that is not a literal)
+/// observes; a literal name of another module is fix only (whatever it
+/// hands out is used through further routes).
+fn import_call_route(c: &iglint_python::ast::ExprCall) -> Route {
+    if c.starargs.is_some() || c.kwargs.is_some() {
+        return Route::Observes;
+    }
+    match c.args.first() {
+        Some(Expr::Str(s)) => {
+            let name = s.s.to_latin1();
+            let root = name.split('.').next().unwrap_or("").to_owned();
+            if FRAME_MODULES.contains(&root.as_str())
+                || module_frame_names(&root).is_some()
+                || is_reflection_import(&name)
+            {
+                Route::Observes
+            } else {
+                Route::FixOnly
+            }
+        }
+        _ => Route::Observes,
+    }
+}
+
 /// Names bound to a module of [`PARTLY_FRAME_MODULES`] (`sys`, which
 /// Ignition injects, and `import inspect as i`), with the module.
 fn module_names(body: &[Stmt]) -> FxHashMap<String, &'static str> {
@@ -436,13 +590,19 @@ fn module_names(body: &[Stmt]) -> FxHashMap<String, &'static str> {
 struct Escapes {
     /// Names bound to modules of [`PARTLY_FRAME_MODULES`].
     modules: FxHashMap<String, &'static str>,
+    /// The first route of either kind.
     found: Option<TextRange>,
+    /// The first [`Route::Observes`] route.
+    observed: Option<TextRange>,
 }
 
 impl Escapes {
-    fn found(&mut self, range: TextRange) {
-        if self.found.is_none() {
+    fn found(&mut self, range: TextRange, route: Route) {
+        if self.found.is_none_or(|f| range.start() < f.start()) {
             self.found = Some(range);
+        }
+        if route == Route::Observes && self.observed.is_none_or(|f| range.start() < f.start()) {
+            self.observed = Some(range);
         }
     }
 
@@ -503,9 +663,9 @@ impl Escapes {
     /// introspection names.
     fn sink(&mut self, e: &Expr) {
         if let Expr::Str(s) = e
-            && string_names_introspection(&s.s)
+            && let Some(route) = string_names_introspection(&s.s)
         {
-            self.found(s.range);
+            self.found(s.range, route);
         }
     }
 
@@ -529,7 +689,7 @@ impl<'a> Visitor<'a> for Escapes {
                 for a in &i.names {
                     let root = a.name.id.split('.').next().unwrap_or("");
                     if FRAME_MODULES.contains(&root) || is_reflection_import(&a.name.id) {
-                        self.found(a.range);
+                        self.found(a.range, import_route(&a.name.id, None));
                     }
                 }
             }
@@ -537,19 +697,29 @@ impl<'a> Visitor<'a> for Escapes {
                 let module = i.module.as_ref().map_or("", |m| &*m.id);
                 let root = module.split('.').next().unwrap_or("");
                 if i.level == 0 && (FRAME_MODULES.contains(&root) || is_reflection_import(module)) {
-                    self.found(i.range);
+                    // The statement is the site; the route is the strongest
+                    // of its names.
+                    let route = i
+                        .names
+                        .iter()
+                        .map(|a| import_route(module, Some(&a.name.id)))
+                        .max()
+                        .unwrap_or(Route::Observes);
+                    self.found(i.range, route);
                 }
                 if i.level == 0 {
                     if let Some(names) = module_frame_names(module) {
                         for a in &i.names {
-                            if &*a.name.id == "*" || names.contains(&&*a.name.id) {
-                                self.found(a.range);
+                            if &*a.name.id == "*" {
+                                self.found(a.range, Route::Observes);
+                            } else if names.contains(&&*a.name.id) {
+                                self.found(a.range, module_member_route(module, &a.name.id));
                             }
                         }
                     }
                     for a in &i.names {
                         if is_reflection_from_java_lang(module, &a.name.id) {
-                            self.found(a.range);
+                            self.found(a.range, Route::FixOnly);
                         }
                     }
                 }
@@ -562,14 +732,20 @@ impl<'a> Visitor<'a> for Escapes {
     fn visit_expr(&mut self, expr: &'a Expr) {
         match expr {
             Expr::Name(n) => {
+                // Direct calls and attribute reads are taken apart below; a
+                // bare name reaching here is a value. A frame builtin under
+                // another name reads the frame of whoever calls it; the
+                // builtins module and a frame-reaching module as values
+                // hand out such builtins and functions; a reflective
+                // accessor under another name hides every call of it
+                // (`get = getattr`, then `get(g, 'gi_' + 'frame')`).
+                let load = n.ctx == ExprContext::Load;
                 if matches!(&*n.id, "__builtin__" | "__builtins__")
-                    || (n.ctx == ExprContext::Load && FRAME_BUILTINS.contains(&&*n.id))
-                    || (n.ctx == ExprContext::Load && REFLECTIVE_ACCESSORS.contains(&&*n.id))
-                    || (n.ctx == ExprContext::Load && self.modules.contains_key(&*n.id))
+                    || (load && FRAME_BUILTINS.contains(&&*n.id))
+                    || (load && self.modules.contains_key(&*n.id))
+                    || (load && REFLECTIVE_ACCESSORS.contains(&&*n.id))
                 {
-                    // Direct calls and attribute reads are taken apart
-                    // below; a bare name reaching here is a value.
-                    self.found(n.range);
+                    self.found(n.range, Route::Observes);
                 }
                 return;
             }
@@ -578,8 +754,10 @@ impl<'a> Visitor<'a> for Escapes {
             // "String sinks" in the module documentation.
             Expr::Str(_) => return,
             Expr::Call(c) => {
+                // A computed name (or Jython's `class` bean property): the
+                // attribute read is not known.
                 if Escapes::reflective_escape(c) {
-                    self.found(c.range);
+                    self.found(c.range, Route::FixOnly);
                 }
                 let format = match &*c.func {
                     Expr::Attribute(a) if FORMAT_METHODS.contains(&a.attr.as_str()) => Some(a),
@@ -601,7 +779,7 @@ impl<'a> Visitor<'a> for Escapes {
                     if let Some(a) = format
                         && !matches!(&*a.value, Expr::Str(_))
                     {
-                        self.found(c.range);
+                        self.found(c.range, Route::FixOnly);
                     }
                     if let Expr::Attribute(a) = &*c.func {
                         self.visit_expr(&a.value);
@@ -624,18 +802,26 @@ impl<'a> Visitor<'a> for Escapes {
                     && FRAME_BUILTINS.contains(&&*f.id)
                 {
                     // A direct call: `__import__` hands out any module
-                    // (the builtins too) and `compile` builds code; the
-                    // others are handled by the calling scope unless the
-                    // arguments are unpacked.
+                    // (the builtins too, [`import_call_route`]) and
+                    // `compile` builds code, escapes whatever their
+                    // arguments; the others are handled by the calling
+                    // scope unless the arguments are unpacked.
                     // `vars(o)` is the namespace of `o` as a dictionary:
                     // its keys are member names (verified:
                     // `vars(Object)['getClass'](x)` is `x.getClass()`).
-                    if INTERP_BUILTINS.contains(&&*f.id)
-                        || c.starargs.is_some()
-                        || c.kwargs.is_some()
-                        || (&*f.id == "vars" && !c.args.is_empty())
-                    {
-                        self.found(c.range);
+                    let unpacked = c.starargs.is_some() || c.kwargs.is_some();
+                    if &*f.id == "__import__" {
+                        self.found(c.range, import_call_route(c));
+                    } else if &*f.id == "compile" {
+                        // Builds code that only `exec` and `eval` run, which
+                        // are routes of their own.
+                        self.found(c.range, Route::FixOnly);
+                    } else if unpacked {
+                        // `eval(*a)`, `vars(*a)`: may read the caller's frame.
+                        self.found(c.range, Route::Observes);
+                    } else if &*f.id == "vars" && !c.args.is_empty() {
+                        // A member dictionary of a value.
+                        self.found(c.range, Route::FixOnly);
                     }
                     // `eval('tb.tb_frame')`: the code names members.
                     if matches!(&*f.id, "eval" | "execfile" | "input")
@@ -664,21 +850,25 @@ impl<'a> Visitor<'a> for Escapes {
                 // A reflective accessor or `format` method used as a value
                 // (direct calls returned above): `get = getattr`,
                 // `f = operator.attrgetter`, `fmt = template.format`.
+                // As a value, the accessor or format method hides every
+                // call of it, like a bare accessor under another name.
                 if REFLECTIVE_ACCESSORS.contains(&attr)
                     || (FORMAT_METHODS.contains(&attr) && !matches!(&*a.value, Expr::Str(_)))
                 {
-                    self.found(a.range);
+                    self.found(a.range, Route::Observes);
                 }
                 // `f = '{0.gi_frame}'.format`: the literal is a format string.
                 if FORMAT_METHODS.contains(&attr) {
                     self.sink(&a.value);
                 }
-                if is_introspection_name(attr)
-                    || module
-                        .and_then(module_frame_names)
-                        .is_some_and(|names| names.contains(&attr))
-                {
-                    self.found(a.range);
+                let member = module
+                    .filter(|m| module_frame_names(m).is_some_and(|names| names.contains(&attr)));
+                let route = match member {
+                    Some(m) => Some(module_member_route(m, attr)),
+                    None => introspection_route(attr),
+                };
+                if let Some(route) = route {
+                    self.found(a.range, route);
                 }
                 if module.is_some() {
                     // `sys.path`, `inspect.getargspec(f)`: the module is
@@ -803,6 +993,119 @@ mod tests {
             "f = self.props.invoke\n",
         ] {
             assert!(escape(src), "{src}");
+        }
+    }
+
+    /// Review round 24 (recall): every route makes fixes unsafe
+    /// ([`frame_escape`]), only routes that observe names by themselves
+    /// silence findings ([`frame_observer`]). The table in
+    /// `docs/internal/fix-safety.md` ("Frame routes: findings and fixes")
+    /// lists the same decisions.
+    #[test]
+    fn routes_are_classified() {
+        let route = |src: &str| {
+            let parsed = iglint_python::parse_module(src);
+            assert!(parsed.errors.is_empty(), "{src}");
+            match escapes(&parsed.module.body) {
+                (None, None) => None,
+                (Some(_), None) => Some(Route::FixOnly),
+                (Some(_), Some(_)) => Some(Route::Observes),
+                (None, Some(_)) => panic!("an observer is an escape: {src}"),
+            }
+        };
+        for src in [
+            // frame builtins under another name, the builtins module
+            "e = eval\n",
+            "f(vars)\n",
+            "vars(*a)\n",
+            "eval(*a)\n",
+            "import __builtin__\n",
+            "from __builtin__ import locals as capture\n",
+            "x = __builtins__\n",
+            "__import__('__builtin__')\n",
+            "__import__('sys')\n",
+            "__import__(name)\n",
+            // frames, tracebacks reaching frames, trace hooks, globals
+            "sys._getframe(0)\n",
+            "sys._getframe(0).f_locals\n",
+            "from sys import _getframe\n",
+            "from sys import *\n",
+            "sys.modules['a']\n",
+            "sys.settrace(t)\n",
+            "import inspect\ninspect.currentframe()\n",
+            "from inspect import stack\n",
+            "import inspect as i\nx = i\n",
+            "x = sys\n",
+            "import gc\ngc.get_referrers(x)\n",
+            "tb.tb_frame\n",
+            "f = frame.f_back\n",
+            "g.gi_frame\n",
+            "f.func_globals['a'] = 1\n",
+            "f.__globals__\n",
+            "getattr(tb, 'tb_frame')\n",
+            "'{0.f_locals}'.format(frame)\n",
+            "x = eval('frame.f_globals')\n",
+            // the interpreter's own classes
+            "from org.python.core import Py\n",
+            "import org.python.core as core\n",
+            "from org.python import core\n",
+            // an accessor or format method under another name hides its calls
+            "get = getattr\n",
+            "map(getattr, objs, names)\n",
+            "f = operator.attrgetter\n",
+            "f = template.format\n",
+        ] {
+            assert_eq!(route(src), Some(Route::Observes), "{src}");
+        }
+        for src in [
+            // measured reflective Java members and Java reflection
+            "def g(o):\n    return o.type\n",
+            "t = ds.getColumnType(0)\n",
+            "n = o.__class__.__name__\n",
+            "x = o.fields\n",
+            "x = o.base\n",
+            "x = e.traceback\n",
+            "c = obj.getClass()\n",
+            "c = loader.loadClass(name)\n",
+            "from java.lang import Class\n",
+            "from java.lang.reflect import Field\n",
+            "from javax.script import ScriptEngineManager\n",
+            "getattr(o, 'classLoader')\n",
+            "getattr(o, 'class')\n",
+            // computed names and format strings
+            "getattr(o, name)\n",
+            "setattr(o, name, v)\n",
+            "s = fmt.format(g)\n",
+            "s = str.format(fmt, g)\n",
+            "f = vars(Object)['getClass']\n",
+            // line numbers, code objects, class hierarchies, method internals
+            "x = tb.tb_lineno\n",
+            "x = sys.exc_info()[2].tb_lineno\n",
+            "t, v, tb = sys.exc_info()\n",
+            "from sys import exc_info\n",
+            "n = c.co_firstlineno\n",
+            "c = f.func_code\n",
+            "d = o.__dict__\n",
+            "b = C.__mro__\n",
+            "s = m.im_self\n",
+            "import inspect\ninspect.getmembers(o)\n",
+            // module loaders, rendering tracebacks, Jython value classes
+            "import traceback\ntraceback.format_exc()\n",
+            "import importlib\n",
+            "from imp import load_source\n",
+            "from org.python.core import PyString\n",
+            "__import__('os')\n",
+            "compile(s, '<s>', 'exec')\n",
+        ] {
+            assert_eq!(route(src), Some(Route::FixOnly), "{src}");
+        }
+        for src in [
+            "x = locals()\n",
+            "eval('1')\n",
+            "x.modules\n",
+            "getattr(o, 'value')\n",
+        ] {
+            assert_eq!(route(src), None, "{src}");
         }
     }
 

@@ -136,12 +136,15 @@ mod tests {
     /// bodies around it, each with its own `return`): debug builds
     /// panicked and release builds wrapped to a small bound, so the fix
     /// of a 64-level chain was safe. The bounds saturate; such a chain's
-    /// compile status is not known (or the script does not parse), and
-    /// the fix is never safe.
+    /// compile status is not known (or the script does not parse), and a
+    /// fix that changes its tokens is never safe (`SCR102` here). Since
+    /// review round 24 a fix that leaves every token where it was compiles
+    /// to the same code whatever the status, proven by lexing before and
+    /// after (`safety::same_compilation`): trailing whitespace is safe.
     #[test]
     fn nested_finally_chains_never_get_a_safe_fix() {
         for depth in [50, 64, 200] {
-            let mut code = String::from("def f():\n");
+            let mut code = String::from("def g():\n    import math\n    return 1\ndef f():\n");
             for d in 0..depth {
                 code.push_str(&format!("{}try:\n", "    ".repeat(d + 1)));
             }
@@ -152,7 +155,7 @@ mod tests {
             }
             code.push_str("x = 1  \n");
             let f = library("m", &code);
-            let d = f.lint(&["SCR124"]);
+            let d = f.lint(&["SCR102"]);
             for d in &d {
                 let fix = d.fix.as_ref().unwrap();
                 assert_ne!(fix.applicability, crate::Applicability::Safe, "{depth}");
@@ -164,8 +167,15 @@ mod tests {
                     reason.message.contains("compile status is not known"),
                     "{reason:?}"
                 );
+                let d = f.lint(&["SCR124"]);
+                let safe: Vec<_> = d
+                    .iter()
+                    .map(|d| d.fix.as_ref().map(|f| f.applicability))
+                    .collect();
+                assert_eq!(safe, [Some(crate::Applicability::Safe)], "{depth}");
+                assert!(safe_fix_applies(&f, "SCR124", "m"), "{depth}");
             }
-            assert!(!safe_fix_applies(&f, "SCR124", "m"), "{depth}");
+            assert!(!safe_fix_applies(&f, "SCR102", "m"), "{depth}");
         }
     }
 

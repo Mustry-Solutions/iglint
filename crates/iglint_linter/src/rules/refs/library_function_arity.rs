@@ -3,7 +3,7 @@
 use iglint_project::library::{CallMismatch, LibraryLookup, SymbolKind};
 
 use super::library_uses::library_uses;
-use super::unknown_library_member::resolve;
+use super::unknown_library_member::resolve_for_findings;
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
 use crate::registry::{Category, RuleMeta};
@@ -85,7 +85,7 @@ impl ScriptRule for LibraryFunctionArity {
             };
             let LibraryLookup::Symbol {
                 symbol, rest: 0, ..
-            } = resolve(index, project, &u.dotted)
+            } = resolve_for_findings(index, project, &u.dotted)
             else {
                 continue;
             };

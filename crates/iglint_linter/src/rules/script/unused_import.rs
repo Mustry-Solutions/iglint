@@ -47,9 +47,16 @@ Not reported:
 * imports inside a `try` whose handlers catch `ImportError` (availability
   checks such as `try: import json except ImportError: json = None`);
 * scopes that read their names dynamically (`locals()`, `vars()`, `eval`,
-  `exec`), and module-level imports when any code of the module may read
-  globals by name (`globals()`, `eval`, `execfile`, `exec`, `sys.modules`,
-  frames, `__dict__`, `func_globals`);
+  `exec`), every scope of a module with code that reads or writes a
+  frame's or a module's names by itself (`sys._getframe()`, `.f_locals`,
+  `.tb_frame`, `e = eval`, `import __builtin__`; the table is in
+  `docs/internal/fix-safety.md`, "Frame routes: findings and fixes"), and
+  module-level imports when any code of the module may read globals by
+  name (`globals()`, `eval`, `execfile`, `exec`, `sys.modules`, frames,
+  `__dict__`, `func_globals`). Reflection or introspection that is only a
+  first hop (a Java member that leads to reflection such as `.type`,
+  `getattr` with a computed name, `sys.exc_info()`, line numbers) does
+  not silence the rule; it makes the fix unsafe;
 * imports in a class body: they are attributes of the class (`self.os`,
   `C.os`), used in ways iglint cannot follow (pyflakes and pylint do not
   report them either);
@@ -99,6 +106,11 @@ Safe only when all of these hold:
   `from x import y` of such a module when it is not a package and `y` was
   measured to exist; and no library package of the project (or of a
   project inheriting from it) has the same top-level name;
+* the module has no reflection or introspection route of any kind
+  (`iglint_python_semantic::dynamic`: the routes that silence the rule,
+  and the first hops that do not, such as `.type` or `getattr(o, name)`):
+  code reached through one may read the import by name. The reason names
+  the route;
 * the module uses only vetted code: every module, Java class, builtin
   and module attribute it uses is on iglint's allowlist, and every
   library module it imports or calls is vetted too (see
@@ -476,6 +488,17 @@ impl ScriptRule for UnusedImport {
                 frames
                     .get_or_insert_with(|| {
                         let body = &unit.parsed.module.body;
+                        // A route that does not silence the finding
+                        // (`o.type`, a computed `getattr`) still keeps the
+                        // fix: names may be read through it.
+                        if let Some(at) = model.frame_escape() {
+                            return Some(crate::rules::vetting::escape_reason(
+                                cx,
+                                unit.file,
+                                unit.script,
+                                at,
+                            ));
+                        }
                         if crate::rules::view::unused_custom_property::library_names_may_read_frames(
                             cx, model, body,
                         ) {
@@ -848,14 +871,42 @@ mod tests {
             "{:?}",
             flagged(&f.lint(&["SCR102"]))
         );
-        // Each route on its own keeps a module-level import.
+        // Each route that observes names on its own keeps a module-level
+        // import.
         for frame in [
             "from org.python.core import Py\n",
             "def h():\n    return getattr(x, 'f_locals')\n",
-            "def h():\n    return x.tb_lineno\n",
+            "def h():\n    return x.tb_frame\n",
         ] {
             let f = library("m", &format!("import json\n{frame}"));
             assert!(f.lint(&["SCR102"]).is_empty(), "{frame}");
+        }
+        // A route that is only a first hop (a line number, a reflective
+        // Java member, a computed attribute name) keeps the finding and
+        // makes the fix unsafe, with the route as the site (review round
+        // 24).
+        for frame in [
+            "def h():\n    return x.tb_lineno\n",
+            "def h(o):\n    return o.type\n",
+            "def h(o, n):\n    return getattr(o, n)\n",
+            "def h(o):\n    return o.__class__.__name__\n",
+        ] {
+            let f = library("m", &format!("import json\n{frame}"));
+            let d = f.lint(&["SCR102"]);
+            assert_eq!(flagged(&d), ["json"], "{frame}");
+            let fix = d[0].fix.as_ref().expect("a fix");
+            assert_eq!(
+                fix.applicability,
+                crate::diagnostic::Applicability::Unsafe,
+                "{frame}"
+            );
+            let reason = fix.unsafe_reason.as_ref().expect("a reason");
+            assert!(reason.message.contains("reflection"), "{frame}: {reason:?}");
+            assert_eq!(
+                reason.site.as_ref().map(|s| s.line),
+                Some(3),
+                "{frame}: {reason:?}"
+            );
         }
     }
 
@@ -1841,15 +1892,25 @@ mod tests {
 
     /// A string literal names a member only in a sink position (reviewer
     /// round 8, finding 1): a docstring that mentions `module` (the bean
-    /// name of `java.lang.Class.getModule`) is data, the same word as a
-    /// `getattr` name makes the module dynamic, and its module-level
-    /// imports are no longer reported.
+    /// name of `java.lang.Class.getModule`) is data; the same word as a
+    /// `getattr` name is a first hop into reflection, which keeps the
+    /// finding and makes the fix unsafe (review round 24), and `f_locals`
+    /// there reads names, which silences module-level imports.
     #[test]
     fn literals_name_members_only_in_sinks() {
+        use crate::diagnostic::Applicability::{Safe, Unsafe};
         let d = library("m", "import os\n'module docstring'\n").lint(&["SCR102"]);
         assert_eq!(d.len(), 1, "{d:?}");
+        assert_eq!(applicability(&d), [Some(Safe)]);
         let d =
             library("m", "import os\nimport math\nm = getattr(math, 'module')\n").lint(&["SCR102"]);
+        assert_eq!(flagged(&d), ["os"], "{d:?}");
+        assert_eq!(applicability(&d), [Some(Unsafe)]);
+        let d = library(
+            "m",
+            "import os\nimport math\nm = getattr(math, 'f_locals')\n",
+        )
+        .lint(&["SCR102"]);
         assert!(d.is_empty(), "{d:?}");
     }
 

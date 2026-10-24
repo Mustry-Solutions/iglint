@@ -23,10 +23,14 @@
 //! Rebinding from other resources (`core.util.f = ...`, the module used as
 //! a value, a function of the module used as a value, `func_globals`) is
 //! known only to the project index (`ProjectIndex::library_name_rebound`).
-//! A module with a frame escape route
-//! ([`iglint_python_semantic::dynamic::frame_escape`]) writes its
-//! globals, so every name is a variable. Variables bound only to literals
-//! are listed as constants: they never hold a function.
+//! A module with a frame escape route of either kind
+//! ([`iglint_python_semantic::dynamic::frame_escape`]) may write its
+//! globals, so every name is a variable and the namespace is dynamic. That
+//! is the view every consumer trusts for fixes. When only routes that do
+//! not observe names by themselves make it so (a reflective Java member
+//! such as `.type`, a computed `getattr`), the view without them is kept
+//! for findings (`ModuleSymbols::findings`). Variables bound only to
+//! literals are listed as constants: they never hold a function.
 
 use iglint_project::library::{
     ModuleSymbols, Parameter, ParameterKind, Signature, Symbol, SymbolKind,
@@ -39,8 +43,23 @@ use rustc_hash::FxHashSet;
 
 /// The symbols of a module, from its semantic model and syntax tree.
 pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols {
+    let mut symbols = symbols_of(model, ast, true);
+    if model.frame_escape().is_some() {
+        let findings = symbols_of(model, ast, false);
+        if findings != symbols {
+            symbols.findings = Some(Box::new(findings));
+        }
+    }
+    symbols
+}
+
+/// [`module_symbols`], with every escape route counting as a write of
+/// any global (`escapes`, for fixes) or only the routes that observe
+/// names (for findings).
+fn symbols_of(model: &SemanticModel<'_>, ast: &Module, escapes: bool) -> ModuleSymbols {
     let module = model.scope(ScopeId::MODULE);
-    let rebinds = Rebinds::collect(model, ast);
+    let mut rebinds = Rebinds::collect(model, ast);
+    rebinds.anything |= escapes && model.frame_escape().is_some();
     let dynamic = rebinds.anything || module.star_import.is_some();
     let mut symbols = Vec::new();
     let mut constants = Vec::new();
@@ -105,6 +124,7 @@ pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols 
         imports: unknown.imports.into_iter().map(|(name, _)| name).collect(),
         system: unknown.system.into_iter().map(|(path, _)| path).collect(),
         library_names: super::access::library_names_used(model, &ast.body),
+        findings: None,
     }
 }
 

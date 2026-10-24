@@ -539,9 +539,23 @@ pub struct SemanticModel<'a> {
     pub(crate) dunder_all: Vec<String>,
     /// `__all__` is assigned something we cannot read.
     pub(crate) dunder_all_dynamic: bool,
+    /// The first escape route of the module of either kind
+    /// ([`crate::dynamic::frame_escape`]).
+    pub(crate) frame_escape: Option<TextRange>,
 }
 
 impl<'a> SemanticModel<'a> {
+    /// The first escape route of the module, of either kind
+    /// ([`crate::dynamic::frame_escape`]): code through which names may be
+    /// read in ways iglint does not follow. Only routes that observe names
+    /// by themselves ([`crate::dynamic::frame_observer`]) make the scopes
+    /// read their locals ([`Scope::reads_locals`]) and write the globals
+    /// ([`Scope::writes_globals`]), which silences findings; any route
+    /// here makes the safe fixes that depend on what code reads unsafe.
+    pub fn frame_escape(&self) -> Option<TextRange> {
+        self.frame_escape
+    }
+
     pub fn scope(&self, id: ScopeId) -> &Scope<'a> {
         &self.scopes[id.index()]
     }

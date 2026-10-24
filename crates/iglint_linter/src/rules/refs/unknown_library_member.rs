@@ -38,7 +38,12 @@ and the globals every script sees (`system`, `fpmi`, `sys` and the
 library's top-level packages).
 
 The rule stays silent where it cannot be sure: modules whose namespace is
-dynamic (`from x import *`, `exec`, writes through `globals()`), modules
+dynamic (`from x import *`, `exec`, writes through `globals()`, code that
+reads or writes a frame's or a module's names by itself such as
+`sys._getframe()`, `.f_globals` or `e = eval`; reflection that is only a
+first hop, such as a `.type` Java member or `getattr` with a computed
+name, does not count, see `docs/internal/fix-safety.md`, "Frame routes:
+findings and fixes"), modules
 that do not parse, uses inside a `try` that catches `AttributeError`,
 `ImportError`, `NameError` or `Exception`, dunder attributes, scripts of
 projects whose parent project is not in the workspace, and names that a
@@ -97,19 +102,46 @@ pub(crate) fn resolve<'i>(
     project: ProjectId,
     dotted: &str,
 ) -> LibraryLookup<'i> {
+    resolve_with(index, project, dotted, false)
+}
+
+/// [`resolve`] for findings: modules whose only escape routes do not
+/// observe names are not dynamic
+/// ([`ProjectIndex::resolve_library_for_findings`]).
+pub(crate) fn resolve_for_findings<'i>(
+    index: &'i ProjectIndex<'_>,
+    project: ProjectId,
+    dotted: &str,
+) -> LibraryLookup<'i> {
+    resolve_with(index, project, dotted, true)
+}
+
+fn resolve_with<'i>(
+    index: &'i ProjectIndex<'_>,
+    project: ProjectId,
+    dotted: &str,
+    findings: bool,
+) -> LibraryLookup<'i> {
+    let lookup_in = |p: ProjectId| {
+        if findings {
+            index.resolve_library_for_findings(p, dotted)
+        } else {
+            index.resolve_library(p, dotted)
+        }
+    };
     let stored = std::iter::once(project)
         .chain(index.workspace().project_descendants(project))
         .any(|p| index.library_name_stored(p, dotted));
     if stored {
         return LibraryLookup::Unknown;
     }
-    let lookup = index.resolve_library(project, dotted);
+    let lookup = lookup_in(project);
     if is_miss(&lookup) && index.workspace().project(project).inheritable() {
         let found_below = index
             .workspace()
             .project_descendants(project)
             .into_iter()
-            .any(|d| !is_miss(&index.resolve_library(d, dotted)));
+            .any(|d| !is_miss(&lookup_in(d)));
         if found_below {
             return LibraryLookup::Unknown;
         }
@@ -155,7 +187,7 @@ fn problem(
 ) -> Option<(usize, String)> {
     let segments: Vec<&str> = u.dotted.split('.').collect();
     let prefix = |i: usize| segments[..=i].join(".");
-    match resolve(index, project, &u.dotted) {
+    match resolve_for_findings(index, project, &u.dotted) {
         LibraryLookup::Missing { index: i, parent } => Some((
             i,
             format!(

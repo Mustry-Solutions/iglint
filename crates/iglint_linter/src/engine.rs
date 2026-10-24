@@ -688,61 +688,26 @@ pub(crate) fn fix_file(
             applied.extend(pass_applied);
             (pass_result.text, pass_result.edits, after)
         } else {
-            // One fix at a time, keeping those that do not make it worse.
-            let mut kept: Vec<TextEdit> = Vec::new();
-            let mut kept_safe: Vec<TextEdit> = Vec::new();
-            let mut kept_text = None;
-            let mut kept_health = before.clone();
-            for (fixed, ((applied_fix, edits), safe)) in pass_result
+            // A safe fix that may change a token of a script whose compile
+            // status is not known fails on its own: blocked without
+            // evaluating it ([`safety::UnknownStatus`]).
+            let unknown = current_scripts
+                .as_ref()
+                .map(|(found, facts, _)| safety::UnknownStatus::of(&current, found, facts));
+            let mut items: Vec<(AppliedFix, Vec<TextEdit>, bool, usize)> = Vec::new();
+            for (i, ((applied_fix, edits), safe)) in pass_result
                 .fixes
                 .into_iter()
                 .zip(pass_result.safe)
                 .enumerate()
             {
-                // The same edits as a fix already kept (one fix reported
-                // for several findings).
-                if !edits.is_empty() && edits.iter().all(|e| kept.contains(e)) {
-                    applied.push(applied_fix);
-                    continue;
-                }
-                // Whether this fix is being tried on its own. A fix that
-                // makes the file worse only in combination with others is
-                // retried in a later pass (where the others have been
-                // applied or dropped); only a fix that fails on its own is
-                // blocked for good, so that `--fix` reaches a fixpoint in
-                // one invocation instead of needing a second run.
-                let solo = kept.is_empty();
-                let mut trial = kept.clone();
-                trial.extend(edits.iter().cloned());
-                let Ok(trial_text) = iglint_text::apply_edits(&current, &trial) else {
-                    continue;
-                };
-                let mut trial_safe = kept_safe.clone();
-                if safe {
-                    trial_safe.extend(edits.iter().cloned());
-                }
-                let trial_health = health(reanalyze, &trial_text, &trial);
-                let problem = new_problem(&before, &trial_health)
-                    .or_else(|| {
-                        py_docstring_changed(path, &current, &trial_text)
-                            .then(|| "it would change a docstring".to_owned())
-                    })
-                    .map(|p| format!("the fix makes the file worse ({p})"))
-                    .or_else(|| {
-                        safe.then(|| safe_problem(&trial_safe))
-                            .flatten()
-                            .map(|p| format!("the safe fix could change what the code does ({p})"))
-                    });
+                let problem = unknown
+                    .as_ref()
+                    .filter(|_| safe)
+                    .and_then(|u| u.rejects(&current, &edits));
                 match problem {
-                    None => {
-                        kept = trial;
-                        kept_safe = trial_safe;
-                        kept_text = Some(trial_text);
-                        kept_health = trial_health;
-                        applied.push(applied_fix);
-                    }
-                    Some(problem) if solo => {
-                        let d = &pass_result.diagnostics[fixed];
+                    Some(p) => {
+                        let d = &pass_result.diagnostics[i];
                         rejected.borrow_mut().insert((
                             d.0,
                             applied_fix.message.clone(),
@@ -751,13 +716,140 @@ pub(crate) fn fix_file(
                         harmful.push(SkippedFix {
                             rule: applied_fix.rule,
                             message: applied_fix.message,
-                            reason: problem,
+                            reason: format!("the safe fix could change what the code does ({p})"),
                             harmful: true,
                         });
                     }
-                    // Rejected only in combination: leave it for a later
-                    // pass rather than reporting or blocking it.
-                    Some(_) => {}
+                    None => items.push((applied_fix, edits, safe, i)),
+                }
+            }
+            // Fixes in order, in groups halved until they pass (review round
+            // 24): a group that does not make the file worse is kept whole,
+            // one that does is split, and a single fix behaves as when the
+            // fixes were tried one at a time. With `k` fixes that make it
+            // worse this takes O(k log n) checks instead of `n`, and never
+            // more than `2n`.
+            let mut kept: Vec<TextEdit> = Vec::new();
+            let mut kept_set: FxHashSet<TextEdit> = FxHashSet::default();
+            let mut kept_safe: Vec<TextEdit> = Vec::new();
+            let mut kept_text = None;
+            let mut kept_health = before.clone();
+            // Why the edits `trial` (with the safe ones `trial_safe`) make
+            // the file worse, if they do, with the text and its health.
+            let check = |trial: &[TextEdit], trial_safe: &[TextEdit], safe: bool| {
+                let trial_text = iglint_text::apply_edits(&current, trial).ok()?;
+                let trial_health = health(reanalyze, &trial_text, trial);
+                let problem = new_problem(&before, &trial_health)
+                    .or_else(|| {
+                        py_docstring_changed(path, &current, &trial_text)
+                            .then(|| "it would change a docstring".to_owned())
+                    })
+                    .map(|p| format!("the fix makes the file worse ({p})"))
+                    .or_else(|| {
+                        safe.then(|| safe_problem(trial_safe))
+                            .flatten()
+                            .map(|p| format!("the safe fix could change what the code does ({p})"))
+                    });
+                Some((trial_text, trial_health, problem))
+            };
+            // Ranges of `items` still to try, the next one last. The whole
+            // pass failed already, so it starts halved.
+            let mut todo = vec![(0, items.len())];
+            if items.len() > 1 {
+                todo = vec![(items.len() / 2, items.len()), (0, items.len() / 2)];
+            }
+            while let Some((lo, hi)) = todo.pop() {
+                if lo >= hi {
+                    continue;
+                }
+                if hi - lo == 1 {
+                    let (applied_fix, edits, safe, fixed) = &items[lo];
+                    // The same edits as a fix already kept (one fix
+                    // reported for several findings).
+                    if !edits.is_empty() && edits.iter().all(|e| kept_set.contains(e)) {
+                        applied.push(applied_fix.clone());
+                        continue;
+                    }
+                    // Whether this fix is being tried on its own. A fix that
+                    // makes the file worse only in combination with others
+                    // is retried in a later pass (where the others have
+                    // been applied or dropped); only a fix that fails on its
+                    // own is blocked for good, so that `--fix` reaches a
+                    // fixpoint in one invocation instead of needing a second
+                    // run.
+                    let solo = kept.is_empty();
+                    let mut trial = kept.clone();
+                    trial.extend(edits.iter().cloned());
+                    let mut trial_safe = kept_safe.clone();
+                    if *safe {
+                        trial_safe.extend(edits.iter().cloned());
+                    }
+                    let Some((trial_text, trial_health, problem)) =
+                        check(&trial, &trial_safe, *safe)
+                    else {
+                        continue;
+                    };
+                    match problem {
+                        None => {
+                            kept_set.extend(edits.iter().cloned());
+                            kept = trial;
+                            kept_safe = trial_safe;
+                            kept_text = Some(trial_text);
+                            kept_health = trial_health;
+                            applied.push(applied_fix.clone());
+                        }
+                        Some(problem) if solo => {
+                            let d = &pass_result.diagnostics[*fixed];
+                            rejected.borrow_mut().insert((
+                                d.0,
+                                applied_fix.message.clone(),
+                                d.1.clone(),
+                            ));
+                            harmful.push(SkippedFix {
+                                rule: applied_fix.rule,
+                                message: applied_fix.message.clone(),
+                                reason: problem,
+                                harmful: true,
+                            });
+                        }
+                        // Rejected only in combination: leave it for a later
+                        // pass rather than reporting or blocking it.
+                        Some(_) => {}
+                    }
+                    continue;
+                }
+                let mut trial = kept.clone();
+                let mut trial_set = kept_set.clone();
+                let mut trial_safe = kept_safe.clone();
+                let mut safe_set: FxHashSet<&TextEdit> = kept_safe.iter().collect();
+                let mut safe = false;
+                for (_, edits, fix_safe, _) in &items[lo..hi] {
+                    for e in edits {
+                        if trial_set.insert(e.clone()) {
+                            trial.push(e.clone());
+                        }
+                        if *fix_safe && safe_set.insert(e) {
+                            trial_safe.push(e.clone());
+                        }
+                    }
+                    safe |= *fix_safe;
+                }
+                trial.sort_by_key(|e| e.range);
+                trial_safe.sort_by_key(|e| e.range);
+                match check(&trial, &trial_safe, safe) {
+                    Some((trial_text, trial_health, None)) => {
+                        kept_set = trial_set;
+                        kept = trial;
+                        kept_safe = trial_safe;
+                        kept_text = Some(trial_text);
+                        kept_health = trial_health;
+                        applied.extend(items[lo..hi].iter().map(|(a, _, _, _)| a.clone()));
+                    }
+                    _ => {
+                        let mid = lo + (hi - lo) / 2;
+                        todo.push((mid, hi));
+                        todo.push((lo, mid));
+                    }
                 }
             }
             let Some(kept_text) = kept_text else {

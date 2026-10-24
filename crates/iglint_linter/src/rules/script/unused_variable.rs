@@ -38,7 +38,14 @@ Not reported:
 * names matching the dummy pattern: `_`, starting with `_`, `dummy`,
   `ignored_...`, `unused_...` (option `dummy-pattern`);
 * functions that read their locals dynamically (`locals()`, `vars()`,
-  `eval`, `exec`), for example `"%(name)s" % locals()`;
+  `eval`, `exec`), for example `"%(name)s" % locals()`, and every function
+  of a module with code that reads or writes a frame's or a module's names
+  by itself (`sys._getframe()`, `.f_locals`, `.tb_frame`, `e = eval`,
+  `import __builtin__`; the table is in `docs/internal/fix-safety.md`,
+  "Frame routes: findings and fixes"). Reflection or introspection that
+  is only a first hop (a Java member that leads to reflection such as
+  `.type` or `getColumnType(i)`, `getattr` with a computed name,
+  `sys.exc_info()`, line numbers) does not silence the rule;
 * the exception class in `except ValueError, TypeError:`, which `SCR115`
   reports.
 

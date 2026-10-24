@@ -21,7 +21,10 @@
 //! * a docstring changes (a deletion may promote a later string);
 //! * the `from __future__` features differ;
 //! * the scopes differ, or a scope's generator status, `global`
-//!   declarations or dynamic features (`import *`, `exec`, frame reads);
+//!   declarations or dynamic features (`import *`, `exec`, frame reads),
+//!   or whether the script has any escape route
+//!   ([`SemanticModel::frame_escape`], also the routes that do not make
+//!   its scopes read their locals);
 //! * any remaining name reference resolves differently (local, enclosing
 //!   function, global, builtin, injected) or changes whether it may be
 //!   unbound. Names an import binds implicitly count too: in a library
@@ -47,9 +50,12 @@ use std::path::Path;
 
 use iglint_project::EmbeddedScript;
 use iglint_project::script::ScriptBody;
+use iglint_python::TokenKind;
 use iglint_python::ast::{Expr, Stmt};
 use iglint_python::visitor::{Visitor, walk_stmt};
-use iglint_python_semantic::{ImplicitRead, ReferenceKind, SemanticModel, SemanticOptions};
+use iglint_python_semantic::{
+    CompileErrorKind, ImplicitRead, ReferenceKind, SemanticModel, SemanticOptions,
+};
 use iglint_text::{TextEdit, TextRange};
 
 /// One script of a file, as Ignition compiles it.
@@ -101,6 +107,10 @@ pub(crate) struct ScriptFacts {
     size_open: Option<String>,
     docstrings: Vec<String>,
     futures: Vec<String>,
+    /// Whether the script has an escape route of either kind
+    /// ([`SemanticModel::frame_escape`]): routes that do not make the
+    /// scopes read their locals are compared here.
+    frame_escape: bool,
     scopes: Vec<ScopeFacts>,
 }
 
@@ -130,14 +140,23 @@ impl ScriptFacts {
             size_open: None,
             docstrings: docstrings(&parsed.module.body),
             futures: futures(&parsed.module.body),
+            frame_escape: false,
             scopes: Vec::new(),
         };
         if parsed.errors.is_empty() {
             facts.size_open = iglint_python_semantic::size_unknown(&parsed.module, &script.source);
+            // A size error is certain (a lower bound above a limit): the
+            // script fails to compile. Its numbers move with any edit, so
+            // only which limit fails is compared (review round 24): a fix
+            // that keeps the script failing keeps its compile status.
             errors.extend(
                 iglint_python_semantic::size_errors(&parsed.module, &script.source)
                     .into_iter()
-                    .map(|e| e.message),
+                    .map(|e| match e.kind {
+                        CompileErrorKind::MethodTooLarge => "Module or method too large".to_owned(),
+                        CompileErrorKind::ClassTooLarge => "Class too large".to_owned(),
+                        _ => e.message,
+                    }),
             );
             let options = SemanticOptions {
                 injected: script.injected.iter().map(String::as_str).collect(),
@@ -150,9 +169,11 @@ impl ScriptFacts {
                     .into_iter()
                     .map(|e| e.message),
             );
+            facts.frame_escape = model.frame_escape().is_some();
             facts.scopes = scopes(&model);
         }
         errors.sort();
+        errors.dedup();
         facts.errors = errors;
         facts
     }
@@ -315,7 +336,9 @@ fn scripts_problem(
         return Some(problem);
     }
     for ((b, facts), a) in before_scripts.iter().zip(before_facts).zip(after_scripts) {
-        if b.source == a.source {
+        // A script whose tokens are unchanged compiles to the same code,
+        // whatever its compile status (trailing whitespace, a comment).
+        if b.source == a.source || same_compilation(&b.source, &a.source) {
             continue;
         }
         let after = ScriptFacts::of(a);
@@ -334,9 +357,10 @@ fn scripts_problem(
 ///
 /// As [`crate::engine::fix_file`] does: when the net accepts all safe
 /// fixes of the file together, a fix pass applies them at once and none
-/// is marked; otherwise each safe fix is checked on its own, and one the
-/// net drops on its own is marked (one dropped only together with others
-/// is retried by a later pass, so it stays safe).
+/// is marked; otherwise the fixes are halved into groups until a group
+/// passes or holds one fix, and a fix the net drops on its own is marked
+/// (one dropped only together with others is retried by a later pass, so
+/// it stays safe).
 pub(crate) fn mark_rejected_safe_fixes(
     path: &Path,
     text: &str,
@@ -385,28 +409,219 @@ pub(crate) fn mark_rejected_safe_fixes(
             &scripts(&after),
         )
     };
-    let mut all: Vec<TextEdit> = fixes.iter().flat_map(|(_, e)| e.iter().cloned()).collect();
-    all.sort_by_key(|e| e.range);
-    all.dedup();
-    if iglint_text::apply_edits(text, &all).is_ok() && problem(&all).is_none() {
-        return;
-    }
-    for (i, edits) in fixes {
-        if let Some(p) = problem(&edits)
-            && let Some(fix) = diagnostics[i].fix.as_mut()
-        {
-            fix.applicability = Applicability::Unsafe;
-            fix.unsafe_reason = Some(UnsafeReason::new(format!(
-                "the safe fix could change what the code does ({p})"
-            )));
+    // Groups of fixes, halved until they pass (review round 24): a group
+    // the net accepts whole is applied whole by a fix pass, and a single
+    // fix is marked when the net drops it on its own. With `k` such fixes
+    // this takes O(k log n) evaluations of the net instead of `n`, and
+    // never more than `2n`.
+    let group_edits = |group: &[(usize, Vec<TextEdit>)]| -> Vec<TextEdit> {
+        let mut all: Vec<TextEdit> = group.iter().flat_map(|(_, e)| e.iter().cloned()).collect();
+        all.sort_by_key(|e| e.range);
+        all.dedup();
+        all
+    };
+    // Fixes that may change a token of a script whose compile status is
+    // not known fail on their own; they are marked without evaluating the
+    // net.
+    let unknown = UnknownStatus::of(text, &before, &facts);
+    let mut fixes = fixes;
+    fixes.retain(|(i, edits)| match unknown.rejects(text, edits) {
+        Some(p) => {
+            if let Some(fix) = diagnostics[*i].fix.as_mut() {
+                fix.applicability = Applicability::Unsafe;
+                fix.unsafe_reason = Some(UnsafeReason::new(format!(
+                    "the safe fix could change what the code does ({p})"
+                )));
+            }
+            false
         }
+        None => true,
+    });
+    let mut todo = vec![(0, fixes.len())];
+    while let Some((lo, hi)) = todo.pop() {
+        if lo >= hi {
+            continue;
+        }
+        let group = &fixes[lo..hi];
+        if let [(i, edits)] = group {
+            if let Some(p) = problem(edits)
+                && let Some(fix) = diagnostics[*i].fix.as_mut()
+            {
+                fix.applicability = Applicability::Unsafe;
+                fix.unsafe_reason = Some(UnsafeReason::new(format!(
+                    "the safe fix could change what the code does ({p})"
+                )));
+            }
+            continue;
+        }
+        let all = group_edits(group);
+        if iglint_text::apply_edits(text, &all).is_ok() && problem(&all).is_none() {
+            continue;
+        }
+        let mid = lo + (hi - lo) / 2;
+        todo.push((mid, hi));
+        todo.push((lo, mid));
     }
+}
+
+/// Whether Jython compiles `before` and `after` (two versions of one
+/// script, with its header) to the same code, proven by lexing both: the
+/// same tokens (kind, text, indentation width, line and column of the
+/// token and of the position Jython gives it), the same lexical errors,
+/// the same encoding declaration and the same verdict on the length of
+/// the first two lines ([`iglint_python_semantic::mark_limit_error`]).
+/// Everything the compiler reads is in those, so the compile status (even
+/// one that is not known) and every fact the net compares are the same.
+/// Lines are checked separately ([`line_problem`]).
+pub(crate) fn same_compilation(before: &str, after: &str) -> bool {
+    use iglint_text::{LineIndex, Ranged, TextSize};
+    let mark = |s: &str| iglint_python_semantic::mark_limit_error(s).map(|e| e.message);
+    if mark(before) != mark(after)
+        || iglint_python::encoding_declaration(before).map(|(n, _)| n)
+            != iglint_python::encoding_declaration(after).map(|(n, _)| n)
+    {
+        return false;
+    }
+    let (bt, be) = iglint_python::tokenize(before);
+    let (at, ae) = iglint_python::tokenize(after);
+    if bt.len() != at.len() || be.len() != ae.len() {
+        return false;
+    }
+    let (bi, ai) = (LineIndex::python(before), LineIndex::python(after));
+    let at_b = |o: TextSize| bi.line_column(o, before);
+    let at_a = |o: TextSize| ai.line_column(o, after);
+    let errors_same = be.iter().zip(&ae).all(|(b, a)| {
+        b.message == a.message
+            && b.kind == a.kind
+            && at_b(b.range.start()) == at_a(a.range.start())
+            && b.range.slice(before) == a.range.slice(after)
+    });
+    // The token that ends a line (and the end of the file) moves within
+    // its line when trailing whitespace or a comment before it changes,
+    // and its text holds the blank lines after it: Jython's code records
+    // lines, not columns, no node takes its position from it, and a change
+    // of the lines it spans moves the next token, so only its line is
+    // compared.
+    let line_end = |k: TokenKind| {
+        matches!(
+            k,
+            TokenKind::Newline | TokenKind::RecoveryNewline | TokenKind::EndOfFile
+        )
+    };
+    let place_b = |k: TokenKind, o: TextSize| {
+        let at = at_b(o);
+        (at.line, if line_end(k) { 0 } else { at.column })
+    };
+    let place_a = |k: TokenKind, o: TextSize| {
+        let at = at_a(o);
+        (at.line, if line_end(k) { 0 } else { at.column })
+    };
+    errors_same
+        && bt.iter().zip(&at).all(|(b, a)| {
+            b.kind == a.kind
+                && b.width == a.width
+                && (line_end(b.kind) || b.range().slice(before) == a.range().slice(after))
+                && place_b(b.kind, b.range.start()) == place_a(a.kind, a.range.start())
+                && std::mem::discriminant(&b.anchor.kind())
+                    == std::mem::discriminant(&a.anchor.kind())
+                && b.anchor.offset().map(|o| place_b(b.kind, o))
+                    == a.anchor.offset().map(|o| place_a(a.kind, o))
+        })
+}
+
+/// The scripts of a file whose compile status is not known
+/// ([`status_unknown`]), so that the net drops every safe fix that changes
+/// their tokens: the tokens of each script that is the whole file (a `.py`
+/// library module), lexed once. Used to drop such fixes without
+/// evaluating the net on each (review round 24): a fix whose edits may
+/// change a token is dropped at once ([`UnknownStatus::rejects`]), the
+/// others are still evaluated. A fix dropped here is one the net would
+/// drop unless its edits leave every token as it is, which this check does
+/// not try to prove: such a fix becomes unsafe, never wrongly safe.
+pub(crate) struct UnknownStatus {
+    scripts: Vec<(String, Vec<iglint_python::Token>)>,
+}
+
+impl UnknownStatus {
+    /// The scripts of `text` (`scripts`, with their facts) whose status is
+    /// not known.
+    pub(crate) fn of(text: &str, scripts: &[ScriptText], facts: &[ScriptFacts]) -> UnknownStatus {
+        let scripts = scripts
+            .iter()
+            .zip(facts)
+            .filter_map(|(script, facts)| {
+                let open = status_unknown(facts)?;
+                (script.json_body.is_none() && script.source == text)
+                    .then(|| (open.clone(), iglint_python::tokenize(text).0))
+            })
+            .collect();
+        UnknownStatus { scripts }
+    }
+
+    /// Why the net certainly drops a safe fix with `edits` (ranges in the
+    /// file's text), if it may change a token of a script whose status is
+    /// not known. An edit may leave the tokens as they are only if it
+    /// overlaps no token (the end of a line aside) and both the text it
+    /// removes and the text it inserts are spaces and tabs, or lie within a
+    /// comment, without a line break.
+    pub(crate) fn rejects(&self, text: &str, edits: &[TextEdit]) -> Option<String> {
+        let (open, tokens) = self.scripts.first()?;
+        let neutral = |e: &TextEdit| {
+            let (start, end) = (e.range.start(), e.range.end());
+            // A token the edit overlaps, or that holds an insertion (the
+            // token that ends a line aside): the tokens are sorted, so only
+            // those from the first that ends after the start are looked at.
+            let last = end.max(start + iglint_text::TextSize::new(1));
+            let i = tokens.partition_point(|t| t.range.end() <= start);
+            let overlaps = tokens
+                .get(i..)
+                .unwrap_or_default()
+                .iter()
+                .take_while(|t| t.range.start() < last)
+                .any(|t| {
+                    !t.range.is_empty()
+                        && !matches!(t.kind, TokenKind::Newline | TokenKind::EndOfFile)
+                        && !(start == end && t.range.start() >= start)
+                });
+            if overlaps {
+                return false;
+            }
+            let Some(removed) = e.range.get(text) else {
+                return false;
+            };
+            let blank = |s: &str| s.chars().all(|c| c == ' ' || c == '\t');
+            let no_break = |s: &str| !s.contains(['\n', '\r']);
+            let line_start = text
+                .get(..usize::from(start))
+                .and_then(|b| b.rfind(['\n', '\r']).map(|i| i + 1))
+                .unwrap_or(0);
+            // A comment starts on the line before the edit, or the edit
+            // starts with it.
+            let in_comment = text
+                .get(line_start..usize::from(start))
+                .is_some_and(|before| before.contains('#'))
+                || removed.starts_with('#');
+            no_break(removed)
+                && no_break(&e.content)
+                && ((blank(removed) && blank(&e.content)) || in_comment)
+        };
+        (!edits.iter().all(neutral))
+            .then(|| format!("it changes a script whose compile status is not known: {open}"))
+    }
+}
+
+/// Whether the compile status of a script is not known: no error is
+/// certain and a size bound lies on both sides of a limit. A script with
+/// a certain error (a syntax or compile error, or a lower size bound
+/// above a limit) fails to compile, whatever the upper bounds say.
+fn status_unknown(facts: &ScriptFacts) -> Option<&String> {
+    facts.size_open.as_ref().filter(|_| facts.errors.is_empty())
 }
 
 /// The first difference between the facts of a script before and after a
 /// fix.
 fn compare(before: &ScriptFacts, after: &ScriptFacts) -> Option<String> {
-    if let Some(open) = before.size_open.as_ref().or(after.size_open.as_ref()) {
+    if let Some(open) = status_unknown(before).or(status_unknown(after)) {
         return Some(format!(
             "it changes a script whose compile status is not known: {open}"
         ));
@@ -419,6 +634,11 @@ fn compare(before: &ScriptFacts, after: &ScriptFacts) -> Option<String> {
     }
     if before.futures != after.futures {
         return Some("it would change the `__future__` imports".to_owned());
+    }
+    if before.frame_escape != after.frame_escape {
+        return Some(
+            "it would change whether the script uses reflection or introspection".to_owned(),
+        );
     }
     if before.scopes.len() != after.scopes.len() {
         return Some("it would change the scopes of a script".to_owned());
@@ -870,6 +1090,127 @@ mod tests {
             &scripts(&after),
         );
         assert!(problem.is_some_and(|p| p.contains("compiles")));
+    }
+
+    /// Review round 24, item 2 (a): an edit that leaves every token where
+    /// it was compiles to the same code, proven by lexing; anything else is
+    /// compared as before.
+    #[test]
+    fn token_identity_is_proven_by_lexing() {
+        let same = [
+            ("x = 1   \ny = 2\n", "x = 1\ny = 2\n"),
+            ("x = 1  # note   \n", "x = 1  # note\n"),
+            ("# a comment\nx = 1\n", "# another one\nx = 1\n"),
+            (
+                "def f():\n    return 1   \n\t\nx = 2\n",
+                "def f():\n    return 1\n\nx = 2\n",
+            ),
+            ("s = '''a\nb'''  \n", "s = '''a\nb'''\n"),
+            // Inside brackets a line continues without the backslash.
+            ("x = (1 +\n 2)\n", "x = (1 + \\\n 2)\n"),
+        ];
+        for (b, a) in same {
+            assert!(same_compilation(b, a), "{b:?} -> {a:?}");
+        }
+        let different = [
+            // a token moves within its line, or to another line
+            ("x = 1\n", "x =  1\n"),
+            ("x = 1\ny = 2\n", "x = 1\n\ny = 2\n"),
+            // a token's text: a string, a name
+            ("s = 'a  '\n", "s = 'a'\n"),
+            ("x = 1\n", "y = 1\n"),
+            // the encoding declaration of the first two lines
+            ("# coding: latin-1\nx = 1\n", "# note\nx = 1\n"),
+            // a comment that becomes code, a line continued by a backslash
+            ("x = 1 # y = 2\n", "x = 1\ny = 2\n"),
+            ("x = 1\ny = 2\n", "x = 1 \\\ny = 2\n"),
+            // indentation
+            ("if x:\n    y\n", "if x:\n  y\n"),
+        ];
+        for (b, a) in different {
+            assert!(!same_compilation(b, a), "{b:?} -> {a:?}");
+        }
+        // The length of the first two lines decides `Mark invalid`.
+        let long = format!("x = 1{}\ny = 2\n", " ".repeat(100_000));
+        assert!(!same_compilation(&long, "x = 1\ny = 2\n"));
+    }
+
+    /// Review round 24, item 2 (b) and (c): a script that certainly fails
+    /// to compile (a lower size bound above a limit) has a known status,
+    /// whatever its upper bounds; and fixes that may change a token of a
+    /// script whose status is not known are dropped without evaluating
+    /// the net, while blank edits are left to it.
+    #[test]
+    fn known_failure_and_unknown_status() {
+        let script = |source: &str| ScriptText {
+            node_path: "m".to_owned(),
+            source: source.to_owned(),
+            injected: Vec::new(),
+            module_has_name: true,
+            json_body: None,
+        };
+        // Too large for certain: the facts carry which limit fails, not
+        // its numbers, and the status is known.
+        let big = |n: usize, extra: &str| {
+            let mut s: String = (0..n).map(|i| format!("x{i} = {i}\n")).collect();
+            s.push_str(extra);
+            s
+        };
+        let (b, a) = (big(9000, "import math\n"), big(9000, "\n"));
+        let (fb, fa) = (ScriptFacts::of(&script(&b)), ScriptFacts::of(&script(&a)));
+        assert!(
+            fb.errors.iter().any(|e| e == "Module or method too large"),
+            "{:?}",
+            fb.errors
+        );
+        assert_eq!(status_unknown(&fb), None);
+        assert_eq!(compare(&fb, &fa), None);
+        // Not known: a fix that changes tokens is dropped by the prefilter
+        // and by the net; one that only removes trailing whitespace is not.
+        let unknown = (0..3000)
+            .map(|i| format!("x{i} = 1   \n"))
+            .collect::<String>()
+            + "import math\n";
+        let facts = ScriptFacts::of(&script(&unknown));
+        assert!(status_unknown(&facts).is_some(), "{:?}", facts.errors);
+        let status = UnknownStatus::of(&unknown, &[script(&unknown)], std::slice::from_ref(&facts));
+        let at = |needle: &str, len: usize, content: &str| {
+            let start = unknown.find(needle).unwrap();
+            TextEdit::replace(
+                TextRange::new(
+                    iglint_text::TextSize::from(start),
+                    iglint_text::TextSize::from(start + len),
+                ),
+                content.to_owned(),
+            )
+        };
+        let import = at("import math", "import math".len(), "");
+        let blank = at("   \n", 3, "");
+        let comment = at("   \n", 0, "  # note");
+        assert!(
+            status
+                .rejects(&unknown, std::slice::from_ref(&import))
+                .is_some()
+        );
+        assert!(
+            status
+                .rejects(&unknown, std::slice::from_ref(&blank))
+                .is_none()
+        );
+        // Inserting a comment is not recognised as neutral: dropped
+        // (unsafe, never wrongly safe).
+        assert!(
+            status
+                .rejects(&unknown, std::slice::from_ref(&comment))
+                .is_some()
+        );
+        let after = iglint_text::apply_edits(&unknown, std::slice::from_ref(&blank)).unwrap();
+        assert!(same_compilation(&unknown, &after));
+        let after = iglint_text::apply_edits(&unknown, std::slice::from_ref(&import)).unwrap();
+        assert!(
+            compare(&facts, &ScriptFacts::of(&script(&after)))
+                .is_some_and(|p| p.contains("compile status is not known"))
+        );
     }
 
     /// The net sees the `__package__` an import binds in a library module:

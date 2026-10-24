@@ -82,19 +82,26 @@ Three mechanisms carry it:
 2. **The default-deny walkers.** Within vetted code, the access analysis of
    `VIEW015` and `NAME001` (`script_facts/access.rs`) enumerates the
    understood uses of components and properties and treats every other
-   use as reading and writing everything; the introspection routes of
-   `iglint_python_semantic::dynamic` make every scope of a module read
-   its locals and write its globals; callee checks resolve library names
-   to plain functions, classes and literal constants.
+   use as reading and writing everything; every introspection route of
+   `iglint_python_semantic::dynamic` withholds the safe fixes that depend
+   on what code reads, and the routes that read or write names by
+   themselves also make every scope of the module read its locals and
+   write its globals (see "Frame routes: findings and fixes"); callee
+   checks resolve library names to plain functions, classes and literal
+   constants.
 3. **The post-fix safety net** (`crate::safety`, run by the engine for
    `--fix`, `--diff` and the language server's fix-all). A safe fix on
    Python code is dropped when, for any script of the file, it moves a
    line, changes whether the script compiles (syntax and compile errors,
-   in either direction), changes a script whose compile status is not
-   known (its size bounds lie on both sides of a limit, see "Size
-   limits" under "Decisions"), changes a docstring or the `__future__` imports,
-   changes the scopes (generator status, `global` declarations, `import
-   *`, `exec`, frame reads), or changes what any remaining name resolves
+   in either direction), changes the tokens of a script whose compile
+   status is not known (no error is certain and its size bounds lie on
+   both sides of a limit, see "Size limits" under "Decisions"; an edit
+   that leaves every token where it was, proven by lexing before and
+   after, compiles to the same code whatever the status), changes a
+   docstring or the `__future__` imports, changes the scopes (generator
+   status, `global` declarations, `import *`, `exec`, frame reads) or
+   whether the script has an escape route of either kind (see "Frame
+   routes: findings and fixes"), or changes what any remaining name resolves
    to (local, enclosing function, global, builtin, injected, and where a
    class body's lookup continues), which kinds of bindings it may find,
    or whether it may be unbound; the interpreter's implicit reads count
@@ -451,12 +458,17 @@ member class, a function, class or constant of a vetted module, a
 builtin, a project library module, anything not vetted) may be held only
 by a name whose every use the walker analyses. Every other holder
 receives it as a value**, and a value is checked where it is computed:
-a module object, a Java class, a binding that is not vetted or the
-builtin `type` used anywhere but a read-only place (a callee, the object
-of an attribute read, a comparison, the class arguments of `isinstance`,
-`issubclass` and `super`, `str`/`repr`/`unicode`, `print`, `%`) is
-unknown code, and a file facility used as a value is a possible file
-read. That covers every binding form that evaluates an expression:
+a module object or a binding that is not vetted used as a value anywhere
+(only a callee or the object of an attribute read is not a value) is
+unknown code; a Java class or the builtin `type` is unknown code unless
+it is only read, in a read-only place (a callee, the object of an
+attribute read, an operand of `is` or `is not`, an `except` clause, the
+class arguments of `isinstance`, the second argument of `issubclass`, the
+arguments of `super`, the argument of `str`/`repr`/`unicode`, `print`, the
+right operand of `%` on a string literal; see "Classes in operators"
+below); and a file facility used as a value is a possible file read.
+(`vetted::Walk::value_use`: the code fails closed for module objects,
+which no read-only place admits.) That covers every binding form that evaluates an expression:
 assignments in any scope (class bodies included), default arguments,
 `for`, `with` and `except` targets, comprehension variables that leak
 from a Python 2 class body, attribute stores (`self.x = sys`, `obj.x =
@@ -519,6 +531,33 @@ the import, and the same routes to a plain attribute vetted),
 file-read gate, and `del l.K.math.pi`, `k = l.K` and a nested class of
 another module) and the language server test
 `quick_fix_after_a_class_attribute_module_change_is_not_preferred`.
+
+#### Classes in operators
+
+Review round 24 (Codex and Opus): comparisons and `%` handed a Java class
+to special methods that user code may define. `E() == AbstractMap` calls
+`E.__eq__` with the class, which may `del o.SimpleEntry` for every later
+script; on the 8.3.3 image a later `AbstractMap.SimpleEntry` then raises
+`AttributeError`. Measured there as well: `!=` (`__ne__`), `%` with a
+value on the left (`__mod__`), `in` (`__contains__`) and `issubclass(C,
+U)` (the metaclass's `__subclasscheck__` receives `C`). So these are not
+read-only places any more (fail closed): an operand of a comparison is
+read only when every operator next to it is `is` or `is not` (identity
+runs no special method), `%` only when its left operand is a string
+literal (`str.__mod__` formats the class with `str` or `repr`, and a
+Java class proxy is no subclass of `str`, so no `__rmod__` of it runs
+first), and of `issubclass` only the second argument (its metaclass
+receives the first). `isinstance(x, C)` keeps its class arguments: their
+own metaclass (a Java class proxy's is Jython's) receives `x`, which is
+checked as a value. The same holds for `type(x)` and `x.__class__`:
+`type(x) == C` is unknown code, `type(x) is C` is a read.
+
+Measured on the private corpus (its revision of 2026-10-24): findings,
+fix applicabilities and unsafe reasons byte-identical before and after
+(5,405 findings with every rule). Tests:
+`classes_reaching_special_methods_are_unknown` (every form above, with
+the site) and the read-only forms in `changing_a_shared_object_is_unknown`
+and `class_attributes_of_values_are_followed`.
 
 ### Names imports bind
 
@@ -666,6 +705,90 @@ does that and never fails, and every safety-relevant scan uses it (the
 introspection-attribute scan, `NAME001`'s literal collection). The
 `script_facts` access and reference analyses already fail closed on a
 non-decodable key (an unknown key reads and writes everything).
+
+### Frame routes: findings and fixes
+
+Review round 24 (Opus and Codex, recall): any of the 145 measured
+reflective Java member names (`.type`, `.base`, `.fields`, `.module`,
+`.methods`, `.package`, `.validator`, `.traceback`, `getType()`,
+`getColumnType(i)`, `__class__`) anywhere in a module made the whole
+module a frame escape: every scope read its locals, so `SCR102`,
+`SCR103`, `REF002` and `REF012` reported nothing in it (`def g(o): return
+o.type` silenced an unused import, an unused variable and an unused
+function in `f`). A route there is the first hop of a chain that could
+end in a frame, which matters for a fix that must be safe whatever the
+code does, but it does not make a finding likely false.
+
+The routes of `iglint_python_semantic::dynamic` are therefore split
+(`dynamic::Route`). Every route of either kind (`dynamic::frame_escape`,
+`SemanticModel::frame_escape`) makes the safe fixes that depend on what
+code reads unsafe, exactly as before: `SCR102`'s fix names the route as
+its site, the module's code is unknown for the closed world
+(`script_facts::refs`, `ModuleSymbols::unknown_code`), the access
+analysis of `VIEW015` and `NAME001` reads and writes everything, library
+symbols are variables and the namespace is dynamic for every fix-side
+consumer (`ModuleSymbols` itself), and the safety net drops a safe fix
+that adds or removes a route. Only routes that read or write a frame's or
+a module's names by themselves (`dynamic::frame_observer`,
+`Route::Observes`) make every scope read its locals and write its
+globals, which silences findings; the symbols for findings
+(`ModuleSymbols::for_findings`, used by `REF002`, `REF012` and `REF003`)
+leave out the other routes. `SCR103`'s fix is unsafe in any case.
+
+| Route | Example | Findings silenced | Fixes |
+|---|---|---|---|
+| a frame builtin used as a value, or with unpacked arguments | `e = eval`, `f(vars)`, `eval(*a)` | yes: it reads the frame of whoever calls it | unsafe |
+| the builtins module | `import __builtin__`, `__builtins__` | yes: it hands out `eval` and `locals` | unsafe |
+| `__import__` of a frame-reaching module or of a computed name | `__import__('__builtin__')`, `__import__(n)` | yes | unsafe |
+| frames and the module table | `sys._getframe`, `sys._current_frames`, `sys.modules`, `inspect.currentframe`, `inspect.stack`, `inspect.getouterframes`, `gc.get_referrers`, `from sys import *` | yes | unsafe |
+| trace hooks | `sys.settrace`, `sys.setprofile` | yes: hooks receive frames | unsafe |
+| frame, traceback and generator links, function globals | `.f_locals`, `.f_globals`, `.f_back`, `.f_builtins`, `.f_trace`, `.tb_frame`, `.gi_frame`, `.func_globals`, `.__globals__`, also as a literal in a sink | yes | unsafe |
+| a frame-reaching module as a value | `x = sys`, `getattr(sys, n)` | yes: its frame functions are no longer named | unsafe |
+| the interpreter's classes | `from org.python.core import Py`, `PyFrame`, `ThreadState`, `PySystemState`, `import org.python.core` | yes: `Py.getFrame()` | unsafe |
+| a reflective accessor or format method under another name | `get = getattr`, `map(getattr, ...)`, `f = template.format` | yes: every call of it is hidden | unsafe |
+| measured reflective Java members | `.type`, `.fields`, `.module`, `getColumnType(i)`, `.__class__`, `.traceback` | no: a first hop into Java reflection | unsafe |
+| Java reflection | `.getClass()`, `Class.forName`, `.loadClass`, `from java.lang import Class`, `java.lang.reflect`, `javax.script` | no | unsafe |
+| a computed attribute name or format string | `getattr(o, n)`, `setattr(o, n, v)`, `'{0}'.format` on a computed string, `vars(o)`, `getattr(o, 'class')` | no: it reads what it is given | unsafe |
+| the exception state and tracebacks as text | `sys.exc_info()`, `sys.exc_traceback`, `import traceback`, `.tb_lineno`, `.tb_next` | no: a frame needs `tb_frame` (a route of its own) | unsafe |
+| line numbers, code objects, class hierarchies, method internals | `.f_lineno`, `.co_varnames`, `.func_code`, `.__dict__`, `.__mro__`, `.__subclasses__`, `.im_self`, `inspect.getmembers` | no: none of them reads a frame's names | unsafe |
+| module loaders, `compile`, Jython's value classes | `import importlib`, `imp`, `compile(...)`, `__import__('os')`, `from org.python.core import PyString` | no: what they hand out is used through further routes | unsafe |
+
+Not routes, and handled by the scope that runs them (`symbols.rs`):
+`locals()`, `vars()`, `dir()`, `eval(s)`, `execfile(f)` and `exec` called
+directly make their own scope read its locals; `exec` without `in` and
+`from x import *` in a scope make it dynamic; writes through `globals()`
+make the module dynamic. A string literal names a member only in a sink
+("String sinks"); a literal in a sink takes the route of the strongest
+name it holds.
+
+What a finding may then miss is code that reads a frame through a chain
+that starts with a first hop and names nothing that observes on the way
+(Java reflection from `.getClass()` to `Py.getFrame()` and `getLocals()`,
+or `getattr` with computed names `'gi_frame'` and `'f_globals'`). Such a
+chain makes the finding false; it is accepted for findings, never for
+fixes. `SCR104` (`redefined-unused`) and `SCR118`
+(`used-before-assignment`) read the same scope flags and follow the same
+split; `SCR307`'s rebinding check still counts every route.
+
+Measured on the private corpus (its revision of 2026-10-24, every rule,
+`--isolated`): findings 5,380 to 5,405; `SCR102` 5 to 10, `SCR103` 39 to
+55, `REF002` 75 to 76, `REF012` 21 to 24, every other rule unchanged; no
+fix applicability or unsafe reason of an existing finding changed. Every
+one of the 25 new findings was checked by hand against the code: all are
+true (unused imports and variables, never-referenced functions, a call of
+a function the module does not define), and every new finding with a fix
+has an unsafe fix. The routes that had silenced them were reflective
+member names (`.type`, `class` in a literal sink), `import traceback`,
+`sys.exc_info()`, computed `getattr`/`setattr`/`hasattr`, and Java
+reflection to load a driver.
+
+Tests: `dynamic::tests::routes_are_classified` (the table, route by
+route), `unused_import::tests::frame_access_keeps_imports` and
+`literals_name_members_only_in_sinks` (findings kept, fixes unsafe with
+the route as the site), `unused_library_function::tests::escaped_modules_are_skipped`
+and the binary test `fix_only_routes_keep_findings` (the reviewer's
+repro: `SCR102`, `SCR103` and `REF012` reported, `REF002` against a
+module with only such a route).
 
 ### Closed world
 
@@ -1647,7 +1770,9 @@ what is reported is what is applied (review round 18, N1), every path
 that reports fixes (`check` without `--fix`, the findings left after
 `--fix`, the language server's diagnostics and quick fixes) runs the net
 first, as `fix_file` does: all safe fixes of the file together, and when
-the net drops them, each on its own (`safety::mark_rejected_safe_fixes`).
+the net drops them, in halves until a group passes or holds one fix
+(`safety::mark_rejected_safe_fixes`, see "Size limits" under
+"Decisions").
 A safe fix the net drops on its own is reported as unsafe with the net's
 reason ("the safe fix could change what the code does (...)"), offered as
 an unsafe quick fix, and applied only with `--unsafe-fixes`, like every
@@ -1670,8 +1795,9 @@ and reflection APIs (`eval` / `locals` reached under any name such as
 `inspect`, `traceback`, `sys.exc_info`, `org.python.*`, `.getClass()`),
 plus functions whose code is replaced (`f.func_code = ...`, also through
 an alias or a helper). Where they matter, the guards are shared:
-`iglint_python_semantic::dynamic` (escape routes, which make every scope
-of a module read and write names dynamically),
+`iglint_python_semantic::dynamic` (escape routes: every route withholds
+the safe fixes, and those that observe names make every scope of a
+module read and write names dynamically),
 `script_facts::access` (default-deny accesses of view scripts, with
 callee checks of library names), and
 `unused_custom_property::{resolve_callee_checks,
@@ -1686,7 +1812,7 @@ fix). Each rule has a regression test with the patterns.
 | `NAME001` | look the old name up (`eval("self.getChild('Old')")`, a library function receiving `self` whose code is replaced, `getattr(self, n)`) | Unsafe when a component may escape: accesses read everything for frame routes, `exec`, values passed to unknown code, calls of unnamed values, and callee checks that do not resolve to plain functions, and code that is not vetted (`dynamic_code_makes_the_rename_unsafe`) |
 | `VIEW013` | read `view.json` itself; the running scripts cannot see the `persistent` flag, and without a stored value the property starts out absent either way | "File reads" (`dynamic_scripts_do_not_change_the_fix` for the running scripts) |
 | `VIEW015` | read or write any property | Default-deny accesses, frame routes, callee checks, rebinding through exposure and `func_globals`; inter-procedural findings unsafe; code that is not vetted makes the fix unsafe (`dynamic_patterns_read_everything`, `unvetted_code_makes_fixes_unsafe`) |
-| `SCR102` | read the import by name (`lib.util.ev('os')`, `capture()['os']`, `getattr(me, n)` on the module itself) | Scopes with escape routes or frame builtins are dynamic (no finding); a computed `getattr` on a module object keeps module imports; a library name that may be a frame builtin, or code that is not vetted, makes the fix unsafe (`library_frame_builtins_and_computed_getattr`, `frame_builtins_under_other_names_keep_imports`, `review_round_six_repros`) |
+| `SCR102` | read the import by name (`lib.util.ev('os')`, `capture()['os']`, `getattr(me, n)` on the module itself) | Scopes with escape routes that observe names, or frame builtins, are dynamic (no finding); any other escape route makes the fix unsafe ("Frame routes: findings and fixes"); a computed `getattr` on a module object keeps module imports; a library name that may be a frame builtin, or code that is not vetted, makes the fix unsafe (`library_frame_builtins_and_computed_getattr`, `frame_builtins_under_other_names_keep_imports`, `review_round_six_repros`, `frame_access_keeps_imports`) |
 | `SCR123` | read the script's file (`open(path).read()`); through the running code nothing: comments do not run, and the safe fix keeps every line, so line numbers (`f_lineno`, tracebacks, `warnings`, Java stack traces) do not move | "File reads": dynamic code may call `open` under another name, so it makes the fix unsafe unless the project declares that no script reads workspace files (`safe_removal_keeps_lines`) |
 | `SCR124`, `SCR900` | read the script's file; through the running code nothing: trailing whitespace outside string literals is not in any value, line numbers do not move, and Jython has no source for scripts compiled from strings (`inspect.getsource` raises `IOError`, tracebacks show no source lines; verified on Ignition 8.3's Jython) | "File reads" (`dynamic_code_makes_the_fix_unsafe_unless_declared`, `file_reads_make_the_fix_unsafe`) |
 
@@ -1742,9 +1868,60 @@ remaining documented assumption.
   the lower bound fits a limit and the upper bound does not
   (`limits::size_unknown`), the compile status is not known, and the
   safety net drops (so `check` reports as unsafe, see the end of "Line
-  numbers") every safe fix that changes that script, with the bounds in
-  the reason. The 100,000-character look-ahead of the first two lines is
-  exact and needs no upper bound.
+  numbers") every safe fix that changes that script's tokens, with the
+  bounds in the reason. The 100,000-character look-ahead of the first two
+  lines is exact and needs no upper bound.
+
+  Review round 24 (performance): the net then rejected the safe fixes of
+  such a script together and checked each alone, each check parsing and
+  bounding the whole script, so the time grew with the square of its size
+  (the reviewer's 1,400 lines with trailing whitespace took 3.2 s, 12,000
+  lines 95 s, 16,000 more than 120 s). Three changes, none of which lets a
+  fix through that changes what Jython compiles:
+
+  1. An edit that leaves every token where it was compiles to the same
+     code, whatever the status (`safety::same_compilation`, proven by
+     lexing both versions, not assumed): the same tokens with the same
+     kind, text, indentation width, line and column (the token that ends
+     a line by its line only: its column moves with trailing whitespace,
+     its text holds the blank lines after it, and Jython's code records
+     lines, not columns), the same position Jython gives each, the same
+     lexical errors, the same encoding declaration and the same verdict
+     on the first two lines' length. Trailing whitespace outside strings
+     and edits inside comments are such edits; the net checks lines
+     separately.
+  2. A script with a certain error (a syntax or compile error, or a
+     lower size bound above a limit) fails to compile: its status is
+     known whatever the upper bounds say, so `size_unknown` matters only
+     for a script with no certain error (`safety::status_unknown`).
+     Lower bounds are sound, so a lower bound above a limit is a failure;
+     this also holds when the mirror stops early. The net compares which
+     limit a certain size error is for, not its numbers, which move with
+     any edit: a fix that keeps the script failing keeps its status, and
+     the other checks still apply. (The engine's health check still
+     compares `SCR002`'s messages, so a fix that changes them is not
+     applied.)
+  3. The safe fixes that fail together are halved into groups until a
+     group passes or holds one fix, in `safety::mark_rejected_safe_fixes`
+     and in `engine::fix_file` (which keeps the order and the rule that
+     only a fix that fails on its own is blocked): with `k` failing fixes
+     among `n`, O(k log n) evaluations, never more than `2n`. Before
+     that, a safe fix that may change a token of a script whose status is
+     not known is dropped without evaluating the net
+     (`safety::UnknownStatus`: an edit that overlaps a token, or whose
+     removed or inserted text is not blank and not in a comment); every
+     other fix is still evaluated. The language server goes through the
+     same two functions.
+
+  Measured in release builds on one machine (`--select SCR102,SCR124`,
+  a module of 1,400 statements padded with comment lines, every line
+  ending in whitespace), `check` before and after: 1,400 lines 1.7 s to
+  0.03 s, 12,000 lines 18 s to 0.12 s, 16,000 lines 26 s to 0.16 s
+  (`--fix` 1.0 s); 2,000 functions whose every safe fix fails more than
+  150 s to 0.4 s. The release test
+  `stress::unknown_compile_status_is_not_quadratic` keeps `check` and
+  `--fix` of these shapes, and of a module whose 2,000 safe fixes all
+  fail, under 20 s each.
 
   The first upper bound (round 18) charged the largest cost measured per
   construct with a quarter on top. Review round 19 (Opus, blocker) showed
@@ -1840,8 +2017,9 @@ remaining documented assumption.
   them on measured no difference on the private project and 2 to 4% more
   time on the synthetic corpora of 500 and 5,000 views. The mirror stops
   after 4,000,000 node visits (2^50
-  copies of a `finally` body); then every bound counts as unknown, and so
-  does the script's compile status even where `SCR002` reports it.
+  copies of a `finally` body); then every upper bound counts as unknown,
+  and so does the script's compile status unless a lower bound already
+  exceeds a limit (`SCR002` reports it; see round 24 above).
 
   *Calibration.* `tests/method_size_oracle.rs` compares every Java method
   of every generated program with the oracle (`oracle/run-oracle.sh

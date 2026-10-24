@@ -25,9 +25,15 @@ expression calls `runScript("core.util.fn")`.
 
 The rule stays silent for a module whose names may be reached in ways
 that cannot be followed: the module (or its package) used as a value
-(passed to a function, `getattr(core.util, name)`), star-imported, or a
-project with non-literal `runScript`, `__import__`, `eval` or `exec`
-targets. It also stays silent in inheritable projects, in projects whose
+(passed to a function, `getattr(core.util, name)`), star-imported, a
+module that may rebind its own names at run time (`exec`, writes through
+`globals()`, code that reads or writes a frame's or a module's names by
+itself such as `sys._getframe()` or `e = eval`; reflection that is only a
+first hop, such as a `.type` Java member or `getattr` with a computed
+name, does not count, see `docs/internal/fix-safety.md`, "Frame routes:
+findings and fixes"), a function that a later `from x import *` may
+overwrite, or a project with non-literal `runScript`, `__import__`,
+`eval` or `exec` targets. It also stays silent in inheritable projects, in projects whose
 parent is not in the workspace and in projects with resources whose
 scripts are not analysed (Vision windows and templates, reports, alarm
 pipelines, SFC charts, event streams).
@@ -66,7 +72,9 @@ impl ResourceRule for UnusedLibraryFunction {
         if !super::all_library_references_known(cx.workspace(), index, project, resource.id) {
             return;
         }
-        let Some(symbols) = index.module_symbols(resource.id) else {
+        // A module whose only escape routes do not observe names (a
+        // reflective Java member such as `.type`) keeps its functions here.
+        let Some(symbols) = index.module_symbols(resource.id).map(|s| s.for_findings()) else {
             return;
         };
         for symbol in &symbols.symbols {
@@ -124,13 +132,25 @@ mod tests {
             UTIL,
         );
         assert_eq!(flagged(&f.lint(&["REF012"])), vec!["go"]);
-        // A reflective accessor with a computed name makes the caller
-        // module introspective (route 2): its own names may be reached
-        // dynamically, so nothing in it is reported.
+        // A reflective accessor with a computed name is a first hop that
+        // does not observe names by itself (`dynamic::Route::FixOnly`):
+        // the caller's own unused function is still reported (review
+        // round 24), while `core.util`, used as a value, is skipped.
         let f = with_library(
             library(
                 "app/main",
                 "def go(name):\n    return getattr(core.util, name)()\n",
+            ),
+            "core/util",
+            UTIL,
+        );
+        assert_eq!(flagged(&f.lint(&["REF012"])), vec!["go"]);
+        // Under another name the accessor hides its calls: nothing in the
+        // module is reported.
+        let f = with_library(
+            library(
+                "app/main",
+                "get = getattr\ndef go(name):\n    return get(core.util, name)()\n",
             ),
             "core/util",
             UTIL,

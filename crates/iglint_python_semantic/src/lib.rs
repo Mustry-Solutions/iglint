@@ -45,9 +45,12 @@
 //!   the code does not bind may exist, so unresolved names there are
 //!   [`Resolution::Dynamic`], not [`Resolution::Unresolved`].
 //! * A frame builtin, a frame or the builtins module that escapes
-//!   ([`dynamic::frame_escape`]: `e = eval`, `from __builtin__ import
+//!   ([`dynamic::frame_observer`]: `e = eval`, `from __builtin__ import
 //!   locals as l`, `sys._getframe`, ...) makes every scope of the module
-//!   read its locals and write the module's globals by name.
+//!   read its locals and write the module's globals by name. Any escape
+//!   route, a first hop into reflection included (`o.type`, a computed
+//!   `getattr`), is recorded for fixes ([`SemanticModel::frame_escape`])
+//!   without changing the scopes.
 //! * An import statement that runs binds `__package__` in the module's
 //!   globals when they hold `__name__` ([`SemanticOptions::module_has_name`],
 //!   [`BindingKind::ImportPackage`]), wherever the statement is.
@@ -128,7 +131,8 @@ impl<'a> SemanticModel<'a> {
         let injected: FxHashSet<&str> = options.injected.iter().copied().collect();
         let table = symbols::build(module, options.module_has_name);
         let mut out = flow::Flow::new(module, table, &injected, options.unknown_globals).run();
-        if dynamic::frame_escape(&module.body).is_some() {
+        let (frame_escape, frame_observer) = dynamic::escapes(&module.body);
+        if frame_observer.is_some() {
             // A frame builtin, a frame or the builtins module escapes: any
             // scope may have its names read or the module's written.
             for scope in &mut out.scopes {
@@ -147,6 +151,7 @@ impl<'a> SemanticModel<'a> {
             reference_at: out.reference_at,
             dunder_all: out.dunder_all,
             dunder_all_dynamic: out.dunder_all_dynamic,
+            frame_escape,
         }
     }
 }

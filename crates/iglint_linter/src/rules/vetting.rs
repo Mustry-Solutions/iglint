@@ -115,6 +115,25 @@ pub(crate) fn script_reason(
     }
 }
 
+/// Why a fix is unsafe when the script `script` (in `file`) has an escape
+/// route at `range` ([`SemanticModel::frame_escape`]): a first hop into
+/// reflection or the interpreter (`o.type`, a computed `getattr`) that
+/// does not silence findings, but through which code may read names.
+pub(crate) fn escape_reason(
+    cx: &Checker<'_, '_>,
+    file: FileId,
+    script: &EmbeddedScript<'_>,
+    range: TextRange,
+) -> UnsafeReason {
+    let mut reason = script_reason(cx, file, script, UnknownAt::Here(range));
+    reason.message = "the script uses reflection or introspection (a Java member or attribute \
+                      that leads to reflection or the interpreter, or an attribute looked up by \
+                      a computed name), through which code may read names iglint does not \
+                      follow"
+        .to_owned();
+    reason
+}
+
 /// Why a fix is unsafe under the closed-world rule
 /// ([`workspace_has_unknown_code`]): the site, the first use in the
 /// workspace, is filled in after the cache from the project index.
