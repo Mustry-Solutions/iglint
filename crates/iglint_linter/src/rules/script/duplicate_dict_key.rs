@@ -1,7 +1,6 @@
 //! SCR108 duplicate-dict-key.
 
 use iglint_python::ast::{Expr, ExprName, Number, Operator, StringValue, UnaryOp};
-use iglint_python_semantic::Resolution;
 use iglint_text::Ranged;
 use rustc_hash::FxHashMap;
 
@@ -287,11 +286,7 @@ impl ScriptRule for DuplicateDictKey {
         let Some(model) = semantic(cx, unit) else {
             return;
         };
-        let builtin = |n: &ExprName| {
-            model.reference_at(n.range).is_some_and(|r| {
-                r.resolution == Resolution::Builtin && !model.is_dynamic_chain(r.scope)
-            })
-        };
+        let builtin = |n: &ExprName| super::reads_builtin(model, n);
         let text = source(unit);
         let mut found = Vec::new();
         walk_exprs(&unit.parsed.module.body, &mut |e| {

@@ -711,6 +711,29 @@ impl<'a, 'o> Flow<'a, 'o> {
         }
     }
 
+    /// The truth value of a constant test ([`constant_truth`]). `True`,
+    /// `False` and `None` are names in Jython 2.7 that a module can rebind
+    /// (`True = 0`, `import x as None`, `globals()['None'] = 1`, verified
+    /// on Ignition 8.3.3), so they count only when no scope binds or
+    /// declares the name global, no scope is dynamic, and the caller
+    /// neither injects the name nor leaves the globals unknown.
+    fn constant_truth(&self, test: &Expr) -> Option<bool> {
+        if let Expr::Name(n) = test {
+            let name: &str = &n.id;
+            let rebindable = self.unknown_globals
+                || self.injected.contains(name)
+                || self.scopes.iter().any(|s| {
+                    s.local_index.contains_key(name)
+                        || s.globals.contains_key(name)
+                        || s.is_dynamic()
+                });
+            if rebindable {
+                return None;
+            }
+        }
+        constant_truth(test)
+    }
+
     /// Whether a function declares `name` global (and may bind it before
     /// module code reads it).
     fn has_external_global_binding(&self, name: &str) -> bool {
@@ -972,7 +995,7 @@ impl<'a, 'o> Flow<'a, 'o> {
             Stmt::While(s) => self.while_loop(s, st),
             Stmt::If(s) => {
                 self.expr(&s.test, st);
-                let truth = constant_truth(&s.test);
+                let truth = self.constant_truth(&s.test);
                 let mut body = st.clone();
                 body.reachable &= truth != Some(false);
                 st.reachable &= truth != Some(true);
@@ -1134,7 +1157,7 @@ impl<'a, 'o> Flow<'a, 'o> {
     }
 
     fn while_loop(&mut self, s: &'a StmtWhile, st: &mut State) {
-        let truth = constant_truth(&s.test);
+        let truth = self.constant_truth(&s.test);
         let entry = st.clone();
         let mut head = entry.clone();
         let (breaks, exit) = loop {

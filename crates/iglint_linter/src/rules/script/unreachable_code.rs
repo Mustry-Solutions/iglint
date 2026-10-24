@@ -120,6 +120,20 @@ mod tests {
             .is_empty()
         );
         assert!(lint_module("SCR105", "if False:\n    print 1\n").is_empty());
+        // Reviewer round 15: `True` is a name a module can rebind, so a
+        // loop on it may end (`True = 0` makes it end at once on Jython).
+        for code in [
+            "True = 0\nwhile True:\n    pass\nprint 1\n",
+            "def f():\n    global True\n    True = 0\nwhile True:\n    pass\nprint 1\n",
+            "exec s\nwhile True:\n    pass\nprint 1\n",
+        ] {
+            assert!(lint_module("SCR105", code).is_empty(), "{code}");
+        }
+        // Without a binding, the loop never ends.
+        assert_eq!(
+            lint_module("SCR105", "x = 0\nwhile True:\n    pass\nprint 1\n").len(),
+            1
+        );
         assert!(lint_module("SCR105", "def f():\n    try:\n        return g()\n    except ValueError:\n        pass\n    return 0\n").is_empty());
         assert!(
             lint_module(

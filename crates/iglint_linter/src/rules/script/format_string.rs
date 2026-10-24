@@ -7,7 +7,7 @@ use crate::checker::Checker;
 use crate::diagnostic::Severity;
 use crate::registry::{Category, RuleMeta};
 use crate::rule::{Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
-use crate::rules::script::{report, walk_exprs};
+use crate::rules::script::{is_builtin_constant, report, semantic, walk_exprs};
 
 pub static META: RuleMeta = RuleMeta {
     code: "SCR112",
@@ -1012,8 +1012,17 @@ impl ScriptRule for FormatString {
         if !unit.parsed.errors.is_empty() {
             return;
         }
+        let Some(model) = semantic(cx, unit) else {
+            return;
+        };
         let mut found: Vec<(TextRange, String)> = Vec::new();
         walk_exprs(&unit.parsed.module.body, &mut |e| {
+            // `None` is a name a module can rebind (`import x as None`):
+            // the literal analysis takes it for the constant only where it
+            // reads the builtin.
+            if reads_rebound_none(model, e) {
+                return;
+            }
             if let Some(problem) = expression_problem(e) {
                 found.push((e.range(), problem));
             }
@@ -1022,6 +1031,33 @@ impl ScriptRule for FormatString {
             report(cx, unit, range, message);
         }
     }
+}
+
+/// Whether `e` holds a name `None` that may not be the builtin constant
+/// ([`is_builtin_constant`]).
+fn reads_rebound_none(model: &iglint_python_semantic::SemanticModel<'_>, e: &Expr) -> bool {
+    use iglint_python::visitor::{Visitor, walk_expr};
+    struct Find<'m, 'a> {
+        model: &'m iglint_python_semantic::SemanticModel<'a>,
+        found: bool,
+    }
+    impl<'e> Visitor<'e> for Find<'_, '_> {
+        fn visit_expr(&mut self, e: &'e Expr) {
+            if let Expr::Name(n) = e
+                && &*n.id == "None"
+                && !is_builtin_constant(self.model, e)
+            {
+                self.found = true;
+            }
+            walk_expr(self, e);
+        }
+    }
+    let mut find = Find {
+        model,
+        found: false,
+    };
+    find.visit_expr(e);
+    find.found
 }
 
 /// Why formatting with the expression `e` fails, when it is `%` or
@@ -1776,6 +1812,16 @@ t = '%o' % ((1,),)
 "#;
         let d = lint_module("SCR112", failing);
         assert_eq!(lines(&d).len(), failing.lines().count(), "{d:?}");
+        // Reviewer round 15: `None` is a name (`import x as None` rebinds
+        // it on Jython), so it is the constant only where it is the
+        // builtin.
+        for code in [
+            "from config import port as None\nd = '%x' % None\n",
+            "try:\n    pass\nexcept Exception, None:\n    pass\nd = '%x' % None\n",
+            "exec s\nd = '%x' % None\n",
+        ] {
+            assert!(lint_module("SCR112", code).is_empty(), "{code}");
+        }
         let passing = r#"a = '%d' % 1.5
 b = '%x %o %e' % (1, 2L, 3)
 c = '%s %r' % ('a', None)

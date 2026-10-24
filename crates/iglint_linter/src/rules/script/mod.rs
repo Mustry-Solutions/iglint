@@ -470,6 +470,27 @@ pub fn walk_stmts<'a>(body: &'a [Stmt], f: &mut dyn FnMut(&'a Stmt)) {
     iglint_python::visitor::walk_body(&mut v, body);
 }
 
+/// Whether the name `n` reads Jython's builtin of its name: the reference
+/// resolves to the builtins and no scope it is looked up in can bind
+/// names the code does not show (`exec`, `import *`, writes through
+/// `globals()` or `__builtin__`). An unknown reference is not.
+pub fn reads_builtin(model: &SemanticModel<'_>, n: &iglint_python::ast::ExprName) -> bool {
+    model.reference_at(n.range).is_some_and(|r| {
+        r.resolution == iglint_python_semantic::Resolution::Builtin
+            && !model.is_dynamic_chain(r.scope)
+    })
+}
+
+/// Whether `expr` is `True`, `False` or `None` reading the builtin
+/// constant ([`reads_builtin`]). In Jython 2.7 all three are names:
+/// `True = lambda: 7` and `False = 1` rebind them, and so do
+/// `import x as None`, `except E, None` and `globals()['None'] = 1`
+/// (verified on Ignition 8.3.3; only `None = 1` and `def f(None)` are
+/// syntax errors).
+pub fn is_builtin_constant(model: &SemanticModel<'_>, expr: &Expr) -> bool {
+    matches!(expr, Expr::Name(n) if matches!(&*n.id, "True" | "False" | "None") && reads_builtin(model, n))
+}
+
 /// Whether the name `name` in the module refers to the builtin of that
 /// name (it is not rebound anywhere in a scope that the reference sees).
 pub fn is_builtin_reference(model: &SemanticModel<'_>, expr: &Expr, name: &str) -> bool {

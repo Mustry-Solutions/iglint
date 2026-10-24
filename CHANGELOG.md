@@ -97,6 +97,12 @@ from 0.1.0 on.
 
 ### Fixed
 
+- SCR307, SCR105, SCR112 and the library constants of the closed world
+  treat `True`, `False` and `None` as constants only where they read
+  Jython's builtins: all three are names a module can rebind (`True =
+  lambda: 7`, `import x as None`; verified on Ignition 8.3.3), so `True =
+  lambda: 7` followed by `handleTimerEvent = True` is no longer an SCR307
+  error (review round 15, Codex).
 - The "nothing to lint" warning shows the working directory as `.`
   instead of an empty path.
 - `SCR112` missed formatting that certainly fails on Unicode (review round

@@ -8,7 +8,7 @@ use crate::checker::Checker;
 use crate::diagnostic::Severity;
 use crate::registry::{Category, RuleMeta};
 use crate::rule::{Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
-use crate::rules::script::report;
+use crate::rules::script::{is_builtin_constant, report, semantic};
 
 pub static META: RuleMeta = RuleMeta {
     code: "SCR307",
@@ -34,7 +34,9 @@ one Ignition cannot call:
   exactly 1 argument (0 given)`;
 * a value that is not callable (`handleTimerEvent = None`, a number, a
   string, a display): Ignition reports `The function 'handleTimerEvent' is
-  not defined`;
+  not defined`. `True`, `False` and `None` count only where they are
+  Jython's builtins: all three are names a module can rebind
+  (`True = lambda: 7`, `import x as None`);
 * `del handleTimerEvent`: the same.
 
 Only bindings at module level that always run are followed: one inside
@@ -122,7 +124,10 @@ fn accepts(args: &Arguments, n: usize) -> bool {
     required <= n && (args.vararg.is_some() || args.args.len() >= n)
 }
 
-fn not_callable(value: &Expr) -> bool {
+/// Whether `value` is certainly not callable. `True`, `False` and `None`
+/// count only where they read the builtin constants: all three are names
+/// that a module can rebind (`True = lambda: 7`).
+fn not_callable(value: &Expr, constant: &dyn Fn(&Expr) -> bool) -> bool {
     match value {
         Expr::Num(_)
         | Expr::Str(_)
@@ -136,7 +141,7 @@ fn not_callable(value: &Expr) -> bool {
         | Expr::GeneratorExp(_)
         | Expr::Compare(_)
         | Expr::Repr(_) => true,
-        Expr::Name(n) => matches!(&*n.id, "None" | "True" | "False"),
+        Expr::Name(_) => constant(value),
         _ => false,
     }
 }
@@ -210,7 +215,12 @@ fn statement_binds(stmt: &Stmt, name: &str) -> bool {
 
 /// The binding of `name` after the module-level statement `stmt`, given
 /// the binding before it.
-fn after<'a>(stmt: &'a Stmt, name: &str, before: Binding<'a>) -> Binding<'a> {
+fn after<'a>(
+    stmt: &'a Stmt,
+    name: &str,
+    before: Binding<'a>,
+    constant: &dyn Fn(&Expr) -> bool,
+) -> Binding<'a> {
     match stmt {
         Stmt::FunctionDef(f) if f.name.as_str() == name => {
             if f.decorator_list.is_empty() {
@@ -222,7 +232,7 @@ fn after<'a>(stmt: &'a Stmt, name: &str, before: Binding<'a>) -> Binding<'a> {
         Stmt::Assign(s) if s.targets.iter().any(|t| binds(t, name)) => match s.targets.as_slice() {
             [Expr::Name(_)] => match &*s.value {
                 Expr::Lambda(l) => Binding::Callable(&l.args, stmt),
-                value if not_callable(value) => Binding::NotCallable(stmt),
+                value if not_callable(value, constant) => Binding::NotCallable(stmt),
                 _ => Binding::Unknown,
             },
             _ => Binding::Unknown,
@@ -266,10 +276,12 @@ impl ScriptRule for RedefinedEventHandler {
         if header.name.as_str() != name {
             return;
         }
+        let model = semantic(cx, unit);
+        let constant = |e: &Expr| model.is_some_and(|m| is_builtin_constant(m, e));
         let mut binding = Binding::Unknown;
         let mut redefined = false;
         for stmt in &body[1..] {
-            let next = after(stmt, name, binding);
+            let next = after(stmt, name, binding, &constant);
             redefined |= statement_binds(stmt, name) || may_bind(stmt, name);
             binding = next;
         }
@@ -346,6 +358,7 @@ mod tests {
                 "cannot take no arguments",
             ),
             ("handleTimerEvent = None\n", "cannot be called"),
+            ("handleTimerEvent = False\n", "cannot be called"),
             ("handleTimerEvent = 1\n", "cannot be called"),
             ("handleTimerEvent = [poll]\n", "cannot be called"),
             ("del handleTimerEvent\n", "is deleted"),
@@ -378,6 +391,12 @@ mod tests {
             "handleTimerEvent = make()\n",
             "@wrap\ndef handleTimerEvent(event):\n\tpass\n",
             "handleTimerEvent, b = None, 1\n",
+            // Reviewer round 15 (Codex): `True`, `False` and `None` are
+            // names Jython lets a module rebind (verified on 8.3.3).
+            "True = lambda: 7\nhandleTimerEvent = True\n",
+            "handleTimerEvent = False\ndef f():\n\tglobal False\n\tFalse = 1\n",
+            "import helpers as None\nhandleTimerEvent = None\n",
+            "handleTimerEvent = None\nexec 'x = 1'\n",
             // Rebound afterwards to something that runs.
             "handleTimerEvent = None\ndef handleTimerEvent():\n\tpass\n",
             "handleTimerEvent = None\nexec 'handleTimerEvent = poll'\n",

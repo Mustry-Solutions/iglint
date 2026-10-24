@@ -61,7 +61,9 @@ pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols 
             });
         if !rebound
             && real.iter().all(|b| {
-                b.kind == BindingKind::Assignment && !b.unpacked && b.value.is_some_and(is_literal)
+                b.kind == BindingKind::Assignment
+                    && !b.unpacked
+                    && b.value.is_some_and(|v| is_literal(model, v))
             })
         {
             constants.push((*name).to_owned());
@@ -106,17 +108,20 @@ pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols 
 }
 
 /// An expression made of literals only (numbers, strings, `None`, `True`,
-/// `False`, containers and operators of them): never a function.
-fn is_literal(e: &Expr) -> bool {
+/// `False`, containers and operators of them): never a function. The
+/// three names count only where they read the builtin constants
+/// (`True = lambda: 7` rebinds one).
+fn is_literal(model: &SemanticModel<'_>, e: &Expr) -> bool {
+    let literal = |e: &Expr| is_literal(model, e);
     match e {
         Expr::Num(_) | Expr::Str(_) => true,
-        Expr::Name(n) => matches!(&*n.id, "None" | "True" | "False"),
-        Expr::List(l) => l.elts.iter().all(is_literal),
-        Expr::Tuple(t) => t.elts.iter().all(is_literal),
-        Expr::Set(s) => s.elts.iter().all(is_literal),
-        Expr::Dict(d) => d.keys.iter().chain(&d.values).all(is_literal),
-        Expr::UnaryOp(u) => is_literal(&u.operand),
-        Expr::BinOp(b) => is_literal(&b.left) && is_literal(&b.right),
+        Expr::Name(_) => crate::rules::script::is_builtin_constant(model, e),
+        Expr::List(l) => l.elts.iter().all(literal),
+        Expr::Tuple(t) => t.elts.iter().all(literal),
+        Expr::Set(s) => s.elts.iter().all(literal),
+        Expr::Dict(d) => d.keys.iter().chain(&d.values).all(literal),
+        Expr::UnaryOp(u) => literal(&u.operand),
+        Expr::BinOp(b) => literal(&b.left) && literal(&b.right),
         _ => false,
     }
 }
@@ -348,6 +353,19 @@ mod tests {
                 ("wrapped".into(), "var".into()),
             ]
         );
+    }
+
+    /// Reviewer round 15: `True`, `False` and `None` are names a module
+    /// can rebind, so a name bound to one is a constant only when it is
+    /// the builtin.
+    #[test]
+    fn constants_read_the_builtin_names() {
+        let s = symbols("A = (1, None, True)\nB = -False\n");
+        assert_eq!(s.constants, ["A", "B"]);
+        let s = symbols("True = lambda: 7\nA = True\nB = 1\n");
+        assert_eq!(s.constants, ["B"]);
+        let s = symbols("import helpers as None\nA = [None]\n");
+        assert!(s.constants.is_empty(), "{:?}", s.constants);
     }
 
     #[test]
