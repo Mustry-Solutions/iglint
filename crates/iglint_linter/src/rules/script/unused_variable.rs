@@ -11,7 +11,7 @@ use crate::registry::{Category, FixAvailability, OptionMeta, OptionType, RuleMet
 use crate::rule::{Hook, ParsedOptions, Phase, RuleImpl, ScriptRule, ScriptUnit};
 use crate::rules::script::except_tuple::misread_handler_names;
 use crate::rules::script::{
-    StatementEdit, containing_body, delete_statement, report, semantic, source, statement_fix,
+    Bodies, StatementEdit, delete_statement, report, semantic, source, statement_fix,
 };
 
 pub static META: RuleMeta = RuleMeta {
@@ -149,6 +149,7 @@ impl ScriptRule for UnusedVariable {
             }
         }
         let misread = misread_handler_names(unit, model);
+        let bodies = std::cell::OnceCell::new();
         let mut found: Vec<Finding> = Vec::new();
         for (scope_id, scope) in model.scopes() {
             if scope.kind != ScopeKind::Function || scope.reads_locals || scope.is_dynamic() {
@@ -179,7 +180,8 @@ impl ScriptRule for UnusedVariable {
                 }
                 let first = bindings[0];
                 let edit = if bindings.len() == 1 {
-                    first.stmt.and_then(|s| removal(model, text, s))
+                    let bodies = bodies.get_or_init(|| Bodies::of(&model.module.body));
+                    first.stmt.and_then(|s| removal(bodies, text, s))
                 } else {
                     None
                 };
@@ -210,17 +212,13 @@ impl ScriptRule for UnusedVariable {
 /// Removes `x = value`: the statement when the value calls nothing, else
 /// `x = ` (the remaining expression statement still makes its calls, and
 /// `SCR114` does not report it).
-fn removal(
-    model: &iglint_python_semantic::SemanticModel<'_>,
-    text: &str,
-    stmt: &Stmt,
-) -> Option<StatementEdit> {
+fn removal(bodies: &Bodies<'_>, text: &str, stmt: &Stmt) -> Option<StatementEdit> {
     let Stmt::Assign(a) = stmt else { return None };
     let [Expr::Name(target)] = a.targets.as_slice() else {
         return None;
     };
     if !super::pointless_statement::has_effect(&a.value) {
-        let body = containing_body(&model.module.body, stmt)?;
+        let body = bodies.get(stmt)?;
         return delete_statement(text, body, stmt, false);
     }
     let prefix = TextRange::new(target.range.start(), a.value.range().start());

@@ -66,6 +66,30 @@ pub struct ModuleSymbols {
     /// the namespace dynamic here, for fixes, but not for findings
     /// ([`ModuleSymbols::for_findings`]).
     pub findings: Option<Box<ModuleSymbols>>,
+    /// Where the last definition of each name is in `symbols`, built on
+    /// the first [`ModuleSymbols::get`] (review round 25, M3: a linear
+    /// search per lookup made the index quadratic in the number of
+    /// top-level names). Not part of the value: it ignores comparison and
+    /// `Debug`, and `symbols` must not change after the first lookup.
+    pub names: NameIndex,
+}
+
+/// See [`ModuleSymbols::names`].
+#[derive(Clone, Default)]
+pub struct NameIndex(std::sync::OnceLock<FxHashMap<String, usize>>);
+
+impl PartialEq for NameIndex {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for NameIndex {}
+
+impl std::fmt::Debug for NameIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("NameIndex")
+    }
 }
 
 impl ModuleSymbols {
@@ -77,7 +101,14 @@ impl ModuleSymbols {
 
     /// The last definition of `name` (later definitions win).
     pub fn get(&self, name: &str) -> Option<&Symbol> {
-        self.symbols.iter().rev().find(|s| s.name == name)
+        let names = self.names.0.get_or_init(|| {
+            let mut names = FxHashMap::default();
+            for (i, s) in self.symbols.iter().enumerate() {
+                names.insert(s.name.clone(), i);
+            }
+            names
+        });
+        self.symbols.get(*names.get(name)?)
     }
 }
 

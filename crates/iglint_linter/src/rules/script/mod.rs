@@ -304,11 +304,7 @@ pub fn delete_statement(
     let lines = statement_line_range(source, range)?;
     if body.len() == 1 {
         Some(StatementEdit::replace(range, "pass"))
-    } else if body
-        .iter()
-        .position(|s| std::ptr::eq(s, stmt))
-        .is_some_and(|i| i == 0 && is_string_expr(&body[1]))
-    {
+    } else if std::ptr::eq(&body[0], stmt) && is_string_expr(&body[1]) {
         // Deleting the first statement would promote the next statement,
         // a bare string literal, to the body's docstring (changing
         // `__doc__`, which code can read). Keep a `pass` so the string
@@ -436,43 +432,58 @@ pub fn is_string_expr(stmt: &Stmt) -> bool {
     matches!(stmt, Stmt::Expr(e) if matches!(&*e.value, Expr::Str(_)))
 }
 
-/// The statement list that directly contains `target`, searching the
-/// whole module.
-pub fn containing_body<'a>(body: &'a [Stmt], target: &Stmt) -> Option<&'a [Stmt]> {
-    if body.iter().any(|s| std::ptr::eq(s, target)) {
-        return Some(body);
-    }
-    for stmt in body {
-        let found = match stmt {
-            Stmt::FunctionDef(s) => containing_body(&s.body, target),
-            Stmt::ClassDef(s) => containing_body(&s.body, target),
-            Stmt::For(s) => {
-                containing_body(&s.body, target).or_else(|| containing_body(&s.orelse, target))
+/// The statement list that directly contains each statement of a module,
+/// by the statement's address: built once per script, so that a rule
+/// that deletes many statements does not search the whole module for each
+/// (review round 25, M3: `SCR103` and `SCR102` took time quadratic in the
+/// number of findings).
+pub struct Bodies<'a>(rustc_hash::FxHashMap<usize, &'a [Stmt]>);
+
+impl<'a> Bodies<'a> {
+    pub fn of(body: &'a [Stmt]) -> Bodies<'a> {
+        fn walk<'a>(body: &'a [Stmt], out: &mut rustc_hash::FxHashMap<usize, &'a [Stmt]>) {
+            for stmt in body {
+                out.insert(stmt as *const Stmt as usize, body);
+                match stmt {
+                    Stmt::FunctionDef(s) => walk(&s.body, out),
+                    Stmt::ClassDef(s) => walk(&s.body, out),
+                    Stmt::For(s) => {
+                        walk(&s.body, out);
+                        walk(&s.orelse, out);
+                    }
+                    Stmt::While(s) => {
+                        walk(&s.body, out);
+                        walk(&s.orelse, out);
+                    }
+                    Stmt::If(s) => {
+                        walk(&s.body, out);
+                        walk(&s.orelse, out);
+                    }
+                    Stmt::With(s) => walk(&s.body, out),
+                    Stmt::TryExcept(s) => {
+                        walk(&s.body, out);
+                        for h in &s.handlers {
+                            walk(&h.body, out);
+                        }
+                        walk(&s.orelse, out);
+                    }
+                    Stmt::TryFinally(s) => {
+                        walk(&s.body, out);
+                        walk(&s.finalbody, out);
+                    }
+                    _ => {}
+                }
             }
-            Stmt::While(s) => {
-                containing_body(&s.body, target).or_else(|| containing_body(&s.orelse, target))
-            }
-            Stmt::If(s) => {
-                containing_body(&s.body, target).or_else(|| containing_body(&s.orelse, target))
-            }
-            Stmt::With(s) => containing_body(&s.body, target),
-            Stmt::TryExcept(s) => containing_body(&s.body, target)
-                .or_else(|| {
-                    s.handlers
-                        .iter()
-                        .find_map(|h| containing_body(&h.body, target))
-                })
-                .or_else(|| containing_body(&s.orelse, target)),
-            Stmt::TryFinally(s) => {
-                containing_body(&s.body, target).or_else(|| containing_body(&s.finalbody, target))
-            }
-            _ => None,
-        };
-        if found.is_some() {
-            return found;
         }
+        let mut out = rustc_hash::FxHashMap::default();
+        walk(body, &mut out);
+        Bodies(out)
     }
-    None
+
+    /// The statement list that directly contains `target`.
+    pub fn get(&self, target: &Stmt) -> Option<&'a [Stmt]> {
+        self.0.get(&(target as *const Stmt as usize)).copied()
+    }
 }
 
 /// Calls `f` for every expression of the module, including those in nested

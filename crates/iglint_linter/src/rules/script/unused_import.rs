@@ -13,7 +13,7 @@ use crate::registry::{Category, FixAvailability, RuleMeta};
 use crate::rule::{Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
 use crate::rules::refs::{ExternalUse, external_use};
 use crate::rules::script::{
-    StatementEdit, containing_body, delete_statement, report, semantic, source, statement_fix,
+    Bodies, StatementEdit, delete_statement, report, semantic, source, statement_fix,
 };
 
 pub static META: RuleMeta = RuleMeta {
@@ -465,12 +465,15 @@ impl ScriptRule for UnusedImport {
         // another name: it reads the caller's names, imports included. Code
         // that is not vetted may read them in ways iglint does not know.
         let mut frames: Option<Option<UnsafeReason>> = None;
+        let bodies = std::cell::OnceCell::new();
+        // Where the last `from __future__` import of the module starts.
+        let last_future = last_future_import(&unit.parsed.module.body);
         for (stmt, mut unused) in unused_imports(model, library) {
             // Top-level names of a library module are its attributes: other
             // resources may use them as `pkg.mod.name`.
             let impure = !unused.iter().all(|id| removal_is_pure(cx, model, *id));
             let referenced = unused.iter().any(|id| still_referenced(model, *id));
-            let before_future = before_future_import(&unit.parsed.module.body, stmt);
+            let before_future = last_future.is_some_and(|f| stmt.range().start() < f);
             let plain = !impure && !referenced && !before_future;
             let mut reason = if impure {
                 Some(UnsafeReason::new(IMPURE_REASON))
@@ -594,7 +597,8 @@ impl ScriptRule for UnusedImport {
                 )
             };
             let keep_lines = applicability == Applicability::Safe;
-            let edit = removal(model, text, stmt, &unused, keep_lines);
+            let bodies = bodies.get_or_init(|| Bodies::of(&unit.parsed.module.body));
+            let edit = removal(model, bodies, text, stmt, &unused, keep_lines);
             let fix = edit
                 .and_then(|e| statement_fix(cx, unit, message, applicability, e))
                 .map(|f| f.because(reason));
@@ -724,15 +728,18 @@ fn still_referenced(model: &SemanticModel<'_>, id: BindingId) -> bool {
         .any(|(_, r)| r.name == b.name && inside(r.scope))
 }
 
-/// Whether `stmt` comes before a `from __future__` import of the module
-/// (deleting it could make a misplaced future import valid).
-fn before_future_import(body: &[Stmt], stmt: &Stmt) -> bool {
-    let at = stmt.range().start();
-    body.iter().any(|s| {
-        s.range().start() > at
-            && matches!(s, Stmt::ImportFrom(f)
+/// Where the last `from __future__` import of the module starts: an
+/// import before it comes before a future import (deleting it could make
+/// a misplaced future import valid). Found once per script, not per
+/// import (review round 25, M3).
+fn last_future_import(body: &[Stmt]) -> Option<iglint_text::TextSize> {
+    body.iter()
+        .filter(|s| {
+            matches!(s, Stmt::ImportFrom(f)
                 if f.module.as_ref().is_some_and(|m| m.as_str() == "__future__"))
-    })
+        })
+        .map(|s| s.range().start())
+        .max()
 }
 
 /// Whether a resource of the project star-imports the library module being
@@ -762,8 +769,8 @@ fn exported_to_star_imports(
             unit.parsed
                 .module
                 .body
-                .iter()
-                .any(|s| std::ptr::eq(s, stmt))
+                .as_ptr_range()
+                .contains(&(stmt as *const Stmt))
         }),
         _ => false,
     };
@@ -777,6 +784,7 @@ fn exported_to_star_imports(
 /// The edit that removes the unused aliases of an import statement.
 fn removal(
     model: &SemanticModel<'_>,
+    bodies: &Bodies<'_>,
     text: &str,
     stmt: &Stmt,
     unused: &[BindingId],
@@ -801,7 +809,7 @@ fn removal(
         return None;
     }
     if kept.is_empty() {
-        let body = containing_body(&model.module.body, stmt)?;
+        let body = bodies.get(stmt)?;
         return delete_statement(text, body, stmt, keep_lines);
     }
     let new = match stmt {

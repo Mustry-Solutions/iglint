@@ -2066,12 +2066,15 @@ pub fn library_names_used(model: &SemanticModel<'_>, body: &[Stmt]) -> Vec<Strin
     struct Used<'n> {
         names: &'n Names,
         out: Vec<String>,
+        // What `out` holds (review round 25, M3: a search of `out` per
+        // name made a module of `n` names quadratic).
+        seen: rustc_hash::FxHashSet<String>,
     }
     impl<'e> Visitor<'e> for Used<'_> {
         fn visit_expr(&mut self, expr: &'e Expr) {
             if matches!(expr, Expr::Name(_) | Expr::Attribute(_)) && dotted_name(expr).is_some() {
                 for n in self.names.library_names(expr, &|_| false) {
-                    if !self.out.contains(&n) {
+                    if self.seen.insert(n.clone()) {
                         self.out.push(n);
                     }
                 }
@@ -2085,6 +2088,7 @@ pub fn library_names_used(model: &SemanticModel<'_>, body: &[Stmt]) -> Vec<Strin
     let mut v = Used {
         names: &names,
         out: Vec::new(),
+        seen: rustc_hash::FxHashSet::default(),
     };
     for stmt in body {
         v.visit_stmt(stmt);

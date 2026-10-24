@@ -125,6 +125,7 @@ fn symbols_of(model: &SemanticModel<'_>, ast: &Module, escapes: bool) -> ModuleS
         system: unknown.system.into_iter().map(|(path, _)| path).collect(),
         library_names: super::access::library_names_used(model, &ast.body),
         findings: None,
+        names: Default::default(),
     }
 }
 

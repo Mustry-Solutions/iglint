@@ -25,21 +25,21 @@ const UNBOUND: u32 = u32::MAX;
 struct State {
     reachable: bool,
     /// Per local index: sorted binding ids, `UNBOUND` last.
-    defs: Vec<Vec<u32>>,
+    defs: Defs,
 }
 
 impl State {
     fn new(locals: usize) -> State {
         State {
             reachable: true,
-            defs: vec![vec![UNBOUND]; locals],
+            defs: Defs::new(locals, &[UNBOUND]),
         }
     }
 
     fn unreachable(locals: usize) -> State {
         State {
             reachable: false,
-            defs: vec![Vec::new(); locals],
+            defs: Defs::new(locals, &[]),
         }
     }
 
@@ -51,9 +51,7 @@ impl State {
             *self = other.clone();
             return;
         }
-        for (mine, theirs) in self.defs.iter_mut().zip(&other.defs) {
-            union(mine, theirs);
-        }
+        self.defs.join(&other.defs);
     }
 
     fn add(&mut self, index: usize, id: u32) {
@@ -64,15 +62,169 @@ impl State {
     }
 }
 
-fn union(into: &mut Vec<u32>, from: &[u32]) {
-    if into == from {
-        return;
-    }
-    for id in from {
-        if let Err(at) = into.binary_search(id) {
-            into.insert(at, *id);
+/// The ids of every local of a scope, in a persistent tree of shared
+/// nodes ([`FANOUT`] locals or children per node): copying a state (every
+/// branch, loop and `try` does) copies one pointer, a change copies the
+/// nodes on one path, and a join or comparison skips the nodes both states
+/// share (review round 25, M3: copying every local made a module of `n`
+/// names and `n` branches or loops quadratic).
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Defs {
+    root: Rc<Node>,
+    len: usize,
+    /// Levels of branches above the leaves.
+    depth: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Node {
+    Leaf(Vec<Vec<u32>>),
+    Branch(Vec<Rc<Node>>),
+}
+
+/// Locals per leaf and children per branch of [`Defs`].
+const FANOUT: usize = 32;
+
+use std::rc::Rc;
+
+impl Defs {
+    fn new(len: usize, ids: &[u32]) -> Defs {
+        let mut depth = 0;
+        let mut capacity = FANOUT;
+        while capacity < len {
+            capacity *= FANOUT;
+            depth += 1;
+        }
+        // Full nodes of each level are all the same: built once, shared
+        // until written.
+        let mut full: Vec<Rc<Node>> = vec![Rc::new(Node::Leaf(vec![ids.to_vec(); FANOUT]))];
+        for _ in 0..depth {
+            let below = Rc::clone(full.last().expect("a level"));
+            full.push(Rc::new(Node::Branch(vec![below; FANOUT])));
+        }
+        fn build(len: usize, depth: u32, ids: &[u32], full: &[Rc<Node>]) -> Rc<Node> {
+            let span = FANOUT.pow(depth);
+            if len == span * FANOUT {
+                return Rc::clone(&full[depth as usize]);
+            }
+            if depth == 0 {
+                return Rc::new(Node::Leaf(vec![ids.to_vec(); len]));
+            }
+            let children = (0..len.div_ceil(span))
+                .map(|c| build(span.min(len - c * span), depth - 1, ids, full))
+                .collect();
+            Rc::new(Node::Branch(children))
+        }
+        Defs {
+            root: build(len, depth, ids, &full),
+            len,
+            depth,
         }
     }
+
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Adds the ids of `other` (as [`union`] does), skipping the nodes the
+    /// two share.
+    fn join(&mut self, other: &Defs) {
+        fn join(mine: &mut Rc<Node>, theirs: &Rc<Node>) {
+            if Rc::ptr_eq(mine, theirs) || **mine == **theirs {
+                return;
+            }
+            match (Rc::make_mut(mine), &**theirs) {
+                (Node::Leaf(m), Node::Leaf(t)) => {
+                    for (m, t) in m.iter_mut().zip(t) {
+                        union(m, t);
+                    }
+                }
+                (Node::Branch(m), Node::Branch(t)) => {
+                    for (m, t) in m.iter_mut().zip(t) {
+                        join(m, t);
+                    }
+                }
+                _ => unreachable!("states of one scope have the same shape"),
+            }
+        }
+        join(&mut self.root, &other.root);
+    }
+}
+
+impl std::ops::Index<usize> for Defs {
+    type Output = Vec<u32>;
+
+    fn index(&self, index: usize) -> &Vec<u32> {
+        let mut node = &*self.root;
+        let mut span = FANOUT.pow(self.depth);
+        let mut at = index;
+        loop {
+            match node {
+                Node::Leaf(ids) => return &ids[at],
+                Node::Branch(children) => {
+                    node = &children[at / span];
+                    at %= span;
+                    span /= FANOUT;
+                }
+            }
+        }
+    }
+}
+
+impl std::ops::IndexMut<usize> for Defs {
+    fn index_mut(&mut self, index: usize) -> &mut Vec<u32> {
+        let mut node = Rc::make_mut(&mut self.root);
+        let mut span = FANOUT.pow(self.depth);
+        let mut at = index;
+        loop {
+            match node {
+                Node::Leaf(ids) => return &mut ids[at],
+                Node::Branch(children) => {
+                    node = Rc::make_mut(&mut children[at / span]);
+                    at %= span;
+                    span /= FANOUT;
+                }
+            }
+        }
+    }
+}
+
+/// Adds the sorted ids of `from` to the sorted ids of `into`, by merging
+/// (review round 25, M3: inserting one at a time made a join cost the
+/// square of the set's size, and a chain of `elif` branches binding the
+/// same name the cube of its length).
+fn union(into: &mut Vec<u32>, from: &[u32]) {
+    if into.as_slice() == from || from.is_empty() {
+        return;
+    }
+    if from.len() == 1 {
+        if let Err(at) = into.binary_search(&from[0]) {
+            into.insert(at, from[0]);
+        }
+        return;
+    }
+    let mut out = Vec::with_capacity(into.len() + from.len());
+    let (mut i, mut j) = (0, 0);
+    while i < into.len() && j < from.len() {
+        match into[i].cmp(&from[j]) {
+            std::cmp::Ordering::Less => {
+                out.push(into[i]);
+                i += 1;
+            }
+            std::cmp::Ordering::Greater => {
+                out.push(from[j]);
+                j += 1;
+            }
+            std::cmp::Ordering::Equal => {
+                out.push(into[i]);
+                i += 1;
+                j += 1;
+            }
+        }
+    }
+    out.extend_from_slice(&into[i..]);
+    out.extend_from_slice(&from[j..]);
+    *into = out;
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -148,6 +300,13 @@ pub(crate) struct Flow<'a, 'o> {
     scope: ScopeId,
     frames: Vec<Frame>,
     collectors: Vec<Vec<Event>>,
+    /// Per list comprehension being walked, the bindings of the state it
+    /// replaced (local index and the previous ids), so that the
+    /// comprehension runs on the state itself and its bindings are joined
+    /// with the state before it afterwards, instead of on a copy of the
+    /// whole state (review round 25, M3: a copy per comprehension made a
+    /// module of `n` names and `n` comprehensions quadratic).
+    undo: Vec<Vec<(usize, Vec<u32>)>>,
     try_parts: Vec<(TextRange, TryPart)>,
     name_error_guard: u32,
     import_guard: u32,
@@ -184,6 +343,7 @@ impl<'a, 'o> Flow<'a, 'o> {
             scope: ScopeId::MODULE,
             frames: Vec::new(),
             collectors: Vec::new(),
+            undo: Vec::new(),
             try_parts: Vec::new(),
             name_error_guard: 0,
             import_guard: 0,
@@ -435,15 +595,26 @@ impl<'a, 'o> Flow<'a, 'o> {
             }
         };
         if let Some(index) = local {
-            if st.reachable {
+            if st.reachable && kind.records_shadowed() {
                 let shadowed = &mut self.bindings[id.index()].shadowed;
-                for d in &st.defs[index] {
-                    if *d != UNBOUND && *d != id.0 && !shadowed.contains(&BindingId(*d)) {
-                        shadowed.push(BindingId(*d));
-                    }
+                let shadows = st.defs[index]
+                    .iter()
+                    .filter(|d| **d != UNBOUND && **d != id.0)
+                    .map(|d| BindingId(*d));
+                if shadowed.is_empty() {
+                    // The ids of a state are a sorted set: no duplicates.
+                    shadowed.extend(shadows);
+                } else {
+                    // Walked again (a loop): only the new ones, in order.
+                    let known: FxHashSet<BindingId> = shadowed.iter().copied().collect();
+                    let new: Vec<BindingId> = shadows.filter(|d| !known.contains(d)).collect();
+                    shadowed.extend(new);
                 }
             }
-            st.defs[index] = vec![id.0];
+            let old = std::mem::replace(&mut st.defs[index], vec![id.0]);
+            if let Some(log) = self.undo.last_mut() {
+                log.push((index, old));
+            }
             if let Some(c) = self.collectors.last_mut() {
                 c.push(Event::Bind(index as u32, id.0));
             }
@@ -837,7 +1008,10 @@ impl<'a, 'o> Flow<'a, 'o> {
         self.reference(raw, range, ReferenceKind::Del, st);
         let name = self.key(raw);
         if let Some(index) = self.local_index(name) {
-            st.defs[index] = vec![UNBOUND];
+            let old = std::mem::replace(&mut st.defs[index], vec![UNBOUND]);
+            if let Some(log) = self.undo.last_mut() {
+                log.push((index, old));
+            }
             if let Some(c) = self.collectors.last_mut() {
                 c.push(Event::Del(index as u32));
             }
@@ -1442,10 +1616,13 @@ impl<'a, 'o> Flow<'a, 'o> {
                     return;
                 };
                 self.expr(&first.iter, st);
-                let mut inner = st.clone();
+                // The comprehension may not run: what it binds joins the
+                // state before it. It runs on `st` itself, and the
+                // bindings it replaces are logged in `undo`.
+                self.undo.push(Vec::new());
                 for (i, g) in e.generators.iter().enumerate() {
                     if i > 0 {
-                        self.expr(&g.iter, &mut inner);
+                        self.expr(&g.iter, st);
                     }
                     self.store(
                         &g.target,
@@ -1453,14 +1630,35 @@ impl<'a, 'o> Flow<'a, 'o> {
                         None,
                         false,
                         None,
-                        &mut inner,
+                        st,
                     );
                     for cond in &g.ifs {
-                        self.expr(cond, &mut inner);
+                        self.expr(cond, st);
                     }
                 }
-                self.expr(&e.elt, &mut inner);
-                st.join(&inner);
+                self.expr(&e.elt, st);
+                let log = self.undo.pop().unwrap_or_default();
+                let mut done: FxHashSet<usize> = FxHashSet::default();
+                for (index, old) in log {
+                    // The first entry of a local holds its ids before the
+                    // comprehension.
+                    if !done.insert(index) {
+                        continue;
+                    }
+                    if st.reachable {
+                        // `State::join` of the state before and after.
+                        let mut joined = old.clone();
+                        union(&mut joined, &st.defs[index]);
+                        st.defs[index] = joined;
+                    } else {
+                        // Joining an unreachable state changes nothing.
+                        st.defs[index] = old.clone();
+                    }
+                    // An enclosing comprehension sees the change too.
+                    if let Some(outer) = self.undo.last_mut() {
+                        outer.push((index, old));
+                    }
+                }
             }
             Expr::SetComp(e) => self.generator(expr, &e.generators, st),
             Expr::DictComp(e) => self.generator(expr, &e.generators, st),
@@ -1528,26 +1726,49 @@ impl<'a, 'o> Flow<'a, 'o> {
 
     fn finish(mut self) -> Output<'a> {
         // Module names: references resolve to every module binding,
-        // including those made by functions through `global`.
+        // including those made by functions through `global`. Module code
+        // adds only the latter, listed once per name (review round 25, M3:
+        // going through every module binding of the name for every read
+        // made a module that binds and reads one name `n` times
+        // quadratic).
+        let mut from_functions: FxHashMap<&str, Vec<BindingId>> = FxHashMap::default();
+        for (name, ids) in &self.scopes[0].bindings {
+            let made: Vec<BindingId> = ids
+                .iter()
+                .copied()
+                .filter(|id| self.bindings[id.index()].site != ScopeId::MODULE)
+                .collect();
+            if !made.is_empty() {
+                from_functions.insert(name, made);
+            }
+        }
+        let add = |into: &mut Vec<BindingId>, ids: &[BindingId]| {
+            if into.len() * ids.len() <= 64 {
+                for id in ids {
+                    if !into.contains(id) {
+                        into.push(*id);
+                    }
+                }
+            } else {
+                let mut known: FxHashSet<BindingId> = into.iter().copied().collect();
+                for id in ids {
+                    if known.insert(*id) {
+                        into.push(*id);
+                    }
+                }
+            }
+        };
         for r in &mut self.references {
             match r.resolution {
                 Resolution::Global => {
                     r.bindings = self.scopes[0].bindings_of(r.name).to_vec();
                 }
                 Resolution::Local if r.fallback == Some(Resolution::Global) => {
-                    for id in self.scopes[0].bindings_of(r.name) {
-                        if !r.bindings.contains(id) {
-                            r.bindings.push(*id);
-                        }
-                    }
+                    add(&mut r.bindings, self.scopes[0].bindings_of(r.name));
                 }
                 Resolution::Local if r.scope == ScopeId::MODULE => {
-                    for id in self.scopes[0].bindings_of(r.name) {
-                        if self.bindings[id.index()].site != ScopeId::MODULE
-                            && !r.bindings.contains(id)
-                        {
-                            r.bindings.push(*id);
-                        }
+                    if let Some(ids) = from_functions.get(r.name) {
+                        add(&mut r.bindings, ids);
                     }
                 }
                 _ => {}

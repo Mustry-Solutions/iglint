@@ -503,7 +503,7 @@ fn builtin_vetted(name: &str) -> bool {
 }
 
 /// What a name may be bound to.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Bound {
     /// A vetted Python module (its key in [`VETTED_MODULES`], or `os`,
     /// `sys`, `system`).
@@ -836,6 +836,7 @@ pub fn unknown_code(model: &SemanticModel<'_>) -> UnknownCode {
         callee: None,
         class_ok: FxHashSet::default(),
         changed: FxHashSet::default(),
+        of_scope: Default::default(),
         out: UnknownCode::default(),
     };
     v.check_attribute_namespaces();
@@ -964,6 +965,9 @@ fn implicit_bound(name: &str) -> Bound {
 /// ([`binding_qualified`]).
 type Candidate = (Bound, Option<String>);
 
+/// [`Walk::of_scope`]: the candidates of the bindings of a name in a scope.
+type CandidatesOf<'a> = rustc_hash::FxHashMap<(ScopeId, &'a str), std::rc::Rc<[Candidate]>>;
+
 struct Walk<'m, 'a> {
     model: &'m SemanticModel<'a>,
     /// [`binding_bound`] of every binding, by binding id.
@@ -985,6 +989,12 @@ struct Walk<'m, 'a> {
     /// at a name (`type(x).a.b = 1`): a class object there is changed
     /// through, not only read.
     changed: FxHashSet<TextRange>,
+    /// What the bindings of a name in a scope may stand for, without
+    /// repeats: every consumer asks whether any, every or some candidate is
+    /// of a kind (review round 25, M3: listing every binding at every use
+    /// made a module that binds a name `n` times and reads it `n` times
+    /// quadratic).
+    of_scope: std::cell::RefCell<CandidatesOf<'a>>,
     out: UnknownCode,
 }
 
@@ -1112,11 +1122,23 @@ impl Walk<'_, '_> {
         // The run-time spelling (mangled in class bodies).
         let name = r.name;
         let of = |scope: ScopeId| {
-            self.model
-                .scope(scope)
-                .bindings_of(name)
-                .iter()
-                .map(|id| (self.bound[id.index()], self.qualified[id.index()].clone()))
+            let cached = self.of_scope.borrow().get(&(scope, name)).cloned();
+            let candidates = cached.unwrap_or_else(|| {
+                let mut seen: FxHashSet<(Bound, Option<&str>)> = FxHashSet::default();
+                let mut out: Vec<Candidate> = Vec::new();
+                for id in self.model.scope(scope).bindings_of(name) {
+                    let q = self.qualified[id.index()].as_deref();
+                    if seen.insert((self.bound[id.index()], q)) {
+                        out.push((self.bound[id.index()], q.map(str::to_owned)));
+                    }
+                }
+                let out: std::rc::Rc<[Candidate]> = out.into();
+                self.of_scope
+                    .borrow_mut()
+                    .insert((scope, name), std::rc::Rc::clone(&out));
+                out
+            });
+            candidates.to_vec()
         };
         let mut out: Vec<(Bound, Option<String>)> = Vec::new();
         let fallback = match r.resolution {

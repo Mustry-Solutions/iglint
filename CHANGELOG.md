@@ -116,6 +116,29 @@ from 0.1.0 on.
 
 ### Fixed
 
+- Project library modules with many top-level names were analysed in
+  time about cubic in their number (review round 25, M3): the project
+  index decided for every library value from scratch whether its module
+  may hold a shared object and looked symbols up by a linear search; the
+  flow analysis copied every local at each comprehension, branch, loop
+  and `try` and merged binding sets one id at a time (it now shares the
+  state in a persistent tree and merges sorted sets); the vetting walker
+  listed every binding of a name at each use; `SCR003`, `SCR102` and
+  `SCR103` searched the module once per `global` declaration, import or
+  finding; and every module-level read went through every module
+  binding of its name. `Binding::shadowed` of the semantic model is now
+  recorded only for the kinds the analyses read (definitions, imports,
+  augmented assignments). Release builds on one machine: 2,000
+  statements `bI = a` 4.7 s to 0.01 s, 2,000 pairs `cI = 1; bI = cI`
+  12.5 s to 0.01 s, 8,000 `b = [c for c in a]` 71 s to 0.05 s, 8,000
+  such comprehensions with distinct names more than 150 s to 0.05 s,
+  10,000 `bI = a` more than 150 s to 0.03 s, and the 16,000-branch `elif`
+  chain of the stress tests more than 150 s to 0.7 s. The release stress
+  test `library_modules_take_linear_time_in_their_names` keeps twelve
+  shapes of 10,000 statements under 1.5 s (all between 0.03 s and 0.4 s
+  here) and linear where the result is (four times the statements, at
+  most six times the time); `language_server_survives_deep_documents`
+  passes again. Results on the private corpus are byte-identical.
 - `importlib.import_module('__builtin__')` hands out the builtins like
   `__import__('__builtin__')`, and `.locals()` on it reads the caller's
   frame (review round 25, M2), but it only made fixes unsafe, so SCR102

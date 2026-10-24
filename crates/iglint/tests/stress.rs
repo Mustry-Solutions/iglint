@@ -1091,6 +1091,168 @@ fn large_views_and_modules_take_linear_time() {
     assert!(t_large < Duration::from_secs(60), "{t_large:?}");
 }
 
+/// Review round 25 (Opus, M3): the analysis of a project library module
+/// took time about cubic in its number of top-level names (the index
+/// asked, for every library value, whether the module may hold a shared
+/// object, from scratch, and looked symbols up by a linear search; the
+/// flow analysis copied every local at every comprehension, branch and
+/// loop and merged binding sets one id at a time; the vetting walker
+/// listed every binding of a name at every use; `SCR003`, `SCR102` and
+/// `SCR103` searched the module once per declaration, import or
+/// finding): 2,000 statements `b = a` took 4.7 s and 8,000 module-level
+/// comprehensions 36 s. Each shape of 10,000 statements now takes about a
+/// second or less, and growing it four times takes at most six times as
+/// long (a quadratic part takes sixteen). Chains that bind one name many
+/// times keep the sets of bindings that may reach each point, whose total
+/// size grows with the square of the chain in the worst case (`elif`
+/// branches unwound one by one): they get the budget only.
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
+)]
+fn library_modules_take_linear_time_in_their_names() {
+    let args = [
+        "--no-cache",
+        "--select",
+        "ALL",
+        "--ignore",
+        "SCR900",
+        "--exit-zero",
+    ];
+    type Shape = fn(usize) -> String;
+    let shapes: [(&str, Shape, bool); 12] = [
+        (
+            "assignments",
+            |n| "a = 1\n".to_owned() + &(0..n).map(|i| format!("b{i} = a\n")).collect::<String>(),
+            true,
+        ),
+        (
+            "chains",
+            |n| (0..n).map(|i| format!("c{i} = 1\nb{i} = c{i}\n")).collect(),
+            true,
+        ),
+        (
+            "comprehensions",
+            |n| {
+                "a = []\n".to_owned()
+                    + &(0..n)
+                        .map(|i| format!("b{i} = [c{i} for c{i} in a]\n"))
+                        .collect::<String>()
+            },
+            true,
+        ),
+        (
+            "comprehensions of one name",
+            |n| {
+                "a = []\n".to_owned()
+                    + &(0..n)
+                        .map(|i| format!("b{i} = [c for c in a]\n"))
+                        .collect::<String>()
+            },
+            true,
+        ),
+        (
+            "branches",
+            |n| {
+                "a = 1\n".to_owned()
+                    + &(0..n)
+                        .map(|i| format!("if a:\n    b{i} = 1\n"))
+                        .collect::<String>()
+            },
+            true,
+        ),
+        (
+            "loops",
+            |n| {
+                "a = []\n".to_owned()
+                    + &(0..n)
+                        .map(|i| format!("for x{i} in a:\n    b{i} = x{i}\n"))
+                        .collect::<String>()
+            },
+            true,
+        ),
+        (
+            "handlers",
+            |n| {
+                (0..n)
+                    .map(|i| format!("try:\n    b{i} = 1\nexcept ValueError:\n    pass\n"))
+                    .collect()
+            },
+            true,
+        ),
+        (
+            "imports",
+            |n| {
+                (0..n)
+                    .map(|i| format!("import os as o{i}\n"))
+                    .collect::<String>()
+                    + &(0..n)
+                        .map(|i| format!("x{i} = o{i}.sep\n"))
+                        .collect::<String>()
+            },
+            true,
+        ),
+        (
+            "functions",
+            |n| {
+                (0..n)
+                    .map(|i| format!("def f{i}(p):\n    return f{}(p)\n", i.saturating_sub(1)))
+                    .collect()
+            },
+            true,
+        ),
+        (
+            "globals",
+            |n| {
+                (0..n).map(|i| format!("g{i} = 0\n")).collect::<String>()
+                    + &(0..n)
+                        .map(|i| format!("def s{i}():\n    global g{i}\n    g{i} = 1\n"))
+                        .collect::<String>()
+            },
+            true,
+        ),
+        (
+            "a function body",
+            |n| {
+                "def f(a):\n".to_owned()
+                    + &(0..n)
+                        .map(|i| {
+                            format!("    b{i} = [c for c in a]\n    if a:\n        d{i} = b{i}\n")
+                        })
+                        .collect::<String>()
+            },
+            true,
+        ),
+        (
+            "elif branches",
+            |n| {
+                "a = 1\nif a: pass\n".to_owned()
+                    + &"elif a:\n    b = [a.b(c=a) for c in a if not c]\n".repeat(n)
+            },
+            false,
+        ),
+    ];
+    for (name, shape, linear) in shapes {
+        let (small, large) = (module(&shape(2_500)), module(&shape(10_000)));
+        let (t_small, t_large) = (
+            check_time(small.path(), &args),
+            check_time(large.path(), &args),
+        );
+        eprintln!("{name}: 2,500 {t_small:?}, 10,000 {t_large:?}");
+        if linear {
+            assert!(
+                t_large < t_small * 6 + Duration::from_millis(300),
+                "{name}: 2,500: {t_small:?}, 10,000: {t_large:?}"
+            );
+        }
+        assert!(
+            t_large < Duration::from_millis(1_500),
+            "{name}: 10,000: {t_large:?}"
+        );
+    }
+}
+
 /// A change of a file's text.
 type Change = dyn Fn(&str) -> String;
 

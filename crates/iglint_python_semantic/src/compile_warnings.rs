@@ -30,7 +30,9 @@ use iglint_python::ast::*;
 use iglint_text::TextRange;
 
 use crate::compile::ends_suite;
-use crate::model::{BindingKind, ReferenceKind, SemanticModel};
+use rustc_hash::FxHashMap;
+
+use crate::model::{Binding, BindingKind, Reference, ReferenceKind, ScopeId, SemanticModel};
 
 /// One compile-time warning.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -45,6 +47,29 @@ pub struct CompileWarning {
 /// The compile-time warnings of a module, in source order.
 pub fn compile_warnings(model: &SemanticModel<'_>) -> Vec<CompileWarning> {
     let mut out = Vec::new();
+    // The bindings by the scope whose code makes them and the references
+    // by scope, each by name, built once when some scope declares a name
+    // `global` (review round 25, M3: scanning every binding and reference
+    // per declaration made `n` functions declaring `global` quadratic).
+    let declares = model
+        .scopes()
+        .any(|(_, s)| !s.global_declarations.is_empty());
+    let mut bindings_at: FxHashMap<(ScopeId, &str), Vec<&Binding<'_>>> = FxHashMap::default();
+    let mut references_at: FxHashMap<(ScopeId, &str), Vec<&Reference<'_>>> = FxHashMap::default();
+    if declares {
+        for (_, b) in model.bindings() {
+            bindings_at
+                .entry((b.site, b.source_name))
+                .or_default()
+                .push(b);
+        }
+        for (_, r) in model.references() {
+            references_at
+                .entry((r.scope, r.source_name))
+                .or_default()
+                .push(r);
+        }
+    }
     for (scope_id, scope) in model.scopes() {
         let mut declared: Vec<&str> = Vec::new();
         let mut globals: Vec<(&str, TextRange)> = scope
@@ -62,10 +87,14 @@ pub fn compile_warnings(model: &SemanticModel<'_>) -> Vec<CompileWarning> {
             }
             declared.push(name);
             let before = |r: TextRange| r.start() < range.start();
-            let assigned = model.bindings().any(|(_, b)| {
-                b.site == scope_id
-                    && b.source_name == name
-                    && before(b.range)
+            let bindings = bindings_at
+                .get(&(scope_id, name))
+                .map_or(&[][..], Vec::as_slice);
+            let references = references_at
+                .get(&(scope_id, name))
+                .map_or(&[][..], Vec::as_slice);
+            let assigned = bindings.iter().any(|b| {
+                before(b.range)
                     && !matches!(
                         b.kind,
                         BindingKind::Global
@@ -75,17 +104,12 @@ pub fn compile_warnings(model: &SemanticModel<'_>) -> Vec<CompileWarning> {
                             | BindingKind::ImportPackage
                             | BindingKind::Parameter
                     )
-            }) || model.references().any(|(_, r)| {
-                r.scope == scope_id
-                    && r.source_name == name
-                    && r.kind == ReferenceKind::Del
-                    && before(r.range)
-            });
+            }) || references
+                .iter()
+                .any(|r| r.kind == ReferenceKind::Del && before(r.range));
             let used = || {
-                model.references().any(|(_, r)| {
-                    r.scope == scope_id
-                        && r.source_name == name
-                        && !matches!(r.kind, ReferenceKind::Del | ReferenceKind::Implicit(_))
+                references.iter().any(|r| {
+                    !matches!(r.kind, ReferenceKind::Del | ReferenceKind::Implicit(_))
                         && before(r.range)
                 })
             };

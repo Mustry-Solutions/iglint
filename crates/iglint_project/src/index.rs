@@ -231,6 +231,30 @@ impl Vetted {
     }
 }
 
+/// The answers of [`ProjectIndex::module_may_hold_shared`] and
+/// [`ProjectIndex::module_imports_shared`] while the index is built, and
+/// the modules whose answer is being computed.
+struct SharedMemo {
+    holds: FxHashMap<(ProjectId, ResourceId), bool>,
+    imports: FxHashMap<(ProjectId, ResourceId), bool>,
+    /// The modules being computed, with their depth.
+    computing: FxHashMap<ResourceId, usize>,
+    /// The smallest depth of a module being computed that the current
+    /// computation relied on (`usize::MAX`: none).
+    low: usize,
+}
+
+impl Default for SharedMemo {
+    fn default() -> Self {
+        SharedMemo {
+            holds: FxHashMap::default(),
+            imports: FxHashMap::default(),
+            computing: FxHashMap::default(),
+            low: usize::MAX,
+        }
+    }
+}
+
 /// Lowercases ASCII and non-ASCII letters (tag paths are case-insensitive).
 fn fold(s: &str) -> String {
     s.to_lowercase()
@@ -457,6 +481,7 @@ impl<'w> ProjectIndex<'w> {
         let mut star_imported: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut unknown_code: Vec<bool> = vec![false; n];
         let mut first_unknown: Option<UnknownSite> = None;
+        let mut memo = SharedMemo::default();
         // Resources of gateway collections (tag event scripts) run with the
         // gateway scripting project, which the workspace does not name:
         // their references count for every project.
@@ -520,7 +545,7 @@ impl<'w> ProjectIndex<'w> {
                     )
                 });
                 let unvetted_name = self.vetted.first_unvetted(refs);
-                let shared = self.shared_object_site(pid, refs);
+                let shared = self.shared_object_site_with(pid, refs, &mut memo);
                 if refs.unknown_code
                     || unvetted.is_some()
                     || unvetted_name.is_some()
@@ -1045,6 +1070,7 @@ impl<'w> ProjectIndex<'w> {
         let key = |s: &UnknownSite| (ws.file(s.file).path.clone(), s.range.start());
         let mut reads = false;
         let mut first: Option<UnknownSite> = None;
+        let mut memo = SharedMemo::default();
         for r in &ws.resources {
             let Some(summary) = self.summaries[r.id.index()].as_ref() else {
                 continue;
@@ -1076,7 +1102,7 @@ impl<'w> ProjectIndex<'w> {
             let unvetted_name = self.vetted.first_unvetted(refs);
             let shared = projects
                 .iter()
-                .find_map(|p| self.shared_object_site(*p, refs));
+                .find_map(|p| self.shared_object_site_with(*p, refs, &mut memo));
             if !refs.reads_files
                 && unvetted.is_none()
                 && unvetted_name.is_none()
@@ -1120,14 +1146,25 @@ impl<'w> ProjectIndex<'w> {
         project: ProjectId,
         refs: &'r crate::summary::References,
     ) -> Option<&'r UnknownSite> {
+        self.shared_object_site_with(project, refs, &mut SharedMemo::default())
+    }
+
+    /// [`ProjectIndex::shared_object_site`] with the answers of earlier
+    /// calls (the index builds it for every resource with one memo).
+    fn shared_object_site_with<'r>(
+        &self,
+        project: ProjectId,
+        refs: &'r crate::summary::References,
+        memo: &mut SharedMemo,
+    ) -> Option<&'r UnknownSite> {
         let changed = refs
             .library_changes
             .iter()
-            .find(|(object, _)| self.reaches_shared(project, object, false));
+            .find(|(object, _)| self.reaches_shared_from(project, object, false, memo));
         let value = refs
             .library_values
             .iter()
-            .find(|(object, _)| self.reaches_shared(project, object, true));
+            .find(|(object, _)| self.reaches_shared_from(project, object, true, memo));
         changed
             .into_iter()
             .chain(value)
@@ -1145,20 +1182,17 @@ impl<'w> ProjectIndex<'w> {
     /// the module may store such an object where it is reachable
     /// ([`ProjectIndex::module_may_hold_shared`]): `del l.K.math.pi` after
     /// `class K: import math` in `l`.
-    fn reaches_shared(&self, project: ProjectId, dotted: &str, whole: bool) -> bool {
-        self.reaches_shared_from(project, dotted, whole, &mut FxHashMap::default())
-    }
-
-    /// [`ProjectIndex::reaches_shared`], with the modules whose answer
-    /// [`ProjectIndex::module_may_hold_shared`] has given or is computing
-    /// (`false` while in progress: a cycle of library values adds no
-    /// object the other modules of the cycle do not already reach).
+    ///
+    /// `memo` keeps the answers of [`ProjectIndex::module_may_hold_shared`]
+    /// and [`ProjectIndex::module_imports_shared`] (review round 25, M3:
+    /// recomputed for every library value, the index took time cubic in
+    /// the number of top-level names of a module).
     fn reaches_shared_from(
         &self,
         project: ProjectId,
         dotted: &str,
         whole: bool,
-        seen: &mut FxHashMap<ResourceId, bool>,
+        memo: &mut SharedMemo,
     ) -> bool {
         let mut dotted = dotted.to_owned();
         for _ in 0..8 {
@@ -1169,7 +1203,7 @@ impl<'w> ProjectIndex<'w> {
                 | LibraryLookup::MissingAttribute { .. } => return false,
                 LibraryLookup::Unknown => return true,
                 LibraryLookup::Module { resource, .. } => {
-                    return whole && self.module_imports_shared(project, resource);
+                    return whole && self.module_imports_shared(project, resource, memo);
                 }
                 LibraryLookup::Package { dotted: package } => {
                     if !whole {
@@ -1178,7 +1212,8 @@ impl<'w> ProjectIndex<'w> {
                     let prefix = format!("{package}.");
                     let library = &self.projects[project.index()].library;
                     return library.modules().any(|(m, resource)| {
-                        m.starts_with(&prefix) && self.module_imports_shared(project, resource)
+                        m.starts_with(&prefix)
+                            && self.module_imports_shared(project, resource, memo)
                     });
                 }
                 LibraryLookup::Symbol {
@@ -1217,7 +1252,7 @@ impl<'w> ProjectIndex<'w> {
                     // A function, class or variable of the module: what
                     // its attributes, instances or items hold is the
                     // module's own code.
-                    _ => return self.module_may_hold_shared(project, resource, seen),
+                    _ => return self.module_may_hold_shared(project, resource, memo),
                 },
             }
         }
@@ -1235,21 +1270,33 @@ impl<'w> ProjectIndex<'w> {
     /// stored that way is one of the module's library values, which hold
     /// such an object when [`ProjectIndex::reaches_shared`] says so. A
     /// module whose code or names are not known holds one.
+    ///
+    /// A module whose answer is being computed counts as `false` (a cycle
+    /// of library values adds no object the other modules of the cycle do
+    /// not already reach). An answer is kept in `memo` once it is final:
+    /// `true`, or `false` without relying on a module further up that is
+    /// still being computed (whose answer could still turn it `true`).
     fn module_may_hold_shared(
         &self,
         project: ProjectId,
         module: ResourceId,
-        seen: &mut FxHashMap<ResourceId, bool>,
+        memo: &mut SharedMemo,
     ) -> bool {
-        if let Some(known) = seen.get(&module) {
+        if let Some(known) = memo.holds.get(&(project, module)) {
             return *known;
         }
-        seen.insert(module, false);
+        if let Some(depth) = memo.computing.get(&module) {
+            memo.low = memo.low.min(*depth);
+            return false;
+        }
         let (Some(symbols), Some(summary)) = (self.module_symbols(module), self.summary(module))
         else {
-            seen.insert(module, true);
+            memo.holds.insert((project, module), true);
             return true;
         };
+        let depth = memo.computing.len();
+        memo.computing.insert(module, depth);
+        let outer = std::mem::replace(&mut memo.low, usize::MAX);
         let refs = &summary.references;
         let holds = symbols.unknown_code
             || symbols.dynamic
@@ -1257,18 +1304,35 @@ impl<'w> ProjectIndex<'w> {
             || refs
                 .library_values
                 .iter()
-                .any(|(value, _)| self.reaches_shared_from(project, value, true, seen));
-        seen.insert(module, holds);
+                .any(|(value, _)| self.reaches_shared_from(project, value, true, memo));
+        memo.computing.remove(&module);
+        let provisional = !holds && memo.low < depth;
+        if !provisional {
+            memo.holds.insert((project, module), holds);
+        }
+        memo.low = if provisional {
+            outer.min(memo.low)
+        } else {
+            outer
+        };
         holds
     }
 
     /// Whether the library module `module` imports a name that is not a
     /// library name, or its names are not known.
-    fn module_imports_shared(&self, project: ProjectId, module: ResourceId) -> bool {
+    fn module_imports_shared(
+        &self,
+        project: ProjectId,
+        module: ResourceId,
+        memo: &mut SharedMemo,
+    ) -> bool {
+        if let Some(known) = memo.imports.get(&(project, module)) {
+            return *known;
+        }
         let Some(symbols) = self.module_symbols(module) else {
             return true;
         };
-        symbols.dynamic
+        let shared = symbols.dynamic
             || symbols.symbols.iter().any(|s| match &s.kind {
                 SymbolKind::Import { target: Some(t) } => !matches!(
                     self.resolve_library(project, t),
@@ -1278,7 +1342,9 @@ impl<'w> ProjectIndex<'w> {
                 ),
                 SymbolKind::Import { target: None } => true,
                 _ => false,
-            })
+            });
+        memo.imports.insert((project, module), shared);
+        shared
     }
 
     /// The first use (by path, then offset) of code that is not vetted, or

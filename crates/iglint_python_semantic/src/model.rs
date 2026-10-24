@@ -319,6 +319,22 @@ pub enum BindingKind {
 }
 
 impl BindingKind {
+    /// Whether [`Binding::shadowed`] is recorded for bindings of this kind:
+    /// `def`, `class`, imports (redefinitions) and augmented assignments
+    /// (which read the value they replace).
+    pub fn records_shadowed(self) -> bool {
+        matches!(
+            self,
+            BindingKind::FunctionDef
+                | BindingKind::ClassDef
+                | BindingKind::Import
+                | BindingKind::FromImport
+                | BindingKind::AugAssignment
+        )
+    }
+}
+
+impl BindingKind {
     pub fn is_import(self) -> bool {
         matches!(
             self,
@@ -400,7 +416,12 @@ pub struct Binding<'a> {
     pub try_parts: Vec<(TextRange, TryPart)>,
     /// Bindings of the same name that may still be live where this one
     /// replaces them (the reaching definitions just before it). Only for
-    /// names local to the binding's scope.
+    /// names local to the binding's scope, and only for the bindings whose
+    /// earlier values analyses ask about ([`BindingKind::records_shadowed`]:
+    /// definitions, imports and augmented assignments); empty for the
+    /// others. Recording it for every binding made a module of `n`
+    /// comprehensions, loops or conditional assignments of one name hold
+    /// `n * n / 2` entries (review round 25, M3).
     pub shadowed: Vec<BindingId>,
     /// References that may read this binding.
     pub references: Vec<ReferenceId>,
