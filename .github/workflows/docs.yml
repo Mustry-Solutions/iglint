@@ -1,0 +1,61 @@
+name: Docs
+
+# Builds the documentation site (site/) and deploys it to GitHub Pages.
+# Not active yet: it only runs when started by hand. To publish on every push
+# to main, enable GitHub Pages with "GitHub Actions" as the source and
+# uncomment the `push` trigger. The site's address is set in
+# site/site.config.mjs (SITE_URL); a custom domain is configured in the
+# repository's Pages settings.
+
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "site/**"
+  #     - "docs/**"
+  #     - "CHANGELOG.md"
+  #     - ".github/workflows/docs.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      # Copies docs/rules (written by `iglint generate-docs`; the CI workflow
+      # checks that they are up to date) and the other documents, then builds.
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

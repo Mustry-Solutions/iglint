@@ -1,0 +1,55 @@
+---
+title: iglint
+description: A fast, precise linter for Inductive Automation Ignition 8.3 projects, written in Rust.
+template: splash
+editUrl: false
+hero:
+  tagline: A fast, precise linter for Ignition 8.3 projects. Perspective views, Jython 2.7 scripts, expressions and gateway resources, checked the way the gateway reads them.
+  actions:
+    - text: Getting started
+      link: getting-started/
+      icon: right-arrow
+    - text: What it catches
+      link: checks/
+      variant: minimal
+    - text: Rules
+      link: reference/rules/
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid>
+	<Card title="A real Jython 2.7 parser" icon="approve-check">
+		The script parser accepts what Ignition's own Jython accepts and produces the same syntax tree.
+		It is tested differentially against the Jython inside the Ignition 8.3.3 image, and so are the
+		expression parser and the compiler checks.
+	</Card>
+	<Card title="The whole project at once" icon="puzzle">
+		Views, library modules, named queries, message handlers, style classes, tags and UDTs are
+		indexed together, with project inheritance, so a renamed view or a mistyped library function is
+		found where it is used.
+	</Card>
+	<Card title="Exact locations" icon="magnifier">
+		Every finding points at the byte range in the file on disk, also inside scripts and expressions
+		that are stored as JSON strings in a `view.json`.
+	</Card>
+	<Card title="Fixes you can trust" icon="setting">
+		A fix is applied by `--fix` only when iglint can show that it does not change what the project
+		does. Everything else is offered as an unsafe fix, with the reason.
+	</Card>
+	<Card title="Fast" icon="rocket">
+		One parse per file, in parallel, with a result cache. On the synthetic benchmark corpora iglint
+		does the same work as ign-lint 7x to 53x faster on a 16-CPU machine, and 3x to 12x on one CPU.
+	</Card>
+	<Card title="Drop-in for ign-lint" icon="random">
+		Every ign-lint rule has an equivalent. `iglint ign-lint` accepts ign-lint's command line and
+		`iglint migrate` converts its configuration.
+	</Card>
+</CardGrid>
+
+:::caution[Pre-release]
+iglint 0.1.0 has not been published yet. The package, release binaries and VS Code extension
+described in [Installation](installation/) become available with the first release; until then,
+build it from the repository.
+:::

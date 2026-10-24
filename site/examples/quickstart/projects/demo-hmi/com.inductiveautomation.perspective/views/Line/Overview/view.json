@@ -1,0 +1,111 @@
+{
+  "custom": {
+    "area": "North",
+    "legacyFilter": ""
+  },
+  "params": {},
+  "propConfig": {
+    "custom.area": {
+      "persistent": true
+    },
+    "custom.legacyFilter": {
+      "persistent": true
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 600,
+      "width": 800
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Title"
+        },
+        "position": {
+          "basis": "40px"
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "expression": "\"Area \" + {view.custom.aera}"
+              },
+              "type": "expr"
+            }
+          }
+        },
+        "props": {
+          "text": ""
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Clock"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "expression": "dateFormat(now(1000), \"HH:mm:ss\")"
+              },
+              "type": "expr"
+            }
+          }
+        },
+        "props": {
+          "text": ""
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Logo"
+        },
+        "position": {
+          "basis": "64px"
+        },
+        "props": {
+          "source": "/system/images/demo/logo.png"
+        },
+        "type": "ia.display.image"
+      },
+      {
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "config": {
+                "script": "\tsystem.perspective.openPopup(\"pumpDetail\", \"Line/PumpDetial\", params={\"pumpId\": 7})\n\tplant.pumps.refresh(self.view.custom.area)"
+              },
+              "scope": "G",
+              "type": "script"
+            }
+          }
+        },
+        "meta": {
+          "name": "Details"
+        },
+        "position": {
+          "basis": "40px"
+        },
+        "props": {
+          "text": "Pump details"
+        },
+        "type": "ia.input.button"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "type": "ia.container.flex"
+  }
+}

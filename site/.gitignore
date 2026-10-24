@@ -1,0 +1,11 @@
+# Dependencies and build output
+node_modules/
+dist/
+.astro/
+
+# Copied from ../docs and ../CHANGELOG.md by scripts/sync-docs.mjs before every
+# build; edit the sources (or the rule metadata, then `iglint generate-docs`).
+src/content/docs/reference/rules/
+src/content/docs/reference/ign-lint-differences.md
+src/content/docs/internals/
+src/content/docs/project/changelog.md
