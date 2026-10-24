@@ -123,6 +123,10 @@ To record new outputs (needs Docker):
 * `oracle/expression/run.sh record` records the expression, property
   reference and tag path cases; `oracle/expression/run.sh random [SEED]
   [COUNT]` runs a fresh random batch.
+* `oracle/format-spec.sh all OUT` records Jython's verdict on every
+  generated `str.format` spec and literal argument (SCR112); the replayed
+  sample in `crates/iglint_linter/tests/fixtures/format-spec/` is
+  `python3 oracle/format_spec_cases.py stratify OUT 10 4000`.
 * `stubs-gen/run.sh` starts a throwaway gateway, regenerates
   `crates/iglint_stubs` and rewrites `stubs-gen/CROSSCHECK.md`. Review the
   diff of the data files.

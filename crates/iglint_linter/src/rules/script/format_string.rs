@@ -38,10 +38,17 @@ arguments, with Jython 2.7's rules (verified on Jython):
   (`ArrayIndexOutOfBoundsException`; `{-0}` is index 0). A format spec
   whose width or precision is too large for a Java `int`
   (`{0:2147483648}`) fails for a literal argument and with `!r` or `!s`
-  (other objects may have their own `__format__`). A presentation type
-  that the literal argument does not support (`'{:d}'.format('a')`,
-  `'{:s}'.format(1)`, `'{:d}'.format(1.5)`, any type but `s` after `!r` or
-  `!s`).
+  (other objects may have their own `__format__`). A format spec that the
+  literal argument does not support (checked against Jython on more than
+  three million generated specs and literals): an unknown presentation type
+  (`'{:z}'.format(1)`, `'{:d}'.format('a')`, `'{:s}'.format(1)`,
+  `'{:d}'.format(1.5)`, any type but `s` after `!r` or `!s`); for strings
+  (and containers and `None`, formatted as their `str`) a sign, `#`, `=`
+  alignment (also implied by a `0` before the width) or `,`
+  (`'{:+s}'.format('ab')`); for integers a precision with an integer type
+  (`'{:.2}'.format(1)`), a sign or `#` with `c`, `,` with a type other than
+  `d`; for floats `#`, `,` with `n`; for complex numbers `#`, zero padding,
+  `=` alignment, `,` with `n`.
 
 Only literal format strings (also concatenated with `+`: `('%s' +
 '%s') % (1,)`) with literal arguments (or literal argument lists) are
@@ -245,19 +252,18 @@ struct BraceSpec {
     /// Fields whose literal format spec has a width or precision too large
     /// for a Java `int`.
     oversized: Vec<Oversized>,
-    /// Fields of an argument itself with a literal format spec that ends
-    /// in a presentation type (`{0:d}`, `{:.2f}`, `{x!s:>5}`).
+    /// Fields of an argument itself with a well-formed literal format
+    /// spec (`{0:d}`, `{:.2f}`, `{x!s:>5}`, `{:+}`).
     typed: Vec<TypedField>,
 }
 
-/// A field formatted with a presentation type.
+/// A field formatted with a well-formed standard format spec.
 #[derive(Debug, PartialEq)]
 struct TypedField {
     argument: FieldArg,
     /// `!r` or `!s`: the value formatted is a string.
     converted: bool,
-    /// The presentation type (`d`, `f`, `s`, ...).
-    kind: char,
+    parsed: StandardSpec,
     spec: String,
 }
 
@@ -291,31 +297,68 @@ impl FieldArg {
     }
 }
 
-/// The presentation type of a standard format spec
-/// (`[[fill]align][sign][#][0][width][,][.precision][type]`), when the
-/// spec is well formed and has one; `None` otherwise (no type, or a spec
-/// this does not parse, which is left alone).
-fn spec_type(spec: &str) -> Option<char> {
+/// A standard format spec, `[[fill]align][sign][#][0][width][,]
+/// [.precision][type]`, as Jython's `InternalFormat` reads it.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct StandardSpec {
+    fill: Option<char>,
+    align: Option<char>,
+    sign: bool,
+    alternate: bool,
+    zero: bool,
+    grouping: bool,
+    precision: bool,
+    kind: Option<char>,
+}
+
+impl StandardSpec {
+    /// Whether the value is padded with zeros: an explicit `0` fill, or
+    /// the `0` flag without a fill.
+    fn zero_fill(&self) -> bool {
+        self.fill == Some('0') || (self.fill.is_none() && self.zero)
+    }
+
+    /// The alignment, with the `0` flag's implied `=` when none is given.
+    fn alignment(&self) -> Option<char> {
+        self.align.or(self.zero.then_some('='))
+    }
+}
+
+/// The standard format spec `spec`, when it is well formed (and ASCII);
+/// `None` otherwise (left alone).
+fn standard_spec(spec: &str) -> Option<StandardSpec> {
     let chars: Vec<char> = spec.chars().collect();
     if chars.iter().any(|c| !c.is_ascii()) {
         return None;
     }
+    let mut out = StandardSpec::default();
     let mut i = 0;
     let align = |c: Option<&char>| matches!(c, Some('<' | '>' | '=' | '^'));
     if align(chars.get(1)) {
+        out.fill = Some(chars[0]);
+        out.align = Some(chars[1]);
         i = 2;
     } else if align(chars.first()) {
+        out.align = Some(chars[0]);
         i = 1;
     }
-    for flag in [&['+', '-', ' '][..], &['#'], &['0']] {
-        if chars.get(i).is_some_and(|c| flag.contains(c)) {
-            i += 1;
-        }
+    if chars.get(i).is_some_and(|c| matches!(c, '+' | '-' | ' ')) {
+        out.sign = true;
+        i += 1;
+    }
+    if chars.get(i) == Some(&'#') {
+        out.alternate = true;
+        i += 1;
+    }
+    if chars.get(i) == Some(&'0') {
+        out.zero = true;
+        i += 1;
     }
     while chars.get(i).is_some_and(char::is_ascii_digit) {
         i += 1;
     }
     if chars.get(i) == Some(&',') {
+        out.grouping = true;
         i += 1;
     }
     if chars.get(i) == Some(&'.') {
@@ -327,11 +370,14 @@ fn spec_type(spec: &str) -> Option<char> {
         if i == start {
             return None;
         }
+        out.precision = true;
     }
     match &chars[i..] {
-        [t] if "bcdoxXneEfFgG%s".contains(*t) => Some(*t),
-        _ => None,
+        [] => {}
+        [t] => out.kind = Some(*t),
+        _ => return None,
     }
+    Some(out)
 }
 
 /// What a literal argument is, for the type checks of `%` conversions and
@@ -437,30 +483,137 @@ fn describe(lit: Literal) -> &'static str {
     }
 }
 
-/// Why presentation type `t` fails for the literal `e` in `str.format`
-/// (verified on Jython): `!r` and `!s` make every value a string, which
-/// takes only `s`; strings, containers and `None` take only `s`; integers
-/// take every type but `s` (`c` only in range); floats only the float
-/// types and `%`; complex numbers only the float types.
-fn format_type_error(t: char, converted: bool, e: &Expr) -> Option<String> {
+/// Why the format spec `spec` fails for the literal `e` in `str.format`,
+/// with Jython's message. `!r` and `!s` make every value a string, and
+/// containers and `None` are formatted as their `str` (`object.__format__`).
+/// Checked against Jython on 3,110,400 generated specs and literals (every
+/// combination of fills and alignments, signs, `#`, `0`, widths, `,`,
+/// precisions, every presentation type and a few invalid ones, with and
+/// without `!r` / `!s`): this reports exactly the ones that raise.
+///
+/// * strings: only `s` or no type; no sign, `#`, `=` alignment (also
+///   implied by the `0` flag) or `,`;
+/// * integers: with `b c d o x X n` or no type no precision, with `c` no
+///   sign or `#` and a value in range, `,` only with `d` or no type; the
+///   float types and `%` format the value as a float;
+/// * floats: `e E f F g G n %` or no type; no `#`; `,` not with `n`;
+/// * complex numbers: `e E f F g G n` or no type; no `#`, zero padding,
+///   `=` alignment or `,` with `n`.
+fn format_spec_error(spec: &StandardSpec, converted: bool, e: &Expr) -> Option<String> {
     let lit = if converted { Literal::Str } else { literal(e)? };
-    let float_types = "eEfFgGn";
-    let fails = match lit {
-        Literal::Str | Literal::Container | Literal::None => t != 's',
-        Literal::Int(v) => {
-            t == 's' || (t == 'c' && v.is_some_and(|v| !(0..=0x10FFFF).contains(&v)))
-        }
-        Literal::Float => !(float_types.contains(t) || t == '%'),
-        Literal::Complex => !float_types.contains(t),
-    };
-    fails.then(|| {
-        let what = if converted {
-            "a string (after `!r` or `!s`)"
-        } else {
-            describe(lit)
-        };
-        format!("Unknown format code `{t}` for {what} (Jython raises ValueError)")
+    let m = format_spec_problem(spec, lit)?;
+    Some(if m.contains("OverflowError") {
+        m
+    } else {
+        format!("{m} (Jython raises ValueError)")
     })
+}
+
+/// [`format_spec_error`] for a literal of kind `lit`, without the
+/// exception.
+fn format_spec_problem(spec: &StandardSpec, lit: Literal) -> Option<String> {
+    let kind = spec.kind;
+    let ty = kind.map_or_else(String::new, |t| format!(" '{t}'"));
+    let unknown = |object: &str| {
+        Some(format!(
+            "Unknown format code '{}' for object of type '{object}'",
+            kind.unwrap_or(' ')
+        ))
+    };
+    let in_float = |kind: Option<char>, object: &str| -> Option<String> {
+        if spec.alternate {
+            return Some(format!(
+                "Alternate form (#) not allowed in {object} format specifier"
+            ));
+        }
+        if spec.grouping && kind == Some('n') {
+            return Some(format!(
+                "Grouping not allowed with {object} format specifier 'n'"
+            ));
+        }
+        None
+    };
+    match lit {
+        Literal::Str | Literal::Container | Literal::None => {
+            if !matches!(kind, None | Some('s')) {
+                return unknown("string");
+            }
+            if spec.sign {
+                return Some("Sign not allowed in string format specifier".to_owned());
+            }
+            if spec.alternate {
+                return Some(
+                    "Alternate form (#) not allowed in string format specifier".to_owned(),
+                );
+            }
+            if spec.alignment() == Some('=') {
+                return Some(
+                    "'=' alignment flag not allowed in string format specifier".to_owned(),
+                );
+            }
+            if spec.grouping {
+                return Some(format!(
+                    "Grouping not allowed with string format specifier{ty}"
+                ));
+            }
+            None
+        }
+        Literal::Int(v) => match kind {
+            None | Some('b' | 'c' | 'd' | 'o' | 'x' | 'X' | 'n') => {
+                if spec.precision {
+                    return Some("Precision not allowed in integer format specifier".to_owned());
+                }
+                if kind == Some('c') {
+                    if spec.sign {
+                        return Some(
+                            "Sign not allowed with integer format specifier 'c'".to_owned(),
+                        );
+                    }
+                    if spec.alternate {
+                        return Some(
+                            "Alternate form (#) not allowed with integer format specifier 'c'"
+                                .to_owned(),
+                        );
+                    }
+                    if v.is_some_and(|v| !(0..=0x10FFFF).contains(&v)) {
+                        return Some(
+                            "`c` argument is not in the range of characters (Jython raises OverflowError)"
+                                .to_owned(),
+                        );
+                    }
+                }
+                if spec.grouping && !matches!(kind, None | Some('d')) {
+                    return Some(format!(
+                        "Grouping not allowed with integer format specifier{ty}"
+                    ));
+                }
+                None
+            }
+            Some('e' | 'E' | 'f' | 'F' | 'g' | 'G' | '%') => in_float(kind, "float"),
+            Some(_) => unknown("integer"),
+        },
+        Literal::Float => match kind {
+            None | Some('e' | 'E' | 'f' | 'F' | 'g' | 'G' | 'n' | '%') => in_float(kind, "float"),
+            Some(_) => unknown("float"),
+        },
+        Literal::Complex => match kind {
+            None | Some('e' | 'E' | 'f' | 'F' | 'g' | 'G' | 'n') => {
+                if let Some(e) = in_float(kind, "complex") {
+                    return Some(e);
+                }
+                if spec.zero_fill() {
+                    return Some("Zero padding not allowed in complex format specifier".to_owned());
+                }
+                if spec.alignment() == Some('=') {
+                    return Some(
+                        "'=' alignment flag not allowed in complex format specifier".to_owned(),
+                    );
+                }
+                None
+            }
+            Some(_) => unknown("complex"),
+        },
+    }
 }
 
 /// Whether a format spec (`[[fill]align][sign][#][0][width][,][.precision]
@@ -654,11 +807,11 @@ fn field_spec(
                     spec: format_spec.to_owned(),
                 });
             }
-            if let (Some(argument), Some(kind)) = (argument, spec_type(format_spec)) {
+            if let (Some(argument), Some(parsed)) = (argument, standard_spec(format_spec)) {
                 spec.typed.push(TypedField {
                     argument,
                     converted,
-                    kind,
+                    parsed,
                     spec: format_spec.to_owned(),
                 });
             }
@@ -956,7 +1109,7 @@ fn check_format_call(format: &str, call: &iglint_python::ast::ExprCall) -> Optio
                 .and_then(|kw| kw.iter().rev().find(|(name, _)| name == k).map(|(_, v)| *v)),
         };
         if let Some(value) = value
-            && let Some(problem) = format_type_error(t.kind, t.converted, value)
+            && let Some(problem) = format_spec_error(&t.parsed, t.converted, value)
         {
             return Some(format!("{problem} in `{{:{}}}`", t.spec));
         }
@@ -968,6 +1121,131 @@ fn check_format_call(format: &str, call: &iglint_python::ast::ExprCall) -> Optio
 mod tests {
     use super::*;
     use crate::rules::script::testing::*;
+
+    /// Replays Jython's verdicts on `format<TAB>argument<TAB>result` lines
+    /// (`oracle/format-spec.sh`): the check must report exactly the cases
+    /// that raise. Returns the number of cases checked.
+    fn replay_format_specs(text: &str) -> usize {
+        let mut checked = 0;
+        for line in text.lines() {
+            let mut parts = line.splitn(3, '\t');
+            let (fmt, arg, result) = (
+                parts.next().unwrap(),
+                parts.next().unwrap(),
+                parts.next().unwrap(),
+            );
+            let field = fmt.strip_prefix("{0").unwrap().strip_suffix('}').unwrap();
+            let (converted, spec) = match field.split_once(':') {
+                Some((conversion, spec)) => (!conversion.is_empty(), spec),
+                None => (false, ""),
+            };
+            let Some(parsed) = standard_spec(spec) else {
+                continue;
+            };
+            let module = iglint_python::parse_module(arg);
+            let Some(iglint_python::ast::Stmt::Expr(e)) = module.module.body.first() else {
+                panic!("{arg}");
+            };
+            let found = format_spec_error(&parsed, converted, &e.value);
+            assert_eq!(
+                found.is_some(),
+                result != "ok",
+                "{fmt}.format({arg}): Jython {result}, iglint {found:?}"
+            );
+            checked += 1;
+        }
+        checked
+    }
+
+    /// Reviewer round 10 (Codex): definite format spec errors with literal
+    /// arguments (`'{0:z}'.format(1)`, `'{0:.2}'.format(1)`,
+    /// `'{0:+s}'.format('ab')`). A stratified sample of 4,000 of the
+    /// 3,110,400 generated cases, half of which Jython accepts.
+    #[test]
+    fn format_specs_match_jython() {
+        let checked = replay_format_specs(include_str!(
+            "../../../tests/fixtures/format-spec/sample.tsv"
+        ));
+        assert_eq!(checked, 4000);
+    }
+
+    /// Every generated case (`oracle/format-spec.sh all OUT`, then
+    /// `IGLINT_FORMAT_SPEC_ORACLE=OUT cargo test -p iglint_linter
+    /// format_specs_match_jython_everywhere -- --ignored`).
+    #[test]
+    #[ignore]
+    fn format_specs_match_jython_everywhere() {
+        let path = std::env::var("IGLINT_FORMAT_SPEC_ORACLE").expect("IGLINT_FORMAT_SPEC_ORACLE");
+        let text = std::fs::read_to_string(path).unwrap();
+        let checked = replay_format_specs(&text);
+        println!("{checked} cases match Jython");
+    }
+
+    #[test]
+    fn format_spec_errors() {
+        for (code, message) in [
+            (
+                "x = '{0:z}'.format(1)",
+                "Unknown format code 'z' for object of type 'integer'",
+            ),
+            (
+                "x = '{0:.2}'.format(1)",
+                "Precision not allowed in integer format specifier",
+            ),
+            (
+                "x = '{0:+s}'.format('ab')",
+                "Sign not allowed in string format specifier",
+            ),
+            (
+                "x = '{0:=5}'.format('ab')",
+                "'=' alignment flag not allowed in string format specifier",
+            ),
+            (
+                "x = '{0:05}'.format('ab')",
+                "'=' alignment flag not allowed in string format specifier",
+            ),
+            (
+                "x = '{0:,}'.format('ab')",
+                "Grouping not allowed with string format specifier",
+            ),
+            (
+                "x = '{0:#}'.format(1.5)",
+                "Alternate form (#) not allowed in float format specifier",
+            ),
+            (
+                "x = '{0:,x}'.format(5)",
+                "Grouping not allowed with integer format specifier 'x'",
+            ),
+            (
+                "x = '{0:+c}'.format(65)",
+                "Sign not allowed with integer format specifier 'c'",
+            ),
+            (
+                "x = '{0:05}'.format(1j)",
+                "Zero padding not allowed in complex format specifier",
+            ),
+            (
+                "x = '{0!r:>+5}'.format(1)",
+                "Sign not allowed in string format specifier",
+            ),
+        ] {
+            let d = lint_module("SCR112", code);
+            assert_eq!(d.len(), 1, "{code}");
+            assert!(d[0].message.contains(message), "{code}: {}", d[0].message);
+        }
+        for code in [
+            "x = '{0:.2f}'.format(1)",
+            "x = '{0:,}'.format(1)",
+            "x = '{0:,.2f}'.format(1.5)",
+            "x = '{0:x<05}'.format('ab')",
+            "x = '{0:>5}'.format([1])",
+            "x = '{0:05}'.format(5)",
+            "x = '{0:+.1%}'.format(5)",
+            "x = '{0:z}'.format(value)",
+        ] {
+            assert!(lint_module("SCR112", code).is_empty(), "{code}");
+        }
+    }
 
     #[test]
     fn percent_parsing() {

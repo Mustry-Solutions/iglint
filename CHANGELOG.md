@@ -87,6 +87,12 @@ from 0.1.0 on.
   write-only opens, directory listings and existence checks keep fixes
   safe. `docs/internal/fix-safety.md` has a new "File reads" section and
   no longer claims that whitespace and comments cannot be observed.
+- SCR112 missed format specs that raise for a literal argument:
+  `'{0:z}'.format(1)`, `'{0:.2}'.format(1)`, `'{0:+s}'.format('ab')`. It
+  now checks the whole spec per literal type (presentation type, sign,
+  alignment, `#`, `,`, zero padding, precision), matching Jython on every
+  one of 3,110,400 generated cases (`oracle/format-spec.sh`; a stratified
+  sample of 4,000 is replayed by the tests).
 - SCR102's documentation no longer says that removing an import of a
   missing JDK class is a remaining effect of the safe fix (that removal is
   unsafe since the previous round).
