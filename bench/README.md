@@ -325,13 +325,26 @@ matched again after normalising documented wording differences (bad
 component reference pattern counts, name suggestions), then classified:
 **expected** (a category of `docs/compat/ign-lint-differences.md`),
 **ign-lint-only** (unexplained, potential iglint false negative) or
-**iglint-only** (unexplained, potential false positive). Pylint findings
+**iglint-only** (unexplained, potential false positive). Matched findings
+(identical, or equal after normalising the wording) are also compared by
+severity: the output gives the number of matched findings with the same
+severity, the expected severity differences per category (a documented
+mapping: native `SCR` rules take the severity mapped for `E` or `W`) and
+the unexplained ones per rule and severity pair. Pylint findings
 are compared separately by file, node path and message code, because
 ign-lint's combined file shifts lines and adds file-level messages.
-Details go to `differences.json` in the output directory. For a private
+Details go to `differences.json` and `severity-differences.json` in the
+output directory, the counts to `summary.json`. For a private
 corpus (`--private`, or the corpus is `$IGLINT_PRIVATE_CORPUS`) only
 aggregates are printed and the output directory must be outside the
 repository (default `~/.cache/iglint-bench/parity-private`).
+
+On the bundled fixtures (`crates/iglint_linter/tests/fixtures/ign-lint`,
+`--files 'cases/**/view.json'`) every difference is expected and all 147
+matched findings have the same severity. `cargo test -p iglint --test
+bench_parity` runs that and fails on any unexplained finding or severity
+difference; it is skipped without `python3` or the ign-lint virtualenv
+(`$IGN_LINT`, else `$BENCH_HOME/venv/bin/ign-lint`).
 
 Results without pylint (`bench/configs/rules-only.json`, seed 1), and the
 private project with its own configuration (pylint included):

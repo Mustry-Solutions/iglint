@@ -10,6 +10,10 @@ per file, rule and node path, and classifies every difference:
   ign-lint-only  unexplained: a potential iglint false negative
   iglint-only    unexplained: a potential iglint false positive
 
+Matched findings (identical, or equal after normalising documented wording)
+are also compared by severity. A severity difference is expected when a
+documented severity mapping explains it, else unexplained.
+
 Usage:
   bench/parity.py CORPUS [--out DIR] [--private] [--list] -- IGN-LINT FLAGS...
 
@@ -54,11 +58,14 @@ PYLINT_MESSAGE = re.compile(r"^      • (.*)$")
 
 
 def parse_results(path):
-    """Findings as a list of dicts: file, severity, rule, path, text, raw."""
+    """Findings as a list of dicts: file, severity, rule, category (the
+    pylint category letter of a grouped pylint message, else None), path,
+    text, raw."""
     findings = []
     current = None
     severity = None
     rule = None
+    category = None
     lines = Path(path).read_text(encoding="utf-8").splitlines()
     for i, line in enumerate(lines):
         if line.startswith("📦") or line.strip() == "END OF RESULTS":
@@ -66,7 +73,7 @@ def parse_results(path):
         prev = lines[i - 1] if i else ""
         m = FILE_LINE.match(line)
         if m and prev.startswith("-" * 20):
-            current, severity, rule = m.group(1).strip(), None, None
+            current, severity, rule, category = m.group(1).strip(), None, None, None
             continue
         m = SECTION.match(line)
         if m:
@@ -74,9 +81,11 @@ def parse_results(path):
             continue
         m = RULE.match(line)
         if m:
-            rule = m.group(1)
+            rule, category = m.group(1), None
             continue
-        if PYLINT_CAT.match(line):
+        m = PYLINT_CAT.match(line)
+        if m:
+            category = m.group(1)
             continue
         m = MESSAGE.match(line) or PYLINT_MESSAGE.match(line)
         if not m and findings and line.strip() and not line.startswith(("=", "-", " ")) and findings[-1]["file"] == current:
@@ -92,7 +101,15 @@ def parse_results(path):
             if not sep:
                 node, text = "", raw
             findings.append(
-                {"file": current, "severity": severity, "rule": rule, "path": node, "text": text, "raw": raw}
+                {
+                    "file": current,
+                    "severity": severity,
+                    "rule": rule,
+                    "category": category if PYLINT_MESSAGE.match(line) else None,
+                    "path": node,
+                    "text": text,
+                    "raw": raw,
+                }
             )
     return findings
 
@@ -174,6 +191,9 @@ def resolve(view, path):
             node = next((k for k in kids if (k.get("meta") or {}).get("name") == name), None)
             if node is None and name.isdigit() and int(name) < len(kids):
                 node = kids[int(name)]
+                # ign-lint writes `children[2].Name`: the name follows the index.
+                if i + 2 < len(parts) and isinstance(node, dict) and (node.get("meta") or {}).get("name") == parts[i + 2]:
+                    i += 1
             i += 2
             continue
         if isinstance(node, dict):
@@ -184,6 +204,41 @@ def resolve(view, path):
             return None
         i += 1
     return node
+
+
+def expression_binding(view, path):
+    """The expression of the expression binding at an ign-lint `propConfig`
+    path (`propConfig.{key}` for the view, `{component}.propConfig.{key}`
+    for a component), or None."""
+    if not isinstance(view, dict):
+        return None
+    if path.startswith("propConfig."):
+        owner, key = view, path[len("propConfig.") :]
+    else:
+        head, sep, key = path.partition(".propConfig.")
+        if not sep:
+            return None
+        owner = resolve(view, head)
+    if not isinstance(owner, dict):
+        return None
+    binding = ((owner.get("propConfig") or {}).get(key) or {}).get("binding") or {}
+    if binding.get("type") != "expr":
+        return None
+    expression = (binding.get("config") or {}).get("expression")
+    return expression if isinstance(expression, str) else None
+
+
+# Python attribute access on `self`, which the Ignition expression language
+# does not have (it reads properties through `{...}` references).
+PYTHON_SELF = re.compile(r"(?<![\w.])self\s*\.")
+
+
+def python_in_expression(expression, pattern):
+    """True when `expression` is Python code (`self.` outside string
+    literals and `{...}` references) and the reported traversal `pattern`
+    occurs in that code."""
+    code = re.sub(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"|\{[^}]*\}", "", expression)
+    return bool(PYTHON_SELF.search(code)) and pattern in code
 
 
 def has_abbreviation(name):
@@ -197,6 +252,8 @@ def classify(f, side, views):
     if rule == "PylintScriptRule":
         return "not compared: PylintScriptRule (SCR rules)"
     if rule == "ComponentReferenceValidationRule":
+        if side == "iglint" and ".scripts.extensionFunctions[" in path and "not found as sibling" in text:
+            return "SCR305: extension functions are scripts and are checked (bug 1)"
         if side == "ign-lint" and (".scripts." in path or ".events." in path or "onChange" in path or "self." in text):
             return "not compared: ComponentReferenceValidationRule script part (SCR305)"
         if side == "iglint" and re.search(r"(view parameter|custom property) `[^`]*` is not defined", text):
@@ -208,6 +265,11 @@ def classify(f, side, views):
     if rule == "BadComponentReferenceRule":
         if side == "iglint" and "extensionFunctions" in path:
             return "whole run: extension functions are scripts (bug 1)"
+        m = re.match(r"\w[\w ]* contains '(.*?)'", text)
+        if side == "ign-lint" and m:
+            expression = expression_binding(views.get(f["file"]), path)
+            if expression is not None and python_in_expression(expression, m.group(1)):
+                return "VIEW018: Python code in an expression binding is BIND001's finding (bug 18)"
     if rule == "NamePatternRule":
         m = re.search(r"Name '([^']*)'", text)
         if m and has_abbreviation(m.group(1)):
@@ -290,6 +352,43 @@ def _propconfig_only(view, path):
     if not isinstance(component, dict):
         return False
     return name not in (component.get("custom") or {}) and f"custom.{name}" in (component.get("propConfig") or {})
+
+
+DEFAULT_CATEGORY_MAPPING = {"F": "error", "E": "error", "W": "warning", "C": "warning", "R": "warning"}
+
+
+def pylint_category_mapping(flags, corpus):
+    """PylintScriptRule's `category_mapping` of the ign-lint configuration
+    named by `--config` (relative to the corpus), else ign-lint's default."""
+    for i, flag in enumerate(flags[:-1]):
+        if flag != "--config":
+            continue
+        path = Path(flags[i + 1])
+        if not path.is_absolute():
+            path = corpus / path
+        try:
+            config = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            break
+        rule = config.get("PylintScriptRule") if isinstance(config, dict) else None
+        kwargs = (rule or {}).get("kwargs") if isinstance(rule, dict) else None
+        mapping = (kwargs or {}).get("category_mapping") if isinstance(kwargs, dict) else None
+        if isinstance(mapping, dict):
+            return mapping
+        break
+    return DEFAULT_CATEGORY_MAPPING
+
+
+def classify_severity(f, g, mapping):
+    """Category for a matched pair (`f` from ign-lint, `g` from iglint) whose
+    severities differ, or None when unexplained."""
+    if f["rule"] == "PylintScriptRule" and g["category"] is None:
+        # A native SCR rule takes the severity mapped for `E` (error-level
+        # rules) or `W` (warning-level rules), not that of the pylint
+        # category ign-lint grouped the message under.
+        if g["severity"] in (mapping.get("E"), mapping.get("W")):
+            return "SCR: native rules take the severity mapped for E or W"
+    return None
 
 
 def _debug_off_config(flags, out, corpus):
@@ -409,7 +508,7 @@ def main():
 
     stats = collections.defaultdict(collections.Counter)
     diffs = []
-    severity_mismatch = 0
+    pairs = []
     remaining = {"ign-lint": [], "iglint": []}
     # Pass 1: exact, pass 2: normalised message.
     pool = collections.defaultdict(list)
@@ -421,7 +520,7 @@ def main():
         if pool.get(k):
             g = pool[k].pop()
             stats[f["rule"]]["identical"] += 1
-            severity_mismatch += f["severity"] != g["severity"]
+            pairs.append((f, g))
         else:
             unmatched_left.append(f)
     rest_right = [f for fs in pool.values() for f in fs]
@@ -431,7 +530,7 @@ def main():
     for f in unmatched_left:
         k = key(f, True)
         if pool2.get(k):
-            pool2[k].pop()
+            pairs.append((f, pool2[k].pop()))
             stats[f["rule"]]["expected"] += 1
             stats[f["rule"]]["expected: wording"] += 1
         else:
@@ -450,7 +549,18 @@ def main():
                 diffs.append({"side": side, **f})
 
     rules = sorted(stats)
-    print(f"\nfindings: ign-lint {len(left)}, iglint {len(right)}; severity mismatches among identical: {severity_mismatch}")
+    mapping = pylint_category_mapping(resolved, corpus)
+    severity_categories = collections.Counter()
+    severity_diffs = []
+    for f, g in pairs:
+        if f["severity"] == g["severity"]:
+            continue
+        cat = classify_severity(f, g, mapping)
+        if cat:
+            severity_categories[cat] += 1
+        else:
+            severity_diffs.append({"ign-lint severity": f["severity"], "iglint severity": g["severity"], **f})
+    print(f"\nfindings: ign-lint {len(left)}, iglint {len(right)}")
     print(f"{'rule':38} {'identical':>9} {'expected':>9} {'ign-lint-only':>13} {'iglint-only':>11}")
     for r in rules:
         s = stats[r]
@@ -487,11 +597,43 @@ def main():
         print(f"  {'code':6} {'both':>6} {'ign-lint-only':>13} {'iglint-only':>11}")
         for code, c in sorted(per_code.items(), key=lambda kv: -sum(kv[1].values()))[:20]:
             print(f"  {code:6} {c['both']:>6} {c['ign-lint-only']:>13} {c['iglint-only']:>11}")
+    differing = sum(severity_categories.values()) + len(severity_diffs)
+    print(f"\nseverity of {len(pairs)} matched findings: {len(pairs) - differing} same, {differing} different")
+    for c, n in severity_categories.most_common():
+        print(f"  {n:6}  expected: {c}")
+    unexplained_severity = collections.Counter(
+        (d["rule"], d["ign-lint severity"], d["iglint severity"]) for d in severity_diffs
+    )
+    for (rule, sl, sr), n in unexplained_severity.most_common():
+        print(f"  {n:6}  unexplained: {rule:34} ign-lint {sl}, iglint {sr}")
     (out / "differences.json").write_text(json.dumps(diffs, indent=1, ensure_ascii=False), encoding="utf-8")
+    (out / "severity-differences.json").write_text(
+        json.dumps(severity_diffs, indent=1, ensure_ascii=False), encoding="utf-8"
+    )
+    summary = {
+        "findings": {"ign-lint": len(left), "iglint": len(right)},
+        "identical": sum(stats[r]["identical"] for r in rules),
+        "expected": sum(stats[r]["expected"] for r in rules),
+        "expected by category": dict(categories),
+        "unexplained": {
+            "ign-lint-only": sum(stats[r]["ign-lint-only"] for r in rules),
+            "iglint-only": sum(stats[r]["iglint-only"] for r in rules),
+        },
+        "severity": {
+            "matched": len(pairs),
+            "same": len(pairs) - differing,
+            "expected by category": dict(severity_categories),
+            "unexplained": len(severity_diffs),
+        },
+    }
+    (out / "summary.json").write_text(json.dumps(summary, indent=1, ensure_ascii=False), encoding="utf-8")
     print(f"\nunexplained: {len(diffs)} (details: {out / 'differences.json'})")
+    print(f"unexplained severity differences: {len(severity_diffs)} (details: {out / 'severity-differences.json'})")
     if a.list and not private:
         for d in diffs:
             print(f"{d['side']:13} {d['file']}  {d['rule']}: {d['raw']}")
+        for d in severity_diffs:
+            print(f"severity      {d['file']}  {d['rule']}: ign-lint {d['ign-lint severity']}, iglint {d['iglint severity']}: {d['raw']}")
     return 0
 
 
