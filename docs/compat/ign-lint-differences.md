@@ -94,12 +94,10 @@ finding).
   a string literal is text (bug 10; 2 missing). A non-numeric argument is
   checked even when a numeric `now(n)` is in the same expression.
 * `now()` without an argument polls every 1000 ms; it is reported only when
-  that is below `minimum-interval` (6 missing under a 1000 ms minimum).
+  that is below `minimum-interval` (7 missing under a 1000 ms minimum).
 * `now(0)` and negative rates mean no polling (1 missing).
 * A rate that is not a literal cannot be checked; it is reported only with
   `strict` (1 missing).
-* Indirect tag binding `references` are property paths or literals, not
-  expressions (1 missing).
 
 ## ComponentReferenceValidationRule (`BIND005`, `SCR305`)
 

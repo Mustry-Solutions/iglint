@@ -63,16 +63,16 @@ binding view.custom.a@binding type=expr enabled=None expression=Some(ExprId(0)) 
 binding view.custom.b@binding type=expr-struct enabled=None leaves=["nested.y", "x"] waitOnAll=Some(false) ign=propConfig.custom.b
 binding view.custom.c@binding type=tag enabled=None mode=Direct tagPath=Some("[edge]Area/Unit1/Value") parsed=true expression=None placeholders=[] references=[] bidirectional=false fallbackDelay=Some(2.5) ign=propConfig.custom.c
 binding view.custom.d@binding type=tag enabled=None mode=Indirect tagPath=Some("[edge]{area}/{1}/Value") parsed=false expression=None placeholders=["area", "1"] references=["1=\"Unit1\"", "area=\"{view.params.line}\"(ref)", "extra=\"{this.custom.a}\"(ref)"] bidirectional=false fallbackDelay=None ign=propConfig.custom.d
-binding view.custom.e@binding type=tag enabled=None mode=Expression tagPath=Some("{view.params.tagPath} + '/Sub'") parsed=false expression=Some(ExprId(6)) placeholders=[] references=[] bidirectional=true fallbackDelay=None ign=propConfig.custom.e
-binding view.custom.f@binding type=query enabled=None queryPath=Some("Root/Q") returnFormat=Some("dataset") params=["db=Some(ExprId(7))", "id=Some(ExprId(8))", "order=Some(ExprId(9))"] polling=Some(true)/None ign=propConfig.custom.f
-binding view.custom.g@binding type=tag-history enabled=None tags=[expression ExprId(11)] dateRange={"endDate":"now(0)","startDate":"now(0)"} returnFormat=Some("tall") polling=Some(false)/Some(10.0) ign=propConfig.custom.g
-binding view.custom.h@binding type=tag-history enabled=None tags=[Some("[edge]Area/Unit1/Value")(expr=None) alias=None agg=None, Some("{view.params.tagPath}")(expr=Some(ExprId(12))) alias=Some("p") agg=None] dateRange=- returnFormat=Some("wide") polling=None/None ign=propConfig.custom.h
-binding view.custom.i@binding type=http enabled=None url=Some("'https://example.invalid/' + {view.params.line}") urlExpression=Some(ExprId(13)) method=Some("POST") auth=Some("basic") polling=Some(true) ign=propConfig.custom.i
+binding view.custom.e@binding type=tag enabled=None mode=Expression tagPath=Some("{view.params.tagPath} + '/Sub'") parsed=false expression=Some(ExprId(10)) placeholders=[] references=[] bidirectional=true fallbackDelay=None ign=propConfig.custom.e
+binding view.custom.f@binding type=query enabled=None queryPath=Some("Root/Q") returnFormat=Some("dataset") params=["db=Some(ExprId(11))", "id=Some(ExprId(12))", "order=Some(ExprId(13))"] polling=Some(true)/None ign=propConfig.custom.f
+binding view.custom.g@binding type=tag-history enabled=None tags=[expression ExprId(15)] dateRange={"endDate":"now(0)","startDate":"now(0)"} returnFormat=Some("tall") polling=Some(false)/Some(10.0) ign=propConfig.custom.g
+binding view.custom.h@binding type=tag-history enabled=None tags=[Some("[edge]Area/Unit1/Value")(expr=None) alias=None agg=None, Some("{view.params.tagPath}")(expr=Some(ExprId(18))) alias=Some("p") agg=None] dateRange=- returnFormat=Some("wide") polling=None/None ign=propConfig.custom.h
+binding view.custom.i@binding type=http enabled=None url=Some("'https://example.invalid/' + {view.params.line}") urlExpression=Some(ExprId(19)) method=Some("POST") auth=Some("basic") polling=Some(true) ign=propConfig.custom.i
 binding view.custom.j@binding type=property enabled=None path=Some("../Nope.props.text") parsed=true bidirectional=true ign=propConfig.custom.j
 binding view.custom.k@binding type=unknown enabled=None config=- ign=propConfig.custom.k
-binding view.custom.l@binding type=expr enabled=Some(false) expression=Some(ExprId(15)) ign=propConfig.custom.l
+binding view.custom.l@binding type=expr enabled=Some(false) expression=Some(ExprId(21)) ign=propConfig.custom.l
 binding root/Label.props.text@binding type=property enabled=None path=Some("/root/Panel.custom.value") parsed=true bidirectional=false ign=root.root.children[0].Label.propConfig.props.text
-binding root/Label.props.textStyle.classes@binding type=expr enabled=None expression=Some(ExprId(16)) ign=root.root.children[0].Label.propConfig.props.textStyle.classes
+binding root/Label.props.textStyle.classes@binding type=expr enabled=None expression=Some(ExprId(22)) ign=root.root.children[0].Label.propConfig.props.textStyle.classes
 styleRef MapOutput view.custom.a@binding.transforms[3].mappings[0].output classes=["Root/Accent", "Legacy/Old"] bound=false
 styleRef MapOutput view.custom.a@binding.transforms[3].fallback classes=["Root/Missing"] bound=false
 styleRef Property root/Label.props.style.classes classes=["Root/Accent", "Legacy/Old", "missing-one"] bound=false
@@ -87,19 +87,25 @@ styleRef Property root/Label.props.textStyle.classes classes=["Root/Accent"] bou
 [1] expr transform view.custom.a@binding.transforms[1] "{value} * 2" valid=true tentative=false refs=["value"] calls=[] ign=propConfig.custom.a.binding.transforms[1]
 [2] expr map-input view.custom.a@binding.transforms[2].mappings[0].input "{value} > 1" valid=true tentative=false refs=["value"] calls=[] ign=propConfig.custom.a.binding.transforms[2].mappings[0].input
 [3] expr map-output view.custom.a@binding.transforms[2].mappings[0].output "'big'" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.a.binding.transforms[2].mappings[0].output
-[4] expr struct-leaf view.custom.b@binding.struct.nested.y "{this.custom.a}" valid=true tentative=false refs=["prop:this.custom.a"] calls=[] ign=propConfig.custom.b
-[5] expr struct-leaf view.custom.b@binding.struct.x "1 + 1" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.b
-[6] expr tag-path view.custom.e@binding "{view.params.tagPath} + '/Sub'" valid=true tentative=false refs=["prop:view.params.tagPath"] calls=[] ign=propConfig.custom.e
-[7] expr query-parameter view.custom.f@binding.parameters.db "'main'" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.f
-[8] expr query-parameter view.custom.f@binding.parameters.id "{view.params.line}" valid=true tentative=false refs=["prop:view.params.line"] calls=[] ign=propConfig.custom.f
-[9] expr query-parameter view.custom.f@binding.parameters.order "'name'" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.f
-[10] expr polling-rate view.custom.f@binding.polling.rate "{view.custom.a} * 2" valid=true tentative=false refs=["prop:view.custom.a"] calls=[] ign=propConfig.custom.f
-[11] expr tag-history-tags view.custom.g@binding.tags "{view.custom.h}" valid=true tentative=false refs=["prop:view.custom.h"] calls=[] ign=propConfig.custom.g
-[12] expr tag-history-path view.custom.h@binding.tags[1].path "{view.params.tagPath}" valid=true tentative=true refs=["prop:view.params.tagPath"] calls=[] ign=propConfig.custom.h
-[13] expr http-url view.custom.i@binding.request.url "'https://example.invalid/' + {view.params.line}" valid=true tentative=true refs=["prop:view.params.line"] calls=[] ign=propConfig.custom.i
-[14] expr polling-rate view.custom.i@binding.polling.rate "5" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.i
-[15] expr binding view.custom.l@binding "1 +" valid=false tentative=false refs=[] calls=[] ign=propConfig.custom.l
-[16] expr binding root/Label.props.textStyle.classes@binding "'Root/Accent'" valid=true tentative=false refs=[] calls=[] ign=root.root.children[0].Label.propConfig.props.textStyle.classes
+[4] expr config-field view.custom.a@binding.transforms[2].fallback "'small'" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.a.binding.transforms[2].fallback
+[5] expr struct-leaf view.custom.b@binding.struct.nested.y "{this.custom.a}" valid=true tentative=false refs=["prop:this.custom.a"] calls=[] ign=propConfig.custom.b
+[6] expr struct-leaf view.custom.b@binding.struct.x "1 + 1" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.b
+[7] expr config-field view.custom.d@binding.references.1 "Unit1" valid=false tentative=false refs=[] calls=[] ign=propConfig.custom.d.references.1
+[8] expr config-field view.custom.d@binding.references.area "{view.params.line}" valid=true tentative=false refs=["prop:view.params.line"] calls=[] ign=propConfig.custom.d.references.area
+[9] expr config-field view.custom.d@binding.references.extra "{this.custom.a}" valid=true tentative=false refs=["prop:this.custom.a"] calls=[] ign=propConfig.custom.d.references.extra
+[10] expr tag-path view.custom.e@binding "{view.params.tagPath} + '/Sub'" valid=true tentative=false refs=["prop:view.params.tagPath"] calls=[] ign=propConfig.custom.e
+[11] expr query-parameter view.custom.f@binding.parameters.db "'main'" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.f
+[12] expr query-parameter view.custom.f@binding.parameters.id "{view.params.line}" valid=true tentative=false refs=["prop:view.params.line"] calls=[] ign=propConfig.custom.f
+[13] expr query-parameter view.custom.f@binding.parameters.order "'name'" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.f
+[14] expr polling-rate view.custom.f@binding.polling.rate "{view.custom.a} * 2" valid=true tentative=false refs=["prop:view.custom.a"] calls=[] ign=propConfig.custom.f
+[15] expr tag-history-tags view.custom.g@binding.tags "{view.custom.h}" valid=true tentative=false refs=["prop:view.custom.h"] calls=[] ign=propConfig.custom.g
+[16] expr config-field view.custom.g@binding.dateRange.endDate "now(0)" valid=true tentative=false refs=[] calls=["now"] ign=propConfig.custom.g.dateRange.endDate
+[17] expr config-field view.custom.g@binding.dateRange.startDate "now(0)" valid=true tentative=false refs=[] calls=["now"] ign=propConfig.custom.g.dateRange.startDate
+[18] expr tag-history-path view.custom.h@binding.tags[1].path "{view.params.tagPath}" valid=true tentative=true refs=["prop:view.params.tagPath"] calls=[] ign=propConfig.custom.h
+[19] expr http-url view.custom.i@binding.request.url "'https://example.invalid/' + {view.params.line}" valid=true tentative=false refs=["prop:view.params.line"] calls=[] ign=propConfig.custom.i
+[20] expr polling-rate view.custom.i@binding.polling.rate "5" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.i
+[21] expr binding view.custom.l@binding "1 +" valid=false tentative=false refs=[] calls=[] ign=propConfig.custom.l
+[22] expr binding root/Label.props.textStyle.classes@binding "'Root/Accent'" valid=true tentative=false refs=[] calls=[] ign=root.root.children[0].Label.propConfig.props.textStyle.classes
 
 # view com.inductiveautomation.perspective/views/Broken/Malformed in edge-leaf (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
 error view.json 46..46 unexpected end of input, expected a string key at 46..46

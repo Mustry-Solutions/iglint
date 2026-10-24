@@ -5,8 +5,9 @@
 //! is a reference to the `Label` that is a sibling of the expression's owner,
 //! not to every component called `Label`. Sources:
 //!
-//! * property references in every expression of the view (bindings,
-//!   transforms, struct leaves, query parameters, ...);
+//! * property references in every expression of the view (every binding
+//!   and transform field Perspective parses, measured in
+//!   `iglint_project::perspective_fields`);
 //! * property binding paths and indirect tag binding references;
 //! * `getChild('...')` / `getSibling('...')` calls with literal arguments in
 //!   scripts, on receivers that resolve statically (`self`, `self.parent`,
@@ -102,6 +103,12 @@ impl References {
             };
             walker.visit_module(&parsed.module);
         }
+        // A reference may be modelled twice (an indirect tag binding's
+        // reference is also an expression): one edit per place.
+        refs.sites
+            .sort_by_key(|s| (s.range.start(), s.range.end(), s.component));
+        refs.sites
+            .dedup_by_key(|s| (s.range.start(), s.range.end(), s.component));
         refs
     }
 

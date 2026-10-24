@@ -611,6 +611,50 @@ starting). Their scripts never run, so they are not unknown code; `REF009`
 reports each such file, so that nothing iglint lists goes unread without a
 finding (`every_listed_file_is_analysed_or_reported`).
 
+### Perspective fields and component names
+
+Which binding and transform fields Perspective parses, and which members
+of the component script object return the component's name, are
+measured in the Ignition 8.3.3 image by `stubs-gen/gen_perspective_fields.py`
+(`stubs-gen/perspective-fields.sh`, Jython and the image's jars, no
+gateway) into `crates/iglint_project/src/generated/perspective_fields.rs`:
+
+* **Fields.** Every binding and transform type registered by
+  `BindingRegistryImpl` is built through the registry from configurations
+  generated from the module's own JSON schemas (every alternative and
+  every enumerated value, with Java enum spellings where Perspective uses
+  `Enum.valueOf`), repaired where a schema default is rejected, with a
+  recording `BindingContext`. One position at a time (every value, keys
+  and nested values of free-form objects, and identifier-like string
+  constants of the binding classes as extra keys) holds a marker
+  reference; a field is an expression when the marker reaches the
+  element's property reference parser, a property path when its raw
+  text does, and it carries the enumerated value that decides it
+  (`tag` `mode`, HTTP `auth.type`, map `inputType`/`outputType`, polling
+  `enabled`). Completeness: every Perspective method in any jar of the
+  image that calls `PerspectiveExpression.create`,
+  `PerspectiveExpressionFactory.apply`, `PerspectiveTransformExpression.create`,
+  `ELParserHarness.parse` or `createPropertyReference` must have been on
+  the stack of a recorded marker or be classified as not reading view
+  configuration (the parsers themselves, `{...}` references inside an
+  expression, the `property(path)` function, the model's own reference
+  implementations, Designer code); otherwise the generator fails. So no
+  event action, component configuration or binding type parses an
+  expression iglint does not model. A type that cannot be built without a
+  gateway (the script transform) is accepted only when no method of its
+  package calls a parser. The view model reads every listed expression
+  field (`every_measured_field_is_modelled`); `generated_fields_match_the_generator`
+  fails when the generator changes without regenerating.
+* **Name members.** A return-value flow analysis of the bytecode marks a
+  method as returning the name when a value it returns may derive from
+  `PerspectiveElement.getName()` (through calls, string building and
+  locals); it runs over every public member of
+  `ComponentModelScriptWrapper$SafetyWrapper` and of every component model
+  delegate and finds `name` and `getName`. The generator checks itself on
+  `PerspectiveElement.getQualifiedPath`, which builds a string from the
+  name. The access analysis records a use of a measured name member on a
+  component as a read of its `meta` `name`.
+
 ### Line numbers
 
 Line numbers are invariant under safe fixes. A safe fix that deletes a

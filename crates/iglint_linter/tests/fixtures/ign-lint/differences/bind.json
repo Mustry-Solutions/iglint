@@ -2,6 +2,14 @@
   "differences": [
     {
       "view": "probes/PollingQuirks",
+      "variant": "poll-1000",
+      "rule": "PollingIntervalRule",
+      "kind": "missing",
+      "message": "root.root.children[11].TagIndirect.propConfig.props.text.references.a: 'now()'",
+      "reason": "`now()` polls every 1000 ms, which is not faster than a minimum of 1000 ms; ign-lint reports every argument-less `now()`."
+    },
+    {
+      "view": "probes/PollingQuirks",
       "variant": "*",
       "rule": "PollingIntervalRule",
       "kind": "missing",
@@ -31,14 +39,6 @@
       "kind": "missing",
       "message": "root.root.children[9].NowNegative.propConfig.props.text: 'now(-1)'",
       "reason": "A rate of zero or less means no polling; ign-lint's regex does not accept the sign and reports it."
-    },
-    {
-      "view": "probes/PollingQuirks",
-      "variant": "*",
-      "rule": "PollingIntervalRule",
-      "kind": "missing",
-      "message": "root.root.children[11].TagIndirect.propConfig.props.text.references.a: 'now()'",
-      "reason": "Indirect tag binding references are property paths or literals, not expressions; `now()` there never polls."
     },
     {
       "view": "probes/UnusedQuirks",

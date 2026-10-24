@@ -274,7 +274,7 @@ pub struct HistoryTag<'a> {
 #[derive(Debug)]
 pub struct HttpBinding<'a> {
     pub url: Option<&'a JsonString<'a>>,
-    /// The URL when it parses as an expression.
+    /// The URL expression.
     pub url_expression: Option<ExprId>,
     pub method: Option<&'a str>,
     pub auth_type: Option<&'a str>,

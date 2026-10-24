@@ -90,7 +90,7 @@ propConfig root/Title.props.text persistent=None direction=- access=- binding=tr
 propConfig root/Speed.props.text persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[1].Speed.propConfig.props.text
 binding view.custom.running@binding type=tag enabled=None mode=Indirect tagPath=Some("{0}/Running") parsed=false expression=None placeholders=["0"] references=["0=\"{view.params.tagPath}\"(ref)"] bidirectional=false fallbackDelay=Some(2.5) ign=propConfig.custom.running
 binding root/Title.props.text@binding type=property enabled=None path=Some("view.params.title") parsed=true bidirectional=false ign=root.root.children[0].Title.propConfig.props.text
-binding root/Speed.props.text@binding type=tag enabled=None mode=Expression tagPath=Some("{view.params.tagPath} + \"/Speed\"") parsed=false expression=Some(ExprId(0)) placeholders=[] references=[] bidirectional=false fallbackDelay=Some(2.5) ign=root.root.children[1].Speed.propConfig.props.text
+binding root/Speed.props.text@binding type=tag enabled=None mode=Expression tagPath=Some("{view.params.tagPath} + \"/Speed\"") parsed=false expression=Some(ExprId(1)) placeholders=[] references=[] bidirectional=false fallbackDelay=Some(2.5) ign=root.root.children[1].Speed.propConfig.props.text
   transform root/Speed.props.text@binding.transforms[0] script Some(ScriptId(5)) ign=root.root.children[1].Speed.propConfig.props.text.binding.transforms[0]
 event root@events.dom.onClick list=true ign=root.root.events.dom.onClick
   action root@events.dom.onClick[0] scope=Some("G") enabled=None script Some(ScriptId(1)) ign=root.root.events.dom.onClick[0]
@@ -125,7 +125,8 @@ styleRef Property root.props.style.classes classes=["Brand/Primary"] bound=false
 [6] script extension-function root/Alarms@extensionFunctions.filterAlarm scope=perspective-component enabled=true anchor=2830..2838 ign=root.root.children[2].Alarms.scripts.extensionFunctions[0]
   | def filterAlarm(self, alarmEvent):
   | →return alarmEvent.get("source").startswith(self.view.params.tagPath)
-[0] expr tag-path root/Speed.props.text@binding "{view.params.tagPath} + \"/Speed\"" valid=true tentative=false refs=["prop:view.params.tagPath"] calls=[] ign=root.root.children[1].Speed.propConfig.props.text
+[0] expr config-field view.custom.running@binding.references.0 "{view.params.tagPath}" valid=true tentative=false refs=["prop:view.params.tagPath"] calls=[] ign=propConfig.custom.running.references.0
+[1] expr tag-path root/Speed.props.text@binding "{view.params.tagPath} + \"/Speed\"" valid=true tentative=false refs=["prop:view.params.tagPath"] calls=[] ign=root.root.children[1].Speed.propConfig.props.text
 
 # view com.inductiveautomation.perspective/views/Docks/Header in fixture-hmi (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
 component root type=ia.container.column depth=0 ptr=/root ign=root.root
@@ -176,8 +177,8 @@ propConfig root/LinePicker.props.value persistent=None direction=- access=- bind
 propConfig root/Setpoint.props.value persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[7].Setpoint.propConfig.props.value
 propConfig root/Hidden.meta.visible persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[14].Hidden.propConfig.meta.visible
 binding view.custom.lineState@binding type=tag enabled=None mode=Indirect tagPath=Some("[default]Plant/{line}/State") parsed=false expression=None placeholders=["line"] references=["line=\"{view.params.line}\"(ref)"] bidirectional=false fallbackDelay=Some(2.5) ign=propConfig.custom.lineState
-binding view.custom.motors@binding type=expr enabled=None expression=Some(ExprId(0)) ign=propConfig.custom.motors
-binding root/Clock.props.text@binding type=expr enabled=None expression=Some(ExprId(1)) ign=root.root.children[0].Clock.propConfig.props.text
+binding view.custom.motors@binding type=expr enabled=None expression=Some(ExprId(1)) ign=propConfig.custom.motors
+binding root/Clock.props.text@binding type=expr enabled=None expression=Some(ExprId(2)) ign=root.root.children[0].Clock.propConfig.props.text
 binding root/LineTotal.props.text@binding type=tag enabled=None mode=Direct tagPath=Some("[default]Plant/Line1/Total") parsed=true expression=None placeholders=[] references=[] bidirectional=false fallbackDelay=Some(2.5) ign=root.root.children[1].LineTotal.propConfig.props.text
   transform root/LineTotal.props.text@binding.transforms[0] format Some("numeric") Some("#,##0.0") ign=root.root.children[1].LineTotal.propConfig.props.text.binding.transforms[0]
 binding root/Summary.props.text@binding type=expr-struct enabled=None leaves=["count", "line"] waitOnAll=Some(true) ign=root.root.children[2].Summary.propConfig.props.text
@@ -188,7 +189,7 @@ binding root/Badge.props.params.state@binding type=property enabled=None path=So
 binding root/Motors.props.instances@binding type=property enabled=None path=Some("view.custom.motors") parsed=true bidirectional=false ign=root.root.children[5].Motors.propConfig.props.instances
 binding root/LinePicker.props.value@binding type=property enabled=None path=Some("session.custom.selectedLine") parsed=true bidirectional=true ign=root.root.children[6].LinePicker.propConfig.props.value
 binding root/Setpoint.props.value@binding type=tag enabled=None mode=Direct tagPath=Some("[default]Plant/Line1/Setpoint") parsed=true expression=None placeholders=[] references=[] bidirectional=true fallbackDelay=Some(2.5) ign=root.root.children[7].Setpoint.propConfig.props.value
-binding root/Hidden.meta.visible@binding type=expr enabled=Some(false) expression=Some(ExprId(4)) ign=root.root.children[14].Hidden.propConfig.meta.visible
+binding root/Hidden.meta.visible@binding type=expr enabled=Some(false) expression=Some(ExprId(5)) ign=root.root.children[14].Hidden.propConfig.meta.visible
 event view@events.system.onShutdown list=false ign=events.system.onShutdown
   action view@events.system.onShutdown scope=Some("G") enabled=None script Some(ScriptId(0)) ign=events.system.onShutdown
 event view@events.system.onStartup list=false ign=events.system.onStartup
@@ -228,11 +229,12 @@ styleRef Property root/Clock.props.style.classes classes=["Brand/Muted"] bound=f
   | def runAction(self, event):
   | →system.perspective.sendMessage("motor-refresh", payload={"tagPath": None}, scope="page")
   | →self.getSibling("Motors").refreshBinding("props.instances")
-[0] expr binding view.custom.motors@binding "runScript(\"hmi.motors.listMotors\", 0, {view.params.line})" valid=true tentative=false refs=["prop:view.params.line"] calls=["runScript"] ign=propConfig.custom.motors
-[1] expr binding root/Clock.props.text@binding "dateFormat(now(1000), \"HH:mm:ss\")" valid=true tentative=false refs=[] calls=["dateFormat", "now"] ign=root.root.children[0].Clock.propConfig.props.text
-[2] expr struct-leaf root/Summary.props.text@binding.struct.count "len({view.custom.motors})" valid=true tentative=false refs=["prop:view.custom.motors"] calls=["len"] ign=root.root.children[2].Summary.propConfig.props.text
-[3] expr struct-leaf root/Summary.props.text@binding.struct.line "{view.params.line}" valid=true tentative=false refs=["prop:view.params.line"] calls=[] ign=root.root.children[2].Summary.propConfig.props.text
-[4] expr binding root/Hidden.meta.visible@binding "{session.props.auth.user.userName} = \"admin\"" valid=true tentative=false refs=["prop:session.props.auth.user.userName"] calls=[] ign=root.root.children[14].Hidden.propConfig.meta.visible
+[0] expr config-field view.custom.lineState@binding.references.line "{view.params.line}" valid=true tentative=false refs=["prop:view.params.line"] calls=[] ign=propConfig.custom.lineState.references.line
+[1] expr binding view.custom.motors@binding "runScript(\"hmi.motors.listMotors\", 0, {view.params.line})" valid=true tentative=false refs=["prop:view.params.line"] calls=["runScript"] ign=propConfig.custom.motors
+[2] expr binding root/Clock.props.text@binding "dateFormat(now(1000), \"HH:mm:ss\")" valid=true tentative=false refs=[] calls=["dateFormat", "now"] ign=root.root.children[0].Clock.propConfig.props.text
+[3] expr struct-leaf root/Summary.props.text@binding.struct.count "len({view.custom.motors})" valid=true tentative=false refs=["prop:view.custom.motors"] calls=["len"] ign=root.root.children[2].Summary.propConfig.props.text
+[4] expr struct-leaf root/Summary.props.text@binding.struct.line "{view.params.line}" valid=true tentative=false refs=["prop:view.params.line"] calls=[] ign=root.root.children[2].Summary.propConfig.props.text
+[5] expr binding root/Hidden.meta.visible@binding "{session.props.auth.user.userName} = \"admin\"" valid=true tentative=false refs=["prop:session.props.auth.user.userName"] calls=[] ign=root.root.children[14].Hidden.propConfig.meta.visible
 
 # view com.inductiveautomation.perspective/views/Popups/MotorDetail in fixture-hmi (overridable=true, files=["resource.json:resource-manifest", "thumbnail.png:thumbnail", "view.json:view"], missing=[])
 component root type=ia.container.breakpt depth=0 ptr=/root ign=root.root
@@ -254,9 +256,9 @@ propConfig view.params.tagPath persistent=Some(true) direction=input access=- bi
 propConfig root/Large/Trend.props.series[0].data persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[1].Large.children[0].Trend.propConfig.props.series[0].data
 propConfig root/Large/Machines.props.data persistent=None direction=- access=- binding=true onChange=- ign=root.root.children[1].Large.children[1].Machines.propConfig.props.data
 binding view.custom.history@binding type=tag-history enabled=None tags=[Some("{view.params.tagPath} + \"/Speed\"")(expr=Some(ExprId(0))) alias=Some("speed") agg=Some("Average")] dateRange={"mostRecent":"1","mostRecentUnits":"hour"} returnFormat=Some("wide") polling=Some(true)/Some(60.0) ign=propConfig.custom.history
-binding view.custom.machines@binding type=query enabled=None queryPath=Some("Machines/ByLine") returnFormat=Some("json") params=["line=Some(ExprId(2))"] polling=Some(true)/Some(30.0) ign=propConfig.custom.machines
-binding view.custom.weather@binding type=http enabled=None url=Some("https://example.invalid/api/weather") urlExpression=None method=Some("GET") auth=Some("none") polling=Some(false) ign=propConfig.custom.weather
-  transform view.custom.weather@binding.transforms[0] expression Some(ExprId(4)) ign=propConfig.custom.weather.binding.transforms[0]
+binding view.custom.machines@binding type=query enabled=None queryPath=Some("Machines/ByLine") returnFormat=Some("json") params=["line=Some(ExprId(3))"] polling=Some(true)/Some(30.0) ign=propConfig.custom.machines
+binding view.custom.weather@binding type=http enabled=None url=Some("https://example.invalid/api/weather") urlExpression=Some(ExprId(5)) method=Some("GET") auth=Some("none") polling=Some(false) ign=propConfig.custom.weather
+  transform view.custom.weather@binding.transforms[0] expression Some(ExprId(8)) ign=propConfig.custom.weather.binding.transforms[0]
 binding root/Large/Trend.props.series[0].data@binding type=property enabled=None path=Some("view.custom.history") parsed=true bidirectional=false ign=root.root.children[1].Large.children[0].Trend.propConfig.props.series[0].data
 binding root/Large/Machines.props.data@binding type=property enabled=None path=Some("view.custom.machines") parsed=true bidirectional=false ign=root.root.children[1].Large.children[1].Machines.propConfig.props.data
 event root/Large/Machines@events.component.onRowDoubleClick list=false ign=root.root.children[1].Large.children[1].Machines.events.component.onRowDoubleClick
@@ -275,9 +277,13 @@ viewRef TableSubview root/Large/Machines.props.rows.subview.viewPath path="Compo
   | →hmi.motors.startMotor(self.view.params.tagPath)
 [0] expr tag-history-path view.custom.history@binding.tags[0].path "{view.params.tagPath} + \"/Speed\"" valid=true tentative=true refs=["prop:view.params.tagPath"] calls=[] ign=propConfig.custom.history
 [1] expr polling-rate view.custom.history@binding.polling.rate "60" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.history
-[2] expr query-parameter view.custom.machines@binding.parameters.line "{session.custom.selectedLine}" valid=true tentative=false refs=["prop:session.custom.selectedLine"] calls=[] ign=propConfig.custom.machines
-[3] expr polling-rate view.custom.machines@binding.polling.rate "30" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.machines
-[4] expr transform view.custom.weather@binding.transforms[0] "jsonGet({value}, \"temperature\")" valid=true tentative=false refs=["value"] calls=["jsonGet"] ign=propConfig.custom.weather.binding.transforms[0]
+[2] expr config-field view.custom.history@binding.dateRange.mostRecent "1" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.history.dateRange.mostRecent
+[3] expr query-parameter view.custom.machines@binding.parameters.line "{session.custom.selectedLine}" valid=true tentative=false refs=["prop:session.custom.selectedLine"] calls=[] ign=propConfig.custom.machines
+[4] expr polling-rate view.custom.machines@binding.polling.rate "30" valid=true tentative=false refs=[] calls=[] ign=propConfig.custom.machines
+[5] expr http-url view.custom.weather@binding.request.url "https://example.invalid/api/weather" valid=false tentative=false refs=[] calls=[] ign=propConfig.custom.weather
+[6] expr config-field view.custom.weather@binding.request.body "" valid=false tentative=false refs=[] calls=[] ign=propConfig.custom.weather.request.body
+[7] expr config-field view.custom.weather@binding.request.header[0].value "application/json" valid=false tentative=false refs=[] calls=[] ign=propConfig.custom.weather.request.header[0].value
+[8] expr transform view.custom.weather@binding.transforms[0] "jsonGet({value}, \"temperature\")" valid=true tentative=false refs=["value"] calls=["jsonGet"] ign=propConfig.custom.weather.binding.transforms[0]
 
 # view com.inductiveautomation.perspective/views/Sandbox/LintSamples in fixture-hmi (overridable=true, files=["resource.json:resource-manifest", "view.json:view"], missing=[])
 component root type=ia.container.flex depth=0 ptr=/root ign=root.root

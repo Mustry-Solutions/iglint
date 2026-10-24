@@ -26,8 +26,8 @@ pub enum ExpressionKind {
     /// Tag history binding: one tag's `path`, when it parses as an
     /// expression (tentative).
     TagHistoryPath,
-    /// HTTP binding `request.url`, when it parses as an expression
-    /// (tentative).
+    /// HTTP binding `request.url`: always an expression (a literal URL is
+    /// a configuration error in Perspective).
     HttpUrl,
     /// Expression transform.
     Transform,
@@ -35,6 +35,13 @@ pub enum ExpressionKind {
     MapInput,
     /// Map transform output with `outputType: expression`.
     MapOutput,
+    /// Another field of a binding or transform configuration that
+    /// Perspective parses as an expression (measured,
+    /// [`crate::perspective_fields`]): HTTP `request.body`, header and
+    /// authorization values, tag history `dateRange` and `returnSize`
+    /// values, a map transform's `fallback`, list items of an expression
+    /// structure, ...
+    ConfigField,
     /// Tag `expression` (`valueSource: expr`).
     TagExpression,
     /// Derived tag `deriveExpressionGetter`.
@@ -62,6 +69,7 @@ impl ExpressionKind {
             ExpressionKind::Transform => "transform",
             ExpressionKind::MapInput => "map-input",
             ExpressionKind::MapOutput => "map-output",
+            ExpressionKind::ConfigField => "config-field",
             ExpressionKind::TagExpression => "tag-expression",
             ExpressionKind::DeriveGetter => "derive-getter",
             ExpressionKind::DeriveSetter => "derive-setter",
@@ -88,7 +96,7 @@ pub struct EmbeddedExpression<'a> {
     pub node_path: String,
     pub ign_lint_path: Option<String>,
     /// True for locations that may hold either an expression or a literal
-    /// (tag history paths, HTTP URLs). Such locations are only modelled as
+    /// (tag history paths). Such locations are only modelled as
     /// expressions when they parse, so a literal never reports a syntax
     /// error.
     pub tentative: bool,

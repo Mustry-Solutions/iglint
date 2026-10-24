@@ -11,6 +11,7 @@ use crate::expression::{EmbeddedExpression, ExpressionKind};
 use crate::ids::{BindingId, ComponentId, ExprId, PropConfigId, ScriptId};
 use crate::kinds::RunScope;
 use crate::node_path::{at, ign_index, ign_inject, ign_key, prop_path, strip_indices};
+use crate::perspective_fields::{FieldOwner, FieldSink, fields_of};
 use crate::script::{EmbeddedScript, Owner, ScriptKind, header_line, perspective_header};
 
 /// Builds the model of a `view.json` document.
@@ -443,10 +444,23 @@ impl<'a> Builder<'a> {
             node_path: node_path.clone(),
             ign_lint_path: ign.to_owned(),
         });
+        let first_expression = self.expressions.len();
         let typed = match config {
             Some(config) => self.binding_config(kind, config, owner, id, prop_node, ign),
             None => BindingConfig::None,
         };
+        if let (Some(config), Some(t)) = (config, type_value) {
+            self.config_field_expressions(
+                FieldOwner::Binding,
+                t.value(),
+                config,
+                first_expression,
+                owner,
+                id,
+                &at(prop_node, "binding"),
+                ign,
+            );
+        }
         let transforms =
             self.transforms(value.get("transforms"), owner, id, prop_node, ign, property);
         let b = &mut self.bindings[id.index()];
@@ -657,7 +671,9 @@ impl<'a> Builder<'a> {
                         Some(id),
                         at(prop_node, "binding.request.url"),
                         Some(ign.to_owned()),
-                        true,
+                        // Always parsed (measured: a literal URL fails with
+                        // "Error parsing url: Invalid expression").
+                        false,
                     )
                 });
                 BindingConfig::Http(HttpBinding {
@@ -673,6 +689,50 @@ impl<'a> Builder<'a> {
                 })
             }
             BindingKind::Unknown => BindingConfig::None,
+        }
+    }
+
+    /// The measured expression fields of a binding `config` or a
+    /// transform ([`crate::perspective_fields`]) that the typed model did
+    /// not already read (expressions from `first` on belong to this
+    /// binding): HTTP bodies, header and authorization values, tag history
+    /// date ranges and return sizes, map transform fallbacks, list items of
+    /// expression structures, ...
+    #[allow(clippy::too_many_arguments)]
+    fn config_field_expressions(
+        &mut self,
+        field_owner: FieldOwner,
+        type_name: &str,
+        root: &'a Value<'a>,
+        first: usize,
+        owner: Owner,
+        id: BindingId,
+        node: &str,
+        ign: &str,
+    ) {
+        for field in fields_of(field_owner, type_name) {
+            if field.sink != FieldSink::Expression || !field.applies(root) {
+                continue;
+            }
+            for (path, s) in field.strings(root) {
+                let range = s.range();
+                if self.expressions[first..]
+                    .iter()
+                    .any(|e| e.source.range() == range)
+                {
+                    continue;
+                }
+                self.add_expr(
+                    ExpressionKind::ConfigField,
+                    s,
+                    ReferenceContext::PerspectiveBinding,
+                    owner,
+                    Some(id),
+                    format!("{node}.{path}"),
+                    Some(format!("{ign}.{path}")),
+                    false,
+                );
+            }
         }
     }
 
@@ -771,6 +831,7 @@ impl<'a> Builder<'a> {
         let ctx = ReferenceContext::PerspectiveTransform;
         let mut out = Vec::with_capacity(list.len());
         for (i, t) in list.iter().enumerate() {
+            let first_expression = self.expressions.len();
             let node_path = at(prop_node, &format!("binding.transforms[{i}]"));
             let ign_path = ign_index(&ign_key(ign, "binding.transforms"), i);
             let type_name = str_of(t.get("type"));
@@ -891,6 +952,18 @@ impl<'a> Builder<'a> {
                 }),
                 _ => TransformKind::Unknown,
             };
+            if let Some(type_name) = type_name {
+                self.config_field_expressions(
+                    FieldOwner::Transform,
+                    type_name,
+                    t,
+                    first_expression,
+                    owner,
+                    id,
+                    &node_path,
+                    &ign_path,
+                );
+            }
             out.push(Transform {
                 index: i,
                 value: t,

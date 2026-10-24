@@ -115,10 +115,53 @@ mod tests {
     fn valid_expressions_and_tentative_locations_are_clean() {
         let f = Fixture::view(&view_with_expr("concat('a', {this.custom.b})")).with_view(
             "Hist",
-            r#"{"propConfig": {"custom.h": {"binding": {"type": "tag-history", "config": {"tags": [{"path": "[default]A/B (c)"}]}},
-                "custom.u": {"binding": {"type": "http", "config": {"request": {"url": "http://x/{a"}}}}}}"#,
+            r#"{"propConfig": {"custom.h": {"binding": {"type": "tag-history", "config": {"tags": [{"path": "[default]A/B (c)"}]}}}}"#,
         );
         assert!(f.lint(&["BIND001"]).is_empty());
+    }
+
+    /// Reviewer round 10, O1: every field Perspective parses as an
+    /// expression (measured in the Ignition image, see
+    /// `iglint_project::perspective_fields`) is checked. A literal URL is
+    /// a configuration error in Perspective ("Error parsing \"url\":
+    /// Invalid expression"), so it is reported too; fields Perspective
+    /// does not parse in the configuration given (an authorization value
+    /// with type `None`) are not.
+    #[test]
+    fn measured_binding_fields_are_checked() {
+        let view = r#"{"propConfig": {
+            "custom.h": {"binding": {"type": "http", "config": {"request": {"url": "http://x/{a", "method": "POST",
+                "header": [{"key": "Authorization", "value": "'Bearer ' +"}], "body": "{a} ==",
+                "auth": {"type": "Basic", "value": "*"}}}}},
+            "custom.n": {"binding": {"type": "http", "config": {"request": {"url": "'u'", "method": "GET",
+                "auth": {"type": "None", "value": "*"}}}}},
+            "custom.t": {"binding": {"type": "tag-history", "config": {"dateRange": {"startDate": "now(", "endDate": "now())"},
+                "tags": [{"path": "[default]A"}], "returnSize": {"type": "fixed", "numRows": "1 +"}}}},
+            "custom.r": {"binding": {"type": "tag-history", "config": {"dateRange": {"mostRecent": "*", "mostRecentUnits": "min"}, "tags": "("}}},
+            "custom.m": {"binding": {"type": "expr", "config": {"expression": "1"},
+                "transforms": [{"type": "map", "inputType": "expression", "outputType": "expression",
+                    "mappings": [], "fallback": "2 +"}]}},
+            "custom.s": {"binding": {"type": "expr-struct", "config": {"struct": {"list": ["1", "2 +"]}}}}}}"#;
+        let d = Fixture::view(view).lint(&["BIND001"]);
+        let mut paths: Vec<&str> = d.iter().filter_map(|d| d.node_path.as_deref()).collect();
+        paths.sort_unstable();
+        assert_eq!(
+            paths,
+            [
+                "view.custom.h@binding.request.auth.value",
+                "view.custom.h@binding.request.body",
+                "view.custom.h@binding.request.header[0].value",
+                "view.custom.h@binding.request.url",
+                "view.custom.m@binding.transforms[0].fallback",
+                "view.custom.r@binding.dateRange.mostRecent",
+                "view.custom.r@binding.tags",
+                "view.custom.s@binding.struct.list[1]",
+                "view.custom.t@binding.dateRange.endDate",
+                "view.custom.t@binding.dateRange.startDate",
+                "view.custom.t@binding.returnSize.numRows",
+            ],
+            "{d:#?}"
+        );
     }
 
     #[test]

@@ -662,6 +662,7 @@ dependencies = [
  "rayon",
  "rustc-hash",
  "self_cell",
+ "serde_json",
 ]
 
 [[package]]
