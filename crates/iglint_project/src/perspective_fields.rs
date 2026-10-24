@@ -88,6 +88,13 @@ pub fn fields_of(owner: FieldOwner, type_name: &str) -> impl Iterator<Item = Con
     config_fields().filter(move |f| f.owner == owner && f.type_name == type_name)
 }
 
+/// Whether `type_name` is a measured binding (`owner` binding) or
+/// transform type: one with a parsed field in [`config_fields`]. The
+/// script transform, which has none, is not listed.
+pub fn is_measured_type(owner: FieldOwner, type_name: &str) -> bool {
+    config_fields().any(|f| f.owner == owner && f.type_name == type_name)
+}
+
 /// Members of the component script object (Java and bean spellings,
 /// including the script-callable methods of component model delegates)
 /// whose value may derive from the component's name: `name`, `getName`.

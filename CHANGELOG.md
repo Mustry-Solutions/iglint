@@ -115,7 +115,9 @@ from 0.1.0 on.
   an expression `{/root/MyLabel.props.text}` start to resolve. The new
   name gets the guards of the old one (any occurrence as a word in a
   string of the view or a script's string literal, in any case, makes the
-  rename unsafe and names the site), and the safety net compares the
+  rename unsafe and names the site; fixed values of Perspective's schema,
+  such as component, binding and action types, do not count for either
+  name), and the safety net compares the
   view's reference-resolution map (expression and binding references,
   script lookups, tag and view paths, components identified by their
   place in the view) before and after every safe fix to a `view.json`;

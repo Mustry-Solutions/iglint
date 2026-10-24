@@ -74,10 +74,14 @@ finding).
   function, which may look the component up by name (2 entries, one per
   view, for every variant).
   The rename is also unsafe (ign-lint: safe) when the suggested name
-  already occurs as a word in a string of the view, in any case, where a
-  broken reference or lookup could start to find the renamed component;
-  in the fixtures that is a component type (`ia.input.button` for
-  `Button` to `button`) or a binding type (`query`) (18 entries).
+  already occurs as a word, in any case, in a string of the view that is
+  not a fixed value of Perspective's schema, where a broken reference or
+  lookup could start to find the renamed component. Fixed values (known
+  component types such as `ia.input.button`, measured binding and
+  transform types such as `query` and `expr-struct` and the keys leading
+  to their measured fields such as `struct`, known action types and
+  scopes, `meta` keys other than `name`) do not count, so the fixtures
+  need no entry for this.
 * Outside a project (a lone view, as in the fixtures), the rename is also
   unsafe when a script of the view calls a name that may be a project
   library function (`lib.util.f()`, an undefined name): iglint cannot

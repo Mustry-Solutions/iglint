@@ -87,7 +87,11 @@ start to resolve) and not in any string literal of a script
 (`self.getSibling('NewName')`, which finds nothing now, would find the
 renamed component), in any spelling that differs only in case.
 Perspective compares names exactly, but case variants count too, to stay
-on the safe side. It is *unsafe* otherwise, and names the place that
+on the safe side. Fixed values of Perspective's schema are not searched
+for either name: a known component `type` (`ia.input.button`), a measured
+binding or transform `type` (`query`, `expr-struct`) and the keys leading
+to its parsed fields (`struct`), a known action `type` and `scope`, and
+the keys of `meta` other than `name`. It is *unsafe* otherwise, and names the place that
 keeps it from being safe. The safety net checks the result as well: a
 safe fix that changes what any reference of the view resolves to (see
 `docs/internal/fix-safety.md`, "Threat model") is reported as unsafe.
@@ -956,6 +960,7 @@ impl<'v> Guards<'v> {
                 skip.insert(n.range());
             }
         }
+        skip.extend(fixed_schema_strings(view));
         let mut parsed: FxHashSet<TextRange> =
             view.expressions.iter().map(|e| e.source.range()).collect();
         for b in &view.bindings {
@@ -1179,6 +1184,106 @@ impl<'v> Guards<'v> {
             }
         }
         None
+    }
+}
+
+/// The strings of `view` that are fixed values of Perspective's schema,
+/// never read as a component name: a component `type` that is a known
+/// component type (`ia.input.button`, from the stubs generated from the
+/// gateway), a binding or transform `type` that is a measured type
+/// (`query`, `property`, `expression`: `perspective_fields`), an event
+/// action `type` that is a known action type
+/// (`iglint_project::view::ACTION_TYPES`), an action `scope` (`G`, `C`)
+/// and the keys of a component's `meta` other than `name`. Any other
+/// value of those keys, and every free-text value, still counts (review
+/// round 21).
+fn fixed_schema_strings(view: &View<'_>) -> Vec<TextRange> {
+    use iglint_project::perspective_fields::{FieldOwner, is_measured_type};
+    let mut out = Vec::new();
+    for c in &view.components {
+        if let Some(t) = c.type_value.and_then(Value::as_json_string)
+            && iglint_stubs::component_type(t.value()).is_some()
+        {
+            out.push(t.range());
+        }
+        if let Some(ValueKind::Object(meta)) = c.meta.map(|m| &m.kind) {
+            out.extend(
+                meta.iter()
+                    .filter(|m| m.key.value() != "name")
+                    .map(|m| m.key.range()),
+            );
+        }
+    }
+    for b in &view.bindings {
+        if let Some(t) = b.type_value
+            && is_measured_type(FieldOwner::Binding, t.value())
+        {
+            out.push(t.range());
+            // The keys on the way to a measured field (`struct` of an
+            // `expr-struct` binding, `request` and `header` of `http`);
+            // keys a field path leaves free (`*`, `**`) still count.
+            if let Some(config) = b.config {
+                for f in
+                    iglint_project::perspective_fields::fields_of(FieldOwner::Binding, t.value())
+                {
+                    schema_keys(config, f.path.split('.'), &mut out);
+                }
+            }
+        }
+        for t in &b.transforms {
+            if let Some(ty) = t.value.get("type").and_then(Value::as_json_string)
+                && is_measured_type(FieldOwner::Transform, ty.value())
+            {
+                out.push(ty.range());
+            }
+        }
+    }
+    for e in &view.events {
+        for a in &e.actions {
+            if let Some(t) = a.type_value
+                && iglint_project::view::ACTION_TYPES.contains(&t.value())
+            {
+                out.push(t.range());
+            }
+            if let Some(scope) = a.value.get("scope").and_then(Value::as_json_string)
+                && matches!(scope.value(), "G" | "C")
+            {
+                out.push(scope.range());
+            }
+        }
+    }
+    out
+}
+
+/// The keys of `v` along the literal steps of a measured field path
+/// (`request.header[].value`), into `out`.
+fn schema_keys<'p>(
+    v: &Value<'_>,
+    mut steps: impl Iterator<Item = &'p str> + Clone,
+    out: &mut Vec<TextRange>,
+) {
+    let Some(step) = steps.next() else { return };
+    let (key, list) = match step.strip_suffix("[]") {
+        Some(k) => (k, true),
+        None => (step, false),
+    };
+    if key == "*" || key == "**" {
+        return;
+    }
+    let ValueKind::Object(o) = &v.kind else {
+        return;
+    };
+    for m in o.iter().filter(|m| m.key.value() == key) {
+        out.push(m.key.range());
+        match (&m.value.kind, list) {
+            (ValueKind::Array(items), true) => {
+                for item in items.iter() {
+                    schema_keys(item, steps.clone(), out);
+                }
+            }
+            (_, false) => schema_keys(&m.value, steps.clone(), out),
+            _ => {}
+        }
     }
 }
 
@@ -1797,6 +1902,41 @@ mod tests {
             }
         }
         assert!(safe > 0);
+    }
+
+    /// Review round 21: fixed values of Perspective's schema (a known
+    /// component type, a measured binding or transform type and the keys
+    /// on the way to its measured fields, a known action type and scope,
+    /// `meta` keys) are never a component name, so the new name occurring
+    /// in them keeps the rename safe; the same word in a free-text value
+    /// does not.
+    #[test]
+    fn schema_values_do_not_hold_the_new_name() {
+        let rules = [(
+            "NAME001",
+            "convention = \"camelCase\"\ntarget-node-types = [\"component\"]\nskip-names = [\"root\"]",
+        )];
+        let struct_binding = r#", "meta": {"name": "Struct", "visible": true}, "propConfig": {"props.text": {"binding": {"type": "expr-struct", "config": {"struct": {"a": "1"}}}}}, "events": {"dom": {"onClick": {"type": "refresh", "scope": "C", "config": {}}}}"#;
+        for (extra, safe) in [
+            ("", true),
+            (r#", "props": {"text": "struct"}"#, false),
+            (r#", "custom": {"struct": 1}"#, false),
+        ] {
+            let c = format!(r#"{{"type": "ia.display.label"{}{extra}}}"#, struct_binding);
+            let f = Fixture::view(&root(&[c]));
+            let d = f.lint_with(&rules);
+            let d = d
+                .iter()
+                .find(|d| d.message.contains("'Struct'"))
+                .unwrap_or_else(|| panic!("{d:?}"));
+            let applicability = d.fix.as_ref().unwrap().applicability;
+            assert_eq!(
+                applicability == crate::Applicability::Safe,
+                safe,
+                "{extra}: {:?}",
+                d.fix
+            );
+        }
     }
 
     #[test]

@@ -70,7 +70,11 @@ start to resolve) and not in any string literal of a script
 (`self.getSibling('NewName')`, which finds nothing now, would find the
 renamed component), in any spelling that differs only in case.
 Perspective compares names exactly, but case variants count too, to stay
-on the safe side. It is *unsafe* otherwise, and names the place that
+on the safe side. Fixed values of Perspective's schema are not searched
+for either name: a known component `type` (`ia.input.button`), a measured
+binding or transform `type` (`query`, `expr-struct`) and the keys leading
+to its parsed fields (`struct`), a known action `type` and `scope`, and
+the keys of `meta` other than `name`. It is *unsafe* otherwise, and names the place that
 keeps it from being safe. The safety net checks the result as well: a
 safe fix that changes what any reference of the view resolves to (see
 `docs/internal/fix-safety.md`, "Threat model") is reported as unsafe.
