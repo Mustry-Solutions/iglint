@@ -1531,3 +1531,92 @@ fn fixes_that_need_the_closed_world_are_unsafe_without_a_root() {
         .unwrap();
     assert_eq!(scr102_fixes(&out), [("safe".to_owned(), String::new())]);
 }
+
+/// Review round 14: with lone CR line ends, Jython numbers lines by `\n`
+/// only (a lone CR is a character of the line), and iglint showed
+/// `SCR001` a line further down. Every output format now shows Jython's
+/// line, and the column of the same character (Jython counts UTF-16 units
+/// from 0, iglint characters from 1), checked against the parser oracle's
+/// recorded cases (`crates/iglint_python/tests/oracle/line_endings.*`).
+#[test]
+fn positions_follow_jython_lines_with_lone_cr() {
+    let oracle = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../iglint_python/tests/oracle/line_endings");
+    let cases = std::fs::read_to_string(oracle.with_extension("cases")).unwrap();
+    let expected = std::fs::read_to_string(oracle.with_extension("expected")).unwrap();
+    let records: Vec<&str> = expected.split("### ").skip(1).collect();
+    let mut checked = 0;
+    for (case, record) in cases.split("### ").skip(1).zip(records) {
+        let (name, source) = case.split_once('\n').unwrap();
+        let source = if name.contains("[cr]") {
+            source.replace('\n', "\r")
+        } else if name.contains("[crlf]") {
+            source.replace('\n', "\r\n")
+        } else {
+            source.to_owned()
+        };
+        let verdict = record.lines().nth(1).unwrap();
+        let Some(at) = verdict.strip_prefix("error ") else {
+            continue;
+        };
+        let mut parts = at.split(' ').map(|p| p.parse::<usize>().unwrap());
+        let (line, units) = (parts.next().unwrap(), parts.next().unwrap());
+        // The character at Jython's UTF-16 column of Jython's line.
+        let text = source.split('\n').nth(line - 1).unwrap();
+        let mut column = 1;
+        let mut seen = 0;
+        for c in text.chars() {
+            if seen >= units {
+                break;
+            }
+            seen += c.len_utf16();
+            column += 1;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let module = dir.path().join("p/ignition/script-python/m");
+        std::fs::create_dir_all(&module).unwrap();
+        std::fs::write(
+            dir.path().join("p/project.json"),
+            r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            module.join("resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        )
+        .unwrap();
+        std::fs::write(module.join("code.py"), &source).unwrap();
+        let run = |format: &str| -> String {
+            let out = iglint(dir.path())
+                .args([
+                    "--no-cache",
+                    "--select",
+                    "SCR001",
+                    "--output-format",
+                    format,
+                ])
+                .output()
+                .unwrap();
+            String::from_utf8(out.stdout).unwrap()
+        };
+        let json: serde_json::Value = serde_json::from_str(&run("json")).unwrap();
+        assert_eq!(json[0]["location"]["row"], line, "{name}: {json}");
+        assert_eq!(json[0]["location"]["column"], column, "{name}: {json}");
+        let concise = run("concise");
+        assert!(
+            concise.contains(&format!("code.py:{line}:{column}: SCR001")),
+            "{name}: {concise}"
+        );
+        let text = run("text");
+        assert!(
+            text.contains(&format!("code.py:{line}:{column}: SCR001")),
+            "{name}: {text}"
+        );
+        let sarif: serde_json::Value = serde_json::from_str(&run("sarif")).unwrap();
+        let region = &sarif["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["region"];
+        assert_eq!(region["startLine"], line, "{name}: {region}");
+        assert_eq!(region["startColumn"], column, "{name}: {region}");
+        checked += 1;
+    }
+    assert!(checked >= 7, "{checked}");
+}

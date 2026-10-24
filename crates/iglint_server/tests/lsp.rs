@@ -1359,3 +1359,35 @@ fn a_folder_inside_the_workspace_sees_the_whole_workspace() {
         client.shutdown();
     }
 }
+
+/// The language server sends positions in the editor's lines, where a lone
+/// CR ends a line (the protocol's rule), although iglint's own output
+/// numbers lines as Jython does (review round 14): the range must cover
+/// the same text either way.
+#[test]
+fn positions_with_lone_cr_follow_the_protocol() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    write(
+        &root,
+        "projects/A/project.json",
+        r#"{"title": "A", "enabled": true, "inheritable": false}"#,
+    );
+    write(
+        &root,
+        "projects/A/ignition/script-python/m/resource.json",
+        &MANIFEST.replace("view.json", "code.py"),
+    );
+    let text = "x = 1\r\ry = $";
+    let path = write(&root, "projects/A/ignition/script-python/m/code.py", text);
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&path, text);
+    let published = client.diagnostics(&uri, Some(1));
+    let d = published
+        .diagnostics
+        .iter()
+        .find(|d| d.code == Some(lsp_types::NumberOrString::String("SCR001".into())))
+        .unwrap_or_else(|| panic!("{published:#?}"));
+    assert_eq!(d.range.start, Position::new(2, 0), "{d:#?}");
+    client.shutdown();
+}

@@ -192,14 +192,8 @@ pub struct CodeUnit<'a> {
 /// epilogue) is not counted.
 pub fn code_units<'a>(module: &'a Module, source: &str) -> Vec<CodeUnit<'a>> {
     let cost = Cost {
-        index: LineIndex::new(source),
-        // A lone CR ends a line for the parser but not for Jython's line
-        // numbers: count every line as the cheapest then.
-        cheap_lines: source
-            .as_bytes()
-            .iter()
-            .enumerate()
-            .any(|(i, &b)| b == b'\r' && source.as_bytes().get(i + 1) != Some(&b'\n')),
+        // Jython's line numbers: a lone CR does not end a line.
+        index: LineIndex::python(source),
     };
     let mut out = Vec::new();
     cost.unit(UnitBody::Body(&module.body, true), None, "f", &mut out);
@@ -223,7 +217,6 @@ enum Nested<'a> {
 
 struct Cost {
     index: LineIndex,
-    cheap_lines: bool,
 }
 
 /// Least bytes of the frame's line number update: `aload` the frame,
@@ -326,9 +319,6 @@ impl Cost {
     }
 
     fn line(&self, stmt: &Stmt) -> usize {
-        if self.cheap_lines {
-            return 1;
-        }
         self.index.line_of(stmt.range().start()) + 1
     }
 

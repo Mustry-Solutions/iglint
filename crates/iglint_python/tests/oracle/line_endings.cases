@@ -1,0 +1,38 @@
+### statements [cr]
+x = 1
+y = [1,
+     2]
+def f():
+    return x
+### statements [crlf]
+x = 1
+y = [1,
+     2]
+def f():
+    return x
+### error after lines [cr]
+x = 1
+y = $
+### error after lines [crlf]
+x = 1
+y = $
+### blank line [cr]
+x = 1
+
+y = $
+### unexpected name after blank line [cr]
+x = 1
+
+y z
+### strings across lines [cr]
+x = """a
+b"""
+y = $
+### indentation [cr]
+def f():
+    return 1
+  x
+### unicode [cr]
+x = u'é'
+y = '😀'
+z = $

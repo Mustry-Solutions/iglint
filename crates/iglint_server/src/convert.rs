@@ -59,8 +59,10 @@ pub fn offset(index: &LineIndex, text: &str, position: Position) -> TextSize {
     )
 }
 
+/// `r` in the editor's lines: the Language Server Protocol ends a line at
+/// a lone `\r` too (where iglint's own output follows Jython's numbering).
 pub fn source_range(file: &SourceFile, r: TextRange) -> Range {
-    range(file.line_index(), file.text(), r)
+    range(file.protocol_line_index(), file.text(), r)
 }
 
 pub fn severity(severity: Severity) -> DiagnosticSeverity {

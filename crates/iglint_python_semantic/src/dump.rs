@@ -26,7 +26,7 @@ type Ops = std::collections::BTreeSet<(String, String, String)>;
 
 /// The dump of `model` (built from `source`).
 pub fn scope_dump(model: &SemanticModel<'_>, source: &str) -> String {
-    let lines = LineIndex::new(source);
+    let lines = LineIndex::python(source);
     let emission = Emission::of(model);
     let mut scopes: BTreeMap<(usize, &'static str, String), Ops> = BTreeMap::new();
     let mut key_of: Vec<(usize, &'static str, String)> = Vec::new();

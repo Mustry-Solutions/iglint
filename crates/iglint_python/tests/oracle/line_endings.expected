@@ -1,0 +1,28 @@
+### statements [cr]
+error 1 23
+no viable alternative at input 'ef'
+### statements [crlf]
+ok
+Module(body=[Assign(targets=[Name(id='x', ctx=Store())], value=Num(n=1)), Assign(targets=[Name(id='y', ctx=Store())], value=List(elts=[Num(n=1), Num(n=2)], ctx=Load())), FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Return(value=Name(id='x', ctx=Load()))], decorator_list=[])])
+Module(body=[Assign(targets=[Name(id='x', ctx=Store(), lineno=1, col_offset=0)], value=Num(n=1, lineno=1, col_offset=4), lineno=1, col_offset=0), Assign(targets=[Name(id='y', ctx=Store(), lineno=2, col_offset=0)], value=List(elts=[Num(n=1, lineno=2, col_offset=5), Num(n=2, lineno=3, col_offset=5)], ctx=Load(), lineno=2, col_offset=4), lineno=2, col_offset=0), FunctionDef(name='f', args=arguments(args=[], vararg=None, kwarg=None, defaults=[]), body=[Return(value=Name(id='x', ctx=Load(), lineno=5, col_offset=11), lineno=5, col_offset=4)], decorator_list=[], lineno=4, col_offset=0)])
+### error after lines [cr]
+error 1 10
+no viable alternative at character '$'
+### error after lines [crlf]
+error 2 4
+no viable alternative at character '$'
+### blank line [cr]
+error 1 7
+no viable alternative at input 'y'
+### unexpected name after blank line [cr]
+error 1 7
+no viable alternative at input 'y'
+### strings across lines [cr]
+error 1 18
+no viable alternative at character '$'
+### indentation [cr]
+error 1 24
+no viable alternative at input 'x'
+### unicode [cr]
+error 1 22
+no viable alternative at character '$'

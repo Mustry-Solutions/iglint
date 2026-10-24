@@ -92,6 +92,14 @@ from 0.1.0 on.
 
 ### Fixed
 
+- With lone CR line ends, findings were shown a line further down than
+  Jython reports them (review round 14): Jython numbers lines by `\n`
+  only, and a lone CR is a character of the line. Every output format
+  (text, concise, JSON, SARIF and the others) now shows Jython's line and
+  the column of the same character, checked against new parser oracle
+  cases (`crates/iglint_python/tests/oracle/line_endings.*`). The
+  language server keeps the protocol's lines (a lone CR ends a line
+  there), so the editor highlights the same text.
 - Large views took superlinear time (review round 14): 80,000 components
   took 11.5 s, 46 times as long as 10,000. The view model looked up the
   `propConfig` entries, properties and events of each component by

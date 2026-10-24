@@ -228,6 +228,27 @@ pub struct LineIndex {
 }
 
 impl LineIndex {
+    /// Lines as Jython numbers them (tracebacks, `lineno`, syntax errors):
+    /// `\n` ends a line (also as part of `\r\n`); a lone `\r` does not,
+    /// it is a character of the line, although Jython's tokenizer reads it
+    /// as a line break. Used for every line and column iglint shows.
+    pub fn python(text: &str) -> Self {
+        let mut line_starts = Vec::with_capacity(text.len() / 32 + 1);
+        line_starts.push(TextSize::ZERO);
+        for (i, b) in text.bytes().enumerate() {
+            if b == b'\n' {
+                line_starts.push(TextSize::from(i + 1));
+            }
+        }
+        LineIndex {
+            line_starts,
+            ascii: text.is_ascii(),
+            len: TextSize::of(text),
+        }
+    }
+
+    /// Lines as editors and the Language Server Protocol count them:
+    /// `\n`, `\r\n` and a lone `\r` each end a line.
     pub fn new(text: &str) -> Self {
         let mut line_starts = Vec::with_capacity(text.len() / 32 + 1);
         line_starts.push(TextSize::ZERO);

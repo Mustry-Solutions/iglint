@@ -68,6 +68,7 @@ struct SourceFileInner {
     /// [`iglint_text::INVALID_UTF8_SUBSTITUTE`] there.
     invalid_utf8: Box<[TextRange]>,
     line_index: std::sync::OnceLock<LineIndex>,
+    protocol_line_index: std::sync::OnceLock<LineIndex>,
 }
 
 impl SourceFile {
@@ -88,6 +89,7 @@ impl SourceFile {
                 text: text.into(),
                 invalid_utf8: invalid_utf8.into_boxed_slice(),
                 line_index: std::sync::OnceLock::new(),
+                protocol_line_index: std::sync::OnceLock::new(),
             }),
         }
     }
@@ -119,9 +121,22 @@ impl SourceFile {
         Arc::clone(&self.inner.text)
     }
 
+    /// Lines and columns as Jython numbers them ([`LineIndex::python`]),
+    /// for everything iglint shows.
     pub fn line_index(&self) -> &LineIndex {
         self.inner
             .line_index
+            .get_or_init(|| LineIndex::python(&self.inner.text))
+    }
+
+    /// Lines as the Language Server Protocol counts them ([`LineIndex::new`]:
+    /// a lone `\r` ends a line too), for positions sent to an editor.
+    pub fn protocol_line_index(&self) -> &LineIndex {
+        if !self.inner.text.contains('\r') {
+            return self.line_index();
+        }
+        self.inner
+            .protocol_line_index
             .get_or_init(|| LineIndex::new(&self.inner.text))
     }
 }
