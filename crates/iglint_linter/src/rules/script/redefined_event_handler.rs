@@ -33,8 +33,11 @@ one Ignition cannot call:
   header: every event fails with `TypeError: handleTimerEvent() takes
   exactly 1 argument (0 given)`;
 * a value that is not callable (`handleTimerEvent = None`, a number, a
-  string, a display): Ignition reports `The function 'handleTimerEvent' is
-  not defined`. `True`, `False` and `None` count only where they are
+  string, a list, tuple, dict or set display or comprehension): Ignition
+  reports `The function 'handleTimerEvent' is not defined`. A comparison,
+  an operator, a call or a backquote is not followed: each runs code
+  that may return a function (`__eq__` may return a lambda, and Jython
+  then calls it). `True`, `False` and `None` count only where they are
   Jython's builtins: all three are names a module can rebind
   (`True = lambda: 7`, `import x as None`);
 * `del handleTimerEvent`: the same.
@@ -124,9 +127,16 @@ fn accepts(args: &Arguments, n: usize) -> bool {
     required <= n && (args.vararg.is_some() || args.args.len() >= n)
 }
 
-/// Whether `value` is certainly not callable. `True`, `False` and `None`
-/// count only where they read the builtin constants: all three are names
-/// that a module can rebind (`True = lambda: 7`).
+/// Whether `value` is certainly not callable: a literal of a type whose
+/// instances cannot be called (numbers, strings, lists, tuples, dicts,
+/// sets, their comprehensions, generator expressions), or the builtin
+/// constants `True`, `False` and `None` where they read the builtins (all
+/// three are names that a module can rebind, `True = lambda: 7`).
+/// Anything that runs user code to produce the value is unknown, also
+/// when the operation usually gives a bool or a string: a comparison
+/// calls `__eq__`, `__lt__`, ... which may return a function (Jython
+/// calls `handleTimerEvent = C() == 1` when `C.__eq__` returns a lambda),
+/// and the same holds for operators, calls and backquotes.
 fn not_callable(value: &Expr, constant: &dyn Fn(&Expr) -> bool) -> bool {
     match value {
         Expr::Num(_)
@@ -138,9 +148,7 @@ fn not_callable(value: &Expr, constant: &dyn Fn(&Expr) -> bool) -> bool {
         | Expr::ListComp(_)
         | Expr::SetComp(_)
         | Expr::DictComp(_)
-        | Expr::GeneratorExp(_)
-        | Expr::Compare(_)
-        | Expr::Repr(_) => true,
+        | Expr::GeneratorExp(_) => true,
         Expr::Name(_) => constant(value),
         _ => false,
     }
@@ -391,6 +399,18 @@ mod tests {
             "handleTimerEvent = make()\n",
             "@wrap\ndef handleTimerEvent(event):\n\tpass\n",
             "handleTimerEvent, b = None, 1\n",
+            // Reviewer round 16 (Codex): rich comparisons, operators and
+            // backquotes run user code that may return a function
+            // (verified on Jython: `__eq__` returning a lambda is called).
+            "class E(object):\n\tdef __eq__(self, o):\n\t\treturn lambda: 1\nhandleTimerEvent = E() == 1\n",
+            "handleTimerEvent = a < b\n",
+            "handleTimerEvent = a is not b\n",
+            "handleTimerEvent = x + 1\n",
+            "handleTimerEvent = not x\n",
+            "handleTimerEvent = -x\n",
+            "handleTimerEvent = `x`\n",
+            "handleTimerEvent = x and None\n",
+            "handleTimerEvent = None if x else poll\n",
             // Reviewer round 15 (Codex): `True`, `False` and `None` are
             // names Jython lets a module rebind (verified on 8.3.3).
             "True = lambda: 7\nhandleTimerEvent = True\n",

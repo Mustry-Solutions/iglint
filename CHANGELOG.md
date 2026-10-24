@@ -130,6 +130,11 @@ from 0.1.0 on.
   error (review round 15, Codex).
 - The "nothing to lint" warning shows the working directory as `.`
   instead of an empty path.
+- SCR307 no longer reports `handleTimerEvent = a == b` (or `<`, `in`,
+  `is`) and backquotes as values that cannot be called: a rich comparison
+  may return a function (`__eq__` returning a lambda is called by Jython).
+  Only literals of non-callable types and the builtin constants count
+  (review round 16, Codex).
 - `SCR112` missed formatting that certainly fails on Unicode (review round
   14, Codex): a unicode format spec with a character beyond U+00FF
   (`u'{0:\U0001f980^4}'.format(1)`: `ValueError`), a non-ASCII unicode
