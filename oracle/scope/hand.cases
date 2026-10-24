@@ -1,0 +1,305 @@
+### try-pass
+try:
+    pass
+except E, e:
+    a
+### try-global
+try:
+    global g
+except E, e:
+    a
+### try-str
+try:
+    'doc'
+except E, e:
+    a
+### try-num
+try:
+    1
+except E, e:
+    a
+### while1
+while 1:
+    pass
+a
+### while1-break
+while 1:
+    break
+a
+### try-return-finally
+def f():
+    try:
+        return
+    finally:
+        b
+    a
+### try-raise-except
+def f():
+    try:
+        raise X
+    except:
+        b
+    a
+### try-return-except-else
+def f():
+    try:
+        return
+    except:
+        pass
+    else:
+        c
+    a
+### for-else-return
+def f():
+    for x in y:
+        return
+    else:
+        return
+    a
+### with-return
+def f():
+    with c:
+        return
+    a
+### if-return-else-return
+def f():
+    if x:
+        return
+    else:
+        return
+    a
+### module-raise
+raise X
+a
+def g():
+    b
+### dead-def
+def f():
+    return
+    def g():
+        b
+    c
+### decorated
+@d
+def f():
+    pass
+@d
+class C:
+    pass
+### genexp-line
+x = f(a
+  for a in b)
+y = (c
+  for c in d)
+### module-doc
+"""doc"""
+x = 1
+### func-doc
+def f():
+    """doc"""
+    return 1
+### class-name-underscore
+class ___:
+    x = 1
+### class-name-underscore-private
+class ___:
+    __x = 1
+### import-star-function
+def f():
+    from os import *
+    return sep, a
+### exec-in-function
+def f():
+    exec "pass" in d
+    return a
+### global-in-enclosing
+def f():
+    global x
+    def g():
+        return x
+    exec "pass"
+    return g
+### lambda-default-class
+class C:
+    f = lambda __a=__b: __a + __c
+### class-exec-1
+def f():
+    class C:
+        exec 'pass'
+        print y
+### class-exec-2
+def h():
+    def f():
+        class C:
+            exec 'pass'
+            print y
+### class-exec-3
+def h():
+    def f():
+        class C:
+            exec 'pass'
+            print h
+### class-exec-4
+def h():
+    def f():
+        class C:
+            exec 'pass'
+            y = 1
+            print y
+### class-exec-5
+def h():
+    def f():
+        class C:
+            exec 'pass' in d
+            print y
+### class-star
+def h():
+    def f():
+        class C:
+            from os import *
+            print y
+### class-exec-method
+def h():
+    def f():
+        class C:
+            exec 'pass'
+            def m(self):
+                return y
+### class-star-1
+def f():
+    class C:
+        from os import *
+### class-star-0
+class C:
+    from os import *
+### class-star-class
+class D:
+    class C:
+        from os import *
+### class-exec-free-method
+def h():
+    def f():
+        class C:
+            exec 'pass'
+            x = 1
+            def m(self):
+                return x
+### review-r13-mangled-import-alias
+import math as _D__m
+
+class D(object):
+    x = __m.floor(3.7)
+### review-r13-mangled-from-import
+from math import pi as _D__pi
+
+class D(object):
+    x = __pi
+### review-r13-class-reads-global-before-binding
+import math as m
+
+class C(object):
+    x = m.pi
+    m = 1
+
+m = None
+### review-r13-class-in-function-reads-enclosing-before-binding
+def f():
+    m = 1
+    class C(object):
+        x = m
+        m = 2
+    return C
+### review-r13-class-in-function-reads-free
+def f():
+    m = 1
+    class C(object):
+        x = m
+    return C
+### review-r13-metaclass-import
+import math as __metaclass__
+try:
+    class C:
+        pass
+except TypeError:
+    print "failed"
+### mangle-nested-class-names
+class _A:
+    class __B:
+        __c = 1
+        def __d(self):
+            return self.__e
+    def m(self):
+        def __n():
+            return __o
+        class __P:
+            __q = 1
+        return self.__r
+### mangle-global-in-class
+class C:
+    global __x, _C__y
+    __x = 1
+    __y = 2
+    _C__y = 3
+### mangle-class-reads-private-free
+def f():
+    __x = 1
+    _C__x = 2
+    class C:
+        a = __x
+        b = _C__x
+    return C
+### mangle-comprehensions-in-class
+class C:
+    a = [__i for __i in __r]
+    b = (__j for __j in __k)
+    c = {__s for __s in __t}
+    d = {__u: __v for __u in __w}
+    e = lambda __p=__q: __p + __z
+### mangle-except-with-for-del-aug
+class C:
+    try:
+        pass
+    except E, __e:
+        pass
+    with c as __w:
+        pass
+    for __f, (__g, h) in z:
+        pass
+    __a += 1
+    del __b
+    obj.__c += 1
+    del obj.__d
+### global-in-nested-function-chain
+def f():
+    x = 1
+    def g():
+        global x
+        def h():
+            return x
+        return h
+    return g
+### cell-through-class
+def f():
+    x = 1
+    class C:
+        x = 2
+        def m(self):
+            return x
+    return C
+### cell-class-global-between
+def f():
+    x = 1
+    class C:
+        global x
+        def m(self):
+            return x
+    return C
+### class-before-binding-module
+class C:
+    a = len
+    len = 1
+    b = len
+### function-before-binding
+def f():
+    a = y
+    y = 1

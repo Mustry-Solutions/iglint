@@ -125,6 +125,21 @@ pub struct Scope<'a> {
     /// Names read or written in this scope that are not bound in it and not
     /// declared global (Jython's notion of free variables).
     pub(crate) free_names: Vec<(&'a str, TextRange)>,
+    /// Jython's symbol table of the scope (`org.python.compiler.ScopeInfo`
+    /// after `cook` and `setup_closure`): flags by name as spelled in the
+    /// source (the symbol table pass does not mangle), see
+    /// [`crate::symbols::jython`].
+    pub(crate) jython: FxHashMap<&'a str, u8>,
+    /// The scope contains an `exec` statement (with or without `in`):
+    /// Jython then reads names the scope does not bind through the frame
+    /// (`getname`) instead of the module's globals.
+    pub has_exec: bool,
+    /// The class name Jython mangles private names with in this scope's
+    /// code (attribute names, `def` and `class` names, and in a class body
+    /// every name): the scope's own run-time name for a class body (itself
+    /// mangled when the class is nested in a class), the innermost
+    /// enclosing class's otherwise. `None` outside classes.
+    pub class_name: Option<&'a str>,
 }
 
 impl<'a> Scope<'a> {
@@ -162,6 +177,101 @@ impl<'a> Scope<'a> {
     pub fn free_names(&self) -> &[(&'a str, TextRange)] {
         &self.free_names
     }
+
+    /// How a name spelled `source` in this scope's code is named at run
+    /// time: mangled in a class body (`__x` is `_C__x` in class `C`, see
+    /// [`crate::mangle`]), unchanged elsewhere.
+    pub fn runtime_name<'s>(&self, source: &'s str) -> &'s str {
+        match self.class_name {
+            Some(class) if self.kind == ScopeKind::Class => crate::mangle::mangle(class, source),
+            _ => source,
+        }
+    }
+
+    /// An attribute name as this scope's code spells it at run time
+    /// (`obj.__x` is `obj._C__x` anywhere inside class `C`).
+    pub fn runtime_attribute<'s>(&self, attribute: &'s str) -> &'s str {
+        match self.class_name {
+            Some(class) => crate::mangle::mangle(class, attribute),
+            None => attribute,
+        }
+    }
+
+    /// Whether `name` (a run-time spelling, see [`Scope::runtime_name`]) is
+    /// declared `global` for this scope's code. In a class body Jython
+    /// checks the mangled spelling against the unmangled declarations.
+    pub fn declares_global(&self, name: &str) -> bool {
+        self.globals.contains_key(name)
+    }
+}
+
+/// How the code Jython generates for a scope reaches a name: which frame
+/// accessor a read, store or delete compiles to. Measured with
+/// `oracle/scope/` (the `scope_oracle` test).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum NameAccess {
+    /// By name in the frame's namespaces (`getname`, `setlocal(String)`,
+    /// `dellocal(String)`): module and class bodies, and reads in a
+    /// function with `exec` of names it does not bind. A read looks in the
+    /// local namespace (the class body's, or the frame's), then the
+    /// module's globals, then the builtins, whatever the code binds later.
+    Name,
+    /// In the module's globals, then the builtins (`getglobal`,
+    /// `setglobal`, `delglobal`), because the scope (or, for a free name,
+    /// the nearest enclosing function) declares the name `global`.
+    Global,
+    /// Like [`NameAccess::Global`], for a name the function neither binds
+    /// nor declares (Jython optimizes the lookup when the function has no
+    /// `exec`).
+    ImplicitGlobal,
+    /// A fast local of a function (`getlocal(int)`).
+    Fast,
+    /// A local of a function that nested scopes read (`getderef`,
+    /// `setderef` on one of the function's cells).
+    Cell,
+    /// A variable of an enclosing function (`getderef` on a free variable).
+    Free,
+}
+
+impl NameAccess {
+    pub fn name(self) -> &'static str {
+        match self {
+            NameAccess::Name => "name",
+            NameAccess::Global => "global",
+            NameAccess::ImplicitGlobal => "global",
+            NameAccess::Fast => "fast",
+            NameAccess::Cell => "cell",
+            NameAccess::Free => "free",
+        }
+    }
+}
+
+/// A name the interpreter reads without the code naming it.
+///
+/// Measured on Ignition 8.3.3's Jython, by compiling (`oracle/scope/`) and
+/// by running statements with a module namespace that records every
+/// lookup (`oracle/scope/jython_implicit_reads_oracle.py`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ImplicitRead {
+    /// A class body starts by reading `__name__` by name (its
+    /// `__module__`): the class namespace, then the globals, then the
+    /// builtins.
+    ClassModule,
+    /// A class statement without bases reads `__metaclass__` from the
+    /// class namespace, then from the module's globals, once the body has
+    /// run.
+    Metaclass,
+    /// Creating a function (`def`, `lambda`, generator expression, set or
+    /// dict comprehension) reads `__name__` from the module's globals (its
+    /// `__module__`).
+    FunctionModule,
+    /// An import statement reads `__name__`, `__package__` and `__path__`
+    /// from the module's globals to find the importing package.
+    Import,
+    /// `assert` reads `__debug__` and, when the test fails,
+    /// `AssertionError` from the module's globals, then the builtins
+    /// (compiled as `getglobal` in every scope).
+    Assert,
 }
 
 /// What created a binding.
@@ -254,7 +364,12 @@ impl BindingKind {
 /// A name bound to a value.
 #[derive(Debug)]
 pub struct Binding<'a> {
+    /// The name as it is bound at run time: mangled in class bodies
+    /// (`_C__x` for `__x` in class `C`).
     pub name: &'a str,
+    /// The name as the source spells it (what Jython's symbol table pass
+    /// sees).
+    pub source_name: &'a str,
     pub kind: BindingKind,
     /// The bound name in the source (the alias for imports, the name of a
     /// `def` or `class`). Empty at offset 0 for builtins and injected names.
@@ -289,6 +404,9 @@ pub struct Binding<'a> {
     pub shadowed: Vec<BindingId>,
     /// References that may read this binding.
     pub references: Vec<ReferenceId>,
+    /// How the code of `site` stores the name (for bindings the source
+    /// names; [`NameAccess::Name`] for implicit ones).
+    pub access: NameAccess,
 }
 
 impl Binding<'_> {
@@ -327,6 +445,11 @@ pub enum ReferenceKind {
     Del,
     /// The read half of `x += 1`.
     AugLoad,
+    /// A read the interpreter makes without the code naming the name. Its
+    /// range is the keyword (or expression) that makes it. Not a use the
+    /// author wrote: rules about names in the source skip it, but it keeps
+    /// the bindings it reads alive.
+    Implicit(ImplicitRead),
 }
 
 /// How a reference was resolved.
@@ -353,7 +476,13 @@ pub enum Resolution {
 /// A read (or `del`) of a name.
 #[derive(Debug)]
 pub struct Reference<'a> {
+    /// The name as it is looked up at run time: mangled in class bodies
+    /// (`_C__x` for `__x` in class `C`); the source spelling is the text at
+    /// `range`.
     pub name: &'a str,
+    /// The name as the source spells it (what Jython's symbol table pass
+    /// sees).
+    pub source_name: &'a str,
     pub range: TextRange,
     pub kind: ReferenceKind,
     /// The scope whose code contains the reference.
@@ -371,6 +500,24 @@ pub struct Reference<'a> {
     /// The reference is inside a `try` body whose handlers catch
     /// `NameError` (or `UnboundLocalError`).
     pub name_error_guarded: bool,
+    /// How the scope's code reads (or deletes) the name.
+    pub access: NameAccess,
+    /// For a read by name in a class body of a name the class binds: where
+    /// the lookup continues when the class namespace does not hold the
+    /// name ([`Resolution::Global`], [`Resolution::Builtin`],
+    /// [`Resolution::Injected`], [`Resolution::Dynamic`] or
+    /// [`Resolution::Unresolved`]). Flow-insensitive: the read may find
+    /// any of those bindings too, whatever the class binds before it, and
+    /// they are in `bindings`.
+    pub fallback: Option<Resolution>,
+}
+
+impl Reference<'_> {
+    /// Whether the interpreter makes the read without the code naming it
+    /// ([`ReferenceKind::Implicit`]).
+    pub fn is_implicit(&self) -> bool {
+        matches!(self.kind, ReferenceKind::Implicit(_))
+    }
 }
 
 /// The analysis of one module.

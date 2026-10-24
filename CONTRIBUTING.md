@@ -109,7 +109,7 @@ tests run without Docker:
 
 ```sh
 cargo test -p iglint_python --test oracle --test float_repr
-cargo test -p iglint_python_semantic --test compile_oracle
+cargo test -p iglint_python_semantic --test compile_oracle --test scope_oracle --test implicit_reads_oracle
 cargo test -p iglint_expression --test oracle
 ```
 
@@ -123,6 +123,19 @@ To record new outputs (needs Docker):
 * `oracle/expression/run.sh record` records the expression, property
   reference and tag path cases; `oracle/expression/run.sh random [SEED]
   [COUNT]` runs a fresh random batch.
+* `oracle/scope/run.sh record` records how Jython's compiler reaches every
+  name of `oracle/scope/hand.cases` and a stratified sample of generated
+  programs (`crates/iglint_python_semantic/tests/oracle/scope.*`);
+  `oracle/scope/run.sh random [SEED] [COUNT]` runs a fresh batch against
+  the semantic model.
+* `oracle/compile_cross.py all OUT` writes the cross product of control
+  flow and compile errors; run it with `oracle/run-oracle.sh --compile`
+  and the ignored test `compile_errors_match_jython_full_run`
+  (`IGLINT_COMPILE_CASES`, `IGLINT_COMPILE_EXPECTED`); `compile_cross.py
+  stratify` makes the replayed sample `tests/oracle/compile_cross.*`.
+* `oracle/run-oracle.sh --reads` records the names running each source
+  looks up in its module's globals
+  (`tests/oracle/implicit_reads.expected`).
 * `oracle/format-spec.sh all OUT` records Jython's verdict on every
   generated `str.format` spec and literal argument (SCR112); the replayed
   sample in `crates/iglint_linter/tests/fixtures/format-spec/` is

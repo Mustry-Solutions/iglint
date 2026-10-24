@@ -9,6 +9,9 @@ from 0.1.0 on.
 
 ### Changed
 
+- `docs/rules/SCR101.md` says which code is not checked at all: a `.py`
+  file outside any project and the tag scripts of gateway resources, where
+  any name could be a library package iglint does not know.
 - `bench/README.md` and `docs/compat/ign-lint.md` quote the private
   project's parity and aggregate numbers as of its revision of 2026-10-21
   (measured 2026-10-23; the parity table and pylint comparison in
@@ -80,6 +83,46 @@ from 0.1.0 on.
 
 ### Fixed
 
+- `SCR102` removed imports that class bodies read, safely, and `--fix`
+  broke the module (review round 13). A class body reads by name: a name
+  it binds anywhere is looked up in the class namespace and then in the
+  module's globals and the builtins, never in an enclosing function, so
+  `x = m.pi` before the class's own `m = 1` reads the module's `import
+  math as m`. And Jython mangles private names in class bodies (`__m` is
+  `_D__m` in class `D`, also for import aliases, `def`, `class`, `global`,
+  `except`, `with` and `for` names) and attribute names anywhere inside a
+  class, but not names in methods. `SCR101` reported such names as
+  undefined (`from math import pi as _D__pi` read as `__pi` in the class);
+  it now shows the mangled spelling when it does report one. The semantic
+  model resolves names the way Jython's compiler does, checked by a new
+  differential oracle (`oracle/scope/`): which accessor Jython's code
+  generator picks for every name read, store and delete of a program
+  (by name, global, fast local, cell or free variable) with its run-time
+  spelling, and every attribute name; 100,000 generated programs, the
+  1,642 scripts of the private project and hand-written cases agree.
+- Imports the interpreter reads without the code naming them counted as
+  unused (review round 13, M1): `import math as __metaclass__` decides
+  how a class without bases is created, and `SCR102` removed it safely.
+  The model now records the implicit reads, measured with
+  `oracle/run-oracle.sh --reads`: `__name__` when a class body starts
+  and when a function, lambda or generator expression is created,
+  `__metaclass__` after a class body without bases, `__name__`,
+  `__package__` and `__path__` at every import, `__debug__` and
+  `AssertionError` at `assert`. The safe-fix net also compares which
+  kinds of bindings each read may find, not only how it resolves.
+- `SCR002` missed compile failures in code Jython generates but cannot
+  reach (review round 13, M2): a `yield` in a list comprehension, or in
+  the first iterable of a set or dict comprehension, after a `try` that
+  returns from both its body and `finally` (and 47 other control flow
+  prefixes) crashes the bytecode verifier, because a generator resumes
+  after every `yield`. Reachability is now one model for the compile
+  errors and the scope oracle, checked against a cross product of every
+  block-ending prefix, every compile error construct and 14 nesting
+  contexts (`oracle/compile_cross.py`, 5,796 cases). `SCR002` also
+  reports a private name in a class whose name is only underscores
+  (Jython's compiler crashes), `exec` with free names and `import *` in
+  a class nested in two functions, and `return` with a value after
+  `yield` in module and class bodies, as Jython does.
 - `--diff` wrote hunk headers that did not match their lines for the most
   common `SCR102` safe fix (an emptied import line before a blank line:
   `@@ -1,3 +2,2 @@`), which `git apply` and `patch` rejected. iglint now

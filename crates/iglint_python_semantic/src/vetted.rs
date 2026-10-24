@@ -849,7 +849,8 @@ impl Walk<'_, '_> {
             // No reference: we cannot say what the name is. Fail closed.
             return (vec![(Bound::Unknown, None)], None);
         };
-        let name = &*n.id;
+        // The run-time spelling (mangled in class bodies).
+        let name = r.name;
         let of = |scope: ScopeId| {
             self.model
                 .scope(scope)

@@ -766,6 +766,57 @@ fn quick_fix_for_an_import_whose_package_is_read_is_unsafe() {
     client.shutdown();
 }
 
+/// Review round 13: fix-all must keep the imports a class body reads by
+/// name (mangled, or before the class binds the name) and the one the
+/// interpreter reads as `__metaclass__`; none is reported.
+#[test]
+fn fix_all_keeps_imports_read_by_class_bodies() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    demo_project(&root);
+    let texts = [
+        "import math as _D__m\n\nclass D(object):\n    x = __m.floor(3.7)\n",
+        "import math as m\n\nclass C(object):\n    x = m.pi\n    m = 1\n\nm = None\n",
+        "from math import pi as _D__pi\n\nclass D(object):\n    x = __pi\n",
+        "import math as __metaclass__\ntry:\n    class C:\n        pass\nexcept TypeError:\n    print 'failed'\n",
+    ];
+    let mut paths = Vec::new();
+    for (i, text) in texts.iter().enumerate() {
+        let lib = format!("projects/demo/ignition/script-python/m{i}");
+        write(
+            &root,
+            &format!("{lib}/resource.json"),
+            &MANIFEST.replace("view.json", "code.py"),
+        );
+        paths.push(write(&root, &format!("{lib}/code.py"), text));
+    }
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    for (path, text) in paths.iter().zip(texts) {
+        let uri = client.open(path, text);
+        let published = client.diagnostics(&uri, Some(1));
+        assert!(
+            !codes(&published)
+                .iter()
+                .any(|c| c == "SCR101" || c == "SCR102"),
+            "{text}: {published:#?}"
+        );
+        let actions = code_actions(
+            &mut client,
+            &uri,
+            full_range(),
+            Some(vec![CodeActionKind::SOURCE_FIX_ALL]),
+        );
+        for action in actions {
+            let resolved = client.request::<CodeActionResolveRequest>(action);
+            if let Some(edit) = resolved.edit {
+                let fixed = apply(text, &edit.changes.unwrap()[&uri]);
+                assert_eq!(fixed, text);
+            }
+        }
+    }
+    client.shutdown();
+}
+
 /// The VIEW015 quick fixes (and fix-all) of `view` in a workspace where
 /// another view runs `script`: the titles and whether each is preferred.
 fn view015_fixes(script: &str) -> Vec<(String, Option<bool>)> {

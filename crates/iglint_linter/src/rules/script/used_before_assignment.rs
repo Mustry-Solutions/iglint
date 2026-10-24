@@ -86,6 +86,7 @@ impl ScriptRule for UsedBeforeAssignment {
             if !r.unbound
                 || !r.reachable
                 || r.name_error_guarded
+                || r.is_implicit()
                 || r.resolution != Resolution::Local
             {
                 continue;

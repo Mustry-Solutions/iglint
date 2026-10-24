@@ -24,6 +24,22 @@ pub(crate) struct SymbolTable<'a> {
     pub package_bound_elsewhere: bool,
 }
 
+/// The flags of Jython's symbol table (`org.python.compiler.ScopeConstants`,
+/// plus [`jython::USED`]), and its `cook` and `setup_closure` passes.
+pub(crate) mod jython {
+    pub const BOUND: u8 = 1;
+    pub const NGLOBAL: u8 = 2;
+    pub const PARAM: u8 = 4;
+    pub const CELL: u8 = 16;
+    pub const FREE: u8 = 32;
+    pub const CLASS_GLOBAL: u8 = 64;
+    /// Jython's `GLOBAL` mask.
+    pub const GLOBAL: u8 = NGLOBAL | CLASS_GLOBAL;
+    /// Not a Jython flag: the name is in the table (Jython's entries with
+    /// flags 0, names that are only read).
+    pub const USED: u8 = 128;
+}
+
 /// The name an import statement binds implicitly in the module's globals.
 pub(crate) const PACKAGE: &str = "__package__";
 
@@ -138,7 +154,8 @@ pub(crate) fn build(module: &Module, module_has_name: bool) -> SymbolTable<'_> {
         let mut seen: FxHashMap<&str, ()> = FxHashMap::default();
         let mut free = Vec::new();
         for (name, range) in uses {
-            if scope.local_index.contains_key(name) || scope.globals.contains_key(name) {
+            let flags = scope.jython.get(name).copied().unwrap_or(0);
+            if flags & (jython::BOUND | jython::NGLOBAL) != 0 {
                 continue;
             }
             if seen.insert(name, ()).is_none() {
@@ -147,6 +164,7 @@ pub(crate) fn build(module: &Module, module_has_name: bool) -> SymbolTable<'_> {
         }
         b.scopes[i].free_names = free;
     }
+    cook(&mut b.scopes);
     SymbolTable {
         scopes: b.scopes,
         scope_of_node: b.scope_of_node,
@@ -155,6 +173,90 @@ pub(crate) fn build(module: &Module, module_has_name: bool) -> SymbolTable<'_> {
         package,
         package_bound_elsewhere,
     }
+}
+
+/// Jython's `ScopeInfo.cook` (bottom-up: which names are free in each
+/// scope and which locals are cells) and `setup_closure` (top-down: a free
+/// name stays free only if the enclosing scope has it as a cell or free
+/// variable; one the enclosing function declares `global` becomes an
+/// explicit global; any other becomes an ordinary global read). Both look
+/// past class bodies: the "enclosing scope" is the nearest function or the
+/// module (`ScopesCompiler.endScope` skips class scopes). Read in Jython's
+/// bytecode and checked with `oracle/scope/`.
+fn cook(scopes: &mut [Scope<'_>]) {
+    use jython::*;
+    let n = scopes.len();
+    let mut inner_free: Vec<Vec<&str>> = vec![Vec::new(); n];
+    // Children have larger ids than their parents.
+    for i in (1..n).rev() {
+        let function = scopes[i].kind.is_function_like();
+        let parent = enclosing_function(scopes, i);
+        let nested = parent != ScopeId::MODULE;
+        let names = std::mem::take(&mut inner_free[i]);
+        let table = &mut scopes[i].jython;
+        for name in names {
+            match table.get_mut(name) {
+                None => {
+                    table.insert(name, FREE);
+                }
+                Some(flags) => {
+                    if !function {
+                        *flags |= FREE;
+                    } else if *flags & NGLOBAL == 0 && *flags & BOUND != 0 {
+                        *flags |= CELL;
+                    }
+                }
+            }
+        }
+        let mut up = Vec::new();
+        for (name, flags) in table.iter_mut() {
+            if *flags & FREE != 0 && nested {
+                up.push(*name);
+            }
+            if *flags & (NGLOBAL | PARAM | CELL | CLASS_GLOBAL) != 0 || *flags & BOUND != 0 {
+                continue;
+            }
+            *flags |= FREE;
+            if nested {
+                up.push(*name);
+            }
+        }
+        let parent_free = &mut inner_free[parent.index()];
+        for name in up {
+            if !parent_free.contains(&name) {
+                parent_free.push(name);
+            }
+        }
+    }
+    for i in 1..n {
+        let parent = enclosing_function(scopes, i);
+        let mut changes: Vec<(&str, u8)> = Vec::new();
+        for (name, flags) in &scopes[i].jython {
+            if flags & FREE == 0 {
+                continue;
+            }
+            let up = scopes[parent.index()].jython.get(name).copied();
+            match up {
+                Some(u) if u & (CELL | FREE) != 0 => {}
+                Some(u) if parent != ScopeId::MODULE && u & NGLOBAL != 0 => {
+                    changes.push((name, BOUND | NGLOBAL));
+                }
+                _ => changes.push((name, flags & !FREE)),
+            }
+        }
+        for (name, flags) in changes {
+            scopes[i].jython.insert(name, flags);
+        }
+    }
+}
+
+/// The nearest scope enclosing scope `i` that is not a class body.
+pub(crate) fn enclosing_function(scopes: &[Scope<'_>], i: usize) -> ScopeId {
+    let mut at = scopes[i].parent.unwrap_or(ScopeId::MODULE);
+    while scopes[at.index()].kind == ScopeKind::Class {
+        at = scopes[at.index()].parent.unwrap_or(ScopeId::MODULE);
+    }
+    at
 }
 
 fn index<'a>(names: &[&'a str]) -> FxHashMap<&'a str, u32> {
@@ -189,6 +291,12 @@ impl<'a> Builder<'a> {
         if let Some(p) = parent {
             self.scopes[p.index()].children.push(id);
         }
+        let enclosing_class = parent.and_then(|p| self.scopes[p.index()].class_name);
+        let class_name = if kind == ScopeKind::Class {
+            Some(enclosing_class.map_or(name, |c| crate::mangle::mangle(c, name)))
+        } else {
+            enclosing_class
+        };
         self.scope_of_node.insert(node.key(), id);
         self.scopes.push(Scope {
             kind,
@@ -208,6 +316,9 @@ impl<'a> Builder<'a> {
             is_generator: false,
             can_fall_through: false,
             free_names: Vec::new(),
+            jython: FxHashMap::default(),
+            has_exec: false,
+            class_name,
         });
         self.uses.push(Vec::new());
         self.current = id;
@@ -224,17 +335,32 @@ impl<'a> Builder<'a> {
         &mut self.scopes[self.current.index()]
     }
 
+    /// Adds Jython symbol table flags for `name` (as spelled).
+    fn flag(&mut self, name: &'a str, flags: u8) {
+        *self.scope().jython.entry(name).or_insert(0) |= flags | jython::USED;
+    }
+
+    /// A name the current scope's code binds (as spelled in the source;
+    /// the scope binds its run-time spelling, see [`Scope::runtime_name`]).
     fn bind(&mut self, name: &'a str, range: TextRange) {
         self.uses[self.current.index()].push((name, range));
+        self.flag(name, jython::BOUND);
         let scope = self.scope();
+        let name = scope.runtime_name(name);
         if !scope.local_index.contains_key(name) {
             scope.local_index.insert(name, scope.locals.len() as u32);
             scope.locals.push(name);
         }
     }
 
+    fn param_name(&mut self, name: &'a str, range: TextRange) {
+        self.bind(name, range);
+        self.flag(name, jython::PARAM);
+    }
+
     fn use_name(&mut self, name: &'a str, range: TextRange) {
         self.uses[self.current.index()].push((name, range));
+        self.flag(name, 0);
     }
 
     fn body(&mut self, body: &'a [Stmt]) {
@@ -365,6 +491,7 @@ impl<'a> Builder<'a> {
                 }
             }
             Stmt::Exec(s) => {
+                self.scope().has_exec = true;
                 self.expr(&s.body);
                 self.opt_expr(s.globals.as_deref());
                 self.opt_expr(s.locals.as_deref());
@@ -390,6 +517,7 @@ impl<'a> Builder<'a> {
             }
             Stmt::Global(s) => {
                 for name in &s.names {
+                    self.flag(&name.id, jython::NGLOBAL);
                     self.scope().globals.entry(&name.id).or_insert(name.range);
                 }
             }
@@ -409,16 +537,16 @@ impl<'a> Builder<'a> {
             self.param(arg);
         }
         if let Some(v) = &args.vararg {
-            self.bind(&v.id, v.range);
+            self.param_name(&v.id, v.range);
         }
         if let Some(k) = &args.kwarg {
-            self.bind(&k.id, k.range);
+            self.param_name(&k.id, k.range);
         }
     }
 
     fn param(&mut self, arg: &'a Expr) {
         match arg {
-            Expr::Name(n) => self.bind(&n.id, n.range),
+            Expr::Name(n) => self.param_name(&n.id, n.range),
             Expr::Tuple(t) => {
                 for e in &t.elts {
                     self.param(e);

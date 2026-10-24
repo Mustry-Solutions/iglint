@@ -134,7 +134,7 @@ fn names_exception_class(model: &SemanticModel<'_>, h: &ExceptHandler, n: &ExprN
         }
         let others: Vec<_> = model
             .scope(id)
-            .bindings_of(&n.id)
+            .bindings_of(handler_binding.name)
             .iter()
             .map(|b| model.binding(*b))
             .filter(|b| b.kind != BindingKind::ExceptVar)
@@ -151,7 +151,9 @@ fn names_exception_class(model: &SemanticModel<'_>, h: &ExceptHandler, n: &ExprN
             });
         }
         // Other handlers binding the same name: still a variable there.
-        if id != handler_binding.scope && !model.scope(id).bindings_of(&n.id).is_empty() {
+        if id != handler_binding.scope
+            && !model.scope(id).bindings_of(handler_binding.name).is_empty()
+        {
             return false;
         }
         scope = model.enclosing_lookup_scope(id);

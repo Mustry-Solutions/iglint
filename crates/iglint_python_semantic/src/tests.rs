@@ -25,7 +25,7 @@ fn refs_with(src: &str, injected: &[&str], resolution: Resolution) -> Vec<String
     with_model(src, injected, |m| {
         let mut refs: Vec<_> = m
             .references()
-            .filter(|(_, r)| r.resolution == resolution)
+            .filter(|(_, r)| r.resolution == resolution && !r.is_implicit())
             .map(|(_, r)| (r.range.start(), r.name.to_owned()))
             .collect();
         refs.sort();
@@ -44,7 +44,7 @@ fn unbound(src: &str) -> Vec<String> {
     with_model(src, &[], |m| {
         let mut refs: Vec<_> = m
             .references()
-            .filter(|(_, r)| r.unbound && r.reachable)
+            .filter(|(_, r)| r.unbound && r.reachable && !r.is_implicit())
             .map(|(_, r)| (r.range.start(), r.name.to_owned()))
             .collect();
         refs.sort();
@@ -557,7 +557,7 @@ fn package_refs(src: &str, module_has_name: bool) -> Vec<(Resolution, bool)> {
     let model = SemanticModel::build(&parsed.module, &options);
     let mut refs: Vec<_> = model
         .references()
-        .filter(|(_, r)| r.name == "__package__")
+        .filter(|(_, r)| r.name == "__package__" && !r.is_implicit())
         .map(|(_, r)| (r.range.start(), (r.resolution, r.unbound)))
         .collect();
     refs.sort_by_key(|(at, _)| *at);

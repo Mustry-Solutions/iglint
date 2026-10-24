@@ -1691,3 +1691,13 @@ ok
 error
 ### yield-comp-return-yield-in-call
 error
+### review-r13-m2-listcomp-yield-after-try-return-finally
+error
+### review-r13-m2-setcomp-yield-after-raise-except-raise
+error
+### review-r13-private-name-in-underscore-class
+error
+### review-r13-underscore-class-without-private-names
+ok
+### review-r13-exec-in-class-nested-in-two-functions
+error

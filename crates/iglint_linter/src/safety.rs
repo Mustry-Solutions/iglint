@@ -35,7 +35,7 @@ use iglint_project::EmbeddedScript;
 use iglint_project::script::ScriptBody;
 use iglint_python::ast::{Expr, Stmt};
 use iglint_python::visitor::{Visitor, walk_stmt};
-use iglint_python_semantic::{SemanticModel, SemanticOptions};
+use iglint_python_semantic::{ImplicitRead, ReferenceKind, SemanticModel, SemanticOptions};
 use iglint_text::{TextEdit, TextRange};
 
 /// One script of a file, as Ignition compiles it.
@@ -93,9 +93,11 @@ struct ScopeFacts {
     generator: bool,
     globals: Vec<String>,
     dynamic: (bool, bool, bool, bool),
-    /// Per name read in the scope: how its references resolve (resolution,
-    /// never bound, maybe unbound).
-    refs: BTreeMap<String, BTreeSet<(String, bool, bool)>>,
+    /// Per name read in the scope (run-time spelling, implicit reads apart):
+    /// how its references resolve (resolution, where a class body's lookup
+    /// continues, never bound, maybe unbound, and the kinds of the bindings
+    /// they may read with the kind of scope that holds each).
+    refs: BTreeMap<String, BTreeSet<RefFacts>>,
 }
 
 impl ScriptFacts {
@@ -158,14 +160,39 @@ fn scopes(model: &SemanticModel<'_>) -> Vec<ScopeFacts> {
         })
         .collect();
     for (_, r) in model.references() {
-        out[r.scope.index()]
-            .refs
-            .entry(r.name.to_owned())
-            .or_default()
-            .insert((format!("{:?}", r.resolution), r.unbound, r.maybe_unbound));
+        let mut bindings: Vec<String> = r
+            .bindings
+            .iter()
+            .map(|id| {
+                let b = model.binding(*id);
+                format!("{:?}:{}", model.scope(b.scope).kind, b.kind.name())
+            })
+            .collect();
+        bindings.sort();
+        bindings.dedup();
+        let key = match r.kind {
+            // The reads an import statement makes to find its package go
+            // with the statement (removing an import removes them), and
+            // what they find decides nothing the script sees but the
+            // `__package__` the statement binds, which is compared as a
+            // binding.
+            ReferenceKind::Implicit(ImplicitRead::Import) => continue,
+            ReferenceKind::Implicit(read) => format!("{} (implicit {read:?})", r.name),
+            _ => r.name.to_owned(),
+        };
+        out[r.scope.index()].refs.entry(key).or_default().insert((
+            format!("{:?}", r.resolution),
+            format!("{:?}", r.fallback),
+            r.unbound,
+            r.maybe_unbound,
+            bindings,
+        ));
     }
     out
 }
+
+/// See [`ScopeFacts::refs`].
+type RefFacts = (String, String, bool, bool, Vec<String>);
 
 /// The docstrings of the module and of every function and class body.
 fn docstrings(body: &[Stmt]) -> Vec<String> {

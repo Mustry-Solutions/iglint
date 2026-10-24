@@ -917,6 +917,95 @@ fn imports_that_bind_a_read_package_are_kept() {
     );
 }
 
+/// Review round 13 (both reviewers): imports that a class body reads by
+/// name, spelled mangled (`__m` is `_D__m` in class `D`) or before the
+/// class binds the name, and an import the interpreter reads as a class's
+/// `__metaclass__`, are used. `--fix` used to delete them (Jython then
+/// raises `NameError` or creates the class); now they are not reported and
+/// stay, while a control module's unused import is still removed safely.
+#[test]
+fn imports_read_by_class_bodies_survive_fix() {
+    let modules = [
+        (
+            "mangled",
+            "import math as _D__m\n\nclass D(object):\n    x = __m.floor(3.7)\n",
+        ),
+        (
+            "before",
+            "import math as m\n\nclass C(object):\n    x = m.pi\n    m = 1\n\nm = None\n",
+        ),
+        (
+            "infunction",
+            "import math as m\n\ndef f():\n    class C(object):\n        x = m.pi\n        m = 1\n    return C\n",
+        ),
+        (
+            "mangledfrom",
+            "from math import pi as _D__pi\n\nclass D(object):\n    x = __pi\n",
+        ),
+        (
+            "metaclass",
+            "import math as __metaclass__\ntry:\n    class C:\n        pass\nexcept TypeError:\n    print \"failed\"\nelse:\n    print \"created\"\n",
+        ),
+        ("control", "def g():\n    import math\n    return 1\n"),
+    ];
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        "p/project.json",
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    );
+    for (name, text) in modules {
+        write(
+            &format!("p/ignition/script-python/{name}/resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        );
+        write(&format!("p/ignition/script-python/{name}/code.py"), text);
+    }
+    let out = iglint(dir.path())
+        .args([
+            "--no-cache",
+            "--output-format",
+            "json",
+            "--select",
+            "SCR101,SCR102",
+        ])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let found = v.as_array().unwrap();
+    assert_eq!(found.len(), 1, "{v}");
+    assert!(
+        found[0]["filename"]
+            .as_str()
+            .unwrap()
+            .ends_with("control/code.py"),
+        "{v}"
+    );
+    assert_eq!(found[0]["fix"]["applicability"], "safe", "{v}");
+    for args in [&["--fix"][..], &["--fix", "--unsafe-fixes"][..]] {
+        iglint(dir.path())
+            .args(["--no-cache", "--select", "SCR102"])
+            .args(args)
+            .output()
+            .unwrap();
+        for (name, text) in modules {
+            let path = dir
+                .path()
+                .join(format!("p/ignition/script-python/{name}/code.py"));
+            let now = std::fs::read_to_string(path).unwrap();
+            if name == "control" {
+                assert_eq!(now, "def g():\n\n    return 1\n");
+            } else {
+                assert_eq!(now, text, "{name}");
+            }
+        }
+    }
+}
+
 /// Reviewer round 13: the most common `SCR102` safe fix (the import's
 /// line emptied before a blank line) gave a hunk header whose ranges did
 /// not match its lines (`@@ -1,3 +2,2 @@`), which `git apply` and `patch`

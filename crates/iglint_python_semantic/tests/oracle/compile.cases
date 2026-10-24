@@ -2910,3 +2910,29 @@ def f():
 ### yield-comp-return-yield-in-call
 def f():
     return foo((yield 1))
+### review-r13-m2-listcomp-yield-after-try-return-finally
+def f():
+    try:
+        return
+    finally:
+        pass
+    [x for x in (yield [])]
+### review-r13-m2-setcomp-yield-after-raise-except-raise
+def f():
+    try:
+        raise X
+    except E:
+        raise Y
+    {x for x in (yield [])}
+### review-r13-private-name-in-underscore-class
+class ___:
+    __x = 1
+### review-r13-underscore-class-without-private-names
+class ___:
+    x = 1
+### review-r13-exec-in-class-nested-in-two-functions
+def h():
+    def f():
+        class C:
+            exec "pass"
+            print y

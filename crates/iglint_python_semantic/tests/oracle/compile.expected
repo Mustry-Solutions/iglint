@@ -2176,3 +2176,17 @@ error 2 12
 ### yield-comp-return-yield-in-call
 error 2 16
 'return' with argument inside generator
+### review-r13-m2-listcomp-yield-after-try-return-finally
+error 0 0
+internal error: java.lang.VerifyError
+### review-r13-m2-setcomp-yield-after-raise-except-raise
+error 0 0
+internal error: java.lang.VerifyError
+### review-r13-private-name-in-underscore-class
+error 0 0
+internal error: java.lang.StringIndexOutOfBoundsException
+### review-r13-underscore-class-without-private-names
+ok
+### review-r13-exec-in-class-nested-in-two-functions
+error 3 8
+unqualified exec is not allowed in function 'C' because it contains free variables

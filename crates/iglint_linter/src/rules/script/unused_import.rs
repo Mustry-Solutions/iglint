@@ -31,6 +31,14 @@ Reports imports whose name is never read. Usage is flow-sensitive: an
 import that is rebound before any read is unused even if the name is read
 later.
 
+Reads are resolved the way Jython compiles them: a class body reads a
+name it binds from the class namespace and, before the class binds it,
+from the module (`x = m.pi` before `m = 1` in the class reads the
+module's `m`); private names in class bodies are mangled (`__m` in class
+`D` reads `_D__m`); and the names the interpreter reads by itself count:
+`__metaclass__` for a class without bases, `AssertionError` for `assert`,
+`__name__` for class and function definitions.
+
 Not reported:
 
 * `from __future__ import ...`;
@@ -609,10 +617,16 @@ fn implicit_name_observed(
     let bound = |name: &str| {
         model
             .bindings()
-            .any(|(_, b)| b.name == name && b.kind != BindingKind::ImportPackage)
+            .any(|(_, b)| b.name == name && !b.is_implicit())
     };
     for name in IMPLICIT_IMPORT_NAMES {
-        if model.references().any(|(_, r)| r.name == *name) || bound(name) {
+        // Import statements read `__package__` themselves (an implicit
+        // read): only the code's own reads count here.
+        if model
+            .references()
+            .any(|(_, r)| r.name == *name && !r.is_implicit())
+            || bound(name)
+        {
             return Some(read(name));
         }
     }
@@ -1666,5 +1680,36 @@ mod tests {
             "\timport math\n\ttry:\n\t\tprint __package__\n\texcept NameError:\n\t\tpass\n",
         );
         assert_eq!(applicability(&f.lint(&["SCR102"])), [Some(Safe)]);
+    }
+
+    /// Review round 13: class bodies read names by name (the class
+    /// namespace, then the module's globals and the builtins, whatever the
+    /// class binds later) and spell private names mangled; the interpreter
+    /// reads `__metaclass__` for a class without bases. Each of these
+    /// imports is used: Jython raises `NameError` (or creates the class)
+    /// differently without it.
+    #[test]
+    fn imports_read_by_class_bodies_are_used() {
+        for code in [
+            "import math as _D__m\n\nclass D(object):\n    x = __m.floor(3.7)\n",
+            "import math as m\n\nclass C(object):\n    x = m.pi\n    m = 1\n\nm = None\n",
+            "import math as m\n\nclass C(object):\n    x = m.pi\n    m = 1\n",
+            "import math as m\n\ndef f():\n    class C(object):\n        x = m.pi\n        m = 1\n    return C\n",
+            "from math import pi as _D__pi\n\nclass D(object):\n    x = __pi\n",
+            "import math as __metaclass__\ntry:\n    class C:\n        pass\nexcept TypeError:\n    print 'failed'\n",
+            "import math as AssertionError\n\ndef f(x):\n    assert x\n",
+        ] {
+            assert!(library("m", code).lint(&["SCR102"]).is_empty(), "{code}");
+        }
+        // A class with bases does not read `__metaclass__` from the module.
+        let code = "import math as __metaclass__\n\nclass C(object):\n    pass\n";
+        assert_eq!(
+            flagged(&library("m", code).lint(&["SCR102"])),
+            ["__metaclass__"]
+        );
+        // Names in methods are not mangled: `__m` there is the global `__m`.
+        let code =
+            "import math as _D__m\n\nclass D(object):\n    def f(self):\n        return __m\n";
+        assert_eq!(flagged(&library("m", code).lint(&["SCR102"])), ["_D__m"]);
     }
 }

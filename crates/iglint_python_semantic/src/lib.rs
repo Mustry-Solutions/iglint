@@ -8,7 +8,7 @@
 //! let model = SemanticModel::build(&parsed.module, &SemanticOptions::default());
 //! let undefined: Vec<&str> = model
 //!     .references()
-//!     .filter(|(_, r)| r.resolution == Resolution::Unresolved)
+//!     .filter(|(_, r)| r.resolution == Resolution::Unresolved && !r.is_implicit())
 //!     .map(|(_, r)| r.name)
 //!     .collect();
 //! assert_eq!(undefined, ["y"]);
@@ -20,7 +20,23 @@
 //!   expressions and set/dict comprehensions. **List comprehensions have no
 //!   scope**: their variables are bound in the enclosing scope.
 //! * Class bodies are not visible to the functions nested in them; class
-//!   bodies themselves see enclosing functions' variables.
+//!   bodies themselves see enclosing functions' variables. A class body
+//!   reads by name (`LOAD_NAME`): a name it binds anywhere is looked up in
+//!   the class namespace, then in the module's globals and the builtins,
+//!   never in an enclosing function, so such a read may find either
+//!   ([`Reference::fallback`]).
+//! * Private names are mangled the way Jython does it ([`mangle`]): names
+//!   in class bodies and attribute names in classes (`__x` is `_C__x`);
+//!   references and bindings carry the run-time spelling.
+//! * Which accessor the compiled code uses for each name ([`NameAccess`])
+//!   is Jython's own decision (`ScopesCompiler`, `CodeCompiler`), checked
+//!   against the compiler with `oracle/scope/` ([`scope_dump`]).
+//! * Names the interpreter reads without the code naming them are
+//!   references too ([`ReferenceKind::Implicit`], [`ImplicitRead`]):
+//!   `__name__` when a class body starts or a function is created,
+//!   `__metaclass__` after a class body without bases, `__name__`,
+//!   `__package__` and `__path__` at every import, `__debug__` and
+//!   `AssertionError` at `assert`.
 //! * Decorators, default values, base classes and the first iterable of a
 //!   generator expression are evaluated in the enclosing scope.
 //! * A name is local to a function if the function binds it anywhere and
@@ -58,11 +74,14 @@
 
 mod compile;
 mod compile_warnings;
+mod dump;
 pub mod dynamic;
+mod emitted;
 pub mod file_reads;
 mod flow;
 mod generated;
 mod limits;
+pub mod mangle;
 mod model;
 pub mod perspective;
 mod resolve;
@@ -71,6 +90,7 @@ pub mod vetted;
 
 pub use compile::{CompileError, CompileErrorKind, compile_errors};
 pub use compile_warnings::{CompileWarning, compile_warnings};
+pub use dump::scope_dump;
 pub use limits::{MARK_LIMIT, mark_limit_error, size_errors};
 pub use model::*;
 pub use resolve::UnboundNames;

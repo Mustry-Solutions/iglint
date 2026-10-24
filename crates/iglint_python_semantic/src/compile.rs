@@ -63,6 +63,10 @@ pub enum CompileErrorKind {
     MethodTooLarge,
     /// A module has more constants than a Java class can hold.
     ClassTooLarge,
+    /// A private name (`__x`) that Jython has to mangle inside a class whose
+    /// name is only underscores (`class ___:`): its code generator fails
+    /// (`StringIndexOutOfBoundsException`, see [`crate::mangle`]).
+    PrivateNameInUnderscoreClass,
 }
 
 impl CompileErrorKind {
@@ -72,7 +76,9 @@ impl CompileErrorKind {
     pub fn is_internal_crash(self) -> bool {
         matches!(
             self,
-            CompileErrorKind::InvalidTarget | CompileErrorKind::YieldInComprehension
+            CompileErrorKind::InvalidTarget
+                | CompileErrorKind::YieldInComprehension
+                | CompileErrorKind::PrivateNameInUnderscoreClass
         )
     }
 }
@@ -83,12 +89,11 @@ pub fn compile_errors(model: &SemanticModel<'_>) -> Vec<CompileError> {
         model,
         out: Vec::new(),
         free: propagated_free(model),
+        emission: None,
     };
     c.future(&model.module.body);
     // The module's own statements are all compiled, even after a `raise`
-    // (verified on Jython); suites inside them are not. Code after a
-    // statement that does not complete is unreachable all the same.
-    let mut unreachable = false;
+    // (verified on Jython); suites inside them are not.
     for stmt in &model.module.body {
         c.stmt(
             stmt,
@@ -96,18 +101,19 @@ pub fn compile_errors(model: &SemanticModel<'_>) -> Vec<CompileError> {
                 scope: ScopeId::MODULE,
                 in_loop: false,
                 dead: false,
-                unreachable,
                 yield_crashes: false,
             },
         );
-        unreachable |= !completion(stmt).falls;
     }
     for (id, scope) in model.scopes() {
+        c.generator_returns(id);
         if scope.kind.is_function_like() {
-            c.generator_returns(id);
             c.exec_and_star(id);
+        } else if scope.kind == ScopeKind::Class {
+            c.class_exec_and_star(id);
         }
     }
+    c.underscore_class_mangling();
     c.out.sort_by_key(|e| (e.range.start(), e.range.end()));
     c.out
 }
@@ -142,11 +148,6 @@ struct Ctx {
     /// errors its code generator raises do not occur, errors of its
     /// symbol table pass still do.
     dead: bool,
-    /// The statement's code is generated but cannot be reached in the
-    /// code object's bytecode (see [`completion`]). The bytecode
-    /// verifier crashes Jython only on reachable code, so invalid targets
-    /// there compile; every other error still occurs.
-    unreachable: bool,
     /// A `yield` evaluated in this position is compiled into the current
     /// function's code object by way of a list comprehension (inlined in
     /// Python 2) or as the first iterable of a set or dict comprehension
@@ -162,6 +163,7 @@ struct Checker<'m, 'a> {
     model: &'m SemanticModel<'a>,
     out: Vec<CompileError>,
     free: Vec<FxHashSet<&'a str>>,
+    emission: Option<crate::emitted::Emission>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -177,6 +179,98 @@ enum TargetContext {
 }
 
 impl<'a> Checker<'_, 'a> {
+    /// Private names Jython would mangle with a class name that is only
+    /// underscores, in code it generates: names in the class body, and
+    /// attribute, `def` and `class` names anywhere inside the class.
+    fn underscore_class_mangling(&mut self) {
+        use crate::mangle::{is_private, mangling_crashes};
+        let crashes = |scope: ScopeId| {
+            self.model
+                .scope(scope)
+                .class_name
+                .is_some_and(mangling_crashes)
+        };
+        if !self.model.scopes().any(|(id, _)| crashes(id)) {
+            return;
+        }
+        let model = self.model;
+        let emission = self
+            .emission
+            .get_or_insert_with(|| crate::emitted::Emission::of(model));
+        let mut found: Vec<TextRange> = Vec::new();
+        for (_, r) in self.model.references() {
+            if !r.is_implicit()
+                && self.model.scope(r.scope).kind == ScopeKind::Class
+                && crashes(r.scope)
+                && is_private(r.name)
+                && emission.generated(r.scope, r.range)
+            {
+                found.push(r.range);
+            }
+        }
+        for (_, b) in self.model.bindings() {
+            if b.is_implicit() || b.kind == crate::model::BindingKind::Global {
+                continue;
+            }
+            let in_class = self.model.scope(b.site).kind == ScopeKind::Class;
+            let named = matches!(
+                b.kind,
+                crate::model::BindingKind::FunctionDef | crate::model::BindingKind::ClassDef
+            );
+            if (in_class || named)
+                && crashes(b.site)
+                && is_private(b.name)
+                && emission.generated(b.site, b.range)
+            {
+                found.push(b.range);
+            }
+        }
+        for (scope, _, name, range) in crate::dump::attributes(self.model) {
+            if crashes(scope) && is_private(name) && emission.generated(scope, range) {
+                found.push(range);
+            }
+        }
+        if let Some(range) = found.into_iter().min_by_key(|r| r.start()) {
+            self.error(
+                CompileErrorKind::PrivateNameInUnderscoreClass,
+                range,
+                None,
+                "a private name in a class whose name is only underscores crashes Jython's \
+                 compiler (internal error); the script cannot be compiled",
+            );
+        }
+    }
+
+    /// Whether the bytecode can reach the code of `scope` at `range` (see
+    /// [`crate::emitted`]): the verifier crashes Jython only on reachable
+    /// code, so invalid targets elsewhere compile.
+    fn runs(&mut self, scope: ScopeId, range: TextRange) -> bool {
+        let model = self.model;
+        self.emission
+            .get_or_insert_with(|| crate::emitted::Emission::of(model))
+            .runs(scope, range)
+    }
+
+    /// Whether Jython generates the code of `scope` at `range`. A `yield`
+    /// it generates is reachable even after a statement that does not
+    /// complete: a generator resumes there (`oracle/compile_cross.py`).
+    fn generated(&mut self, scope: ScopeId, range: TextRange) -> bool {
+        let model = self.model;
+        self.emission
+            .get_or_insert_with(|| crate::emitted::Emission::of(model))
+            .generated(scope, range)
+    }
+
+    /// Whether Jython generates no code object for `scope` (it is defined
+    /// in dead code).
+    fn dead_scope(&mut self, scope: ScopeId) -> bool {
+        let model = self.model;
+        self.emission
+            .get_or_insert_with(|| crate::emitted::Emission::of(model))
+            .dead_scopes
+            .contains(&scope)
+    }
+
     fn error(
         &mut self,
         kind: CompileErrorKind,
@@ -203,7 +297,6 @@ impl<'a> Checker<'_, 'a> {
         for stmt in body {
             self.stmt(stmt, ctx);
             ctx.dead |= ends_suite(stmt);
-            ctx.unreachable |= !completion(stmt).falls;
         }
     }
 
@@ -236,8 +329,6 @@ impl<'a> Checker<'_, 'a> {
                     scope,
                     in_loop: false,
                     dead: ctx.dead,
-                    // A new code object.
-                    unreachable: false,
                     yield_crashes: false,
                 };
                 self.body(&f.body, inner);
@@ -252,8 +343,6 @@ impl<'a> Checker<'_, 'a> {
                     scope,
                     in_loop: false,
                     dead: ctx.dead,
-                    // A new code object.
-                    unreachable: false,
                     yield_crashes: false,
                 };
                 self.body(&c.body, inner);
@@ -414,7 +503,7 @@ impl<'a> Checker<'_, 'a> {
                         Some(y.anchor),
                         "'yield' outside function",
                     );
-                } else if ctx.yield_crashes && !ctx.unreachable {
+                } else if ctx.yield_crashes && self.generated(ctx.scope, y.range) {
                     // Compiled into a method whose bytecode Jython's own
                     // verifier rejects (`java.lang.VerifyError`): a `yield`
                     // inside a list comprehension or in the first iterable
@@ -441,7 +530,6 @@ impl<'a> Checker<'_, 'a> {
                             scope,
                             in_loop: false,
                             dead: ctx.dead,
-                            unreachable: false,
                             yield_crashes: false,
                         },
                     );
@@ -476,8 +564,6 @@ impl<'a> Checker<'_, 'a> {
                     scope,
                     in_loop: false,
                     dead: ctx.dead,
-                    // A new code object.
-                    unreachable: false,
                     yield_crashes: false,
                 };
                 // The first iterable is evaluated in the enclosing scope.
@@ -533,7 +619,7 @@ impl<'a> Checker<'_, 'a> {
             Expr::Attribute(a) => self.expr(&a.value, ctx),
             Expr::Subscript(_) => walk_children(target, &mut |child| self.expr(child, ctx)),
             other => {
-                if crashes_compiler(other, context) && !ctx.unreachable {
+                if crashes_compiler(other, context) && self.runs(ctx.scope, other.range()) {
                     self.codegen_error(
                         ctx,
                         CompileErrorKind::InvalidTarget,
@@ -663,11 +749,17 @@ impl<'a> Checker<'_, 'a> {
         if !s.is_generator {
             return;
         }
-        let crate::model::ScopeNode::Function(f) = s.node else {
-            return;
+        // Module and class bodies too: Jython's symbol table pass raises
+        // this before its code generator rejects the `yield` and `return`
+        // there (measured, `oracle/compile_cross.py`).
+        let body = match s.node {
+            crate::model::ScopeNode::Function(f) => &f.body,
+            crate::model::ScopeNode::Module(m) => &m.body,
+            crate::model::ScopeNode::Class(c) => &c.body,
+            _ => return,
         };
         let mut events = Vec::new();
-        collect_yields_and_returns(&f.body, &mut events);
+        collect_yields_and_returns(body, &mut events);
         let mut seen_yield = false;
         let mut seen_return = false;
         for (is_yield, range, anchor) in events {
@@ -682,6 +774,54 @@ impl<'a> Checker<'_, 'a> {
             }
             seen_yield |= is_yield;
             seen_return |= !is_yield;
+        }
+    }
+
+    /// `exec` and `import *` in a class body nested in two functions (its
+    /// `func_level` is above 1; class bodies do not count): Jython's
+    /// `ScopeInfo.cook` rejects an unqualified `exec` when the body reads a
+    /// name it does not bind (nested scopes never make a class's own names
+    /// free: Jython looks past class bodies), and its code generator any
+    /// `import *`. Measured with `oracle/scope/` (`hand.cases`).
+    fn class_exec_and_star(&mut self, scope: ScopeId) {
+        let s = self.model.scope(scope);
+        let crate::model::ScopeNode::Class(c) = s.node else {
+            return;
+        };
+        let mut functions = 0;
+        let mut at = s.parent;
+        while let Some(p) = at {
+            functions += usize::from(self.model.scope(p).kind.is_function_like());
+            at = self.model.scope(p).parent;
+        }
+        if functions < 2 {
+            return;
+        }
+        if s.unqualified_exec.is_some() && !s.free_names.is_empty() {
+            self.error(
+                CompileErrorKind::UnqualifiedExec,
+                c.name.range,
+                Some(c.anchor),
+                format!(
+                    "unqualified exec is not allowed in function '{}' because it contains free variables",
+                    c.name.id
+                ),
+            );
+            return;
+        }
+        if s.star_import.is_some() && !self.dead_scope(scope) {
+            let Some(Stmt::ImportFrom(i)) = first_star_import(&c.body) else {
+                return;
+            };
+            self.error(
+                CompileErrorKind::ImportStarInFunction,
+                i.range,
+                Some(i.anchor),
+                format!(
+                    "import * is not allowed in function '{}' because it is a nested function",
+                    c.name.id
+                ),
+            );
         }
     }
 
@@ -730,7 +870,8 @@ impl<'a> Checker<'_, 'a> {
                 return;
             }
         }
-        if s.star_import.is_some() && (child_free || nested) {
+        // The code generator raises this one: not in dead code.
+        if s.star_import.is_some() && (child_free || nested) && !self.dead_scope(scope) {
             let Some(stmt) = first_star_import(&f.body) else {
                 return;
             };

@@ -63,11 +63,11 @@ fn expected(text: &str) -> Vec<(String, Option<JythonError>)> {
     out
 }
 
-#[test]
-fn compile_errors_match_jython() {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/oracle");
-    let sources = cases(&std::fs::read_to_string(format!("{dir}/compile.cases")).unwrap());
-    let expected = expected(&std::fs::read_to_string(format!("{dir}/compile.expected")).unwrap());
+/// Compares every case of a cases file with Jython's recorded outcome;
+/// returns how many cases the semantic layer checked and the failures.
+fn compare(cases_text: &str, expected_text: &str) -> (usize, Vec<String>) {
+    let sources = cases(cases_text);
+    let expected = expected(expected_text);
     assert_eq!(sources.len(), expected.len());
     let mut failures = Vec::new();
     let mut checked = 0;
@@ -118,6 +118,14 @@ fn compile_errors_match_jython() {
             }
         }
     }
+    (checked, failures)
+}
+
+#[test]
+fn compile_errors_match_jython() {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/oracle");
+    let read = |name: &str| std::fs::read_to_string(format!("{dir}/{name}")).unwrap();
+    let (checked, failures) = compare(&read("compile.cases"), &read("compile.expected"));
     eprintln!("{checked} cases compiled by the semantic layer");
     assert!(checked > 300, "only {checked} cases parsed");
     assert!(
@@ -126,4 +134,44 @@ fn compile_errors_match_jython() {
         failures.len(),
         failures.join("\n")
     );
+}
+
+/// A stratified sample of `oracle/compile_cross.py`: every statement that
+/// ends a block or makes code unreachable, before every construct Jython
+/// rejects, in every nesting context (review round 13, M2).
+#[test]
+fn compile_errors_after_control_flow_match_jython() {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/oracle");
+    let read = |name: &str| std::fs::read_to_string(format!("{dir}/{name}")).unwrap();
+    let (checked, failures) = compare(
+        &read("compile_cross.cases"),
+        &read("compile_cross.expected"),
+    );
+    eprintln!("{checked} control flow cases");
+    assert!(checked > 500, "only {checked} cases parsed");
+    assert!(
+        failures.is_empty(),
+        "{} failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+/// The full cross product: `IGLINT_COMPILE_CASES` and
+/// `IGLINT_COMPILE_EXPECTED` name the files (`oracle/compile_cross.py all`,
+/// then `oracle/run-oracle.sh --compile`).
+#[test]
+#[ignore]
+fn compile_errors_match_jython_full_run() {
+    let cases = std::env::var("IGLINT_COMPILE_CASES").expect("IGLINT_COMPILE_CASES");
+    let expected = std::env::var("IGLINT_COMPILE_EXPECTED").expect("IGLINT_COMPILE_EXPECTED");
+    let (checked, failures) = compare(
+        &std::fs::read_to_string(cases).unwrap(),
+        &std::fs::read_to_string(expected).unwrap(),
+    );
+    eprintln!("{checked} cases checked, {} differences", failures.len());
+    for f in failures.iter().take(40) {
+        eprintln!("{f}");
+    }
+    assert!(failures.is_empty(), "{} differences", failures.len());
 }

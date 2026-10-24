@@ -17,7 +17,7 @@ use iglint_text::{Ranged, TextRange};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::model::*;
-use crate::symbols::{PACKAGE, PackageImports, SymbolTable, catches, import_binding};
+use crate::symbols::{PACKAGE, PackageImports, SymbolTable, catches, import_binding, jython};
 
 const UNBOUND: u32 = u32::MAX;
 
@@ -92,6 +92,23 @@ enum Frame {
     },
 }
 
+/// What a name occurrence does, for [`Flow::access`].
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Op {
+    Load,
+    Store,
+    Del,
+}
+
+/// Where a reference is recorded (re-walking a loop finds it again).
+#[derive(Clone, Copy)]
+enum Slot<'a> {
+    /// A `Name` node, by its start.
+    Name,
+    /// An implicit read, by its start and name.
+    Implicit(&'a str),
+}
+
 #[derive(Clone, Copy)]
 enum Event {
     Bind(u32, u32),
@@ -122,6 +139,7 @@ pub(crate) struct Flow<'a, 'o> {
     binding_at: FxHashMap<u32, BindingId>,
     global_at: FxHashMap<u32, BindingId>,
     reference_at: FxHashMap<u32, ReferenceId>,
+    implicit_at: FxHashMap<(u32, &'a str), ReferenceId>,
     /// Whether each statement (by address) was ever reached.
     stmt_reachable: FxHashMap<usize, bool>,
     queued: Vec<bool>,
@@ -159,6 +177,7 @@ impl<'a, 'o> Flow<'a, 'o> {
             binding_at: FxHashMap::default(),
             global_at: FxHashMap::default(),
             reference_at: FxHashMap::default(),
+            implicit_at: FxHashMap::default(),
             stmt_reachable: FxHashMap::default(),
             queued: vec![false; n],
             queue: VecDeque::new(),
@@ -207,7 +226,13 @@ impl<'a, 'o> Flow<'a, 'o> {
         let mut st = State::new(locals);
         match self.scopes[id.index()].node {
             ScopeNode::Module(m) => self.block(&m.body, &mut st),
-            ScopeNode::Class(c) => self.block(&c.body, &mut st),
+            ScopeNode::Class(c) => {
+                self.implicit_read("__name__", c.name.range, ImplicitRead::ClassModule, &st);
+                self.block(&c.body, &mut st);
+                if c.bases.is_empty() {
+                    self.implicit_read("__metaclass__", c.name.range, ImplicitRead::Metaclass, &st);
+                }
+            }
             ScopeNode::Function(f) => {
                 self.parameters(&f.args, &mut st);
                 self.block(&f.body, &mut st);
@@ -295,6 +320,59 @@ impl<'a, 'o> Flow<'a, 'o> {
 
     // ---- recording ----
 
+    /// The run-time spelling of a name of the current scope's code.
+    fn key(&self, name: &'a str) -> &'a str {
+        self.scopes[self.scope.index()].runtime_name(name)
+    }
+
+    /// How the current scope's code reaches `raw` (spelled in the source;
+    /// `key` is its run-time spelling): the accessor Jython's code
+    /// generator picks (`CodeCompiler.visitName`).
+    fn access(&self, raw: &str, key: &str, op: Op) -> NameAccess {
+        use jython::*;
+        let scope = &self.scopes[self.scope.index()];
+        match scope.kind {
+            ScopeKind::Module => {
+                let flags = scope.jython.get(raw).copied().unwrap_or(0);
+                if flags & GLOBAL != 0 {
+                    NameAccess::Global
+                } else {
+                    NameAccess::Name
+                }
+            }
+            ScopeKind::Class => match scope.jython.get(key).copied() {
+                Some(f) if f & GLOBAL != 0 => NameAccess::Global,
+                Some(f) if op == Op::Load && f & FREE != 0 && f & BOUND == 0 => NameAccess::Free,
+                _ => NameAccess::Name,
+            },
+            _ => {
+                let Some(f) = scope.jython.get(raw).copied() else {
+                    return NameAccess::Name;
+                };
+                if f & GLOBAL != 0 {
+                    return NameAccess::Global;
+                }
+                match op {
+                    Op::Load => {
+                        if !scope.has_exec && f & (BOUND | CELL | FREE) == 0 {
+                            NameAccess::ImplicitGlobal
+                        } else if f & CELL != 0 {
+                            NameAccess::Cell
+                        } else if f & BOUND != 0 {
+                            NameAccess::Fast
+                        } else if f & FREE != 0 {
+                            NameAccess::Free
+                        } else {
+                            NameAccess::Name
+                        }
+                    }
+                    Op::Store if f & CELL != 0 => NameAccess::Cell,
+                    Op::Store | Op::Del => NameAccess::Fast,
+                }
+            }
+        }
+    }
+
     fn local_index(&self, name: &str) -> Option<usize> {
         let scope = &self.scopes[self.scope.index()];
         if self.scope != ScopeId::MODULE && scope.globals.contains_key(name) {
@@ -315,6 +393,9 @@ impl<'a, 'o> Flow<'a, 'o> {
         value: Option<&'a Expr>,
         st: &mut State,
     ) -> BindingId {
+        let raw = name;
+        let name = self.key(raw);
+        let access = self.access(raw, name, Op::Store);
         let local = self.local_index(name);
         let target_scope = if local.is_some() {
             self.scope
@@ -328,6 +409,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                 let qualified = alias.map(|a| self.qualified_import(stmt, a));
                 self.bindings.push(Binding {
                     name,
+                    source_name: raw,
                     kind,
                     range,
                     scope: target_scope,
@@ -341,6 +423,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                     try_parts: self.try_parts.clone(),
                     shadowed: Vec::new(),
                     references: Vec::new(),
+                    access,
                 });
                 self.binding_at.insert(range.start().to_u32(), id);
                 self.scopes[target_scope.index()]
@@ -403,6 +486,7 @@ impl<'a, 'o> Flow<'a, 'o> {
         let id = BindingId(self.bindings.len() as u32);
         self.bindings.push(Binding {
             name: PACKAGE,
+            source_name: PACKAGE,
             kind: BindingKind::ImportPackage,
             range,
             scope: ScopeId::MODULE,
@@ -416,9 +500,26 @@ impl<'a, 'o> Flow<'a, 'o> {
             try_parts: self.try_parts.clone(),
             shadowed: Vec::new(),
             references: Vec::new(),
+            access: NameAccess::Name,
         });
         self.binding_at.insert(start.to_u32(), id);
         self.scopes[0].bindings.entry(PACKAGE).or_default().push(id);
+    }
+
+    /// The names an import statement reads from the module's globals to
+    /// find the importing package (measured: `__package__`, `__name__`,
+    /// `__path__`, whatever the scope).
+    fn import_reads(&mut self, stmt: &'a Stmt, st: &State) {
+        let start = stmt.range().start();
+        let keyword = if matches!(stmt, Stmt::Import(_)) {
+            "import"
+        } else {
+            "from"
+        };
+        let range = TextRange::at(start, iglint_text::TextSize::of(keyword));
+        for name in ["__package__", "__name__", "__path__"] {
+            self.implicit_read(name, range, ImplicitRead::Import, st);
+        }
     }
 
     fn qualified_import(&self, stmt: Option<&'a Stmt>, alias: &Alias) -> String {
@@ -444,13 +545,74 @@ impl<'a, 'o> Flow<'a, 'o> {
         }
     }
 
-    fn reference(&mut self, name: &'a str, range: TextRange, kind: ReferenceKind, st: &State) {
+    fn reference(&mut self, raw: &'a str, range: TextRange, kind: ReferenceKind, st: &State) {
+        let name = self.key(raw);
+        let op = if kind == ReferenceKind::Del {
+            Op::Del
+        } else {
+            Op::Load
+        };
+        let access = self.access(raw, name, op);
+        self.record_reference(name, raw, range, kind, access, Slot::Name, st);
+    }
+
+    /// A read the interpreter makes in the current scope without the code
+    /// naming it (see [`ImplicitRead`]).
+    fn implicit_read(&mut self, name: &'a str, range: TextRange, read: ImplicitRead, st: &State) {
+        let kind = ReferenceKind::Implicit(read);
+        match read {
+            // Looked up by name in the class body, like a read there.
+            ImplicitRead::ClassModule | ImplicitRead::Metaclass => {
+                self.record_reference(
+                    name,
+                    name,
+                    range,
+                    kind,
+                    NameAccess::Name,
+                    Slot::Implicit(name),
+                    st,
+                );
+            }
+            // Read from the module's globals (and the builtins), whatever
+            // the scope binds.
+            ImplicitRead::FunctionModule | ImplicitRead::Import | ImplicitRead::Assert => {
+                self.record_reference(
+                    name,
+                    name,
+                    range,
+                    kind,
+                    NameAccess::ImplicitGlobal,
+                    Slot::Implicit(name),
+                    st,
+                );
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn record_reference(
+        &mut self,
+        name: &'a str,
+        source_name: &'a str,
+        range: TextRange,
+        kind: ReferenceKind,
+        access: NameAccess,
+        slot: Slot<'a>,
+        st: &State,
+    ) {
         let scope_id = self.scope;
         let scope_kind = self.scopes[scope_id.index()].kind;
         let mut bindings: Vec<BindingId> = Vec::new();
         let mut unbound = false;
         let mut maybe_unbound = false;
-        let resolution = match self.local_index(name) {
+        let mut fallback = None;
+        let global_only = matches!(access, NameAccess::Global | NameAccess::ImplicitGlobal);
+        let local = if global_only && scope_kind != ScopeKind::Module {
+            None
+        } else {
+            self.local_index(name)
+        };
+        let resolution = match local {
             Some(index) => {
                 let defs = &st.defs[index];
                 bindings.extend(
@@ -471,25 +633,37 @@ impl<'a, 'o> Flow<'a, 'o> {
                     {
                         unbound = false;
                     }
-                } else if scope_kind == ScopeKind::Class && maybe_unbound {
-                    // Class bodies fall back to globals and builtins.
-                    let (resolution, mut extra) = self.lookup_nonlocal(name);
+                } else if scope_kind == ScopeKind::Class {
+                    // A class body reads by name: the class namespace, then
+                    // the module's globals and the builtins. Flow-insensitive
+                    // across the two: the read may find either.
+                    let (resolution, mut extra) = self.lookup_global(name);
+                    fallback = Some(resolution);
+                    bindings.append(&mut extra);
                     if !matches!(resolution, Resolution::Unresolved | Resolution::Dynamic) {
-                        bindings.append(&mut extra);
                         unbound = false;
                         maybe_unbound = false;
                     }
                 }
                 Resolution::Local
             }
+            None if access == NameAccess::Free => {
+                let (resolution, extra) = self.lookup_free(name);
+                bindings = extra;
+                resolution
+            }
             None => {
-                let (resolution, extra) = self.lookup_nonlocal(name);
+                let (resolution, extra) = self.lookup_global(name);
                 bindings = extra;
                 resolution
             }
         };
         let guarded = self.name_error_guard > 0;
-        match self.reference_at.get(&range.start().to_u32()) {
+        let existing = match slot {
+            Slot::Name => self.reference_at.get(&range.start().to_u32()),
+            Slot::Implicit(n) => self.implicit_at.get(&(range.start().to_u32(), n)),
+        };
+        match existing {
             Some(&id) => {
                 let r = &mut self.references[id.index()];
                 for b in bindings {
@@ -512,6 +686,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                 let id = ReferenceId(self.references.len() as u32);
                 self.references.push(Reference {
                     name,
+                    source_name,
                     range,
                     kind,
                     scope: scope_id,
@@ -521,8 +696,17 @@ impl<'a, 'o> Flow<'a, 'o> {
                     maybe_unbound: maybe_unbound && st.reachable,
                     reachable: st.reachable,
                     name_error_guarded: guarded,
+                    access,
+                    fallback,
                 });
-                self.reference_at.insert(range.start().to_u32(), id);
+                match slot {
+                    Slot::Name => {
+                        self.reference_at.insert(range.start().to_u32(), id);
+                    }
+                    Slot::Implicit(n) => {
+                        self.implicit_at.insert((range.start().to_u32(), n), id);
+                    }
+                }
             }
         }
     }
@@ -535,25 +719,29 @@ impl<'a, 'o> Flow<'a, 'o> {
             .any(|s| s.globals.contains_key(name))
     }
 
-    /// Resolves a name that is not local to the current scope.
-    fn lookup_nonlocal(&mut self, name: &'a str) -> (Resolution, Vec<BindingId>) {
-        let scope = &self.scopes[self.scope.index()];
-        let declared_global = scope.globals.contains_key(name);
-        let scope_kind = scope.kind;
-        if !declared_global {
-            let mut at = scope.parent;
-            while let Some(p) = at {
-                let s = &self.scopes[p.index()];
-                if p == ScopeId::MODULE {
-                    break;
-                }
-                if s.kind != ScopeKind::Class && s.local_index.contains_key(name) {
-                    let ids = s.bindings_of(name).to_vec();
-                    return (Resolution::Free(p), ids);
-                }
-                at = s.parent;
+    /// Resolves a free variable: the enclosing function whose cell it is.
+    /// Jython's `setup_closure` keeps a name free only while each enclosing
+    /// function has it free or as a cell (class bodies are skipped).
+    fn lookup_free(&mut self, name: &'a str) -> (Resolution, Vec<BindingId>) {
+        let mut at = self.scope;
+        while at != ScopeId::MODULE {
+            at = crate::symbols::enclosing_function(&self.scopes, at.index());
+            let s = &self.scopes[at.index()];
+            let flags = s.jython.get(name).copied().unwrap_or(0);
+            if flags & jython::CELL != 0 {
+                return (Resolution::Free(at), s.bindings_of(name).to_vec());
+            }
+            if flags & jython::FREE == 0 {
+                break;
             }
         }
+        self.lookup_global(name)
+    }
+
+    /// Resolves a name in the module's globals, then the caller's injected
+    /// names, then the builtins.
+    fn lookup_global(&mut self, name: &'a str) -> (Resolution, Vec<BindingId>) {
+        let scope_kind = self.scopes[self.scope.index()].kind;
         if self.scopes[0].local_index.contains_key(name) {
             // Filled in by `finish` (functions may still add bindings).
             return (Resolution::Global, Vec::new());
@@ -602,6 +790,7 @@ impl<'a, 'o> Flow<'a, 'o> {
         let id = BindingId(self.bindings.len() as u32);
         self.bindings.push(Binding {
             name,
+            source_name: name,
             kind,
             range: TextRange::default(),
             scope: ScopeId::MODULE,
@@ -615,13 +804,15 @@ impl<'a, 'o> Flow<'a, 'o> {
             try_parts: Vec::new(),
             shadowed: Vec::new(),
             references: Vec::new(),
+            access: NameAccess::Name,
         });
         self.implicit.insert(name, id);
         id
     }
 
-    fn delete(&mut self, name: &'a str, range: TextRange, st: &mut State) {
-        self.reference(name, range, ReferenceKind::Del, st);
+    fn delete(&mut self, raw: &'a str, range: TextRange, st: &mut State) {
+        self.reference(raw, range, ReferenceKind::Del, st);
+        let name = self.key(raw);
         if let Some(index) = self.local_index(name) {
             st.defs[index] = vec![UNBOUND];
             if let Some(c) = self.collectors.last_mut() {
@@ -689,6 +880,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                 for d in &f.args.defaults {
                     self.expr(d, st);
                 }
+                self.implicit_read("__name__", f.name.range, ImplicitRead::FunctionModule, st);
                 self.bind(
                     &f.name.id,
                     f.name.range,
@@ -811,13 +1003,17 @@ impl<'a, 'o> Flow<'a, 'o> {
             Stmt::TryExcept(s) => self.try_except(s, st),
             Stmt::TryFinally(s) => self.try_finally(s, st),
             Stmt::Assert(s) => {
+                let keyword = TextRange::at(s.range.start(), iglint_text::TextSize::of("assert"));
+                self.implicit_read("__debug__", keyword, ImplicitRead::Assert, st);
                 self.expr(&s.test, st);
+                let mut failing = st.clone();
                 if let Some(m) = &s.msg {
-                    let mut failing = st.clone();
                     self.expr(m, &mut failing);
                 }
+                self.implicit_read("AssertionError", keyword, ImplicitRead::Assert, &failing);
             }
             Stmt::Import(s) => {
+                self.import_reads(stmt, st);
                 self.bind_package(stmt, st);
                 for alias in &s.names {
                     let (name, range) = import_binding(alias);
@@ -834,6 +1030,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                 }
             }
             Stmt::ImportFrom(s) => {
+                self.import_reads(stmt, st);
                 self.bind_package(stmt, st);
                 let future =
                     s.level == 0 && s.module.as_ref().is_some_and(|m| &*m.id == "__future__");
@@ -864,6 +1061,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                     let id = BindingId(self.bindings.len() as u32);
                     self.bindings.push(Binding {
                         name: &name.id,
+                        source_name: &name.id,
                         kind: BindingKind::Global,
                         range: name.range,
                         scope: self.scope,
@@ -877,6 +1075,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                         try_parts: self.try_parts.clone(),
                         shadowed: Vec::new(),
                         references: Vec::new(),
+                        access: NameAccess::Global,
                     });
                     self.global_at.insert(name.range.start().to_u32(), id);
                     self.scopes[self.scope.index()].global_declarations.push(id);
@@ -1193,6 +1392,8 @@ impl<'a, 'o> Flow<'a, 'o> {
                 for d in &e.args.defaults {
                     self.expr(d, st);
                 }
+                let keyword = TextRange::at(e.range.start(), iglint_text::TextSize::of("lambda"));
+                self.implicit_read("__name__", keyword, ImplicitRead::FunctionModule, st);
                 self.enqueue_node(e as *const ExprLambda as usize);
             }
             Expr::IfExp(e) => {
@@ -1295,6 +1496,8 @@ impl<'a, 'o> Flow<'a, 'o> {
         if let Some(first) = generators.first() {
             self.expr(&first.iter, st);
         }
+        let at = TextRange::empty(node.range().start());
+        self.implicit_read("__name__", at, ImplicitRead::FunctionModule, st);
         self.enqueue_node(node as *const Expr as usize);
     }
 
@@ -1307,6 +1510,13 @@ impl<'a, 'o> Flow<'a, 'o> {
             match r.resolution {
                 Resolution::Global => {
                     r.bindings = self.scopes[0].bindings_of(r.name).to_vec();
+                }
+                Resolution::Local if r.fallback == Some(Resolution::Global) => {
+                    for id in self.scopes[0].bindings_of(r.name) {
+                        if !r.bindings.contains(id) {
+                            r.bindings.push(*id);
+                        }
+                    }
                 }
                 Resolution::Local if r.scope == ScopeId::MODULE => {
                     for id in self.scopes[0].bindings_of(r.name) {

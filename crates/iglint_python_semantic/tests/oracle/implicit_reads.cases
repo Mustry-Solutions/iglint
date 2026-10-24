@@ -1,0 +1,126 @@
+### nothing
+x = 1
+### classic-class
+class C:
+    pass
+### classic-class-binds-metaclass-later
+class C:
+    x = 1
+    __metaclass__ = type
+### classic-class-reads-metaclass
+class C:
+    y = __metaclass__
+### new-style-class
+class C(object):
+    pass
+### class-reads-before-binding
+class C(object):
+    a = len
+    len = 1
+### class-reads-module-name
+m = 1
+class C(object):
+    x = m
+### class-private-name
+_C__p = 1
+class C(object):
+    x = __p
+### class-in-function
+def f():
+    class C:
+        pass
+    return C
+f()
+### class-in-function-reads-enclosing
+def f():
+    m = 1
+    class C(object):
+        x = m
+    return C
+f()
+### def
+def f():
+    pass
+### def-called
+def f():
+    return g
+try:
+    f()
+except NameError:
+    pass
+### lambda
+f = lambda: 1
+### genexp
+g = (x for x in [1])
+### setcomp
+s = {x for x in [1]}
+### dictcomp
+d = {x: 1 for x in [1]}
+### listcomp
+l = [x for x in [1]]
+### import-fails
+try:
+    import iglint_no_such_module
+except ImportError:
+    pass
+### from-import-fails
+try:
+    from iglint_no_such_module import x
+except ImportError:
+    pass
+### import-in-function
+def f():
+    try:
+        import iglint_no_such_module
+    except ImportError:
+        pass
+f()
+### assert-passes
+assert len
+### assert-fails
+try:
+    assert 0, 'no'
+except AssertionError:
+    pass
+### assert-in-function
+def f():
+    try:
+        assert 0
+    except AssertionError:
+        pass
+f()
+### global-in-function
+def f():
+    global g
+    g = 1
+    return g
+f()
+### print
+print len([])
+### for
+for i in [1]:
+    pass
+### with
+class M(object):
+    def __enter__(self):
+        return 1
+    def __exit__(self, *a):
+        pass
+with M() as m:
+    pass
+### decorated
+def deco(f):
+    return f
+@deco
+def g():
+    pass
+@deco
+class C:
+    pass
+### exec-in-module
+exec 'y = 1'
+### raise
+try:
+    raise ValueError
+except ValueError:
+    pass

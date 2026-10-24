@@ -1,0 +1,1855 @@
+### module/none/listcomp-yield-iter
+error 1 13
+'yield' outside function
+### module/none/listcomp-yield-elt
+error 1 2
+'yield' outside function
+### module/none/listcomp-yield-if
+error 1 18
+'yield' outside function
+### module/none/setcomp-yield-iter
+error 1 13
+'yield' outside function
+### module/none/dictcomp-yield-iter
+error 1 16
+'yield' outside function
+### module/none/genexp-yield-iter
+error 1 17
+'yield' outside function
+### module/none/invalid-target-unary
+error 0 0
+internal error: java.lang.VerifyError
+### module/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### module/none/invalid-target-with
+error 1 10
+can't assign to function call
+### module/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### module/none/return-value
+error 1 0
+'return' outside function
+### module/none/yield-stmt
+error 1 0
+'yield' outside function
+### module/none/break
+error 1 0
+'break' outside loop
+### module/none/continue
+error 1 0
+'continue' not properly in loop
+### module/none/default-except-not-last
+error 3 0
+default 'except:' must be last
+### module/none/import-star
+ok
+### module/none/del-cell
+ok
+### module/none/exec-with-free-nested
+ok
+### module/pass/listcomp-yield-iter
+error 2 13
+'yield' outside function
+### module/pass/listcomp-yield-elt
+error 2 2
+'yield' outside function
+### module/pass/listcomp-yield-if
+error 2 18
+'yield' outside function
+### module/pass/setcomp-yield-iter
+error 2 13
+'yield' outside function
+### module/pass/dictcomp-yield-iter
+error 2 16
+'yield' outside function
+### module/pass/genexp-yield-iter
+error 2 17
+'yield' outside function
+### module/pass/invalid-target-unary
+error 0 0
+internal error: java.lang.VerifyError
+### module/pass/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### module/pass/invalid-target-with
+error 2 10
+can't assign to function call
+### module/pass/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### module/pass/return-value
+error 2 0
+'return' outside function
+### module/pass/yield-stmt
+error 2 0
+'yield' outside function
+### module/pass/break
+error 2 0
+'break' outside loop
+### module/pass/continue
+error 2 0
+'continue' not properly in loop
+### module/pass/default-except-not-last
+error 4 0
+default 'except:' must be last
+### module/pass/import-star
+ok
+### module/pass/del-cell
+ok
+### module/pass/exec-with-free-nested
+ok
+### module/return/listcomp-yield-iter
+error 1 0
+'return' outside function
+### module/return/listcomp-yield-elt
+error 1 0
+'return' outside function
+### module/return/listcomp-yield-if
+error 1 0
+'return' outside function
+### module/return/setcomp-yield-iter
+error 1 0
+'return' outside function
+### module/return/dictcomp-yield-iter
+error 1 0
+'return' outside function
+### module/return/genexp-yield-iter
+error 1 0
+'return' outside function
+### module/return/invalid-target-unary
+error 1 0
+'return' outside function
+### module/return/invalid-target-call-for
+error 1 0
+'return' outside function
+### module/return/invalid-target-with
+error 2 10
+can't assign to function call
+### module/return/invalid-target-listcomp
+error 1 0
+'return' outside function
+### module/return/return-value
+error 1 0
+'return' outside function
+### module/return/yield-stmt
+error 1 0
+'return' outside function
+### module/return/break
+error 1 0
+'return' outside function
+### module/return/continue
+error 1 0
+'return' outside function
+### module/return/default-except-not-last
+error 1 0
+'return' outside function
+### module/return/import-star
+error 1 0
+'return' outside function
+### module/return/del-cell
+error 1 0
+'return' outside function
+### module/return/exec-with-free-nested
+error 1 0
+'return' outside function
+### module/raise/listcomp-yield-iter
+error 2 13
+'yield' outside function
+### module/raise/listcomp-yield-elt
+error 2 2
+'yield' outside function
+### module/raise/listcomp-yield-if
+error 2 18
+'yield' outside function
+### module/raise/setcomp-yield-iter
+error 2 13
+'yield' outside function
+### module/raise/dictcomp-yield-iter
+error 2 16
+'yield' outside function
+### module/raise/genexp-yield-iter
+error 2 17
+'yield' outside function
+### module/raise/invalid-target-unary
+ok
+### module/raise/invalid-target-call-for
+ok
+### module/raise/invalid-target-with
+error 2 10
+can't assign to function call
+### module/raise/invalid-target-listcomp
+ok
+### module/raise/return-value
+error 2 0
+'return' outside function
+### module/raise/yield-stmt
+error 2 0
+'yield' outside function
+### module/raise/break
+error 2 0
+'break' outside loop
+### module/raise/continue
+error 2 0
+'continue' not properly in loop
+### module/raise/default-except-not-last
+error 4 0
+default 'except:' must be last
+### module/raise/import-star
+ok
+### module/raise/del-cell
+ok
+### module/raise/exec-with-free-nested
+ok
+### module/continue/listcomp-yield-iter
+error 1 0
+'continue' not properly in loop
+### module/continue/listcomp-yield-elt
+error 1 0
+'continue' not properly in loop
+### module/continue/listcomp-yield-if
+error 1 0
+'continue' not properly in loop
+### module/continue/setcomp-yield-iter
+error 1 0
+'continue' not properly in loop
+### module/continue/dictcomp-yield-iter
+error 1 0
+'continue' not properly in loop
+### module/continue/genexp-yield-iter
+error 1 0
+'continue' not properly in loop
+### module/continue/invalid-target-unary
+error 1 0
+'continue' not properly in loop
+### module/continue/invalid-target-call-for
+error 1 0
+'continue' not properly in loop
+### module/continue/invalid-target-with
+error 2 10
+can't assign to function call
+### module/continue/invalid-target-listcomp
+error 1 0
+'continue' not properly in loop
+### module/continue/return-value
+error 1 0
+'continue' not properly in loop
+### module/continue/yield-stmt
+error 1 0
+'continue' not properly in loop
+### module/continue/break
+error 1 0
+'continue' not properly in loop
+### module/continue/continue
+error 1 0
+'continue' not properly in loop
+### module/continue/default-except-not-last
+error 1 0
+'continue' not properly in loop
+### module/continue/import-star
+error 1 0
+'continue' not properly in loop
+### module/continue/del-cell
+error 1 0
+'continue' not properly in loop
+### module/continue/exec-with-free-nested
+error 1 0
+'continue' not properly in loop
+### module/break/listcomp-yield-iter
+error 1 0
+'break' outside loop
+### module/break/listcomp-yield-elt
+error 1 0
+'break' outside loop
+### module/break/listcomp-yield-if
+error 1 0
+'break' outside loop
+### module/break/setcomp-yield-iter
+error 1 0
+'break' outside loop
+### module/break/dictcomp-yield-iter
+error 1 0
+'break' outside loop
+### module/break/genexp-yield-iter
+error 1 0
+'break' outside loop
+### module/break/invalid-target-unary
+error 1 0
+'break' outside loop
+### module/break/invalid-target-call-for
+error 1 0
+'break' outside loop
+### module/break/invalid-target-with
+error 2 10
+can't assign to function call
+### module/break/invalid-target-listcomp
+error 1 0
+'break' outside loop
+### module/break/return-value
+error 1 0
+'break' outside loop
+### module/break/yield-stmt
+error 1 0
+'break' outside loop
+### module/break/break
+error 1 0
+'break' outside loop
+### module/break/continue
+error 1 0
+'break' outside loop
+### module/break/default-except-not-last
+error 1 0
+'break' outside loop
+### module/break/import-star
+error 1 0
+'break' outside loop
+### module/break/del-cell
+error 1 0
+'break' outside loop
+### module/break/exec-with-free-nested
+error 1 0
+'break' outside loop
+### module/if-else-return/listcomp-yield-iter
+error 2 4
+'return' outside function
+### module/if-else-return/listcomp-yield-elt
+error 2 4
+'return' outside function
+### module/if-else-return/listcomp-yield-if
+error 2 4
+'return' outside function
+### module/if-else-return/setcomp-yield-iter
+error 2 4
+'return' outside function
+### module/if-else-return/dictcomp-yield-iter
+error 2 4
+'return' outside function
+### module/if-else-return/genexp-yield-iter
+error 2 4
+'return' outside function
+### module/if-else-return/invalid-target-unary
+error 2 4
+'return' outside function
+### module/if-else-return/invalid-target-call-for
+error 2 4
+'return' outside function
+### module/if-else-return/invalid-target-with
+error 5 10
+can't assign to function call
+### module/if-else-return/invalid-target-listcomp
+error 2 4
+'return' outside function
+### module/if-else-return/return-value
+error 2 4
+'return' outside function
+### module/if-else-return/yield-stmt
+error 2 4
+'return' outside function
+### module/if-else-return/break
+error 2 4
+'return' outside function
+### module/if-else-return/continue
+error 2 4
+'return' outside function
+### module/if-else-return/default-except-not-last
+error 2 4
+'return' outside function
+### module/if-else-return/import-star
+error 2 4
+'return' outside function
+### module/if-else-return/del-cell
+error 2 4
+'return' outside function
+### module/if-else-return/exec-with-free-nested
+error 2 4
+'return' outside function
+### module/if-else-raise/listcomp-yield-iter
+error 5 13
+'yield' outside function
+### module/if-else-raise/listcomp-yield-elt
+error 5 2
+'yield' outside function
+### module/if-else-raise/listcomp-yield-if
+error 5 18
+'yield' outside function
+### module/if-else-raise/setcomp-yield-iter
+error 5 13
+'yield' outside function
+### module/if-else-raise/dictcomp-yield-iter
+error 5 16
+'yield' outside function
+### module/if-else-raise/genexp-yield-iter
+error 5 17
+'yield' outside function
+### module/if-else-raise/invalid-target-unary
+ok
+### module/if-else-raise/invalid-target-call-for
+ok
+### module/if-else-raise/invalid-target-with
+error 5 10
+can't assign to function call
+### module/if-else-raise/invalid-target-listcomp
+ok
+### module/if-else-raise/return-value
+error 5 0
+'return' outside function
+### module/if-else-raise/yield-stmt
+error 5 0
+'yield' outside function
+### module/if-else-raise/break
+error 5 0
+'break' outside loop
+### module/if-else-raise/continue
+error 5 0
+'continue' not properly in loop
+### module/if-else-raise/default-except-not-last
+error 7 0
+default 'except:' must be last
+### module/if-else-raise/import-star
+ok
+### module/if-else-raise/del-cell
+ok
+### module/if-else-raise/exec-with-free-nested
+ok
+### module/if-return/listcomp-yield-iter
+error 2 4
+'return' outside function
+### module/if-return/listcomp-yield-elt
+error 2 4
+'return' outside function
+### module/if-return/listcomp-yield-if
+error 2 4
+'return' outside function
+### module/if-return/setcomp-yield-iter
+error 2 4
+'return' outside function
+### module/if-return/dictcomp-yield-iter
+error 2 4
+'return' outside function
+### module/if-return/genexp-yield-iter
+error 2 4
+'return' outside function
+### module/if-return/invalid-target-unary
+error 2 4
+'return' outside function
+### module/if-return/invalid-target-call-for
+error 2 4
+'return' outside function
+### module/if-return/invalid-target-with
+error 3 10
+can't assign to function call
+### module/if-return/invalid-target-listcomp
+error 2 4
+'return' outside function
+### module/if-return/return-value
+error 2 4
+'return' outside function
+### module/if-return/yield-stmt
+error 2 4
+'return' outside function
+### module/if-return/break
+error 2 4
+'return' outside function
+### module/if-return/continue
+error 2 4
+'return' outside function
+### module/if-return/default-except-not-last
+error 2 4
+'return' outside function
+### module/if-return/import-star
+error 2 4
+'return' outside function
+### module/if-return/del-cell
+error 2 4
+'return' outside function
+### module/if-return/exec-with-free-nested
+error 2 4
+'return' outside function
+### module/try-return-finally/listcomp-yield-iter
+error 2 4
+'return' outside function
+### module/try-return-finally/listcomp-yield-elt
+error 2 4
+'return' outside function
+### module/try-return-finally/listcomp-yield-if
+error 2 4
+'return' outside function
+### module/try-return-finally/setcomp-yield-iter
+error 2 4
+'return' outside function
+### module/try-return-finally/dictcomp-yield-iter
+error 2 4
+'return' outside function
+### module/try-return-finally/genexp-yield-iter
+error 2 4
+'return' outside function
+### module/try-return-finally/invalid-target-unary
+error 2 4
+'return' outside function
+### module/try-return-finally/invalid-target-call-for
+error 2 4
+'return' outside function
+### module/try-return-finally/invalid-target-with
+error 5 10
+can't assign to function call
+### module/try-return-finally/invalid-target-listcomp
+error 2 4
+'return' outside function
+### module/try-return-finally/return-value
+error 2 4
+'return' outside function
+### module/try-return-finally/yield-stmt
+error 2 4
+'return' outside function
+### module/try-return-finally/break
+error 2 4
+'return' outside function
+### module/try-return-finally/continue
+error 2 4
+'return' outside function
+### module/try-return-finally/default-except-not-last
+error 2 4
+'return' outside function
+### module/try-return-finally/import-star
+error 2 4
+'return' outside function
+### module/try-return-finally/del-cell
+error 2 4
+'return' outside function
+### module/try-return-finally/exec-with-free-nested
+error 2 4
+'return' outside function
+### module/try-pass-finally-return/listcomp-yield-iter
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/listcomp-yield-elt
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/listcomp-yield-if
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/setcomp-yield-iter
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/dictcomp-yield-iter
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/genexp-yield-iter
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/invalid-target-unary
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/invalid-target-call-for
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/invalid-target-with
+error 5 10
+can't assign to function call
+### module/try-pass-finally-return/invalid-target-listcomp
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/return-value
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/yield-stmt
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/break
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/continue
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/default-except-not-last
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/import-star
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/del-cell
+error 4 4
+'return' outside function
+### module/try-pass-finally-return/exec-with-free-nested
+error 4 4
+'return' outside function
+### module/try-return-except-return/listcomp-yield-iter
+error 2 4
+'return' outside function
+### module/try-return-except-return/listcomp-yield-elt
+error 2 4
+'return' outside function
+### module/try-return-except-return/listcomp-yield-if
+error 2 4
+'return' outside function
+### module/try-return-except-return/setcomp-yield-iter
+error 2 4
+'return' outside function
+### module/try-return-except-return/dictcomp-yield-iter
+error 2 4
+'return' outside function
+### module/try-return-except-return/genexp-yield-iter
+error 2 4
+'return' outside function
+### module/try-return-except-return/invalid-target-unary
+error 2 4
+'return' outside function
+### module/try-return-except-return/invalid-target-call-for
+error 2 4
+'return' outside function
+### module/try-return-except-return/invalid-target-with
+error 5 10
+can't assign to function call
+### module/try-return-except-return/invalid-target-listcomp
+error 2 4
+'return' outside function
+### module/try-return-except-return/return-value
+error 2 4
+'return' outside function
+### module/try-return-except-return/yield-stmt
+error 2 4
+'return' outside function
+### module/try-return-except-return/break
+error 2 4
+'return' outside function
+### module/try-return-except-return/continue
+error 2 4
+'return' outside function
+### module/try-return-except-return/default-except-not-last
+error 2 4
+'return' outside function
+### module/try-return-except-return/import-star
+error 2 4
+'return' outside function
+### module/try-return-except-return/del-cell
+error 2 4
+'return' outside function
+### module/try-return-except-return/exec-with-free-nested
+error 2 4
+'return' outside function
+### module/try-return-except-pass/listcomp-yield-iter
+error 2 4
+'return' outside function
+### module/try-return-except-pass/listcomp-yield-elt
+error 2 4
+'return' outside function
+### module/try-return-except-pass/listcomp-yield-if
+error 2 4
+'return' outside function
+### module/try-return-except-pass/setcomp-yield-iter
+error 2 4
+'return' outside function
+### module/try-return-except-pass/dictcomp-yield-iter
+error 2 4
+'return' outside function
+### module/try-return-except-pass/genexp-yield-iter
+error 2 4
+'return' outside function
+### module/try-return-except-pass/invalid-target-unary
+error 2 4
+'return' outside function
+### module/try-return-except-pass/invalid-target-call-for
+error 2 4
+'return' outside function
+### module/try-return-except-pass/invalid-target-with
+error 5 10
+can't assign to function call
+### module/try-return-except-pass/invalid-target-listcomp
+error 2 4
+'return' outside function
+### module/try-return-except-pass/return-value
+error 2 4
+'return' outside function
+### module/try-return-except-pass/yield-stmt
+error 2 4
+'return' outside function
+### module/try-return-except-pass/import-star
+error 2 4
+'return' outside function
+### module/try-return-except-pass/del-cell
+error 2 4
+'return' outside function
+### module/try-return-except-pass/exec-with-free-nested
+error 2 4
+'return' outside function
+### module/try-raise-except-raise/listcomp-yield-iter
+error 5 13
+'yield' outside function
+### module/try-raise-except-raise/listcomp-yield-elt
+error 5 2
+'yield' outside function
+### module/try-raise-except-raise/listcomp-yield-if
+error 5 18
+'yield' outside function
+### module/try-raise-except-raise/setcomp-yield-iter
+error 5 13
+'yield' outside function
+### module/try-raise-except-raise/dictcomp-yield-iter
+error 5 16
+'yield' outside function
+### module/try-raise-except-raise/genexp-yield-iter
+error 5 17
+'yield' outside function
+### module/try-raise-except-raise/invalid-target-unary
+ok
+### module/try-raise-except-raise/invalid-target-call-for
+ok
+### module/try-raise-except-raise/invalid-target-with
+error 5 10
+can't assign to function call
+### module/try-raise-except-raise/invalid-target-listcomp
+ok
+### module/try-raise-except-raise/return-value
+error 5 0
+'return' outside function
+### module/try-raise-except-raise/yield-stmt
+error 5 0
+'yield' outside function
+### module/try-raise-except-raise/import-star
+ok
+### module/try-raise-except-raise/del-cell
+ok
+### module/try-raise-except-raise/exec-with-free-nested
+ok
+### module/try-global-except/listcomp-yield-iter
+error 5 13
+'yield' outside function
+### module/try-global-except/listcomp-yield-elt
+error 5 2
+'yield' outside function
+### module/try-global-except/listcomp-yield-if
+error 5 18
+'yield' outside function
+### module/try-global-except/setcomp-yield-iter
+error 5 13
+'yield' outside function
+### module/try-global-except/dictcomp-yield-iter
+error 5 16
+'yield' outside function
+### module/try-global-except/genexp-yield-iter
+error 5 17
+'yield' outside function
+### module/try-global-except/invalid-target-unary
+error 0 0
+internal error: java.lang.VerifyError
+### module/try-global-except/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### module/try-global-except/invalid-target-with
+error 5 10
+can't assign to function call
+### module/try-global-except/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### module/try-global-except/return-value
+error 5 0
+'return' outside function
+### module/try-global-except/yield-stmt
+error 5 0
+'yield' outside function
+### module/try-global-except/import-star
+ok
+### module/try-global-except/del-cell
+ok
+### module/try-global-except/exec-with-free-nested
+ok
+### module/while-1/listcomp-yield-iter
+error 3 13
+'yield' outside function
+### module/while-1/listcomp-yield-elt
+error 3 2
+'yield' outside function
+### module/while-1/listcomp-yield-if
+error 3 18
+'yield' outside function
+### module/while-1/setcomp-yield-iter
+error 3 13
+'yield' outside function
+### module/while-1/dictcomp-yield-iter
+error 3 16
+'yield' outside function
+### module/while-1/genexp-yield-iter
+error 3 17
+'yield' outside function
+### module/while-1/invalid-target-unary
+error 0 0
+internal error: java.lang.VerifyError
+### module/while-1/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### module/while-1/invalid-target-with
+error 3 10
+can't assign to function call
+### module/while-1/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### module/while-1/return-value
+error 3 0
+'return' outside function
+### module/while-1/yield-stmt
+error 3 0
+'yield' outside function
+### module/while-1/import-star
+ok
+### module/while-1/del-cell
+ok
+### module/while-1/exec-with-free-nested
+ok
+### module/while-true-break/listcomp-yield-iter
+error 3 13
+'yield' outside function
+### module/while-true-break/listcomp-yield-elt
+error 3 2
+'yield' outside function
+### module/while-true-break/listcomp-yield-if
+error 3 18
+'yield' outside function
+### module/while-true-break/setcomp-yield-iter
+error 3 13
+'yield' outside function
+### module/while-true-break/dictcomp-yield-iter
+error 3 16
+'yield' outside function
+### module/while-true-break/genexp-yield-iter
+error 3 17
+'yield' outside function
+### module/while-true-break/invalid-target-unary
+error 0 0
+internal error: java.lang.VerifyError
+### module/while-true-break/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### module/while-true-break/invalid-target-with
+error 3 10
+can't assign to function call
+### module/while-true-break/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### module/while-true-break/return-value
+error 3 0
+'return' outside function
+### module/while-true-break/yield-stmt
+error 3 0
+'yield' outside function
+### module/while-true-break/import-star
+ok
+### module/while-true-break/del-cell
+ok
+### module/while-true-break/exec-with-free-nested
+ok
+### module/for-else-return/listcomp-yield-iter
+error 2 4
+'return' outside function
+### module/for-else-return/listcomp-yield-elt
+error 2 4
+'return' outside function
+### module/for-else-return/listcomp-yield-if
+error 2 4
+'return' outside function
+### module/for-else-return/setcomp-yield-iter
+error 2 4
+'return' outside function
+### module/for-else-return/dictcomp-yield-iter
+error 2 4
+'return' outside function
+### module/for-else-return/genexp-yield-iter
+error 2 4
+'return' outside function
+### module/for-else-return/invalid-target-unary
+error 2 4
+'return' outside function
+### module/for-else-return/invalid-target-call-for
+error 2 4
+'return' outside function
+### module/for-else-return/invalid-target-with
+error 5 10
+can't assign to function call
+### module/for-else-return/invalid-target-listcomp
+error 2 4
+'return' outside function
+### module/for-else-return/return-value
+error 2 4
+'return' outside function
+### module/for-else-return/yield-stmt
+error 2 4
+'return' outside function
+### module/for-else-return/import-star
+error 2 4
+'return' outside function
+### module/for-else-return/del-cell
+error 2 4
+'return' outside function
+### module/for-else-return/exec-with-free-nested
+error 2 4
+'return' outside function
+### module/for-return/listcomp-yield-iter
+error 2 4
+'return' outside function
+### module/for-return/listcomp-yield-elt
+error 2 4
+'return' outside function
+### module/for-return/listcomp-yield-if
+error 2 4
+'return' outside function
+### module/for-return/setcomp-yield-iter
+error 2 4
+'return' outside function
+### module/for-return/dictcomp-yield-iter
+error 2 4
+'return' outside function
+### module/for-return/genexp-yield-iter
+error 2 4
+'return' outside function
+### module/for-return/invalid-target-unary
+error 2 4
+'return' outside function
+### module/for-return/invalid-target-call-for
+error 2 4
+'return' outside function
+### module/for-return/invalid-target-with
+error 3 10
+can't assign to function call
+### module/for-return/invalid-target-listcomp
+error 2 4
+'return' outside function
+### module/for-return/return-value
+error 2 4
+'return' outside function
+### module/for-return/yield-stmt
+error 2 4
+'return' outside function
+### module/for-return/import-star
+error 2 4
+'return' outside function
+### module/for-return/del-cell
+error 2 4
+'return' outside function
+### module/for-return/exec-with-free-nested
+error 2 4
+'return' outside function
+### module/with-return/listcomp-yield-iter
+error 2 4
+'return' outside function
+### module/with-return/listcomp-yield-elt
+error 2 4
+'return' outside function
+### module/with-return/listcomp-yield-if
+error 2 4
+'return' outside function
+### module/with-return/setcomp-yield-iter
+error 2 4
+'return' outside function
+### module/with-return/dictcomp-yield-iter
+error 2 4
+'return' outside function
+### module/with-return/genexp-yield-iter
+error 2 4
+'return' outside function
+### module/with-return/invalid-target-unary
+error 2 4
+'return' outside function
+### module/with-return/invalid-target-call-for
+error 2 4
+'return' outside function
+### module/with-return/invalid-target-with
+error 3 10
+can't assign to function call
+### module/with-return/invalid-target-listcomp
+error 2 4
+'return' outside function
+### module/with-return/return-value
+error 2 4
+'return' outside function
+### module/with-return/yield-stmt
+error 2 4
+'return' outside function
+### module/with-return/import-star
+error 2 4
+'return' outside function
+### module/with-return/del-cell
+error 2 4
+'return' outside function
+### module/with-return/exec-with-free-nested
+error 2 4
+'return' outside function
+### module/yield/listcomp-yield-iter
+error 1 0
+'yield' outside function
+### module/yield/listcomp-yield-elt
+error 1 0
+'yield' outside function
+### module/yield/listcomp-yield-if
+error 1 0
+'yield' outside function
+### module/yield/setcomp-yield-iter
+error 1 0
+'yield' outside function
+### module/yield/dictcomp-yield-iter
+error 1 0
+'yield' outside function
+### module/yield/genexp-yield-iter
+error 1 0
+'yield' outside function
+### module/yield/invalid-target-unary
+error 1 0
+'yield' outside function
+### module/yield/invalid-target-call-for
+error 1 0
+'yield' outside function
+### module/yield/invalid-target-with
+error 2 10
+can't assign to function call
+### module/yield/invalid-target-listcomp
+error 1 0
+'yield' outside function
+### module/yield/return-value
+error 2 0
+'return' with argument inside generator
+### module/yield/yield-stmt
+error 1 0
+'yield' outside function
+### module/yield-return/listcomp-yield-iter
+error 1 0
+'yield' outside function
+### module/yield-return/listcomp-yield-elt
+error 1 0
+'yield' outside function
+### module/yield-return/listcomp-yield-if
+error 1 0
+'yield' outside function
+### module/yield-return/setcomp-yield-iter
+error 1 0
+'yield' outside function
+### module/yield-return/dictcomp-yield-iter
+error 1 0
+'yield' outside function
+### module/yield-return/genexp-yield-iter
+error 1 0
+'yield' outside function
+### module/yield-return/invalid-target-unary
+error 1 0
+'yield' outside function
+### module/yield-return/invalid-target-call-for
+error 1 0
+'yield' outside function
+### module/yield-return/invalid-target-with
+error 3 10
+can't assign to function call
+### module/yield-return/invalid-target-listcomp
+error 1 0
+'yield' outside function
+### module/yield-return/return-value
+error 3 0
+'return' with argument inside generator
+### module/yield-return/yield-stmt
+error 1 0
+'yield' outside function
+### module/yield-try-return-finally/listcomp-yield-iter
+error 1 0
+'yield' outside function
+### module/yield-try-return-finally/listcomp-yield-elt
+error 1 0
+'yield' outside function
+### module/yield-try-return-finally/listcomp-yield-if
+error 1 0
+'yield' outside function
+### module/yield-try-return-finally/setcomp-yield-iter
+error 1 0
+'yield' outside function
+### module/yield-try-return-finally/dictcomp-yield-iter
+error 1 0
+'yield' outside function
+### module/yield-try-return-finally/genexp-yield-iter
+error 1 0
+'yield' outside function
+### module/yield-try-return-finally/invalid-target-unary
+error 1 0
+'yield' outside function
+### module/yield-try-return-finally/invalid-target-call-for
+error 1 0
+'yield' outside function
+### module/yield-try-return-finally/invalid-target-with
+error 6 10
+can't assign to function call
+### module/yield-try-return-finally/invalid-target-listcomp
+error 1 0
+'yield' outside function
+### module/yield-try-return-finally/return-value
+error 6 0
+'return' with argument inside generator
+### module/yield-try-return-finally/yield-stmt
+error 1 0
+'yield' outside function
+### function/none/listcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### function/none/listcomp-yield-elt
+error 0 0
+internal error: java.lang.VerifyError
+### function/none/listcomp-yield-if
+error 0 0
+internal error: java.lang.VerifyError
+### function/none/setcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### function/none/dictcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### function/none/genexp-yield-iter
+ok
+### function/none/invalid-target-unary
+error 0 0
+internal error: java.lang.VerifyError
+### function/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### function/none/invalid-target-with
+error 2 14
+can't assign to function call
+### function/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### function/none/return-value
+ok
+### function/none/yield-stmt
+ok
+### function/none/import-star
+ok
+### function/pass/genexp-yield-iter
+ok
+### function/pass/return-value
+ok
+### function/pass/yield-stmt
+ok
+### function/pass/import-star
+ok
+### function/return/listcomp-yield-iter
+ok
+### function/return/listcomp-yield-elt
+ok
+### function/return/listcomp-yield-if
+ok
+### function/return/setcomp-yield-iter
+ok
+### function/return/dictcomp-yield-iter
+ok
+### function/return/genexp-yield-iter
+ok
+### function/return/invalid-target-unary
+ok
+### function/return/invalid-target-call-for
+ok
+### function/return/invalid-target-listcomp
+ok
+### function/return/return-value
+ok
+### function/return/yield-stmt
+ok
+### function/return/break
+ok
+### function/return/continue
+ok
+### function/return/default-except-not-last
+ok
+### function/return/import-star
+ok
+### function/return/del-cell
+ok
+### function/raise/listcomp-yield-iter
+ok
+### function/raise/listcomp-yield-elt
+ok
+### function/raise/listcomp-yield-if
+ok
+### function/raise/setcomp-yield-iter
+ok
+### function/raise/dictcomp-yield-iter
+ok
+### function/raise/genexp-yield-iter
+ok
+### function/raise/invalid-target-unary
+ok
+### function/raise/invalid-target-call-for
+ok
+### function/raise/invalid-target-listcomp
+ok
+### function/raise/return-value
+ok
+### function/raise/yield-stmt
+ok
+### function/raise/break
+ok
+### function/raise/continue
+ok
+### function/raise/default-except-not-last
+ok
+### function/raise/import-star
+ok
+### function/raise/del-cell
+ok
+### function/if-else-return/listcomp-yield-iter
+ok
+### function/if-else-return/listcomp-yield-elt
+ok
+### function/if-else-return/listcomp-yield-if
+ok
+### function/if-else-return/setcomp-yield-iter
+ok
+### function/if-else-return/dictcomp-yield-iter
+ok
+### function/if-else-return/genexp-yield-iter
+ok
+### function/if-else-return/invalid-target-unary
+ok
+### function/if-else-return/invalid-target-call-for
+ok
+### function/if-else-return/invalid-target-listcomp
+ok
+### function/if-else-return/return-value
+ok
+### function/if-else-return/yield-stmt
+ok
+### function/if-else-return/break
+ok
+### function/if-else-return/continue
+ok
+### function/if-else-return/default-except-not-last
+ok
+### function/if-else-return/del-cell
+ok
+### function/if-else-raise/listcomp-yield-iter
+ok
+### function/if-else-raise/listcomp-yield-elt
+ok
+### function/if-else-raise/listcomp-yield-if
+ok
+### function/if-else-raise/setcomp-yield-iter
+ok
+### function/if-else-raise/dictcomp-yield-iter
+ok
+### function/if-else-raise/genexp-yield-iter
+ok
+### function/if-else-raise/invalid-target-unary
+ok
+### function/if-else-raise/invalid-target-call-for
+ok
+### function/if-else-raise/invalid-target-listcomp
+ok
+### function/if-else-raise/return-value
+ok
+### function/if-else-raise/yield-stmt
+ok
+### function/if-else-raise/break
+ok
+### function/if-else-raise/continue
+ok
+### function/if-else-raise/default-except-not-last
+ok
+### function/if-else-raise/del-cell
+ok
+### function/if-return/genexp-yield-iter
+ok
+### function/if-return/return-value
+ok
+### function/if-return/yield-stmt
+ok
+### function/try-return-finally/genexp-yield-iter
+ok
+### function/try-return-finally/invalid-target-unary
+ok
+### function/try-return-finally/invalid-target-call-for
+ok
+### function/try-return-finally/invalid-target-listcomp
+ok
+### function/try-return-finally/return-value
+ok
+### function/try-return-finally/yield-stmt
+ok
+### function/try-pass-finally-return/genexp-yield-iter
+ok
+### function/try-pass-finally-return/invalid-target-unary
+ok
+### function/try-pass-finally-return/invalid-target-call-for
+ok
+### function/try-pass-finally-return/invalid-target-listcomp
+ok
+### function/try-pass-finally-return/return-value
+ok
+### function/try-pass-finally-return/yield-stmt
+ok
+### function/try-return-except-return/genexp-yield-iter
+ok
+### function/try-return-except-return/invalid-target-unary
+ok
+### function/try-return-except-return/invalid-target-call-for
+ok
+### function/try-return-except-return/invalid-target-listcomp
+ok
+### function/try-return-except-return/return-value
+ok
+### function/try-return-except-return/yield-stmt
+ok
+### function/try-return-except-pass/genexp-yield-iter
+ok
+### function/try-return-except-pass/return-value
+ok
+### function/try-return-except-pass/yield-stmt
+ok
+### function/try-raise-except-raise/genexp-yield-iter
+ok
+### function/try-raise-except-raise/invalid-target-unary
+ok
+### function/try-raise-except-raise/invalid-target-call-for
+ok
+### function/try-raise-except-raise/invalid-target-listcomp
+ok
+### function/try-raise-except-raise/return-value
+ok
+### function/try-raise-except-raise/yield-stmt
+ok
+### function/for-else-return/invalid-target-unary
+ok
+### function/for-else-return/invalid-target-call-for
+ok
+### function/for-else-return/invalid-target-listcomp
+ok
+### function/yield-return/listcomp-yield-iter
+ok
+### function/yield-return/listcomp-yield-elt
+ok
+### function/yield-return/listcomp-yield-if
+ok
+### function/yield-return/setcomp-yield-iter
+ok
+### function/yield-return/dictcomp-yield-iter
+ok
+### function/yield-return/break
+ok
+### function/yield-return/continue
+ok
+### function/yield-return/default-except-not-last
+ok
+### nested-function/none/listcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### nested-function/none/listcomp-yield-elt
+error 0 0
+internal error: java.lang.VerifyError
+### nested-function/none/listcomp-yield-if
+error 0 0
+internal error: java.lang.VerifyError
+### nested-function/none/setcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### nested-function/none/dictcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### nested-function/none/genexp-yield-iter
+ok
+### nested-function/none/invalid-target-unary
+error 0 0
+internal error: java.lang.VerifyError
+### nested-function/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### nested-function/none/invalid-target-with
+error 3 18
+can't assign to function call
+### nested-function/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### nested-function/none/return-value
+ok
+### nested-function/none/yield-stmt
+ok
+### nested-function/return/listcomp-yield-iter
+ok
+### nested-function/return/listcomp-yield-elt
+ok
+### nested-function/return/listcomp-yield-if
+ok
+### nested-function/return/setcomp-yield-iter
+ok
+### nested-function/return/dictcomp-yield-iter
+ok
+### nested-function/return/break
+ok
+### nested-function/return/continue
+ok
+### nested-function/return/default-except-not-last
+ok
+### nested-function/raise/listcomp-yield-iter
+ok
+### nested-function/raise/listcomp-yield-elt
+ok
+### nested-function/raise/listcomp-yield-if
+ok
+### nested-function/raise/setcomp-yield-iter
+ok
+### nested-function/raise/dictcomp-yield-iter
+ok
+### nested-function/raise/break
+ok
+### nested-function/raise/continue
+ok
+### nested-function/raise/default-except-not-last
+ok
+### nested-function/if-else-return/listcomp-yield-iter
+ok
+### nested-function/if-else-return/listcomp-yield-elt
+ok
+### nested-function/if-else-return/listcomp-yield-if
+ok
+### nested-function/if-else-return/setcomp-yield-iter
+ok
+### nested-function/if-else-return/dictcomp-yield-iter
+ok
+### nested-function/if-else-return/break
+ok
+### nested-function/if-else-return/continue
+ok
+### nested-function/if-else-return/default-except-not-last
+ok
+### nested-function/if-else-raise/listcomp-yield-iter
+ok
+### nested-function/if-else-raise/listcomp-yield-elt
+ok
+### nested-function/if-else-raise/listcomp-yield-if
+ok
+### nested-function/if-else-raise/setcomp-yield-iter
+ok
+### nested-function/if-else-raise/dictcomp-yield-iter
+ok
+### nested-function/if-else-raise/break
+ok
+### nested-function/if-else-raise/continue
+ok
+### nested-function/if-else-raise/default-except-not-last
+ok
+### nested-function/yield-return/listcomp-yield-iter
+ok
+### nested-function/yield-return/listcomp-yield-elt
+ok
+### nested-function/yield-return/listcomp-yield-if
+ok
+### nested-function/yield-return/setcomp-yield-iter
+ok
+### nested-function/yield-return/dictcomp-yield-iter
+ok
+### nested-function/yield-return/break
+ok
+### nested-function/yield-return/continue
+ok
+### nested-function/yield-return/default-except-not-last
+ok
+### method/none/listcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### method/none/listcomp-yield-elt
+error 0 0
+internal error: java.lang.VerifyError
+### method/none/listcomp-yield-if
+error 0 0
+internal error: java.lang.VerifyError
+### method/none/setcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### method/none/dictcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### method/none/genexp-yield-iter
+ok
+### method/none/invalid-target-unary
+error 0 0
+internal error: java.lang.VerifyError
+### method/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### method/none/invalid-target-with
+error 3 18
+can't assign to function call
+### method/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### method/none/return-value
+ok
+### method/none/yield-stmt
+ok
+### method/return/listcomp-yield-iter
+ok
+### method/return/listcomp-yield-elt
+ok
+### method/return/listcomp-yield-if
+ok
+### method/return/setcomp-yield-iter
+ok
+### method/return/dictcomp-yield-iter
+ok
+### method/return/break
+ok
+### method/return/continue
+ok
+### method/return/default-except-not-last
+ok
+### method/raise/listcomp-yield-iter
+ok
+### method/raise/listcomp-yield-elt
+ok
+### method/raise/listcomp-yield-if
+ok
+### method/raise/setcomp-yield-iter
+ok
+### method/raise/dictcomp-yield-iter
+ok
+### method/raise/break
+ok
+### method/raise/continue
+ok
+### method/raise/default-except-not-last
+ok
+### class/none/listcomp-yield-iter
+error 2 17
+'yield' outside function
+### class/none/listcomp-yield-elt
+error 2 6
+'yield' outside function
+### class/none/listcomp-yield-if
+error 2 22
+'yield' outside function
+### class/none/setcomp-yield-iter
+error 2 17
+'yield' outside function
+### class/none/dictcomp-yield-iter
+error 2 20
+'yield' outside function
+### class/none/genexp-yield-iter
+error 2 21
+'yield' outside function
+### class/none/invalid-target-unary
+error 0 0
+internal error: java.lang.VerifyError
+### class/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### class/none/invalid-target-with
+error 2 14
+can't assign to function call
+### class/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### class/none/return-value
+error 2 4
+'return' outside function
+### class/none/yield-stmt
+error 2 4
+'yield' outside function
+### class/none/exec-with-free-nested
+ok
+### class/pass/exec-with-free-nested
+ok
+### class/raise/exec-with-free-nested
+ok
+### class/if-else-raise/exec-with-free-nested
+ok
+### for-in-function/none/listcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### for-in-function/none/listcomp-yield-elt
+error 0 0
+internal error: java.lang.VerifyError
+### for-in-function/none/listcomp-yield-if
+error 0 0
+internal error: java.lang.VerifyError
+### for-in-function/none/setcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### for-in-function/none/dictcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### for-in-function/none/genexp-yield-iter
+ok
+### for-in-function/none/invalid-target-unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-in-function/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-in-function/none/invalid-target-with
+error 3 18
+can't assign to function call
+### for-in-function/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-in-function/none/return-value
+ok
+### for-in-function/none/yield-stmt
+ok
+### while-in-function/none/listcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### while-in-function/none/listcomp-yield-elt
+error 0 0
+internal error: java.lang.VerifyError
+### while-in-function/none/listcomp-yield-if
+error 0 0
+internal error: java.lang.VerifyError
+### while-in-function/none/setcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### while-in-function/none/dictcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### while-in-function/none/genexp-yield-iter
+ok
+### while-in-function/none/invalid-target-unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### while-in-function/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### while-in-function/none/invalid-target-with
+error 3 18
+can't assign to function call
+### while-in-function/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### while-in-function/none/return-value
+ok
+### while-in-function/none/yield-stmt
+ok
+### try-in-function/none/listcomp-yield-iter
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### try-in-function/none/listcomp-yield-elt
+error 0 0
+internal error: java.lang.VerifyError
+### try-in-function/none/listcomp-yield-if
+error 0 0
+internal error: java.lang.VerifyError
+### try-in-function/none/setcomp-yield-iter
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### try-in-function/none/dictcomp-yield-iter
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### try-in-function/none/genexp-yield-iter
+ok
+### try-in-function/none/invalid-target-unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### try-in-function/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### try-in-function/none/invalid-target-with
+error 3 18
+can't assign to function call
+### try-in-function/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### try-in-function/none/return-value
+ok
+### try-in-function/none/yield-stmt
+ok
+### except-in-function/none/listcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### except-in-function/none/listcomp-yield-elt
+error 0 0
+internal error: java.lang.VerifyError
+### except-in-function/none/listcomp-yield-if
+error 0 0
+internal error: java.lang.VerifyError
+### except-in-function/none/setcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### except-in-function/none/dictcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### except-in-function/none/genexp-yield-iter
+ok
+### except-in-function/none/invalid-target-unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except-in-function/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except-in-function/none/invalid-target-with
+error 5 18
+can't assign to function call
+### except-in-function/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### except-in-function/none/return-value
+ok
+### except-in-function/none/yield-stmt
+ok
+### finally-in-function/none/listcomp-yield-iter
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### finally-in-function/none/listcomp-yield-elt
+error 0 0
+internal error: java.lang.VerifyError
+### finally-in-function/none/listcomp-yield-if
+error 0 0
+internal error: java.lang.VerifyError
+### finally-in-function/none/setcomp-yield-iter
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### finally-in-function/none/dictcomp-yield-iter
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### finally-in-function/none/genexp-yield-iter
+ok
+### finally-in-function/none/invalid-target-unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### finally-in-function/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### finally-in-function/none/invalid-target-with
+error 5 18
+can't assign to function call
+### finally-in-function/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### finally-in-function/none/return-value
+ok
+### finally-in-function/none/yield-stmt
+ok
+### with-in-function/none/listcomp-yield-iter
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### with-in-function/none/listcomp-yield-elt
+error 0 0
+internal error: java.lang.VerifyError
+### with-in-function/none/listcomp-yield-if
+error 0 0
+internal error: java.lang.VerifyError
+### with-in-function/none/setcomp-yield-iter
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### with-in-function/none/dictcomp-yield-iter
+error 0 0
+internal error: java.lang.NegativeArraySizeException
+### with-in-function/none/genexp-yield-iter
+ok
+### with-in-function/none/invalid-target-unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### with-in-function/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### with-in-function/none/invalid-target-with
+error 3 18
+can't assign to function call
+### with-in-function/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### with-in-function/none/return-value
+ok
+### with-in-function/none/yield-stmt
+ok
+### if-in-function/none/listcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### if-in-function/none/listcomp-yield-elt
+error 0 0
+internal error: java.lang.VerifyError
+### if-in-function/none/listcomp-yield-if
+error 0 0
+internal error: java.lang.VerifyError
+### if-in-function/none/setcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### if-in-function/none/dictcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### if-in-function/none/genexp-yield-iter
+ok
+### if-in-function/none/invalid-target-unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### if-in-function/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### if-in-function/none/invalid-target-with
+error 3 18
+can't assign to function call
+### if-in-function/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### if-in-function/none/return-value
+ok
+### if-in-function/none/yield-stmt
+ok
+### for-in-module/none/listcomp-yield-iter
+error 2 17
+'yield' outside function
+### for-in-module/none/listcomp-yield-elt
+error 2 6
+'yield' outside function
+### for-in-module/none/listcomp-yield-if
+error 2 22
+'yield' outside function
+### for-in-module/none/setcomp-yield-iter
+error 2 17
+'yield' outside function
+### for-in-module/none/dictcomp-yield-iter
+error 2 20
+'yield' outside function
+### for-in-module/none/genexp-yield-iter
+error 2 21
+'yield' outside function
+### for-in-module/none/invalid-target-unary
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-in-module/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-in-module/none/invalid-target-with
+error 2 14
+can't assign to function call
+### for-in-module/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### for-in-module/none/return-value
+error 2 4
+'return' outside function
+### for-in-module/none/yield-stmt
+error 2 4
+'yield' outside function
+### generator/none/listcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### generator/none/listcomp-yield-elt
+error 0 0
+internal error: java.lang.VerifyError
+### generator/none/listcomp-yield-if
+error 0 0
+internal error: java.lang.VerifyError
+### generator/none/setcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### generator/none/dictcomp-yield-iter
+error 0 0
+internal error: java.lang.VerifyError
+### generator/none/genexp-yield-iter
+ok
+### generator/none/invalid-target-unary
+error 0 0
+internal error: java.lang.VerifyError
+### generator/none/invalid-target-call-for
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### generator/none/invalid-target-with
+error 3 14
+can't assign to function call
+### generator/none/invalid-target-listcomp
+error 0 0
+internal error: java.lang.ArrayIndexOutOfBoundsException
+### generator/none/return-value
+error 3 4
+'return' with argument inside generator
+### generator/none/yield-stmt
+ok

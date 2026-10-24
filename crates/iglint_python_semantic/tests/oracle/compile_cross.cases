@@ -1,0 +1,3667 @@
+### module/none/listcomp-yield-iter
+[x for x in (yield [])]
+### module/none/listcomp-yield-elt
+[(yield x) for x in y]
+### module/none/listcomp-yield-if
+[x for x in y if (yield x)]
+### module/none/setcomp-yield-iter
+{x for x in (yield [])}
+### module/none/dictcomp-yield-iter
+{x: 1 for x in (yield [])}
+### module/none/genexp-yield-iter
+list(x for x in (yield []))
+### module/none/invalid-target-unary
+-a = 1
+### module/none/invalid-target-call-for
+for f() in x:
+    pass
+### module/none/invalid-target-with
+with c as f():
+    pass
+### module/none/invalid-target-listcomp
+[1 for f() in y]
+### module/none/return-value
+return 1
+### module/none/yield-stmt
+yield 1
+### module/none/break
+break
+### module/none/continue
+continue
+### module/none/default-except-not-last
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### module/none/import-star
+from os import *
+### module/none/del-cell
+v = 1
+def inner():
+    return v
+del v
+### module/none/exec-with-free-nested
+exec "x"
+def inner():
+    return v
+v = 1
+### module/pass/listcomp-yield-iter
+pass
+[x for x in (yield [])]
+### module/pass/listcomp-yield-elt
+pass
+[(yield x) for x in y]
+### module/pass/listcomp-yield-if
+pass
+[x for x in y if (yield x)]
+### module/pass/setcomp-yield-iter
+pass
+{x for x in (yield [])}
+### module/pass/dictcomp-yield-iter
+pass
+{x: 1 for x in (yield [])}
+### module/pass/genexp-yield-iter
+pass
+list(x for x in (yield []))
+### module/pass/invalid-target-unary
+pass
+-a = 1
+### module/pass/invalid-target-call-for
+pass
+for f() in x:
+    pass
+### module/pass/invalid-target-with
+pass
+with c as f():
+    pass
+### module/pass/invalid-target-listcomp
+pass
+[1 for f() in y]
+### module/pass/return-value
+pass
+return 1
+### module/pass/yield-stmt
+pass
+yield 1
+### module/pass/break
+pass
+break
+### module/pass/continue
+pass
+continue
+### module/pass/default-except-not-last
+pass
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### module/pass/import-star
+pass
+from os import *
+### module/pass/del-cell
+pass
+v = 1
+def inner():
+    return v
+del v
+### module/pass/exec-with-free-nested
+pass
+exec "x"
+def inner():
+    return v
+v = 1
+### module/return/listcomp-yield-iter
+return
+[x for x in (yield [])]
+### module/return/listcomp-yield-elt
+return
+[(yield x) for x in y]
+### module/return/listcomp-yield-if
+return
+[x for x in y if (yield x)]
+### module/return/setcomp-yield-iter
+return
+{x for x in (yield [])}
+### module/return/dictcomp-yield-iter
+return
+{x: 1 for x in (yield [])}
+### module/return/genexp-yield-iter
+return
+list(x for x in (yield []))
+### module/return/invalid-target-unary
+return
+-a = 1
+### module/return/invalid-target-call-for
+return
+for f() in x:
+    pass
+### module/return/invalid-target-with
+return
+with c as f():
+    pass
+### module/return/invalid-target-listcomp
+return
+[1 for f() in y]
+### module/return/return-value
+return
+return 1
+### module/return/yield-stmt
+return
+yield 1
+### module/return/break
+return
+break
+### module/return/continue
+return
+continue
+### module/return/default-except-not-last
+return
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### module/return/import-star
+return
+from os import *
+### module/return/del-cell
+return
+v = 1
+def inner():
+    return v
+del v
+### module/return/exec-with-free-nested
+return
+exec "x"
+def inner():
+    return v
+v = 1
+### module/raise/listcomp-yield-iter
+raise X
+[x for x in (yield [])]
+### module/raise/listcomp-yield-elt
+raise X
+[(yield x) for x in y]
+### module/raise/listcomp-yield-if
+raise X
+[x for x in y if (yield x)]
+### module/raise/setcomp-yield-iter
+raise X
+{x for x in (yield [])}
+### module/raise/dictcomp-yield-iter
+raise X
+{x: 1 for x in (yield [])}
+### module/raise/genexp-yield-iter
+raise X
+list(x for x in (yield []))
+### module/raise/invalid-target-unary
+raise X
+-a = 1
+### module/raise/invalid-target-call-for
+raise X
+for f() in x:
+    pass
+### module/raise/invalid-target-with
+raise X
+with c as f():
+    pass
+### module/raise/invalid-target-listcomp
+raise X
+[1 for f() in y]
+### module/raise/return-value
+raise X
+return 1
+### module/raise/yield-stmt
+raise X
+yield 1
+### module/raise/break
+raise X
+break
+### module/raise/continue
+raise X
+continue
+### module/raise/default-except-not-last
+raise X
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### module/raise/import-star
+raise X
+from os import *
+### module/raise/del-cell
+raise X
+v = 1
+def inner():
+    return v
+del v
+### module/raise/exec-with-free-nested
+raise X
+exec "x"
+def inner():
+    return v
+v = 1
+### module/continue/listcomp-yield-iter
+continue
+[x for x in (yield [])]
+### module/continue/listcomp-yield-elt
+continue
+[(yield x) for x in y]
+### module/continue/listcomp-yield-if
+continue
+[x for x in y if (yield x)]
+### module/continue/setcomp-yield-iter
+continue
+{x for x in (yield [])}
+### module/continue/dictcomp-yield-iter
+continue
+{x: 1 for x in (yield [])}
+### module/continue/genexp-yield-iter
+continue
+list(x for x in (yield []))
+### module/continue/invalid-target-unary
+continue
+-a = 1
+### module/continue/invalid-target-call-for
+continue
+for f() in x:
+    pass
+### module/continue/invalid-target-with
+continue
+with c as f():
+    pass
+### module/continue/invalid-target-listcomp
+continue
+[1 for f() in y]
+### module/continue/return-value
+continue
+return 1
+### module/continue/yield-stmt
+continue
+yield 1
+### module/continue/break
+continue
+break
+### module/continue/continue
+continue
+continue
+### module/continue/default-except-not-last
+continue
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### module/continue/import-star
+continue
+from os import *
+### module/continue/del-cell
+continue
+v = 1
+def inner():
+    return v
+del v
+### module/continue/exec-with-free-nested
+continue
+exec "x"
+def inner():
+    return v
+v = 1
+### module/break/listcomp-yield-iter
+break
+[x for x in (yield [])]
+### module/break/listcomp-yield-elt
+break
+[(yield x) for x in y]
+### module/break/listcomp-yield-if
+break
+[x for x in y if (yield x)]
+### module/break/setcomp-yield-iter
+break
+{x for x in (yield [])}
+### module/break/dictcomp-yield-iter
+break
+{x: 1 for x in (yield [])}
+### module/break/genexp-yield-iter
+break
+list(x for x in (yield []))
+### module/break/invalid-target-unary
+break
+-a = 1
+### module/break/invalid-target-call-for
+break
+for f() in x:
+    pass
+### module/break/invalid-target-with
+break
+with c as f():
+    pass
+### module/break/invalid-target-listcomp
+break
+[1 for f() in y]
+### module/break/return-value
+break
+return 1
+### module/break/yield-stmt
+break
+yield 1
+### module/break/break
+break
+break
+### module/break/continue
+break
+continue
+### module/break/default-except-not-last
+break
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### module/break/import-star
+break
+from os import *
+### module/break/del-cell
+break
+v = 1
+def inner():
+    return v
+del v
+### module/break/exec-with-free-nested
+break
+exec "x"
+def inner():
+    return v
+v = 1
+### module/if-else-return/listcomp-yield-iter
+if x:
+    return
+else:
+    return
+[x for x in (yield [])]
+### module/if-else-return/listcomp-yield-elt
+if x:
+    return
+else:
+    return
+[(yield x) for x in y]
+### module/if-else-return/listcomp-yield-if
+if x:
+    return
+else:
+    return
+[x for x in y if (yield x)]
+### module/if-else-return/setcomp-yield-iter
+if x:
+    return
+else:
+    return
+{x for x in (yield [])}
+### module/if-else-return/dictcomp-yield-iter
+if x:
+    return
+else:
+    return
+{x: 1 for x in (yield [])}
+### module/if-else-return/genexp-yield-iter
+if x:
+    return
+else:
+    return
+list(x for x in (yield []))
+### module/if-else-return/invalid-target-unary
+if x:
+    return
+else:
+    return
+-a = 1
+### module/if-else-return/invalid-target-call-for
+if x:
+    return
+else:
+    return
+for f() in x:
+    pass
+### module/if-else-return/invalid-target-with
+if x:
+    return
+else:
+    return
+with c as f():
+    pass
+### module/if-else-return/invalid-target-listcomp
+if x:
+    return
+else:
+    return
+[1 for f() in y]
+### module/if-else-return/return-value
+if x:
+    return
+else:
+    return
+return 1
+### module/if-else-return/yield-stmt
+if x:
+    return
+else:
+    return
+yield 1
+### module/if-else-return/break
+if x:
+    return
+else:
+    return
+break
+### module/if-else-return/continue
+if x:
+    return
+else:
+    return
+continue
+### module/if-else-return/default-except-not-last
+if x:
+    return
+else:
+    return
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### module/if-else-return/import-star
+if x:
+    return
+else:
+    return
+from os import *
+### module/if-else-return/del-cell
+if x:
+    return
+else:
+    return
+v = 1
+def inner():
+    return v
+del v
+### module/if-else-return/exec-with-free-nested
+if x:
+    return
+else:
+    return
+exec "x"
+def inner():
+    return v
+v = 1
+### module/if-else-raise/listcomp-yield-iter
+if x:
+    raise X
+else:
+    raise Y
+[x for x in (yield [])]
+### module/if-else-raise/listcomp-yield-elt
+if x:
+    raise X
+else:
+    raise Y
+[(yield x) for x in y]
+### module/if-else-raise/listcomp-yield-if
+if x:
+    raise X
+else:
+    raise Y
+[x for x in y if (yield x)]
+### module/if-else-raise/setcomp-yield-iter
+if x:
+    raise X
+else:
+    raise Y
+{x for x in (yield [])}
+### module/if-else-raise/dictcomp-yield-iter
+if x:
+    raise X
+else:
+    raise Y
+{x: 1 for x in (yield [])}
+### module/if-else-raise/genexp-yield-iter
+if x:
+    raise X
+else:
+    raise Y
+list(x for x in (yield []))
+### module/if-else-raise/invalid-target-unary
+if x:
+    raise X
+else:
+    raise Y
+-a = 1
+### module/if-else-raise/invalid-target-call-for
+if x:
+    raise X
+else:
+    raise Y
+for f() in x:
+    pass
+### module/if-else-raise/invalid-target-with
+if x:
+    raise X
+else:
+    raise Y
+with c as f():
+    pass
+### module/if-else-raise/invalid-target-listcomp
+if x:
+    raise X
+else:
+    raise Y
+[1 for f() in y]
+### module/if-else-raise/return-value
+if x:
+    raise X
+else:
+    raise Y
+return 1
+### module/if-else-raise/yield-stmt
+if x:
+    raise X
+else:
+    raise Y
+yield 1
+### module/if-else-raise/break
+if x:
+    raise X
+else:
+    raise Y
+break
+### module/if-else-raise/continue
+if x:
+    raise X
+else:
+    raise Y
+continue
+### module/if-else-raise/default-except-not-last
+if x:
+    raise X
+else:
+    raise Y
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### module/if-else-raise/import-star
+if x:
+    raise X
+else:
+    raise Y
+from os import *
+### module/if-else-raise/del-cell
+if x:
+    raise X
+else:
+    raise Y
+v = 1
+def inner():
+    return v
+del v
+### module/if-else-raise/exec-with-free-nested
+if x:
+    raise X
+else:
+    raise Y
+exec "x"
+def inner():
+    return v
+v = 1
+### module/if-return/listcomp-yield-iter
+if x:
+    return
+[x for x in (yield [])]
+### module/if-return/listcomp-yield-elt
+if x:
+    return
+[(yield x) for x in y]
+### module/if-return/listcomp-yield-if
+if x:
+    return
+[x for x in y if (yield x)]
+### module/if-return/setcomp-yield-iter
+if x:
+    return
+{x for x in (yield [])}
+### module/if-return/dictcomp-yield-iter
+if x:
+    return
+{x: 1 for x in (yield [])}
+### module/if-return/genexp-yield-iter
+if x:
+    return
+list(x for x in (yield []))
+### module/if-return/invalid-target-unary
+if x:
+    return
+-a = 1
+### module/if-return/invalid-target-call-for
+if x:
+    return
+for f() in x:
+    pass
+### module/if-return/invalid-target-with
+if x:
+    return
+with c as f():
+    pass
+### module/if-return/invalid-target-listcomp
+if x:
+    return
+[1 for f() in y]
+### module/if-return/return-value
+if x:
+    return
+return 1
+### module/if-return/yield-stmt
+if x:
+    return
+yield 1
+### module/if-return/break
+if x:
+    return
+break
+### module/if-return/continue
+if x:
+    return
+continue
+### module/if-return/default-except-not-last
+if x:
+    return
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### module/if-return/import-star
+if x:
+    return
+from os import *
+### module/if-return/del-cell
+if x:
+    return
+v = 1
+def inner():
+    return v
+del v
+### module/if-return/exec-with-free-nested
+if x:
+    return
+exec "x"
+def inner():
+    return v
+v = 1
+### module/try-return-finally/listcomp-yield-iter
+try:
+    return
+finally:
+    pass
+[x for x in (yield [])]
+### module/try-return-finally/listcomp-yield-elt
+try:
+    return
+finally:
+    pass
+[(yield x) for x in y]
+### module/try-return-finally/listcomp-yield-if
+try:
+    return
+finally:
+    pass
+[x for x in y if (yield x)]
+### module/try-return-finally/setcomp-yield-iter
+try:
+    return
+finally:
+    pass
+{x for x in (yield [])}
+### module/try-return-finally/dictcomp-yield-iter
+try:
+    return
+finally:
+    pass
+{x: 1 for x in (yield [])}
+### module/try-return-finally/genexp-yield-iter
+try:
+    return
+finally:
+    pass
+list(x for x in (yield []))
+### module/try-return-finally/invalid-target-unary
+try:
+    return
+finally:
+    pass
+-a = 1
+### module/try-return-finally/invalid-target-call-for
+try:
+    return
+finally:
+    pass
+for f() in x:
+    pass
+### module/try-return-finally/invalid-target-with
+try:
+    return
+finally:
+    pass
+with c as f():
+    pass
+### module/try-return-finally/invalid-target-listcomp
+try:
+    return
+finally:
+    pass
+[1 for f() in y]
+### module/try-return-finally/return-value
+try:
+    return
+finally:
+    pass
+return 1
+### module/try-return-finally/yield-stmt
+try:
+    return
+finally:
+    pass
+yield 1
+### module/try-return-finally/break
+try:
+    return
+finally:
+    pass
+break
+### module/try-return-finally/continue
+try:
+    return
+finally:
+    pass
+continue
+### module/try-return-finally/default-except-not-last
+try:
+    return
+finally:
+    pass
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### module/try-return-finally/import-star
+try:
+    return
+finally:
+    pass
+from os import *
+### module/try-return-finally/del-cell
+try:
+    return
+finally:
+    pass
+v = 1
+def inner():
+    return v
+del v
+### module/try-return-finally/exec-with-free-nested
+try:
+    return
+finally:
+    pass
+exec "x"
+def inner():
+    return v
+v = 1
+### module/try-pass-finally-return/listcomp-yield-iter
+try:
+    pass
+finally:
+    return
+[x for x in (yield [])]
+### module/try-pass-finally-return/listcomp-yield-elt
+try:
+    pass
+finally:
+    return
+[(yield x) for x in y]
+### module/try-pass-finally-return/listcomp-yield-if
+try:
+    pass
+finally:
+    return
+[x for x in y if (yield x)]
+### module/try-pass-finally-return/setcomp-yield-iter
+try:
+    pass
+finally:
+    return
+{x for x in (yield [])}
+### module/try-pass-finally-return/dictcomp-yield-iter
+try:
+    pass
+finally:
+    return
+{x: 1 for x in (yield [])}
+### module/try-pass-finally-return/genexp-yield-iter
+try:
+    pass
+finally:
+    return
+list(x for x in (yield []))
+### module/try-pass-finally-return/invalid-target-unary
+try:
+    pass
+finally:
+    return
+-a = 1
+### module/try-pass-finally-return/invalid-target-call-for
+try:
+    pass
+finally:
+    return
+for f() in x:
+    pass
+### module/try-pass-finally-return/invalid-target-with
+try:
+    pass
+finally:
+    return
+with c as f():
+    pass
+### module/try-pass-finally-return/invalid-target-listcomp
+try:
+    pass
+finally:
+    return
+[1 for f() in y]
+### module/try-pass-finally-return/return-value
+try:
+    pass
+finally:
+    return
+return 1
+### module/try-pass-finally-return/yield-stmt
+try:
+    pass
+finally:
+    return
+yield 1
+### module/try-pass-finally-return/break
+try:
+    pass
+finally:
+    return
+break
+### module/try-pass-finally-return/continue
+try:
+    pass
+finally:
+    return
+continue
+### module/try-pass-finally-return/default-except-not-last
+try:
+    pass
+finally:
+    return
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### module/try-pass-finally-return/import-star
+try:
+    pass
+finally:
+    return
+from os import *
+### module/try-pass-finally-return/del-cell
+try:
+    pass
+finally:
+    return
+v = 1
+def inner():
+    return v
+del v
+### module/try-pass-finally-return/exec-with-free-nested
+try:
+    pass
+finally:
+    return
+exec "x"
+def inner():
+    return v
+v = 1
+### module/try-return-except-return/listcomp-yield-iter
+try:
+    return
+except:
+    return
+[x for x in (yield [])]
+### module/try-return-except-return/listcomp-yield-elt
+try:
+    return
+except:
+    return
+[(yield x) for x in y]
+### module/try-return-except-return/listcomp-yield-if
+try:
+    return
+except:
+    return
+[x for x in y if (yield x)]
+### module/try-return-except-return/setcomp-yield-iter
+try:
+    return
+except:
+    return
+{x for x in (yield [])}
+### module/try-return-except-return/dictcomp-yield-iter
+try:
+    return
+except:
+    return
+{x: 1 for x in (yield [])}
+### module/try-return-except-return/genexp-yield-iter
+try:
+    return
+except:
+    return
+list(x for x in (yield []))
+### module/try-return-except-return/invalid-target-unary
+try:
+    return
+except:
+    return
+-a = 1
+### module/try-return-except-return/invalid-target-call-for
+try:
+    return
+except:
+    return
+for f() in x:
+    pass
+### module/try-return-except-return/invalid-target-with
+try:
+    return
+except:
+    return
+with c as f():
+    pass
+### module/try-return-except-return/invalid-target-listcomp
+try:
+    return
+except:
+    return
+[1 for f() in y]
+### module/try-return-except-return/return-value
+try:
+    return
+except:
+    return
+return 1
+### module/try-return-except-return/yield-stmt
+try:
+    return
+except:
+    return
+yield 1
+### module/try-return-except-return/break
+try:
+    return
+except:
+    return
+break
+### module/try-return-except-return/continue
+try:
+    return
+except:
+    return
+continue
+### module/try-return-except-return/default-except-not-last
+try:
+    return
+except:
+    return
+try:
+    pass
+except:
+    pass
+except E:
+    pass
+### module/try-return-except-return/import-star
+try:
+    return
+except:
+    return
+from os import *
+### module/try-return-except-return/del-cell
+try:
+    return
+except:
+    return
+v = 1
+def inner():
+    return v
+del v
+### module/try-return-except-return/exec-with-free-nested
+try:
+    return
+except:
+    return
+exec "x"
+def inner():
+    return v
+v = 1
+### module/try-return-except-pass/listcomp-yield-iter
+try:
+    return
+except:
+    pass
+[x for x in (yield [])]
+### module/try-return-except-pass/listcomp-yield-elt
+try:
+    return
+except:
+    pass
+[(yield x) for x in y]
+### module/try-return-except-pass/listcomp-yield-if
+try:
+    return
+except:
+    pass
+[x for x in y if (yield x)]
+### module/try-return-except-pass/setcomp-yield-iter
+try:
+    return
+except:
+    pass
+{x for x in (yield [])}
+### module/try-return-except-pass/dictcomp-yield-iter
+try:
+    return
+except:
+    pass
+{x: 1 for x in (yield [])}
+### module/try-return-except-pass/genexp-yield-iter
+try:
+    return
+except:
+    pass
+list(x for x in (yield []))
+### module/try-return-except-pass/invalid-target-unary
+try:
+    return
+except:
+    pass
+-a = 1
+### module/try-return-except-pass/invalid-target-call-for
+try:
+    return
+except:
+    pass
+for f() in x:
+    pass
+### module/try-return-except-pass/invalid-target-with
+try:
+    return
+except:
+    pass
+with c as f():
+    pass
+### module/try-return-except-pass/invalid-target-listcomp
+try:
+    return
+except:
+    pass
+[1 for f() in y]
+### module/try-return-except-pass/return-value
+try:
+    return
+except:
+    pass
+return 1
+### module/try-return-except-pass/yield-stmt
+try:
+    return
+except:
+    pass
+yield 1
+### module/try-return-except-pass/import-star
+try:
+    return
+except:
+    pass
+from os import *
+### module/try-return-except-pass/del-cell
+try:
+    return
+except:
+    pass
+v = 1
+def inner():
+    return v
+del v
+### module/try-return-except-pass/exec-with-free-nested
+try:
+    return
+except:
+    pass
+exec "x"
+def inner():
+    return v
+v = 1
+### module/try-raise-except-raise/listcomp-yield-iter
+try:
+    raise X
+except E:
+    raise Y
+[x for x in (yield [])]
+### module/try-raise-except-raise/listcomp-yield-elt
+try:
+    raise X
+except E:
+    raise Y
+[(yield x) for x in y]
+### module/try-raise-except-raise/listcomp-yield-if
+try:
+    raise X
+except E:
+    raise Y
+[x for x in y if (yield x)]
+### module/try-raise-except-raise/setcomp-yield-iter
+try:
+    raise X
+except E:
+    raise Y
+{x for x in (yield [])}
+### module/try-raise-except-raise/dictcomp-yield-iter
+try:
+    raise X
+except E:
+    raise Y
+{x: 1 for x in (yield [])}
+### module/try-raise-except-raise/genexp-yield-iter
+try:
+    raise X
+except E:
+    raise Y
+list(x for x in (yield []))
+### module/try-raise-except-raise/invalid-target-unary
+try:
+    raise X
+except E:
+    raise Y
+-a = 1
+### module/try-raise-except-raise/invalid-target-call-for
+try:
+    raise X
+except E:
+    raise Y
+for f() in x:
+    pass
+### module/try-raise-except-raise/invalid-target-with
+try:
+    raise X
+except E:
+    raise Y
+with c as f():
+    pass
+### module/try-raise-except-raise/invalid-target-listcomp
+try:
+    raise X
+except E:
+    raise Y
+[1 for f() in y]
+### module/try-raise-except-raise/return-value
+try:
+    raise X
+except E:
+    raise Y
+return 1
+### module/try-raise-except-raise/yield-stmt
+try:
+    raise X
+except E:
+    raise Y
+yield 1
+### module/try-raise-except-raise/import-star
+try:
+    raise X
+except E:
+    raise Y
+from os import *
+### module/try-raise-except-raise/del-cell
+try:
+    raise X
+except E:
+    raise Y
+v = 1
+def inner():
+    return v
+del v
+### module/try-raise-except-raise/exec-with-free-nested
+try:
+    raise X
+except E:
+    raise Y
+exec "x"
+def inner():
+    return v
+v = 1
+### module/try-global-except/listcomp-yield-iter
+try:
+    global g
+except E:
+    pass
+[x for x in (yield [])]
+### module/try-global-except/listcomp-yield-elt
+try:
+    global g
+except E:
+    pass
+[(yield x) for x in y]
+### module/try-global-except/listcomp-yield-if
+try:
+    global g
+except E:
+    pass
+[x for x in y if (yield x)]
+### module/try-global-except/setcomp-yield-iter
+try:
+    global g
+except E:
+    pass
+{x for x in (yield [])}
+### module/try-global-except/dictcomp-yield-iter
+try:
+    global g
+except E:
+    pass
+{x: 1 for x in (yield [])}
+### module/try-global-except/genexp-yield-iter
+try:
+    global g
+except E:
+    pass
+list(x for x in (yield []))
+### module/try-global-except/invalid-target-unary
+try:
+    global g
+except E:
+    pass
+-a = 1
+### module/try-global-except/invalid-target-call-for
+try:
+    global g
+except E:
+    pass
+for f() in x:
+    pass
+### module/try-global-except/invalid-target-with
+try:
+    global g
+except E:
+    pass
+with c as f():
+    pass
+### module/try-global-except/invalid-target-listcomp
+try:
+    global g
+except E:
+    pass
+[1 for f() in y]
+### module/try-global-except/return-value
+try:
+    global g
+except E:
+    pass
+return 1
+### module/try-global-except/yield-stmt
+try:
+    global g
+except E:
+    pass
+yield 1
+### module/try-global-except/import-star
+try:
+    global g
+except E:
+    pass
+from os import *
+### module/try-global-except/del-cell
+try:
+    global g
+except E:
+    pass
+v = 1
+def inner():
+    return v
+del v
+### module/try-global-except/exec-with-free-nested
+try:
+    global g
+except E:
+    pass
+exec "x"
+def inner():
+    return v
+v = 1
+### module/while-1/listcomp-yield-iter
+while 1:
+    pass
+[x for x in (yield [])]
+### module/while-1/listcomp-yield-elt
+while 1:
+    pass
+[(yield x) for x in y]
+### module/while-1/listcomp-yield-if
+while 1:
+    pass
+[x for x in y if (yield x)]
+### module/while-1/setcomp-yield-iter
+while 1:
+    pass
+{x for x in (yield [])}
+### module/while-1/dictcomp-yield-iter
+while 1:
+    pass
+{x: 1 for x in (yield [])}
+### module/while-1/genexp-yield-iter
+while 1:
+    pass
+list(x for x in (yield []))
+### module/while-1/invalid-target-unary
+while 1:
+    pass
+-a = 1
+### module/while-1/invalid-target-call-for
+while 1:
+    pass
+for f() in x:
+    pass
+### module/while-1/invalid-target-with
+while 1:
+    pass
+with c as f():
+    pass
+### module/while-1/invalid-target-listcomp
+while 1:
+    pass
+[1 for f() in y]
+### module/while-1/return-value
+while 1:
+    pass
+return 1
+### module/while-1/yield-stmt
+while 1:
+    pass
+yield 1
+### module/while-1/import-star
+while 1:
+    pass
+from os import *
+### module/while-1/del-cell
+while 1:
+    pass
+v = 1
+def inner():
+    return v
+del v
+### module/while-1/exec-with-free-nested
+while 1:
+    pass
+exec "x"
+def inner():
+    return v
+v = 1
+### module/while-true-break/listcomp-yield-iter
+while True:
+    break
+[x for x in (yield [])]
+### module/while-true-break/listcomp-yield-elt
+while True:
+    break
+[(yield x) for x in y]
+### module/while-true-break/listcomp-yield-if
+while True:
+    break
+[x for x in y if (yield x)]
+### module/while-true-break/setcomp-yield-iter
+while True:
+    break
+{x for x in (yield [])}
+### module/while-true-break/dictcomp-yield-iter
+while True:
+    break
+{x: 1 for x in (yield [])}
+### module/while-true-break/genexp-yield-iter
+while True:
+    break
+list(x for x in (yield []))
+### module/while-true-break/invalid-target-unary
+while True:
+    break
+-a = 1
+### module/while-true-break/invalid-target-call-for
+while True:
+    break
+for f() in x:
+    pass
+### module/while-true-break/invalid-target-with
+while True:
+    break
+with c as f():
+    pass
+### module/while-true-break/invalid-target-listcomp
+while True:
+    break
+[1 for f() in y]
+### module/while-true-break/return-value
+while True:
+    break
+return 1
+### module/while-true-break/yield-stmt
+while True:
+    break
+yield 1
+### module/while-true-break/import-star
+while True:
+    break
+from os import *
+### module/while-true-break/del-cell
+while True:
+    break
+v = 1
+def inner():
+    return v
+del v
+### module/while-true-break/exec-with-free-nested
+while True:
+    break
+exec "x"
+def inner():
+    return v
+v = 1
+### module/for-else-return/listcomp-yield-iter
+for i in y:
+    return
+else:
+    return
+[x for x in (yield [])]
+### module/for-else-return/listcomp-yield-elt
+for i in y:
+    return
+else:
+    return
+[(yield x) for x in y]
+### module/for-else-return/listcomp-yield-if
+for i in y:
+    return
+else:
+    return
+[x for x in y if (yield x)]
+### module/for-else-return/setcomp-yield-iter
+for i in y:
+    return
+else:
+    return
+{x for x in (yield [])}
+### module/for-else-return/dictcomp-yield-iter
+for i in y:
+    return
+else:
+    return
+{x: 1 for x in (yield [])}
+### module/for-else-return/genexp-yield-iter
+for i in y:
+    return
+else:
+    return
+list(x for x in (yield []))
+### module/for-else-return/invalid-target-unary
+for i in y:
+    return
+else:
+    return
+-a = 1
+### module/for-else-return/invalid-target-call-for
+for i in y:
+    return
+else:
+    return
+for f() in x:
+    pass
+### module/for-else-return/invalid-target-with
+for i in y:
+    return
+else:
+    return
+with c as f():
+    pass
+### module/for-else-return/invalid-target-listcomp
+for i in y:
+    return
+else:
+    return
+[1 for f() in y]
+### module/for-else-return/return-value
+for i in y:
+    return
+else:
+    return
+return 1
+### module/for-else-return/yield-stmt
+for i in y:
+    return
+else:
+    return
+yield 1
+### module/for-else-return/import-star
+for i in y:
+    return
+else:
+    return
+from os import *
+### module/for-else-return/del-cell
+for i in y:
+    return
+else:
+    return
+v = 1
+def inner():
+    return v
+del v
+### module/for-else-return/exec-with-free-nested
+for i in y:
+    return
+else:
+    return
+exec "x"
+def inner():
+    return v
+v = 1
+### module/for-return/listcomp-yield-iter
+for i in y:
+    return
+[x for x in (yield [])]
+### module/for-return/listcomp-yield-elt
+for i in y:
+    return
+[(yield x) for x in y]
+### module/for-return/listcomp-yield-if
+for i in y:
+    return
+[x for x in y if (yield x)]
+### module/for-return/setcomp-yield-iter
+for i in y:
+    return
+{x for x in (yield [])}
+### module/for-return/dictcomp-yield-iter
+for i in y:
+    return
+{x: 1 for x in (yield [])}
+### module/for-return/genexp-yield-iter
+for i in y:
+    return
+list(x for x in (yield []))
+### module/for-return/invalid-target-unary
+for i in y:
+    return
+-a = 1
+### module/for-return/invalid-target-call-for
+for i in y:
+    return
+for f() in x:
+    pass
+### module/for-return/invalid-target-with
+for i in y:
+    return
+with c as f():
+    pass
+### module/for-return/invalid-target-listcomp
+for i in y:
+    return
+[1 for f() in y]
+### module/for-return/return-value
+for i in y:
+    return
+return 1
+### module/for-return/yield-stmt
+for i in y:
+    return
+yield 1
+### module/for-return/import-star
+for i in y:
+    return
+from os import *
+### module/for-return/del-cell
+for i in y:
+    return
+v = 1
+def inner():
+    return v
+del v
+### module/for-return/exec-with-free-nested
+for i in y:
+    return
+exec "x"
+def inner():
+    return v
+v = 1
+### module/with-return/listcomp-yield-iter
+with c:
+    return
+[x for x in (yield [])]
+### module/with-return/listcomp-yield-elt
+with c:
+    return
+[(yield x) for x in y]
+### module/with-return/listcomp-yield-if
+with c:
+    return
+[x for x in y if (yield x)]
+### module/with-return/setcomp-yield-iter
+with c:
+    return
+{x for x in (yield [])}
+### module/with-return/dictcomp-yield-iter
+with c:
+    return
+{x: 1 for x in (yield [])}
+### module/with-return/genexp-yield-iter
+with c:
+    return
+list(x for x in (yield []))
+### module/with-return/invalid-target-unary
+with c:
+    return
+-a = 1
+### module/with-return/invalid-target-call-for
+with c:
+    return
+for f() in x:
+    pass
+### module/with-return/invalid-target-with
+with c:
+    return
+with c as f():
+    pass
+### module/with-return/invalid-target-listcomp
+with c:
+    return
+[1 for f() in y]
+### module/with-return/return-value
+with c:
+    return
+return 1
+### module/with-return/yield-stmt
+with c:
+    return
+yield 1
+### module/with-return/import-star
+with c:
+    return
+from os import *
+### module/with-return/del-cell
+with c:
+    return
+v = 1
+def inner():
+    return v
+del v
+### module/with-return/exec-with-free-nested
+with c:
+    return
+exec "x"
+def inner():
+    return v
+v = 1
+### module/yield/listcomp-yield-iter
+yield 1
+[x for x in (yield [])]
+### module/yield/listcomp-yield-elt
+yield 1
+[(yield x) for x in y]
+### module/yield/listcomp-yield-if
+yield 1
+[x for x in y if (yield x)]
+### module/yield/setcomp-yield-iter
+yield 1
+{x for x in (yield [])}
+### module/yield/dictcomp-yield-iter
+yield 1
+{x: 1 for x in (yield [])}
+### module/yield/genexp-yield-iter
+yield 1
+list(x for x in (yield []))
+### module/yield/invalid-target-unary
+yield 1
+-a = 1
+### module/yield/invalid-target-call-for
+yield 1
+for f() in x:
+    pass
+### module/yield/invalid-target-with
+yield 1
+with c as f():
+    pass
+### module/yield/invalid-target-listcomp
+yield 1
+[1 for f() in y]
+### module/yield/return-value
+yield 1
+return 1
+### module/yield/yield-stmt
+yield 1
+yield 1
+### module/yield-return/listcomp-yield-iter
+yield 1
+return
+[x for x in (yield [])]
+### module/yield-return/listcomp-yield-elt
+yield 1
+return
+[(yield x) for x in y]
+### module/yield-return/listcomp-yield-if
+yield 1
+return
+[x for x in y if (yield x)]
+### module/yield-return/setcomp-yield-iter
+yield 1
+return
+{x for x in (yield [])}
+### module/yield-return/dictcomp-yield-iter
+yield 1
+return
+{x: 1 for x in (yield [])}
+### module/yield-return/genexp-yield-iter
+yield 1
+return
+list(x for x in (yield []))
+### module/yield-return/invalid-target-unary
+yield 1
+return
+-a = 1
+### module/yield-return/invalid-target-call-for
+yield 1
+return
+for f() in x:
+    pass
+### module/yield-return/invalid-target-with
+yield 1
+return
+with c as f():
+    pass
+### module/yield-return/invalid-target-listcomp
+yield 1
+return
+[1 for f() in y]
+### module/yield-return/return-value
+yield 1
+return
+return 1
+### module/yield-return/yield-stmt
+yield 1
+return
+yield 1
+### module/yield-try-return-finally/listcomp-yield-iter
+yield 1
+try:
+    return
+finally:
+    pass
+[x for x in (yield [])]
+### module/yield-try-return-finally/listcomp-yield-elt
+yield 1
+try:
+    return
+finally:
+    pass
+[(yield x) for x in y]
+### module/yield-try-return-finally/listcomp-yield-if
+yield 1
+try:
+    return
+finally:
+    pass
+[x for x in y if (yield x)]
+### module/yield-try-return-finally/setcomp-yield-iter
+yield 1
+try:
+    return
+finally:
+    pass
+{x for x in (yield [])}
+### module/yield-try-return-finally/dictcomp-yield-iter
+yield 1
+try:
+    return
+finally:
+    pass
+{x: 1 for x in (yield [])}
+### module/yield-try-return-finally/genexp-yield-iter
+yield 1
+try:
+    return
+finally:
+    pass
+list(x for x in (yield []))
+### module/yield-try-return-finally/invalid-target-unary
+yield 1
+try:
+    return
+finally:
+    pass
+-a = 1
+### module/yield-try-return-finally/invalid-target-call-for
+yield 1
+try:
+    return
+finally:
+    pass
+for f() in x:
+    pass
+### module/yield-try-return-finally/invalid-target-with
+yield 1
+try:
+    return
+finally:
+    pass
+with c as f():
+    pass
+### module/yield-try-return-finally/invalid-target-listcomp
+yield 1
+try:
+    return
+finally:
+    pass
+[1 for f() in y]
+### module/yield-try-return-finally/return-value
+yield 1
+try:
+    return
+finally:
+    pass
+return 1
+### module/yield-try-return-finally/yield-stmt
+yield 1
+try:
+    return
+finally:
+    pass
+yield 1
+### function/none/listcomp-yield-iter
+def f():
+    [x for x in (yield [])]
+### function/none/listcomp-yield-elt
+def f():
+    [(yield x) for x in y]
+### function/none/listcomp-yield-if
+def f():
+    [x for x in y if (yield x)]
+### function/none/setcomp-yield-iter
+def f():
+    {x for x in (yield [])}
+### function/none/dictcomp-yield-iter
+def f():
+    {x: 1 for x in (yield [])}
+### function/none/genexp-yield-iter
+def f():
+    list(x for x in (yield []))
+### function/none/invalid-target-unary
+def f():
+    -a = 1
+### function/none/invalid-target-call-for
+def f():
+    for f() in x:
+        pass
+### function/none/invalid-target-with
+def f():
+    with c as f():
+        pass
+### function/none/invalid-target-listcomp
+def f():
+    [1 for f() in y]
+### function/none/return-value
+def f():
+    return 1
+### function/none/yield-stmt
+def f():
+    yield 1
+### function/none/import-star
+def f():
+    from os import *
+### function/pass/genexp-yield-iter
+def f():
+    pass
+    list(x for x in (yield []))
+### function/pass/return-value
+def f():
+    pass
+    return 1
+### function/pass/yield-stmt
+def f():
+    pass
+    yield 1
+### function/pass/import-star
+def f():
+    pass
+    from os import *
+### function/return/listcomp-yield-iter
+def f():
+    return
+    [x for x in (yield [])]
+### function/return/listcomp-yield-elt
+def f():
+    return
+    [(yield x) for x in y]
+### function/return/listcomp-yield-if
+def f():
+    return
+    [x for x in y if (yield x)]
+### function/return/setcomp-yield-iter
+def f():
+    return
+    {x for x in (yield [])}
+### function/return/dictcomp-yield-iter
+def f():
+    return
+    {x: 1 for x in (yield [])}
+### function/return/genexp-yield-iter
+def f():
+    return
+    list(x for x in (yield []))
+### function/return/invalid-target-unary
+def f():
+    return
+    -a = 1
+### function/return/invalid-target-call-for
+def f():
+    return
+    for f() in x:
+        pass
+### function/return/invalid-target-listcomp
+def f():
+    return
+    [1 for f() in y]
+### function/return/return-value
+def f():
+    return
+    return 1
+### function/return/yield-stmt
+def f():
+    return
+    yield 1
+### function/return/break
+def f():
+    return
+    break
+### function/return/continue
+def f():
+    return
+    continue
+### function/return/default-except-not-last
+def f():
+    return
+    try:
+        pass
+    except:
+        pass
+    except E:
+        pass
+### function/return/import-star
+def f():
+    return
+    from os import *
+### function/return/del-cell
+def f():
+    return
+    v = 1
+    def inner():
+        return v
+    del v
+### function/raise/listcomp-yield-iter
+def f():
+    raise X
+    [x for x in (yield [])]
+### function/raise/listcomp-yield-elt
+def f():
+    raise X
+    [(yield x) for x in y]
+### function/raise/listcomp-yield-if
+def f():
+    raise X
+    [x for x in y if (yield x)]
+### function/raise/setcomp-yield-iter
+def f():
+    raise X
+    {x for x in (yield [])}
+### function/raise/dictcomp-yield-iter
+def f():
+    raise X
+    {x: 1 for x in (yield [])}
+### function/raise/genexp-yield-iter
+def f():
+    raise X
+    list(x for x in (yield []))
+### function/raise/invalid-target-unary
+def f():
+    raise X
+    -a = 1
+### function/raise/invalid-target-call-for
+def f():
+    raise X
+    for f() in x:
+        pass
+### function/raise/invalid-target-listcomp
+def f():
+    raise X
+    [1 for f() in y]
+### function/raise/return-value
+def f():
+    raise X
+    return 1
+### function/raise/yield-stmt
+def f():
+    raise X
+    yield 1
+### function/raise/break
+def f():
+    raise X
+    break
+### function/raise/continue
+def f():
+    raise X
+    continue
+### function/raise/default-except-not-last
+def f():
+    raise X
+    try:
+        pass
+    except:
+        pass
+    except E:
+        pass
+### function/raise/import-star
+def f():
+    raise X
+    from os import *
+### function/raise/del-cell
+def f():
+    raise X
+    v = 1
+    def inner():
+        return v
+    del v
+### function/if-else-return/listcomp-yield-iter
+def f():
+    if x:
+        return
+    else:
+        return
+    [x for x in (yield [])]
+### function/if-else-return/listcomp-yield-elt
+def f():
+    if x:
+        return
+    else:
+        return
+    [(yield x) for x in y]
+### function/if-else-return/listcomp-yield-if
+def f():
+    if x:
+        return
+    else:
+        return
+    [x for x in y if (yield x)]
+### function/if-else-return/setcomp-yield-iter
+def f():
+    if x:
+        return
+    else:
+        return
+    {x for x in (yield [])}
+### function/if-else-return/dictcomp-yield-iter
+def f():
+    if x:
+        return
+    else:
+        return
+    {x: 1 for x in (yield [])}
+### function/if-else-return/genexp-yield-iter
+def f():
+    if x:
+        return
+    else:
+        return
+    list(x for x in (yield []))
+### function/if-else-return/invalid-target-unary
+def f():
+    if x:
+        return
+    else:
+        return
+    -a = 1
+### function/if-else-return/invalid-target-call-for
+def f():
+    if x:
+        return
+    else:
+        return
+    for f() in x:
+        pass
+### function/if-else-return/invalid-target-listcomp
+def f():
+    if x:
+        return
+    else:
+        return
+    [1 for f() in y]
+### function/if-else-return/return-value
+def f():
+    if x:
+        return
+    else:
+        return
+    return 1
+### function/if-else-return/yield-stmt
+def f():
+    if x:
+        return
+    else:
+        return
+    yield 1
+### function/if-else-return/break
+def f():
+    if x:
+        return
+    else:
+        return
+    break
+### function/if-else-return/continue
+def f():
+    if x:
+        return
+    else:
+        return
+    continue
+### function/if-else-return/default-except-not-last
+def f():
+    if x:
+        return
+    else:
+        return
+    try:
+        pass
+    except:
+        pass
+    except E:
+        pass
+### function/if-else-return/del-cell
+def f():
+    if x:
+        return
+    else:
+        return
+    v = 1
+    def inner():
+        return v
+    del v
+### function/if-else-raise/listcomp-yield-iter
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    [x for x in (yield [])]
+### function/if-else-raise/listcomp-yield-elt
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    [(yield x) for x in y]
+### function/if-else-raise/listcomp-yield-if
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    [x for x in y if (yield x)]
+### function/if-else-raise/setcomp-yield-iter
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    {x for x in (yield [])}
+### function/if-else-raise/dictcomp-yield-iter
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    {x: 1 for x in (yield [])}
+### function/if-else-raise/genexp-yield-iter
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    list(x for x in (yield []))
+### function/if-else-raise/invalid-target-unary
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    -a = 1
+### function/if-else-raise/invalid-target-call-for
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    for f() in x:
+        pass
+### function/if-else-raise/invalid-target-listcomp
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    [1 for f() in y]
+### function/if-else-raise/return-value
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    return 1
+### function/if-else-raise/yield-stmt
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    yield 1
+### function/if-else-raise/break
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    break
+### function/if-else-raise/continue
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    continue
+### function/if-else-raise/default-except-not-last
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    try:
+        pass
+    except:
+        pass
+    except E:
+        pass
+### function/if-else-raise/del-cell
+def f():
+    if x:
+        raise X
+    else:
+        raise Y
+    v = 1
+    def inner():
+        return v
+    del v
+### function/if-return/genexp-yield-iter
+def f():
+    if x:
+        return
+    list(x for x in (yield []))
+### function/if-return/return-value
+def f():
+    if x:
+        return
+    return 1
+### function/if-return/yield-stmt
+def f():
+    if x:
+        return
+    yield 1
+### function/try-return-finally/genexp-yield-iter
+def f():
+    try:
+        return
+    finally:
+        pass
+    list(x for x in (yield []))
+### function/try-return-finally/invalid-target-unary
+def f():
+    try:
+        return
+    finally:
+        pass
+    -a = 1
+### function/try-return-finally/invalid-target-call-for
+def f():
+    try:
+        return
+    finally:
+        pass
+    for f() in x:
+        pass
+### function/try-return-finally/invalid-target-listcomp
+def f():
+    try:
+        return
+    finally:
+        pass
+    [1 for f() in y]
+### function/try-return-finally/return-value
+def f():
+    try:
+        return
+    finally:
+        pass
+    return 1
+### function/try-return-finally/yield-stmt
+def f():
+    try:
+        return
+    finally:
+        pass
+    yield 1
+### function/try-pass-finally-return/genexp-yield-iter
+def f():
+    try:
+        pass
+    finally:
+        return
+    list(x for x in (yield []))
+### function/try-pass-finally-return/invalid-target-unary
+def f():
+    try:
+        pass
+    finally:
+        return
+    -a = 1
+### function/try-pass-finally-return/invalid-target-call-for
+def f():
+    try:
+        pass
+    finally:
+        return
+    for f() in x:
+        pass
+### function/try-pass-finally-return/invalid-target-listcomp
+def f():
+    try:
+        pass
+    finally:
+        return
+    [1 for f() in y]
+### function/try-pass-finally-return/return-value
+def f():
+    try:
+        pass
+    finally:
+        return
+    return 1
+### function/try-pass-finally-return/yield-stmt
+def f():
+    try:
+        pass
+    finally:
+        return
+    yield 1
+### function/try-return-except-return/genexp-yield-iter
+def f():
+    try:
+        return
+    except:
+        return
+    list(x for x in (yield []))
+### function/try-return-except-return/invalid-target-unary
+def f():
+    try:
+        return
+    except:
+        return
+    -a = 1
+### function/try-return-except-return/invalid-target-call-for
+def f():
+    try:
+        return
+    except:
+        return
+    for f() in x:
+        pass
+### function/try-return-except-return/invalid-target-listcomp
+def f():
+    try:
+        return
+    except:
+        return
+    [1 for f() in y]
+### function/try-return-except-return/return-value
+def f():
+    try:
+        return
+    except:
+        return
+    return 1
+### function/try-return-except-return/yield-stmt
+def f():
+    try:
+        return
+    except:
+        return
+    yield 1
+### function/try-return-except-pass/genexp-yield-iter
+def f():
+    try:
+        return
+    except:
+        pass
+    list(x for x in (yield []))
+### function/try-return-except-pass/return-value
+def f():
+    try:
+        return
+    except:
+        pass
+    return 1
+### function/try-return-except-pass/yield-stmt
+def f():
+    try:
+        return
+    except:
+        pass
+    yield 1
+### function/try-raise-except-raise/genexp-yield-iter
+def f():
+    try:
+        raise X
+    except E:
+        raise Y
+    list(x for x in (yield []))
+### function/try-raise-except-raise/invalid-target-unary
+def f():
+    try:
+        raise X
+    except E:
+        raise Y
+    -a = 1
+### function/try-raise-except-raise/invalid-target-call-for
+def f():
+    try:
+        raise X
+    except E:
+        raise Y
+    for f() in x:
+        pass
+### function/try-raise-except-raise/invalid-target-listcomp
+def f():
+    try:
+        raise X
+    except E:
+        raise Y
+    [1 for f() in y]
+### function/try-raise-except-raise/return-value
+def f():
+    try:
+        raise X
+    except E:
+        raise Y
+    return 1
+### function/try-raise-except-raise/yield-stmt
+def f():
+    try:
+        raise X
+    except E:
+        raise Y
+    yield 1
+### function/for-else-return/invalid-target-unary
+def f():
+    for i in y:
+        return
+    else:
+        return
+    -a = 1
+### function/for-else-return/invalid-target-call-for
+def f():
+    for i in y:
+        return
+    else:
+        return
+    for f() in x:
+        pass
+### function/for-else-return/invalid-target-listcomp
+def f():
+    for i in y:
+        return
+    else:
+        return
+    [1 for f() in y]
+### function/yield-return/listcomp-yield-iter
+def f():
+    yield 1
+    return
+    [x for x in (yield [])]
+### function/yield-return/listcomp-yield-elt
+def f():
+    yield 1
+    return
+    [(yield x) for x in y]
+### function/yield-return/listcomp-yield-if
+def f():
+    yield 1
+    return
+    [x for x in y if (yield x)]
+### function/yield-return/setcomp-yield-iter
+def f():
+    yield 1
+    return
+    {x for x in (yield [])}
+### function/yield-return/dictcomp-yield-iter
+def f():
+    yield 1
+    return
+    {x: 1 for x in (yield [])}
+### function/yield-return/break
+def f():
+    yield 1
+    return
+    break
+### function/yield-return/continue
+def f():
+    yield 1
+    return
+    continue
+### function/yield-return/default-except-not-last
+def f():
+    yield 1
+    return
+    try:
+        pass
+    except:
+        pass
+    except E:
+        pass
+### nested-function/none/listcomp-yield-iter
+def outer():
+    def f():
+        [x for x in (yield [])]
+### nested-function/none/listcomp-yield-elt
+def outer():
+    def f():
+        [(yield x) for x in y]
+### nested-function/none/listcomp-yield-if
+def outer():
+    def f():
+        [x for x in y if (yield x)]
+### nested-function/none/setcomp-yield-iter
+def outer():
+    def f():
+        {x for x in (yield [])}
+### nested-function/none/dictcomp-yield-iter
+def outer():
+    def f():
+        {x: 1 for x in (yield [])}
+### nested-function/none/genexp-yield-iter
+def outer():
+    def f():
+        list(x for x in (yield []))
+### nested-function/none/invalid-target-unary
+def outer():
+    def f():
+        -a = 1
+### nested-function/none/invalid-target-call-for
+def outer():
+    def f():
+        for f() in x:
+            pass
+### nested-function/none/invalid-target-with
+def outer():
+    def f():
+        with c as f():
+            pass
+### nested-function/none/invalid-target-listcomp
+def outer():
+    def f():
+        [1 for f() in y]
+### nested-function/none/return-value
+def outer():
+    def f():
+        return 1
+### nested-function/none/yield-stmt
+def outer():
+    def f():
+        yield 1
+### nested-function/return/listcomp-yield-iter
+def outer():
+    def f():
+        return
+        [x for x in (yield [])]
+### nested-function/return/listcomp-yield-elt
+def outer():
+    def f():
+        return
+        [(yield x) for x in y]
+### nested-function/return/listcomp-yield-if
+def outer():
+    def f():
+        return
+        [x for x in y if (yield x)]
+### nested-function/return/setcomp-yield-iter
+def outer():
+    def f():
+        return
+        {x for x in (yield [])}
+### nested-function/return/dictcomp-yield-iter
+def outer():
+    def f():
+        return
+        {x: 1 for x in (yield [])}
+### nested-function/return/break
+def outer():
+    def f():
+        return
+        break
+### nested-function/return/continue
+def outer():
+    def f():
+        return
+        continue
+### nested-function/return/default-except-not-last
+def outer():
+    def f():
+        return
+        try:
+            pass
+        except:
+            pass
+        except E:
+            pass
+### nested-function/raise/listcomp-yield-iter
+def outer():
+    def f():
+        raise X
+        [x for x in (yield [])]
+### nested-function/raise/listcomp-yield-elt
+def outer():
+    def f():
+        raise X
+        [(yield x) for x in y]
+### nested-function/raise/listcomp-yield-if
+def outer():
+    def f():
+        raise X
+        [x for x in y if (yield x)]
+### nested-function/raise/setcomp-yield-iter
+def outer():
+    def f():
+        raise X
+        {x for x in (yield [])}
+### nested-function/raise/dictcomp-yield-iter
+def outer():
+    def f():
+        raise X
+        {x: 1 for x in (yield [])}
+### nested-function/raise/break
+def outer():
+    def f():
+        raise X
+        break
+### nested-function/raise/continue
+def outer():
+    def f():
+        raise X
+        continue
+### nested-function/raise/default-except-not-last
+def outer():
+    def f():
+        raise X
+        try:
+            pass
+        except:
+            pass
+        except E:
+            pass
+### nested-function/if-else-return/listcomp-yield-iter
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        [x for x in (yield [])]
+### nested-function/if-else-return/listcomp-yield-elt
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        [(yield x) for x in y]
+### nested-function/if-else-return/listcomp-yield-if
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        [x for x in y if (yield x)]
+### nested-function/if-else-return/setcomp-yield-iter
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        {x for x in (yield [])}
+### nested-function/if-else-return/dictcomp-yield-iter
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        {x: 1 for x in (yield [])}
+### nested-function/if-else-return/break
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        break
+### nested-function/if-else-return/continue
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        continue
+### nested-function/if-else-return/default-except-not-last
+def outer():
+    def f():
+        if x:
+            return
+        else:
+            return
+        try:
+            pass
+        except:
+            pass
+        except E:
+            pass
+### nested-function/if-else-raise/listcomp-yield-iter
+def outer():
+    def f():
+        if x:
+            raise X
+        else:
+            raise Y
+        [x for x in (yield [])]
+### nested-function/if-else-raise/listcomp-yield-elt
+def outer():
+    def f():
+        if x:
+            raise X
+        else:
+            raise Y
+        [(yield x) for x in y]
+### nested-function/if-else-raise/listcomp-yield-if
+def outer():
+    def f():
+        if x:
+            raise X
+        else:
+            raise Y
+        [x for x in y if (yield x)]
+### nested-function/if-else-raise/setcomp-yield-iter
+def outer():
+    def f():
+        if x:
+            raise X
+        else:
+            raise Y
+        {x for x in (yield [])}
+### nested-function/if-else-raise/dictcomp-yield-iter
+def outer():
+    def f():
+        if x:
+            raise X
+        else:
+            raise Y
+        {x: 1 for x in (yield [])}
+### nested-function/if-else-raise/break
+def outer():
+    def f():
+        if x:
+            raise X
+        else:
+            raise Y
+        break
+### nested-function/if-else-raise/continue
+def outer():
+    def f():
+        if x:
+            raise X
+        else:
+            raise Y
+        continue
+### nested-function/if-else-raise/default-except-not-last
+def outer():
+    def f():
+        if x:
+            raise X
+        else:
+            raise Y
+        try:
+            pass
+        except:
+            pass
+        except E:
+            pass
+### nested-function/yield-return/listcomp-yield-iter
+def outer():
+    def f():
+        yield 1
+        return
+        [x for x in (yield [])]
+### nested-function/yield-return/listcomp-yield-elt
+def outer():
+    def f():
+        yield 1
+        return
+        [(yield x) for x in y]
+### nested-function/yield-return/listcomp-yield-if
+def outer():
+    def f():
+        yield 1
+        return
+        [x for x in y if (yield x)]
+### nested-function/yield-return/setcomp-yield-iter
+def outer():
+    def f():
+        yield 1
+        return
+        {x for x in (yield [])}
+### nested-function/yield-return/dictcomp-yield-iter
+def outer():
+    def f():
+        yield 1
+        return
+        {x: 1 for x in (yield [])}
+### nested-function/yield-return/break
+def outer():
+    def f():
+        yield 1
+        return
+        break
+### nested-function/yield-return/continue
+def outer():
+    def f():
+        yield 1
+        return
+        continue
+### nested-function/yield-return/default-except-not-last
+def outer():
+    def f():
+        yield 1
+        return
+        try:
+            pass
+        except:
+            pass
+        except E:
+            pass
+### method/none/listcomp-yield-iter
+class C:
+    def f(self):
+        [x for x in (yield [])]
+### method/none/listcomp-yield-elt
+class C:
+    def f(self):
+        [(yield x) for x in y]
+### method/none/listcomp-yield-if
+class C:
+    def f(self):
+        [x for x in y if (yield x)]
+### method/none/setcomp-yield-iter
+class C:
+    def f(self):
+        {x for x in (yield [])}
+### method/none/dictcomp-yield-iter
+class C:
+    def f(self):
+        {x: 1 for x in (yield [])}
+### method/none/genexp-yield-iter
+class C:
+    def f(self):
+        list(x for x in (yield []))
+### method/none/invalid-target-unary
+class C:
+    def f(self):
+        -a = 1
+### method/none/invalid-target-call-for
+class C:
+    def f(self):
+        for f() in x:
+            pass
+### method/none/invalid-target-with
+class C:
+    def f(self):
+        with c as f():
+            pass
+### method/none/invalid-target-listcomp
+class C:
+    def f(self):
+        [1 for f() in y]
+### method/none/return-value
+class C:
+    def f(self):
+        return 1
+### method/none/yield-stmt
+class C:
+    def f(self):
+        yield 1
+### method/return/listcomp-yield-iter
+class C:
+    def f(self):
+        return
+        [x for x in (yield [])]
+### method/return/listcomp-yield-elt
+class C:
+    def f(self):
+        return
+        [(yield x) for x in y]
+### method/return/listcomp-yield-if
+class C:
+    def f(self):
+        return
+        [x for x in y if (yield x)]
+### method/return/setcomp-yield-iter
+class C:
+    def f(self):
+        return
+        {x for x in (yield [])}
+### method/return/dictcomp-yield-iter
+class C:
+    def f(self):
+        return
+        {x: 1 for x in (yield [])}
+### method/return/break
+class C:
+    def f(self):
+        return
+        break
+### method/return/continue
+class C:
+    def f(self):
+        return
+        continue
+### method/return/default-except-not-last
+class C:
+    def f(self):
+        return
+        try:
+            pass
+        except:
+            pass
+        except E:
+            pass
+### method/raise/listcomp-yield-iter
+class C:
+    def f(self):
+        raise X
+        [x for x in (yield [])]
+### method/raise/listcomp-yield-elt
+class C:
+    def f(self):
+        raise X
+        [(yield x) for x in y]
+### method/raise/listcomp-yield-if
+class C:
+    def f(self):
+        raise X
+        [x for x in y if (yield x)]
+### method/raise/setcomp-yield-iter
+class C:
+    def f(self):
+        raise X
+        {x for x in (yield [])}
+### method/raise/dictcomp-yield-iter
+class C:
+    def f(self):
+        raise X
+        {x: 1 for x in (yield [])}
+### method/raise/break
+class C:
+    def f(self):
+        raise X
+        break
+### method/raise/continue
+class C:
+    def f(self):
+        raise X
+        continue
+### method/raise/default-except-not-last
+class C:
+    def f(self):
+        raise X
+        try:
+            pass
+        except:
+            pass
+        except E:
+            pass
+### class/none/listcomp-yield-iter
+class C:
+    [x for x in (yield [])]
+### class/none/listcomp-yield-elt
+class C:
+    [(yield x) for x in y]
+### class/none/listcomp-yield-if
+class C:
+    [x for x in y if (yield x)]
+### class/none/setcomp-yield-iter
+class C:
+    {x for x in (yield [])}
+### class/none/dictcomp-yield-iter
+class C:
+    {x: 1 for x in (yield [])}
+### class/none/genexp-yield-iter
+class C:
+    list(x for x in (yield []))
+### class/none/invalid-target-unary
+class C:
+    -a = 1
+### class/none/invalid-target-call-for
+class C:
+    for f() in x:
+        pass
+### class/none/invalid-target-with
+class C:
+    with c as f():
+        pass
+### class/none/invalid-target-listcomp
+class C:
+    [1 for f() in y]
+### class/none/return-value
+class C:
+    return 1
+### class/none/yield-stmt
+class C:
+    yield 1
+### class/none/exec-with-free-nested
+class C:
+    exec "x"
+    def inner():
+        return v
+    v = 1
+### class/pass/exec-with-free-nested
+class C:
+    pass
+    exec "x"
+    def inner():
+        return v
+    v = 1
+### class/raise/exec-with-free-nested
+class C:
+    raise X
+    exec "x"
+    def inner():
+        return v
+    v = 1
+### class/if-else-raise/exec-with-free-nested
+class C:
+    if x:
+        raise X
+    else:
+        raise Y
+    exec "x"
+    def inner():
+        return v
+    v = 1
+### for-in-function/none/listcomp-yield-iter
+def f():
+    for i in z:
+        [x for x in (yield [])]
+### for-in-function/none/listcomp-yield-elt
+def f():
+    for i in z:
+        [(yield x) for x in y]
+### for-in-function/none/listcomp-yield-if
+def f():
+    for i in z:
+        [x for x in y if (yield x)]
+### for-in-function/none/setcomp-yield-iter
+def f():
+    for i in z:
+        {x for x in (yield [])}
+### for-in-function/none/dictcomp-yield-iter
+def f():
+    for i in z:
+        {x: 1 for x in (yield [])}
+### for-in-function/none/genexp-yield-iter
+def f():
+    for i in z:
+        list(x for x in (yield []))
+### for-in-function/none/invalid-target-unary
+def f():
+    for i in z:
+        -a = 1
+### for-in-function/none/invalid-target-call-for
+def f():
+    for i in z:
+        for f() in x:
+            pass
+### for-in-function/none/invalid-target-with
+def f():
+    for i in z:
+        with c as f():
+            pass
+### for-in-function/none/invalid-target-listcomp
+def f():
+    for i in z:
+        [1 for f() in y]
+### for-in-function/none/return-value
+def f():
+    for i in z:
+        return 1
+### for-in-function/none/yield-stmt
+def f():
+    for i in z:
+        yield 1
+### while-in-function/none/listcomp-yield-iter
+def f():
+    while z:
+        [x for x in (yield [])]
+### while-in-function/none/listcomp-yield-elt
+def f():
+    while z:
+        [(yield x) for x in y]
+### while-in-function/none/listcomp-yield-if
+def f():
+    while z:
+        [x for x in y if (yield x)]
+### while-in-function/none/setcomp-yield-iter
+def f():
+    while z:
+        {x for x in (yield [])}
+### while-in-function/none/dictcomp-yield-iter
+def f():
+    while z:
+        {x: 1 for x in (yield [])}
+### while-in-function/none/genexp-yield-iter
+def f():
+    while z:
+        list(x for x in (yield []))
+### while-in-function/none/invalid-target-unary
+def f():
+    while z:
+        -a = 1
+### while-in-function/none/invalid-target-call-for
+def f():
+    while z:
+        for f() in x:
+            pass
+### while-in-function/none/invalid-target-with
+def f():
+    while z:
+        with c as f():
+            pass
+### while-in-function/none/invalid-target-listcomp
+def f():
+    while z:
+        [1 for f() in y]
+### while-in-function/none/return-value
+def f():
+    while z:
+        return 1
+### while-in-function/none/yield-stmt
+def f():
+    while z:
+        yield 1
+### try-in-function/none/listcomp-yield-iter
+def f():
+    try:
+        [x for x in (yield [])]
+    except:
+        pass
+### try-in-function/none/listcomp-yield-elt
+def f():
+    try:
+        [(yield x) for x in y]
+    except:
+        pass
+### try-in-function/none/listcomp-yield-if
+def f():
+    try:
+        [x for x in y if (yield x)]
+    except:
+        pass
+### try-in-function/none/setcomp-yield-iter
+def f():
+    try:
+        {x for x in (yield [])}
+    except:
+        pass
+### try-in-function/none/dictcomp-yield-iter
+def f():
+    try:
+        {x: 1 for x in (yield [])}
+    except:
+        pass
+### try-in-function/none/genexp-yield-iter
+def f():
+    try:
+        list(x for x in (yield []))
+    except:
+        pass
+### try-in-function/none/invalid-target-unary
+def f():
+    try:
+        -a = 1
+    except:
+        pass
+### try-in-function/none/invalid-target-call-for
+def f():
+    try:
+        for f() in x:
+            pass
+    except:
+        pass
+### try-in-function/none/invalid-target-with
+def f():
+    try:
+        with c as f():
+            pass
+    except:
+        pass
+### try-in-function/none/invalid-target-listcomp
+def f():
+    try:
+        [1 for f() in y]
+    except:
+        pass
+### try-in-function/none/return-value
+def f():
+    try:
+        return 1
+    except:
+        pass
+### try-in-function/none/yield-stmt
+def f():
+    try:
+        yield 1
+    except:
+        pass
+### except-in-function/none/listcomp-yield-iter
+def f():
+    try:
+        pass
+    except:
+        [x for x in (yield [])]
+### except-in-function/none/listcomp-yield-elt
+def f():
+    try:
+        pass
+    except:
+        [(yield x) for x in y]
+### except-in-function/none/listcomp-yield-if
+def f():
+    try:
+        pass
+    except:
+        [x for x in y if (yield x)]
+### except-in-function/none/setcomp-yield-iter
+def f():
+    try:
+        pass
+    except:
+        {x for x in (yield [])}
+### except-in-function/none/dictcomp-yield-iter
+def f():
+    try:
+        pass
+    except:
+        {x: 1 for x in (yield [])}
+### except-in-function/none/genexp-yield-iter
+def f():
+    try:
+        pass
+    except:
+        list(x for x in (yield []))
+### except-in-function/none/invalid-target-unary
+def f():
+    try:
+        pass
+    except:
+        -a = 1
+### except-in-function/none/invalid-target-call-for
+def f():
+    try:
+        pass
+    except:
+        for f() in x:
+            pass
+### except-in-function/none/invalid-target-with
+def f():
+    try:
+        pass
+    except:
+        with c as f():
+            pass
+### except-in-function/none/invalid-target-listcomp
+def f():
+    try:
+        pass
+    except:
+        [1 for f() in y]
+### except-in-function/none/return-value
+def f():
+    try:
+        pass
+    except:
+        return 1
+### except-in-function/none/yield-stmt
+def f():
+    try:
+        pass
+    except:
+        yield 1
+### finally-in-function/none/listcomp-yield-iter
+def f():
+    try:
+        pass
+    finally:
+        [x for x in (yield [])]
+### finally-in-function/none/listcomp-yield-elt
+def f():
+    try:
+        pass
+    finally:
+        [(yield x) for x in y]
+### finally-in-function/none/listcomp-yield-if
+def f():
+    try:
+        pass
+    finally:
+        [x for x in y if (yield x)]
+### finally-in-function/none/setcomp-yield-iter
+def f():
+    try:
+        pass
+    finally:
+        {x for x in (yield [])}
+### finally-in-function/none/dictcomp-yield-iter
+def f():
+    try:
+        pass
+    finally:
+        {x: 1 for x in (yield [])}
+### finally-in-function/none/genexp-yield-iter
+def f():
+    try:
+        pass
+    finally:
+        list(x for x in (yield []))
+### finally-in-function/none/invalid-target-unary
+def f():
+    try:
+        pass
+    finally:
+        -a = 1
+### finally-in-function/none/invalid-target-call-for
+def f():
+    try:
+        pass
+    finally:
+        for f() in x:
+            pass
+### finally-in-function/none/invalid-target-with
+def f():
+    try:
+        pass
+    finally:
+        with c as f():
+            pass
+### finally-in-function/none/invalid-target-listcomp
+def f():
+    try:
+        pass
+    finally:
+        [1 for f() in y]
+### finally-in-function/none/return-value
+def f():
+    try:
+        pass
+    finally:
+        return 1
+### finally-in-function/none/yield-stmt
+def f():
+    try:
+        pass
+    finally:
+        yield 1
+### with-in-function/none/listcomp-yield-iter
+def f():
+    with c:
+        [x for x in (yield [])]
+### with-in-function/none/listcomp-yield-elt
+def f():
+    with c:
+        [(yield x) for x in y]
+### with-in-function/none/listcomp-yield-if
+def f():
+    with c:
+        [x for x in y if (yield x)]
+### with-in-function/none/setcomp-yield-iter
+def f():
+    with c:
+        {x for x in (yield [])}
+### with-in-function/none/dictcomp-yield-iter
+def f():
+    with c:
+        {x: 1 for x in (yield [])}
+### with-in-function/none/genexp-yield-iter
+def f():
+    with c:
+        list(x for x in (yield []))
+### with-in-function/none/invalid-target-unary
+def f():
+    with c:
+        -a = 1
+### with-in-function/none/invalid-target-call-for
+def f():
+    with c:
+        for f() in x:
+            pass
+### with-in-function/none/invalid-target-with
+def f():
+    with c:
+        with c as f():
+            pass
+### with-in-function/none/invalid-target-listcomp
+def f():
+    with c:
+        [1 for f() in y]
+### with-in-function/none/return-value
+def f():
+    with c:
+        return 1
+### with-in-function/none/yield-stmt
+def f():
+    with c:
+        yield 1
+### if-in-function/none/listcomp-yield-iter
+def f():
+    if z:
+        [x for x in (yield [])]
+### if-in-function/none/listcomp-yield-elt
+def f():
+    if z:
+        [(yield x) for x in y]
+### if-in-function/none/listcomp-yield-if
+def f():
+    if z:
+        [x for x in y if (yield x)]
+### if-in-function/none/setcomp-yield-iter
+def f():
+    if z:
+        {x for x in (yield [])}
+### if-in-function/none/dictcomp-yield-iter
+def f():
+    if z:
+        {x: 1 for x in (yield [])}
+### if-in-function/none/genexp-yield-iter
+def f():
+    if z:
+        list(x for x in (yield []))
+### if-in-function/none/invalid-target-unary
+def f():
+    if z:
+        -a = 1
+### if-in-function/none/invalid-target-call-for
+def f():
+    if z:
+        for f() in x:
+            pass
+### if-in-function/none/invalid-target-with
+def f():
+    if z:
+        with c as f():
+            pass
+### if-in-function/none/invalid-target-listcomp
+def f():
+    if z:
+        [1 for f() in y]
+### if-in-function/none/return-value
+def f():
+    if z:
+        return 1
+### if-in-function/none/yield-stmt
+def f():
+    if z:
+        yield 1
+### for-in-module/none/listcomp-yield-iter
+for i in z:
+    [x for x in (yield [])]
+### for-in-module/none/listcomp-yield-elt
+for i in z:
+    [(yield x) for x in y]
+### for-in-module/none/listcomp-yield-if
+for i in z:
+    [x for x in y if (yield x)]
+### for-in-module/none/setcomp-yield-iter
+for i in z:
+    {x for x in (yield [])}
+### for-in-module/none/dictcomp-yield-iter
+for i in z:
+    {x: 1 for x in (yield [])}
+### for-in-module/none/genexp-yield-iter
+for i in z:
+    list(x for x in (yield []))
+### for-in-module/none/invalid-target-unary
+for i in z:
+    -a = 1
+### for-in-module/none/invalid-target-call-for
+for i in z:
+    for f() in x:
+        pass
+### for-in-module/none/invalid-target-with
+for i in z:
+    with c as f():
+        pass
+### for-in-module/none/invalid-target-listcomp
+for i in z:
+    [1 for f() in y]
+### for-in-module/none/return-value
+for i in z:
+    return 1
+### for-in-module/none/yield-stmt
+for i in z:
+    yield 1
+### generator/none/listcomp-yield-iter
+def f():
+    yield 0
+    [x for x in (yield [])]
+### generator/none/listcomp-yield-elt
+def f():
+    yield 0
+    [(yield x) for x in y]
+### generator/none/listcomp-yield-if
+def f():
+    yield 0
+    [x for x in y if (yield x)]
+### generator/none/setcomp-yield-iter
+def f():
+    yield 0
+    {x for x in (yield [])}
+### generator/none/dictcomp-yield-iter
+def f():
+    yield 0
+    {x: 1 for x in (yield [])}
+### generator/none/genexp-yield-iter
+def f():
+    yield 0
+    list(x for x in (yield []))
+### generator/none/invalid-target-unary
+def f():
+    yield 0
+    -a = 1
+### generator/none/invalid-target-call-for
+def f():
+    yield 0
+    for f() in x:
+        pass
+### generator/none/invalid-target-with
+def f():
+    yield 0
+    with c as f():
+        pass
+### generator/none/invalid-target-listcomp
+def f():
+    yield 0
+    [1 for f() in y]
+### generator/none/return-value
+def f():
+    yield 0
+    return 1
+### generator/none/yield-stmt
+def f():
+    yield 0
+    yield 1

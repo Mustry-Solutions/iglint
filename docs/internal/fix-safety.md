@@ -93,8 +93,10 @@ Three mechanisms carry it:
    in either direction), changes a docstring or the `__future__` imports,
    changes the scopes (generator status, `global` declarations, `import
    *`, `exec`, frame reads), or changes what any remaining name resolves
-   to (local, enclosing function, global, builtin, injected) or whether it
-   may be unbound. Names that statements bind without naming them are
+   to (local, enclosing function, global, builtin, injected, and where a
+   class body's lookup continues), which kinds of bindings it may find,
+   or whether it may be unbound; the interpreter's implicit reads count
+   (see "Name resolution, measured"). Names that statements bind without naming them are
    bindings of the semantic model too: `__module__` in class bodies and
    the `__package__` that every import binds in a library module's
    globals (see "Names imports bind"), so removing the only import of a
@@ -330,6 +332,69 @@ the `SCR102` row). Tests: `imports_bind_package_in_library_modules`,
 `removing_the_import_that_binds_package_is_unsafe_when_observed`, the
 binary test `imports_that_bind_a_read_package_are_kept` and the language
 server test `quick_fix_for_an_import_whose_package_is_read_is_unsafe`.
+
+### Name resolution, measured
+
+Review round 13: two safe `SCR102` removals broke modules because the
+semantic model resolved class bodies like function bodies. Jython's
+compiler decides, for every name occurrence, how the generated code
+reaches it, and `oracle/scope/` records that decision from the bytecode
+Jython generates (`PyFrame.getname`, `getglobal`, `getlocal`, `getderef`
+and their store and delete forms, with the spelling the code uses, and
+every attribute name). The model's own view of the same program
+(`iglint_python_semantic::scope_dump`, built from its references and
+bindings) must match it: the `scope_oracle` test replays a stratified
+sample and hand-written cases; `oracle/scope/run.sh random` runs a fresh
+batch of generated programs (class bodies at module level, in functions
+and in classes, private names in every binding form, `global` in classes
+and nested functions, comprehensions, generator expressions and lambdas
+in class bodies, `exec`, `import *`, reads before bindings, control flow
+that ends blocks, generators). What it established:
+
+* a class body reads by name: a name the class binds anywhere is looked
+  up in the class namespace, then in the module's globals and the
+  builtins, never in an enclosing function. The model's reference keeps
+  the class bindings that reach it and, flow-insensitively, every module
+  binding and the builtin (`Reference::fallback`); every consumer that
+  asks what a name may stand for (`SCR101`, `SCR102` and its
+  last-binding guard, vetting, the safety net) sees both;
+* private names (`__x`) are mangled to `_C__x` in class bodies only
+  (every binding form, also under `global`, which the symbol table does
+  not mangle), and attribute names in every scope inside a class; names
+  in methods are not. Bindings and references carry the run-time
+  spelling (`name`) and the source spelling (`source_name`);
+* free variables skip class bodies, a free name that an enclosing
+  function declares `global` is global, and a class nested in two
+  functions rejects unqualified `exec` with free names and `import *`;
+* code after a statement that does not complete is generated but
+  unreachable (its accesses never happen), except after a `yield` in a
+  generator, which resumes there; an `except` clause whose `try` body is
+  only `global` statements is unreachable; code after `return`, `raise`,
+  `continue` or a both-ways-ending `if` is not generated at all.
+
+The interpreter also reads names the code does not name. Measured with
+`oracle/run-oracle.sh --reads` (a module namespace that records every
+lookup; `implicit_reads_oracle` checks the model never misses one):
+`__name__` when a class body starts and when a function, lambda or
+generator expression is created, `__metaclass__` after a class body
+without bases, `__name__`, `__package__` and `__path__` at every
+import, `__debug__` and `AssertionError` at `assert`. The model records
+them as `ReferenceKind::Implicit` references: they keep the bindings they
+read alive (`import math as __metaclass__` is used), rules about names the
+author wrote skip them, and the safety net compares them (except the
+import's own reads, which go with the import). Jython ignores a module's
+own `__builtins__` binding for builtin lookups (measured), so it is not an
+implicit read.
+
+The safety net compares, per name read in each scope, the resolution,
+the class fallback, whether the read may be unbound and the kinds of the
+bindings it may find (with the kind of scope that holds each), so a fix
+that removes the binding a read finds is caught even when the read
+resolves the same way afterwards.
+
+Measured on 2026-10-24: 100,000 generated programs and the 1,642 scripts
+of the private project (its revision of that day), 0 differences; the
+private project's findings and fixes are unchanged by the change.
 
 ### String sinks
 

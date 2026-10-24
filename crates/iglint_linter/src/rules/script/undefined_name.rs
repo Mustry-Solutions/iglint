@@ -42,10 +42,15 @@ import *` or unqualified `exec`; in a module that writes its own namespace
 `exec code in locals()` (or `in vars()`, `in globals(), locals()`), whose
 names Jython looks up at run time; inside a `try`
 whose handlers catch `NameError`, in projects whose parent project is not
-part of the linted tree (its library is unknown), in tag scripts of gateway
-resources and `.py` files outside any project (their library is unknown),
-and for the 7.x prefixes
+part of the linted tree (its library is unknown), and for the 7.x prefixes
 `project.`, `shared.` and `app.` (reported by `SCR206`).
+
+Not checked at all: a `.py` file outside any project (no `project.json` in
+its directory or a parent directory, such as a loose file linted on its
+own) and the tag scripts of gateway resources. Any name they do not
+bind could be a top-level package of the script library they run with,
+which iglint does not know there, so no name is reported, not only names
+that look like packages. Lint the file as part of its project to check it.
 
 ## Why is this bad?
 
@@ -126,7 +131,7 @@ impl ScriptRule for UndefinedName {
         };
         let text = source(unit);
         for (_, r) in model.references() {
-            if r.resolution != Resolution::Unresolved || r.name_error_guarded {
+            if r.resolution != Resolution::Unresolved || r.name_error_guarded || r.is_implicit() {
                 continue;
             }
             if matches!(r.name, "project" | "shared" | "app")
@@ -135,9 +140,13 @@ impl ScriptRule for UndefinedName {
                 continue;
             }
             let mut message = match r.kind {
-                ReferenceKind::Del => format!("Undefined name `{}` in `del`", r.name),
-                _ => format!("Undefined name `{}`", r.name),
+                ReferenceKind::Del => format!("Undefined name `{}` in `del`", r.source_name),
+                _ => format!("Undefined name `{}`", r.source_name),
             };
+            if r.name != r.source_name {
+                // A private name in a class body is looked up mangled.
+                message.push_str(&format!(" (looked up as `{}`)", r.name));
+            }
             if PYTHON3_ONLY.contains(&r.name) {
                 message.push_str(" (a Python 3 builtin; Jython 2.7 does not have it)");
             }
@@ -303,5 +312,25 @@ mod tests {
                 &[("code.py", "unknown_lib.g()\n")],
             );
         assert!(f.lint(&["SCR101"]).is_empty());
+    }
+
+    /// Review round 13: a class body looks private names up mangled.
+    #[test]
+    fn private_names_in_class_bodies_are_mangled() {
+        let code = "from math import pi as _D__pi\n\nclass D(object):\n    x = __pi\n";
+        assert!(lint_module("SCR101", code).is_empty());
+        let d = lint_module("SCR101", "class D(object):\n    x = __pi\n");
+        assert_eq!(flagged(&d), ["__pi"]);
+        assert_eq!(
+            messages(&d),
+            ["Undefined name `__pi` (looked up as `_D__pi`)"]
+        );
+        // Methods do not mangle names; attributes are mangled everywhere
+        // in the class, which is not a name lookup.
+        let code =
+            "_D__pi = 1\n\nclass D(object):\n    def f(self):\n        return __pi, self.__pi\n";
+        assert_eq!(flagged(&lint_module("SCR101", code)), ["__pi"]);
+        // The names the interpreter reads itself are never reported.
+        assert!(lint_module("SCR101", "class C:\n    pass\nimport os\nassert os\n").is_empty());
     }
 }

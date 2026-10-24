@@ -52,7 +52,7 @@ pub fn compile_warnings(model: &SemanticModel<'_>) -> Vec<CompileWarning> {
             .iter()
             .map(|id| {
                 let b = model.binding(*id);
-                (b.name, b.range)
+                (b.source_name, b.range)
             })
             .collect();
         globals.sort_by_key(|(_, r)| r.start());
@@ -64,7 +64,7 @@ pub fn compile_warnings(model: &SemanticModel<'_>) -> Vec<CompileWarning> {
             let before = |r: TextRange| r.start() < range.start();
             let assigned = model.bindings().any(|(_, b)| {
                 b.site == scope_id
-                    && b.name == name
+                    && b.source_name == name
                     && before(b.range)
                     && !matches!(
                         b.kind,
@@ -77,15 +77,15 @@ pub fn compile_warnings(model: &SemanticModel<'_>) -> Vec<CompileWarning> {
                     )
             }) || model.references().any(|(_, r)| {
                 r.scope == scope_id
-                    && r.name == name
+                    && r.source_name == name
                     && r.kind == ReferenceKind::Del
                     && before(r.range)
             });
             let used = || {
                 model.references().any(|(_, r)| {
                     r.scope == scope_id
-                        && r.name == name
-                        && r.kind != ReferenceKind::Del
+                        && r.source_name == name
+                        && !matches!(r.kind, ReferenceKind::Del | ReferenceKind::Implicit(_))
                         && before(r.range)
                 })
             };

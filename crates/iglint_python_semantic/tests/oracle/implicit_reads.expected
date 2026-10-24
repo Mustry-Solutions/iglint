@@ -1,0 +1,60 @@
+### nothing
+reads 
+### classic-class
+reads __metaclass__ __name__
+### classic-class-binds-metaclass-later
+reads __name__ type
+### classic-class-reads-metaclass
+reads __metaclass__ __name__ !NameError
+### new-style-class
+reads __name__ object
+### class-reads-before-binding
+reads __name__ len object
+### class-reads-module-name
+reads __name__ m object
+### class-private-name
+reads _C__p __name__ object
+### class-in-function
+reads __metaclass__ __name__ f
+### class-in-function-reads-enclosing
+reads __name__ f object
+### def
+reads __name__
+### def-called
+reads NameError __name__ f g
+### lambda
+reads __name__
+### genexp
+reads __name__
+### setcomp
+reads __name__
+### dictcomp
+reads __name__
+### listcomp
+reads _[1_5] x
+### import-fails
+reads ImportError __name__ __package__ __path__
+### from-import-fails
+reads ImportError __name__ __package__ __path__
+### import-in-function
+reads ImportError __name__ __package__ __path__ f
+### assert-passes
+reads __debug__ len
+### assert-fails
+reads AssertionError __debug__
+### assert-in-function
+reads AssertionError __debug__ __name__ f
+### global-in-function
+reads __name__ f g
+### print
+reads len
+### for
+reads 
+### with
+reads M __name__ object
+### decorated
+reads __metaclass__ __name__ deco
+### exec-in-module
+reads 
+### raise
+reads ValueError
