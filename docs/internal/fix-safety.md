@@ -749,7 +749,8 @@ leave out the other routes. `SCR103`'s fix is unsafe in any case.
 | frames, the module table and the builtins | `sys._getframe`, `sys._current_frames`, `sys.modules`, `sys.builtins`, `sys.getBuiltins()`, `sys.getDefaultBuiltins()`, `sys.modules_reloading`, `inspect.currentframe`, `inspect.stack`, `inspect.getouterframes`, `gc.get_referrers`, `from sys import *` | yes (`sys.builtins['locals']()` reads the caller's frame, measured on 8.3.3) | unsafe |
 | trace hooks | `sys.settrace`, `sys.setprofile` | yes: hooks receive frames | unsafe |
 | frame, traceback and generator links, function globals | `.f_locals`, `.f_globals`, `.f_back`, `.f_builtins`, `.f_trace`, `.tb_frame`, `.gi_frame`, `.func_globals`, `.__globals__`, also as a literal in a sink | yes | unsafe |
-| a frame-reaching module as a value, its namespace, or another module's `sys` | `x = sys`, `getattr(sys, n)`, `f(importlib)`, `sys.__dict__`, `re.sys`, `importlib.sys` | yes: its frame functions are no longer named | unsafe |
+| a frame-reaching module as a value, its namespace, or the `sys` attribute of any value | `x = sys`, `getattr(sys, n)`, `f(importlib)`, `sys.__dict__`, `re.sys`, `importlib.sys`, `cfg.sys` | yes: its frame functions are no longer named; any receiver counts, because a module, an alias or parameter holding one, or any object whose attribute was set to the module may hand out `sys` (only a literal could not, and a script never reads `sys` off one) | unsafe |
+| the namespace of a value that may be a module (a name bound by an import or bound nowhere, and its attributes) | `vars(json)`, `json.__dict__`, `m.dict`, `m.getDict()`, `m.__reduce_ex__(2)`, `getattr(m, '__dict__')`, `m.__getattribute__('dict')` | yes: it holds the module's `__builtins__` (`vars(json)['__builtins__']['locals']()` and `m.dict['__builtins__']['locals']()` read the caller's frame, measured on 8.3.3) | unsafe |
 | the interpreter's classes | `from org.python.core import Py`, `PyFrame`, `ThreadState`, `PySystemState`, `import org.python.core` | yes: `Py.getFrame()` | unsafe |
 | a reflective accessor or format method under another name | `get = getattr`, `map(getattr, ...)`, `f = template.format` | yes: every call of it is hidden | unsafe |
 | measured reflective Java members | `.type`, `.fields`, `.module`, `getColumnType(i)`, `.__class__`, `.traceback` | no: a first hop into Java reflection | unsafe |
@@ -757,6 +758,7 @@ leave out the other routes. `SCR103`'s fix is unsafe in any case.
 | a computed attribute name or format string | `getattr(o, n)`, `setattr(o, n, v)`, `'{0}'.format` on a computed string, `vars(o)`, `getattr(o, 'class')` | no: it reads what it is given | unsafe |
 | the exception state and tracebacks as text | `sys.exc_info()`, `sys.exc_traceback`, `import traceback`, `.tb_lineno`, `.tb_next` | no: a frame needs `tb_frame` (a route of its own) | unsafe |
 | line numbers, code objects, class hierarchies, method internals | `.f_lineno`, `.co_varnames`, `.func_code`, `.__dict__`, `.__mro__`, `.__subclasses__`, `.im_self`, `inspect.getmembers` | no: none of them reads a frame's names | unsafe |
+| the namespace members of library objects on any other value, an object's state, code from data | `o.dict`, `o.getDict()`, `o.setCode(s)`, `o.__reduce_ex__(2)`, `getattr(o, 'dict')` | no: on a value not known to be a module (an alias, a parameter) it is a first hop | unsafe |
 | importing a module loader, loading a plain module by a literal name, `compile`, Jython's value classes | `import importlib`, `import imp`, `imp.new_module(n)`, `compile(...)`, `__import__('os')`, `importlib.import_module('json')`, `from org.python.core import PyString` | no: what they hand out is used through further routes | unsafe |
 
 Not routes, and handled by the scope that runs them (`symbols.rs`):
@@ -809,6 +811,102 @@ the route as the site), `unused_library_function::tests::escaped_modules_are_ski
 and the binary test `fix_only_routes_keep_findings` (the reviewer's
 repro: `SCR102`, `SCR103` and `REF012` reported, `REF002` against a
 module with only such a route).
+
+### Library module objects
+
+Review round 26 (Opus, blocker): `m.__getattribute__('re')` in one
+library module was not a use of `m.re`, so `SCR102` removed `import re`
+in `m` as safe. Exotic routes to a library module's names had been found
+for several rounds in a row (`vars(m)`, `getattr(m, n)`, `m.__dict__`,
+now the special attributes), so the routes are handled as a class,
+default deny, from what Ignition's objects are.
+
+Ignition 8.3.3 loads a project library module as a
+`com.inductiveautomation.ignition.common.script.ProjectScriptModule` and a
+package folder as a `ScriptPackage` (measured with the gateway's own
+`ScriptManager.addProjectScriptModules`, as the gateway loads a
+project's library; `oracle/jython_library_routes_oracle.py`). Besides
+the module's names they have:
+
+* the special attributes of `object` and their own (`__class__`,
+  `__delattr__`, `__dict__`, `__findattr_ex__`, `__getattribute__`,
+  `__reduce__`, `__reduce_ex__`, `__setattr__`, packages also
+  `__finditem__` and `__setitem__`, ...);
+* Java members, found when the module does not bind the name (a name the
+  module binds wins, measured): modules `code`, `dict`, `getCode`,
+  `getDict`, `getName`, `getPath`, `loadModule`, `name`, `path`,
+  `reloadModule`, `setCode`, `setName`, `toString`
+  (`iglint_project::library::MODULE_OBJECT_MEMBERS`); packages, when the
+  package has no child of that name, `clear`, `dict`, `getDict`,
+  `getName`, `name`, `setDict`, `setName`, `toString`
+  (`PACKAGE_OBJECT_MEMBERS`).
+
+`m.dict`, `m.getDict()`, `m.__dict__` and `m.__reduce_ex__(2)[2]` are the
+module's namespace, `__builtins__` included; `m.__findattr_ex__('re')`
+reads a name, `m.__setattr__` and `m.__delattr__` write and delete one,
+`m.setCode(s)` replaces the code, `pkg.dict`, `pkg.__finditem__('m')`
+and `pkg.getDict()` hand out the modules, `pkg.clear()` and
+`pkg.__setitem__` replace them. Subscripts do not work on either object
+(`TypeError`). On these objects `__getattribute__`, `__getattr__`,
+`__findattr__`, `object.__getattribute__(m, n)`,
+`type(m).__getattribute__(m, n)` and `super(type(m), m).__getattribute__`
+raise `AttributeError` for the module's names (the reviewer's repro does
+not reach `re` on a gateway); they count anyway, fail closed.
+
+The rule (`script_facts::refs`):
+
+* reading or calling a name of a module or package (`m.f`, `pkg.m.f`) is
+  a static reference;
+* a special attribute (`__x__`, other than `__name__`, `__doc__`,
+  `__module__`) anywhere after the root of a chain from another module
+  makes the object before it a value that may read and change everything
+  in it: a use as a value (every name of the module is used), a store (its
+  names may differ from their definitions), a change and a library value
+  (for the shared objects it holds), like `vars(m)` and `m.__dict__`. So
+  does such an attribute on a value that is not a chain (`getattr(pkg,
+  'm').__dict__`, `[m][0].__dict__`), and any attribute of an object read
+  by a literal accessor (`getattr(pkg, 'm').re`), which the dotted names
+  do not follow;
+* `X.__getattribute__('n')`, `__getattr__`, `__findattr__` and
+  `__findattr_ex__` with a literal name are `getattr(X, 'n')`;
+  `__setattr__('n', v)` and `__delattr__('n')` are `setattr` and
+  `delattr` (a change, a store of `X.n`, `X` as a value); computed names
+  are the special attribute used;
+* a Java member of the objects is decided by the project index, which
+  knows whether the module binds the name
+  (`LibraryTree::object_member`): the module, or every module of the
+  package, is used as a value, escapes and is stored, and the chain is a
+  library value; `REF002` does not report it missing (it exists).
+
+Aliases, parameters, containers and arguments that hold a module are the
+module used as a value already, so every route through them counts too
+(`x = m; x.__getattribute__('re')`, `inspect.getmembers(m)`,
+`operator.attrgetter('re')(m)`, `copy.copy(m)`).
+
+In the script that uses the routes, the namespace of a value that may be
+a module observes names ("Frame routes: findings and fixes"): the
+namespace holds `__builtins__`, whose `locals()` reads the caller's frame
+(`m.dict['__builtins__']['locals']()` returned `['os']` with a
+function-local `import os` and `[]` without, so `SCR102` had removed the
+caller's import as safe). `dict`, `getDict`, `setCode`, `__reduce__` and
+`__reduce_ex__` are frame routes on any value, since an alias or a
+parameter may hold a module.
+
+The oracle enumerates every member of both objects (from `dir` of the
+object, its type and `object`, and every public Java method, field and
+bean property of the classes, that `getattr` finds) and runs 80 routes
+(`crates/iglint_linter/tests/fixtures/library-routes/routes.cases`:
+special attributes, Jython's accessors, `getattr`, `hasattr`, `setattr`,
+`delattr`, `vars`, `dir`, `operator.attrgetter` and `methodcaller`,
+`object` and `type` accessors, `types.ModuleType`, `super`, `copy`,
+`pickle`, `cPickle`, `inspect.getmembers`, `func_globals`, aliases,
+containers, package chains, `from pkg import m`). The replay test
+`rules::refs::library_routes` (137 routes: every member as `m.<member>`
+and `pkg.<member>`, and every case) checks that no route leaves a safe
+removal of the import it may reach, that `REF002` reports nothing, and
+that a route that may reach any name keeps `REF012` silent;
+`library_object_members_match_the_oracle` that the member tables are the
+measured ones.
 
 ### Closed world
 
@@ -1752,11 +1850,11 @@ longer needed for safety.
 | `VIEW012` | Set, add or remove `access` in `propConfig` | Never: the access mode decides whether the browser receives the property and whether it may write it | Unsafe |
 | `VIEW013` | Set `persistent: false` (and remove the stored value) | No stored value: the property starts out absent either way; and no code in the workspace may read workspace files ("File reads") | Unsafe when a stored value is removed: scripts and expressions that run before the binding delivers (query bindings are asynchronous) see a different value |
 | `VIEW015` | Remove an unused custom property and its `propConfig` entries | Nothing reads or writes the property, and the view's own scripts prove it: resolved reads and writes cover expressions, bindings (bidirectional ones write) and scripts, analysed default-deny (every use of a component, the view, a page or session, a property container or an alias of one must be one of the forms listed under "`VIEW015`: understood forms" below; anything else reads and writes everything it reaches); a script that reads frames or reaches a frame builtin in any way reads everything, and every library name a script calls or uses as a value is checked to be a plain function, class or literal constant (or missing); properties with a binding or change script are never reported | Unsafe when a script, a library function it calls or a bidirectional binding writes the property (the write recreates it at run time without the `access` and `persistent` settings of the removed `propConfig` entry); unsafe when the finding relies on following a value into library functions (inter-procedural: the function's body, a function that does not exist, the depth limit); unsafe for a view linted outside its project whose scripts call names that may be library functions; unsafe when a script of the view, or a library module it imports or calls, uses code that is not vetted; unsafe when any code in the workspace reaches other views through a page or session (closed world, "Other views") |
-| `SCR102` | Remove unused import names or statements; the safe fix keeps the emptied lines, the unsafe fix removes them | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); not a top-level name of a library module that another resource reads (`pkg.mod.name`, a literal `getattr` or `hasattr` name) or uses as a value (a default argument, a container, `getGlobals()`, `sys.modules`; never reported); a top-level library import is provably unused by other resources and no resource of the project uses code that is not vetted; every removed import is known to succeed and to be effect-free: a measured Java class or package of the vetted packages, or a plain `import x` / non-package `from x import y` of a standard module on the verified list that was measured to import (and to have `y`), with no project library package of that name; the module uses only vetted code and calls no library name that may be a frame builtin; the import is not the only binding of a name still read in its scope or a nested scope; it does not come before a `from __future__` import; and, when the whole statement goes from a library module (where every import that runs binds `__package__`, see "Names imports bind"), nothing may observe `__package__` or `__warningregistry__`: no read or binding of either in the module, no binding of `__name__`, no read of the module's globals by name, and no other resource reading them, the module's `__dict__` or the module as a value (`external_use`, unknown counts as a reader) | Unsafe (project library modules, third-party and non-JDK Java packages, Java classes or module attributes not measured to exist, `socket`, `logging`, dotted imports, relative imports, unknown project, a library name that is not a plain function, class or literal constant, code that is not vetted, a name that would resolve differently, a misplaced future import that would become valid, a `__package__` that code may observe) |
+| `SCR102` | Remove unused import names or statements; the safe fix keeps the emptied lines, the unsafe fix removes them | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); not a top-level name of a library module that another resource reads (`pkg.mod.name`, a literal `getattr` or `hasattr` name) or uses as a value (a default argument, a container, `getGlobals()`, `sys.modules`; never reported); a top-level library import is provably unused by other resources and no resource of the project uses code that is not vetted; every removed import is known to succeed and to be effect-free: a measured Java class or package of the vetted packages, or a plain `import x` / non-package `from x import y` of a standard module on the verified list that was measured to import (and to have `y`), with no project library package of that name; the module uses only vetted code and calls no library name that may be a frame builtin; the import is not the only binding of a name still read in its scope or a nested scope; it does not come before a `from __future__` import; and, when the whole statement goes from a library module (where every import that runs binds `__package__`, see "Names imports bind"), nothing may observe `__package__` or `__warningregistry__`: no read or binding of either in the module, no binding of `__name__`, no read of the module's globals by name, and no other resource reading them, the module's `__dict__` or the module as a value (`external_use`, unknown counts as a reader); a special attribute or a member of the module object read elsewhere is the module used as a value ("Library module objects"); a script of the project that does not parse may reference anything once it does (review round 26, M1) | Unsafe (project library modules, third-party and non-JDK Java packages, Java classes or module attributes not measured to exist, `socket`, `logging`, dotted imports, relative imports, unknown project, a library name that is not a plain function, class or literal constant, code that is not vetted, a name that would resolve differently, a misplaced future import that would become valid, a `__package__` that code may observe) |
 | `SCR103` | Remove `x = value`, or only `x = ` when the value calls or binds something | Never | Unsafe: the value may be wanted under another name, and a removed attribute or subscript read, operator, comparison, `in` or `%` formatting can raise or run code (getters, special methods). The statement is removed only when the value calls nothing (no call, no backticks, which call `repr`, no `yield`) and binds nothing (no list comprehension, whose variables Python 2 leaks), so no pointless statement (`SCR114`) is left |
 | `SCR110` | `is` to `==`, `is not` to `!=` | Never: the result changes whenever identity and equality differ (`int('1000') is 1000` is `False` in Jython), and `==` calls `__eq__` / Java `equals` | Unsafe |
 | `SCR115` | `except A, B:` to `except (A, B):` | Never: the handler then catches `B` and no longer rebinds the name | Unsafe. The finding itself requires `B` to resolve (ignoring the handler) to a class statement, a capitalized `from` import or a builtin exception, and the handler body not to read it |
-| `SCR123` | Remove unused suppression codes or the whole comment (a comment alone on its line leaves the line empty) | Only codes are removed (the rest of the comment stays), or the comment holds nothing but the suppression. Comments do not run, and no line moves; the fix is layout-only, so every token of the script must stay as it is ("Layout-only fixes" under "Decisions"); and no code in the workspace may read workspace files ("File reads") | Unsafe when the whole comment would go and it also holds a reason, a `# pylint:` directive or a `coding:` declaration; that fix removes the line. Unsafe, with the net's reason, when removing the comment and the whitespace before it changes a token (after a stray backslash, which then joins the next line) |
+| `SCR123` | Remove unused suppression codes or the whole comment (a comment alone on its line leaves the line empty) | The script parses (otherwise the rules that read its syntax tree did not run and no suppression is judged, review round 26, M1). Only codes are removed (the rest of the comment stays), or the comment holds nothing but the suppression. Comments do not run, and no line moves; the fix is layout-only, so every token of the script must stay as it is ("Layout-only fixes" under "Decisions"); and no code in the workspace may read workspace files ("File reads") | Unsafe when the whole comment would go and it also holds a reason, a `# pylint:` directive or a `coding:` declaration; that fix removes the line. Unsafe, with the net's reason, when removing the comment and the whitespace before it changes a token (after a stray backslash, which then joins the next line) |
 | `SCR124` | Remove trailing whitespace | The script parses, the whitespace is outside string literals (also outside a string Jython drops, after a backslash: that whitespace is part of the string and not reported) and outside the generated header; the fix is layout-only, so every token of the script must stay as it is ("Layout-only fixes" under "Decisions"); and no code in the workspace may read workspace files ("File reads") | No finding when the script does not parse; unsafe, with the net's reason, when the whitespace follows a stray backslash (Jython drops the backslash with the next character; without the whitespace it joins the next line); unsafe while code may read workspace files |
 | `SCR206` | Remove a `shared.` / `project.` prefix | Never: in Ignition 7 the two prefixes named different libraries | Unsafe |
 | `SCR301` | Rewrite or insert the event script header | Never: code may rely on the written parameters or defaults | Unsafe |
@@ -2212,6 +2310,10 @@ remaining documented assumption.
   difference. With changes 1 to 3 switched off, the same run of seed 25
   found 714 programs whose behaviour the fixes changed. A sample of 303
   pairs is replayed without Docker (`replayed_sample_is_unchanged`).
+  Review round 26 (M1): suppressions in scripts that do not parse are not
+  judged, so programs that do not compile get no `SCR123` fix; seed 25
+  run again on 8.3.3: 1,544 pairs changed by the fixes, no difference,
+  and the replayed sample is 248 pairs.
 
 * **Import side effects.** Removing an import is safe only with positive
   evidence that the import succeeds and has no effect: a Java class

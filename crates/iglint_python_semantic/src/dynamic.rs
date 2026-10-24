@@ -997,7 +997,10 @@ impl<'a> Visitor<'a> for Escapes<'_> {
                     }
                     // A module's `sys` attribute is the `sys` module
                     // (`re.sys`, `os.sys`, `importlib.sys`), which hands out
-                    // frames, every module and the builtins.
+                    // frames, every module and the builtins. On any
+                    // receiver (review round 26, N1): an alias or parameter
+                    // may hold such a module, and any object's attribute
+                    // may have been set to `sys`; only a literal could not.
                     None if attr == "sys" && a.ctx == ExprContext::Load => Some(Route::Observes),
                     // The namespace of a value that may be a module holds
                     // its `__builtins__` (`m.__dict__`, `m.dict`).

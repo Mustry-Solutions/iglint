@@ -156,7 +156,15 @@ does (see `docs/internal/fix-safety.md`, "File reads").
 Top-level names of a library module are attributes of the module: an
 import that another resource uses as `pkg.mod.name` is not reported, nor
 one that `from pkg.mod import *` in another resource binds there (every
-name not starting with `_`, or the names of `__all__`).
+name not starting with `_`, or the names of `__all__`). A resource that
+reaches the module object other than by its names, with a special
+attribute (`pkg.mod.__dict__`, `pkg.mod.__findattr_ex__(n)`,
+`pkg.mod.__getattribute__('name')` counts as `pkg.mod.name`) or a member
+of Ignition's module object (`pkg.mod.dict`, `pkg.mod.getDict()`), uses
+the module as a value: none of its imports is reported (see
+`docs/internal/fix-safety.md`, "Library module objects"). While a script
+of the project does not parse, what it will use is not known: the fix of
+a top-level import of a library module is unsafe.
 
 ## pylint
 

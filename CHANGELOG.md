@@ -116,6 +116,65 @@ from 0.1.0 on.
 
 ### Fixed
 
+- SCR102 removed an import of a library module as safe while another
+  module reached it through the module object (review round 26, blocker):
+  `m.__findattr_ex__('re')`, `m.dict['re']`, `m.getDict()['re']`,
+  `m.__reduce_ex__(2)[2]['re']` and the other special attributes of
+  Ignition's library module and package objects (measured on 8.3.3:
+  `ProjectScriptModule`, `ScriptPackage`). Default deny: a special
+  attribute anywhere in a chain from another module (`m.__dict__`,
+  `m.__class__`, `pkg.m.__getattribute__`, `m.f.__call__`, ...) uses the
+  object before it as a value, like `vars(m)`; the literal accessors
+  `__getattribute__`, `__getattr__`, `__findattr__` and `__findattr_ex__`
+  with a literal name count like `getattr(m, 'n')`, `__setattr__` and
+  `__delattr__` like `setattr` and `delattr`; the Java members of the
+  module and package objects (`dict`, `getDict`, `setCode`,
+  `reloadModule`, `name`, `path`, `pkg.clear`, `pkg.setDict`, ...) make
+  the module a value unless it binds the name itself (a name it binds
+  wins, measured). REF012 no longer reports a function of such a module
+  (`m.__getattribute__(n)()` was a false positive), and REF002 no longer
+  reports the members as missing. Every measured member and 80 routes
+  (aliases, containers, package chains, `operator`, `inspect`, `copy`,
+  `pickle`, `object.__getattribute__`, `type(m).__getattribute__`) are
+  replayed from the oracle (`oracle/run-oracle.sh --library-routes`,
+  `rules::refs::library_routes`, 137 routes).
+- The namespace of a library module holds its `__builtins__`, so
+  `m.dict['__builtins__']['locals']()` reads the caller's frame
+  (measured): SCR102 removed the caller's own import as safe. `dict`,
+  `getDict`, `setCode`, `__reduce__` and `__reduce_ex__` are frame
+  routes on any value (fixes unsafe). On a value that may be a module (a
+  name bound by an import or bound nowhere, and attributes of one),
+  `vars(m)`, `m.__dict__`, `m.dict`, `m.getDict()`, `m.__reduce_ex__` and
+  `getattr(m, '__dict__')` observe names, so the findings they would make
+  false (SCR102, SCR103, REF002, REF012 in the script that uses them) are
+  not reported (review round 26, M2: `vars(json)['__builtins__']`).
+- SCR123 reported, and its safe fix deleted, suppressions in scripts
+  that do not parse, where no rule that reads the syntax tree ran (review
+  round 26, M1; fix-all on save in the middle of an edit). Such scripts
+  are not judged, and they count as referencing anything for the unused
+  rules elsewhere (REF011 to REF014, and SCR102's safe fix of a library
+  module's import).
+- SCR120 exempted every argument of `sorted`, `min`, `max`, `map`,
+  `filter` and `reduce` (review round 26, Codex: `max(lambda: t, lambda:
+  t)` returns the lambda). Only the arguments a builtin calls (`cmp` and
+  `key` of `sorted`, `key` of `min` and `max`, the function of `map`,
+  `filter` and `reduce`) or consumes are exempt. A generator expression
+  kept in a loop (`out.append(v * i for v in y)`) is now reported, and a
+  generator function whose every call is consumed in place
+  (`total += sum(h())`) is not.
+- A module where `n` functions bind one global that module code reads
+  `n` times took cubic time (review round 26, M4: 4,000 of each, 7.1 s
+  with `--select SCR001` and 21 s with every rule; now 0.03 s and 0.06 s).
+  The lists of bindings that many references find are built once and
+  shared. Long lists of reaching bindings are shared too: a name bound
+  in 10,000 branches and read 10,000 times took 1.2 GB and 2.9 s, now
+  90 MB and 0.5 s (their merges stay quadratic with a small constant).
+  SCR104, SCR108, SCR113 and SCR900 count lines with line indexes.
+- `bench/parity.py` resolves a component's own `propConfig`: a component
+  custom property with a change script and ign-lint's definitions from a
+  component's `propConfig` keys are the documented differences (0
+  unexplained on the fixtures).
+
 - A library module whose namespace another module reads through
   `__dict__` (`m.__dict__[name]`) counts as used as a value, like
   `vars(m)` and `getattr(m, name)` (review round 25, N2): REF012 no
