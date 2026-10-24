@@ -200,8 +200,10 @@ configuration.
 > `PylintScriptRule` also runs iglint's own script rules. `iglint ign-lint`
 > has no baseline (its `--whitelist` skips whole files). To adopt iglint
 > without breaking the build, run `iglint migrate` and then
-> `iglint baseline`, and gate on `iglint check`: today's findings are
-> recorded in `.iglint-baseline.json` and only new ones fail.
+> `iglint baseline` first, and gate on `iglint check`: today's findings are
+> recorded in `.iglint-baseline.json` and only new ones fail. The extra
+> `BIND005` errors are real (a reference that resolves nowhere evaluates to
+> `null` with a bad quality); the baseline lets you fix them over time.
 
 The differences in findings are listed in
 [docs/compat/ign-lint-differences.md](docs/compat/ign-lint-differences.md).

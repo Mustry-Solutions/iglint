@@ -38,6 +38,14 @@ from 0.1.0 on.
   in `iglint.toml`: declares that no script reads the files of the
   workspace, which lifts the file-read condition below (and only that).
   The user's responsibility; shown by `--show-settings`.
+- `stubs-gen/perspective-fields.sh` measures, inside the Ignition image,
+  which binding and transform fields Perspective parses as expressions or
+  property paths and which members of the component script object return
+  its name, into `crates/iglint_project/src/generated/perspective_fields.rs`
+  (`generated_fields_match_the_generator` fails when the generator changes
+  without regenerating, `every_measured_field_is_modelled` when the view
+  model misses a measured field).
+
 - VIEW021 `invalid-view-structure` reports the parts of a view (and of
   the session properties) that have the wrong JSON type, once at the
   offending value: `"root": []`, `"children": "x"`, `"script": 7`,
@@ -96,6 +104,32 @@ from 0.1.0 on.
 - SCR102's documentation no longer says that removing an import of a
   missing JDK class is a remaining effect of the safe fix (that removal is
   unsafe since the previous round).
+- Review round 10 (views): every field of a Perspective binding or
+  transform that Ignition parses as an expression is now an expression of
+  the view model, so all BIND rules, VIEW015 and NAME001 see it: HTTP
+  bodies, header values and authorization values, tag history date
+  ranges, most-recent values and return sizes, map transform fallbacks,
+  list items of expression structures and indirect tag binding
+  references. The fields are measured in the Ignition 8.3.3 image
+  (`stubs-gen/gen_perspective_fields.py`, see "Added"). An HTTP `url` is
+  always parsed, so a literal URL is reported (BIND001) instead of being
+  skipped: Perspective rejects it ("Error parsing url: Invalid
+  expression").
+- NAME001 no longer offers a safe rename that leaves references dangling:
+  references in the newly modelled fields are renamed (the fix is then
+  unsafe, as for every referenced component), and the safe rename is
+  withheld, naming the place, when a script reads the component's name
+  through `name` or `getName()` (also for a component reached through
+  `children`, `getChildren()`, a loop or an index; the name members are
+  measured), when a string iglint does not read as an expression holds a
+  `{...}` reference, when a reference is written with whitespace inside
+  its braces, or when a string holds the component's name where the fix
+  does not update it.
+- BIND005 reports `{ view.custom.x }`: whitespace inside the braces makes
+  Perspective read a property reference as a tag path (checked against
+  Ignition 8.3.3's parsers). VIEW015 counts such a reference as a read of
+  the property, so its fix never deletes it.
+
 - Pages and sessions hand out other views (`page.views`, `getViews()`,
   `page.view`, `session.pages`, `getPages()`, `getPage(id)`), with their
   custom properties and components. Such a use anywhere in the workspace
