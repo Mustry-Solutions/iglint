@@ -244,6 +244,10 @@ impl Component<'_> {
 pub enum PropCategory {
     Custom,
     Params,
+    /// The `meta` tree. Never a property definition: scripts read the
+    /// component's name through `name` and `getName()`, which the script
+    /// facts record as `meta` `name` for `NAME001`.
+    Meta,
 }
 
 impl PropCategory {
@@ -252,6 +256,7 @@ impl PropCategory {
         match self {
             PropCategory::Custom => "custom",
             PropCategory::Params => "params",
+            PropCategory::Meta => "meta",
         }
     }
 }

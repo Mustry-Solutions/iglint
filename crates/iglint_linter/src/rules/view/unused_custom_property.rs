@@ -479,6 +479,8 @@ impl ViewRule for UnusedCustomProperty {
                     Some(ParamDirection::InOut) if usage.is_written(i, def) => continue,
                     _ => ("View parameter", "view parameter"),
                 },
+                // Never a property definition.
+                PropCategory::Meta => continue,
             };
             if usage.is_read(i, def) {
                 continue;
@@ -504,7 +506,7 @@ impl ViewRule for UnusedCustomProperty {
                     usage.is_written(i, def) || interprocedural,
                 )
                 .map(|f| f.because(vetting)),
-                PropCategory::Params => None,
+                PropCategory::Params | PropCategory::Meta => None,
             };
             let message = if usage.is_written(i, def) {
                 format!("{kind} `{}` is written but never read", def.name)

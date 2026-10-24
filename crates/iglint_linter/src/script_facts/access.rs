@@ -28,7 +28,8 @@
 //! | `.view`, `.getView()`, `.parent`, `.getParent()`, `.children`, `.getChildren()`, `.rootContainer`, `.getRootContainer()` | that object (`AnyComponent` when it cannot be determined) |
 //! | `.getSibling('A')`, `.getChild('A/B')` | that component; any component when the argument is not a string literal; nothing when no such component exists (the call returns `None`) |
 //! | `.page`, `.session`, `.getPage()`, `.getSession()` | the host |
-//! | `.props`, `.meta`, `.position`, `.name`, `.id`, `.getName()`, `.getId()`, `.print(...)`, `.focus()`, `.requestTooltip()`, `.removeTooltip()`, `.requestContextMenu()`, `.removeContextMenu()`, `.requestPrint(...)`, `.refreshBinding(...)` | nothing (other property trees, names, actions) |
+//! | `.props`, `.meta`, `.position`, `.id`, `.getId()`, `.print(...)`, `.focus()`, `.requestTooltip()`, `.removeTooltip()`, `.requestContextMenu()`, `.removeContextMenu()`, `.requestPrint(...)`, `.refreshBinding(...)`; `.name`, `.getName()` of the view | nothing (other property trees, names, actions) |
+//! | `.name`, `.getName()` of a component (the members measured to return its name, `iglint_project::perspective_fields::component_name_members`) | a read of its name, recorded as `meta` `name` (for `NAME001`) |
 //! | `.myMethod(...)`, a custom method the object defines in the view (any component's, for an unknown component) | nothing: the method's script is analysed as a script of the view; its arguments are values |
 //! | `.custom = ...` | writes every custom property |
 //! | `children[i]` of any component | any component |
@@ -152,6 +153,7 @@
 use std::sync::Arc;
 
 use iglint_project::library::{ArgSlot, ParamPath, ParamUse, PathEnd, PathStep};
+use iglint_project::perspective_fields::is_component_name_member;
 use iglint_project::view::{PropCategory, View};
 use iglint_project::{ComponentId, Owner};
 use iglint_python::ast::{
@@ -367,6 +369,11 @@ enum Step {
     /// components, or that is not understood: it may reach every view
     /// (see "Other views").
     Cross,
+    /// A member of a component whose value derives from the component's
+    /// name (`name`, `getName()`; measured,
+    /// [`iglint_project::perspective_fields::component_name_members`]): a
+    /// read of the name, recorded as [`PropCategory::Meta`] `name`.
+    Name(AccessTarget),
 }
 
 /// Methods (and other attributes) of Perspective's property wrapper, from
@@ -890,6 +897,7 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
             "parent" if component => Step::Follow(Val::Object(self.parent(t))),
             "children" if component => Step::Follow(Val::Object(AccessTarget::AnyComponent)),
             "page" | "session" => Step::Follow(Val::Host),
+            _ if component && is_component_name_member(attr) => Step::Name(t),
             _ if OPAQUE_OBJECT_ATTRIBUTES.contains(&attr) => Step::Opaque,
             // `self.__getattribute__`, ...: any member, the page included.
             _ if is_special(attr) => Step::Cross,
@@ -948,6 +956,7 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
             (AccessTarget::View, "getRootContainer") => self.root(),
             (_, "getView") => Step::Follow(Val::Object(AccessTarget::View)),
             (_, "getPage" | "getSession") => Step::Follow(Val::Host),
+            _ if component && is_component_name_member(name) => Step::Name(t),
             _ if OPAQUE_OBJECT_ATTRIBUTES.contains(&name) => Step::Opaque,
             // A custom method of the view: its script is analysed as a
             // script of the view (with its own `self`).
@@ -1265,7 +1274,24 @@ impl<'v, 'a, 'o> Analysis<'v, 'a, 'o> {
                 self.cross_view(site);
                 None
             }
+            Step::Name(t) => {
+                self.name_read(t, range);
+                None
+            }
         }
+    }
+
+    /// The name of component `t` is read at `range`.
+    fn name_read(&mut self, t: AccessTarget, range: TextRange) {
+        self.out.push(PropertyAccess {
+            target: t,
+            category: PropCategory::Meta,
+            name: Some("name".to_owned()),
+            read: true,
+            write: false,
+            range,
+            via: None,
+        });
     }
 
     fn walk_call(&mut self, c: &ExprCall) -> Option<Val> {
@@ -2650,6 +2676,29 @@ pub(crate) mod tests {
          "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": ""}}}}}
       ]}}"#;
 
+    /// Reviewer round 10, O2: the measured name members (`name`,
+    /// `getName()`) of a component read its name, however the component
+    /// is reached; the view's own name is not a component's.
+    #[test]
+    fn name_members_read_the_component_name() {
+        for (body, expected) in [
+            ("\tx = self.name", vec!["B.meta.name r"]),
+            ("\tx = self.getName()", vec!["B.meta.name r"]),
+            ("\tx = self.getSibling('A').name", vec!["A.meta.name r"]),
+            (
+                "\tx = self.parent.getChildren()[0].name",
+                vec!["*.meta.name r"],
+            ),
+            (
+                "\tfor c in self.parent.children:\n\t\tx = c.getName()",
+                vec!["*.meta.name r"],
+            ),
+            ("\tx = self.view.name", vec![]),
+        ] {
+            assert_eq!(accesses_and_checks(body), expected, "{body}");
+        }
+    }
+
     /// Accesses of `body` run as the button's action script; callee
     /// checks are shown once as `check <callee>`.
     fn accesses_and_checks(body: &str) -> Vec<String> {
@@ -2754,6 +2803,10 @@ pub(crate) mod tests {
                 // `getPropertyTreeOf`: this object's own trees (a
                 // `PropertyTree` reaches no owner), read as everything.
                 (false, "tree") => step == Step::Everything,
+                // The measured name members read the component's name.
+                (false, _) if *wrapper == "component" && is_component_name_member(name) => {
+                    step == Step::Name(AccessTarget::AnyComponent)
+                }
                 (false, _) => step == Step::Opaque,
             };
             assert!(ok, "{wrapper}.{name} ({kind}): {step:?}");
