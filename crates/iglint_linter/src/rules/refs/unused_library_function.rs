@@ -25,7 +25,8 @@ expression calls `runScript("core.util.fn")`.
 
 The rule stays silent for a module whose names may be reached in ways
 that cannot be followed: the module (or its package) used as a value
-(passed to a function, `getattr(core.util, name)`), star-imported, a
+(passed to a function, `getattr(core.util, name)`, `vars(core.util)`,
+`core.util.__dict__`), star-imported, a
 module that may rebind its own names at run time (`exec`, writes through
 `globals()`, code that reads or writes a frame's or a module's names by
 itself such as `sys._getframe()` or `e = eval`; reflection that is only a
@@ -123,6 +124,30 @@ mod tests {
 
     #[test]
     fn escaped_modules_are_skipped() {
+        // Review round 25 (Opus, N2): the namespace of a module read
+        // through `__dict__` from another module is the module used as a
+        // value, like `vars(m)` and `getattr(m, name)`: `m.helper` and
+        // `m`'s import are not reported (a function's own `__dict__` is
+        // not its module's namespace).
+        for user in [
+            "def g(k):\n    return m.__dict__[k]\n",
+            "def g(k):\n    return vars(m)[k]\n",
+            "def g(k):\n    return getattr(m, k)\n",
+            "def g(k):\n    m.__dict__[k] = 1\n",
+        ] {
+            let f = with_library(
+                library("m", "import os\ndef helper():\n    return 1\n"),
+                "n",
+                user,
+            );
+            assert_eq!(flagged(&f.lint(&["REF012", "SCR102"])), vec!["g"], "{user}");
+        }
+        let f = with_library(
+            library("m", "import os\ndef helper():\n    return 1\n"),
+            "n",
+            "def g():\n    return m.helper.__dict__\n",
+        );
+        assert_eq!(flagged(&f.lint(&["REF012", "SCR102"])), vec!["os", "g"]);
         // The target module is passed as a value: its functions may be
         // reached any way, but the caller itself is not introspective, so
         // its own unused function is still reported.

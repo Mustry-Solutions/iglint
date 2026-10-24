@@ -17,7 +17,7 @@
 //! | `system.tag.readBlocking(['[p]a/b'])` and other tag reads and writes | tag path |
 //! | `x.props.style.classes = 'A B'` | style classes |
 //! | `core.util.fmt`, `from core.util import fmt`, a module's own top-level names | library name |
-//! | a library name used as a value, `from m import *`, non-literal `__import__`/`eval`/`exec`, `execfile`, `sys.modules` | dynamic library reference |
+//! | a library name used as a value (also its namespace, `core.util.__dict__`), `from m import *`, non-literal `__import__`/`eval`/`exec`, `execfile`, `sys.modules` | dynamic library reference |
 //! | `core.util.fmt = f`, `del core.util.fmt`, `setattr(core.util, 'fmt', f)`, `core.util.__dict__` | library store |
 //! | `lib.math.pi = 1`, `del lib.math.pi`, `setattr(lib.math, 'pi', 1)`, `lib.math.__dict__` | library change of the object `lib.math`, with its site (the index decides whether it is a shared object) |
 //! | `k = lib.math`, `f(lib)` | library value with its site (likewise) |
@@ -560,8 +560,11 @@ impl Chains<'_, '_, '_, '_> {
     fn record_dotted(&mut self, q: String, role: Role) {
         if let Some(base) = q.strip_suffix(".__dict__") {
             // The namespace of a module (or a function's attributes) may be
-            // written through it.
+            // written through it, and every name in it read
+            // (`m.__dict__[n]`, review round 25, N2): the object is used
+            // as a value, like `vars(m)` or `getattr(m, n)`.
             self.refs.library_stores.push(base.to_owned());
+            self.refs.dynamic.library.push(base.to_owned());
         }
         // `f.func_globals` is the namespace of `f`'s module.
         let segments: Vec<&str> = q.split('.').collect();

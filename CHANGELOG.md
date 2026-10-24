@@ -116,6 +116,24 @@ from 0.1.0 on.
 
 ### Fixed
 
+- A library module whose namespace another module reads through
+  `__dict__` (`m.__dict__[name]`) counts as used as a value, like
+  `vars(m)` and `getattr(m, name)` (review round 25, N2): REF012 no
+  longer reports its functions and SCR102 its imports. Fixes that depend
+  on the module's names only become more conservative. No change on the
+  private corpus.
+- SCR120 reports generators made in a loop that read its variable:
+  calling a generator function (`def h(): yield t`, then
+  `out.append(h())`) runs none of its body, and a generator expression
+  returned by a function called at once (`(lambda: (t for _ in [0]))()`)
+  runs when it is consumed, so each gives the last value (Jython:
+  `[[2], [2], [2]]`; review round 25, Codex). It no longer reports a
+  lambda passed directly to the builtin `sorted`, `min`, `max`, `map`,
+  `filter` or `reduce`, which call it only while they run
+  (`[sorted(rows, key=lambda r: r[c]) for c in cols]`; review round 25,
+  N1), nor a generator expression such a function passes to a builtin
+  that consumes it (`sum`, `any`, `''.join`, ...). No change on the
+  private corpus.
 - Project library modules with many top-level names were analysed in
   time about cubic in their number (review round 25, M3): the project
   index decided for every library value from scratch whether its module
