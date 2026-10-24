@@ -164,11 +164,11 @@ from 0.1.0 on.
   (`total += sum(h())`) is not.
 - A module where `n` functions bind one global that module code reads
   `n` times took cubic time (review round 26, M4: 4,000 of each, 7.1 s
-  with `--select SCR001` and 21 s with every rule; now 0.03 s and 0.06 s).
+  with `--select SCR001` and 21 s with every rule; now 0.01 s and 0.04 s).
   The lists of bindings that many references find are built once and
   shared. Long lists of reaching bindings are shared too: a name bound
-  in 10,000 branches and read 10,000 times took 1.2 GB and 2.9 s, now
-  90 MB and 0.5 s (their merges stay quadratic with a small constant).
+  in 10,000 branches and read 10,000 times took 1.2 GB and 3.0 s, now
+  87 MB and 0.5 s (their merges stay quadratic with a small constant).
   SCR104, SCR108, SCR113 and SCR900 count lines with line indexes.
 - `bench/parity.py` resolves a component's own `propConfig`: a component
   custom property with a change script and ign-lint's definitions from a
