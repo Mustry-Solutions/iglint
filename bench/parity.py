@@ -146,13 +146,31 @@ class ViewCache:
 
 def prop_config(view, path):
     """propConfig entry for an ign-lint node path such as `custom.x` or
-    `params.y` (view level only)."""
+    `params.y` (view level), or `root.root.children.Btn.custom.x` (the
+    component's own `propConfig`)."""
     if not isinstance(view, dict):
         return None
     m = re.match(r"^(custom|params)\.([^.\[]+)", path)
-    if not m:
+    if m:
+        return (view.get("propConfig") or {}).get(f"{m.group(1)}.{m.group(2)}")
+    head, sep, name = path.rpartition(".custom.")
+    if not sep or "." in name or "[" in name or not head.startswith("root"):
         return None
-    return (view.get("propConfig") or {}).get(f"{m.group(1)}.{m.group(2)}")
+    component = resolve(view, head)
+    if not isinstance(component, dict):
+        return None
+    return (component.get("propConfig") or {}).get(f"custom.{name}")
+
+
+def _propconfig_definition(view, path):
+    """True for ign-lint's `<component>.propConfig.custom.<name>` path: it
+    takes the keys of a component's `propConfig` for property definitions
+    (bug 23)."""
+    head, sep, name = path.rpartition(".propConfig.custom.")
+    if not sep or "." in name or not head.startswith("root"):
+        return False
+    component = resolve(view, head)
+    return isinstance(component, dict) and f"custom.{name}" in (component.get("propConfig") or {})
 
 
 # Script uses of a property container that VIEW015 cannot follow
@@ -292,6 +310,8 @@ def classify(f, side, views):
     if rule == "UnusedCustomPropertiesRule":
         view = views.get(f["file"])
         cfg = prop_config(view, path) or {}
+        if side == "ign-lint" and _propconfig_definition(view, path):
+            return "VIEW015: component propConfig metadata is not a definition (bug 23)"
         if side == "ign-lint" and isinstance(cfg, dict):
             if cfg.get("onChange"):
                 return "VIEW015: property with a change script is used"
