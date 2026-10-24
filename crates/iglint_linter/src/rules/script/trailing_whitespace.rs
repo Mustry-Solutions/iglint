@@ -15,6 +15,7 @@ pub static META: RuleMeta = RuleMeta {
     default_severity: Severity::Info,
     default_enabled: false,
     fix: FixAvailability::Always,
+    fix_safety: crate::registry::FixSafety::Safe,
     summary: "Spaces or tabs at the end of a script line",
     explanation: r#"## What it does
 

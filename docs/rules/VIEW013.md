@@ -12,6 +12,7 @@ Bound custom property persistence differs from the project convention
 | Default severity | warning |
 | Enabled by default | no |
 | Fix available | sometimes |
+| Fix safety | safe or unsafe, depending on the finding (see below) |
 | ign-lint equivalent | `PropertyPersistenceRule` |
 
 ## What it does

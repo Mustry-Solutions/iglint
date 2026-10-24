@@ -16,6 +16,7 @@ pub static META: RuleMeta = RuleMeta {
     default_severity: Severity::Warning,
     default_enabled: true,
     fix: FixAvailability::Sometimes,
+    fix_safety: crate::registry::FixSafety::Unsafe,
     summary: "`is` / `is not` with a string or number literal",
     explanation: r#"## What it does
 

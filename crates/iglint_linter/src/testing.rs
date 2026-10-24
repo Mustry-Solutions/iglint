@@ -88,6 +88,7 @@ pub static COMPONENT_NAME: RuleMeta = RuleMeta {
     default_severity: Severity::Warning,
     default_enabled: true,
     fix: FixAvailability::Sometimes,
+    fix_safety: crate::registry::FixSafety::Depends,
     summary: "Component name does not follow the convention",
     explanation: "## What it does\n\nChecks component names.\n",
     options: &[

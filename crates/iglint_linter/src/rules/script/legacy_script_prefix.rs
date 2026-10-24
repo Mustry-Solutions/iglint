@@ -17,6 +17,7 @@ pub static META: RuleMeta = RuleMeta {
     default_severity: Severity::Error,
     default_enabled: true,
     fix: FixAvailability::Sometimes,
+    fix_safety: crate::registry::FixSafety::Unsafe,
     summary: "`project.`, `shared.` or `app.` prefix that does not exist in 8.3",
     explanation: r#"## What it does
 

@@ -30,6 +30,7 @@ pub static META: RuleMeta = RuleMeta {
     default_severity: Severity::Warning,
     default_enabled: false,
     fix: FixAvailability::Sometimes,
+    fix_safety: crate::registry::FixSafety::Depends,
     summary: "Name does not follow the configured naming convention",
     explanation: r#"## What it does
 

@@ -18,6 +18,7 @@ pub static META: RuleMeta = RuleMeta {
     default_severity: Severity::Error,
     default_enabled: true,
     fix: FixAvailability::Always,
+    fix_safety: crate::registry::FixSafety::Unsafe,
     summary: "`except A, B:` binds `B` instead of catching it",
     explanation: r#"## What it does
 

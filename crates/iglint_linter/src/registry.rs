@@ -97,6 +97,22 @@ pub enum FixAvailability {
     Always,
 }
 
+/// How safe a rule's fixes are, as its documentation says. Every safe fix
+/// is also unsafe while code in the workspace may read the files a fix
+/// edits (`docs/internal/fix-safety.md`, "File reads").
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FixSafety {
+    /// The rule has no fix.
+    None,
+    /// Safe.
+    Safe,
+    /// Always unsafe.
+    Unsafe,
+    /// Safe or unsafe per finding, by analysis the rule documents (whether
+    /// anything can observe what the fix changes).
+    Depends,
+}
+
 /// The type of a rule option, used to validate configuration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OptionType {
@@ -131,6 +147,8 @@ pub struct RuleMeta {
     /// Whether the rule runs when the user has not selected rules explicitly.
     pub default_enabled: bool,
     pub fix: FixAvailability,
+    /// How safe the fixes are ([`FixSafety::None`] when there is none).
+    pub fix_safety: FixSafety,
     /// One line, shown in rule lists.
     pub summary: &'static str,
     /// Markdown: what it does, why, examples, configuration.
@@ -160,6 +178,7 @@ impl RuleMeta {
         default_severity: Severity::Warning,
         default_enabled: false,
         fix: FixAvailability::None,
+        fix_safety: FixSafety::None,
         summary: "",
         explanation: "",
         options: &[],

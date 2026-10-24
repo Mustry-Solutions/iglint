@@ -12,6 +12,7 @@ Custom property access mode differs from the project convention
 | Default severity | warning |
 | Enabled by default | no |
 | Fix available | sometimes |
+| Fix safety | unsafe |
 | ign-lint equivalent | `PropertyAccessRule` |
 
 ## What it does

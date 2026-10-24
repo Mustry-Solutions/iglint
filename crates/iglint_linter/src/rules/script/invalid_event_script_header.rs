@@ -18,6 +18,7 @@ pub static META: RuleMeta = RuleMeta {
     default_severity: Severity::Error,
     default_enabled: true,
     fix: FixAvailability::Sometimes,
+    fix_safety: crate::registry::FixSafety::Unsafe,
     summary: "Event script file whose first line is not the canonical header",
     explanation: r#"## What it does
 

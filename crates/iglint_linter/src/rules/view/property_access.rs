@@ -18,6 +18,7 @@ pub static META: RuleMeta = RuleMeta {
     default_severity: Severity::Warning,
     default_enabled: false,
     fix: crate::registry::FixAvailability::Sometimes,
+    fix_safety: crate::registry::FixSafety::Unsafe,
     summary: "Custom property access mode differs from the project convention",
     explanation: r#"## What it does
 

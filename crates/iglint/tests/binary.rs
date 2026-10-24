@@ -901,7 +901,11 @@ fn directories_without_lintable_files_say_so() {
         .args(["--no-cache", "--quiet", "loose"])
         .output()
         .unwrap();
-    assert!(out.stderr.is_empty(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let out = iglint(dir.path())
         .args(["--no-cache", "loose/x.py"])
         .output()

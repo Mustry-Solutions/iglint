@@ -19,6 +19,7 @@ pub static META: RuleMeta = RuleMeta {
     default_severity: Severity::Warning,
     default_enabled: false,
     fix: FixAvailability::Sometimes,
+    fix_safety: crate::registry::FixSafety::Depends,
     summary: "Bound custom property persistence differs from the project convention",
     explanation: r#"## What it does
 

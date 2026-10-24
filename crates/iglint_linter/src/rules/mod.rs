@@ -210,16 +210,18 @@ mod tests {
         }
     }
 
-    /// The rule catalogue's Fix column (`S` safe, `U` unsafe, `-` none)
-    /// must agree with each rule's [`crate::registry::FixAvailability`]: a
-    /// rule with no fix is `-`, and a rule that can fix is `S` or `U`. This
-    /// is what caught `SCR110` / `SCR115` being labelled safe although
-    /// their fixes are always unsafe. (Whether a fixable rule is `S` or
-    /// `U` is an editorial call kept in step with `docs/internal/fix-safety.md`
-    /// by hand.)
+    /// The rule catalogue's Fix column (`S` safe, `U` unsafe, `S/U` safe
+    /// or unsafe depending on the finding, `-` none) must agree with each
+    /// rule's [`crate::registry::FixAvailability`] and
+    /// [`crate::registry::FixSafety`]. This is what caught `SCR110` /
+    /// `SCR115` being labelled safe although their fixes are always
+    /// unsafe, and `NAME001` being labelled unsafe although it offers safe
+    /// renames. (Which of the three a rule is stays an editorial call, made
+    /// in the rule's `fix_safety` in step with its documentation and
+    /// `docs/internal/fix-safety.md`.)
     #[test]
     fn catalogue_fix_column_matches_the_registry() {
-        use crate::registry::FixAvailability;
+        use crate::registry::{FixAvailability, FixSafety};
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/internal/rules.md");
         let text = std::fs::read_to_string(path).expect("read rules.md");
         let mut columns: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
@@ -243,14 +245,24 @@ mod tests {
             let fix = columns
                 .get(meta.code)
                 .unwrap_or_else(|| panic!("{} missing from docs/internal/rules.md", meta.code));
-            assert!(matches!(*fix, "S" | "U" | "-"), "{}: {fix:?}", meta.code);
-            let has_fix = *fix != "-";
+            let expected = match meta.fix_safety {
+                FixSafety::None => "-",
+                FixSafety::Safe => "S",
+                FixSafety::Unsafe => "U",
+                FixSafety::Depends => "S/U",
+            };
             assert_eq!(
-                has_fix,
-                meta.fix != FixAvailability::None,
-                "{}: Fix column {fix:?} disagrees with {:?}",
+                *fix, expected,
+                "{}: Fix column disagrees with {:?}",
+                meta.code, meta.fix_safety
+            );
+            assert_eq!(
+                meta.fix == FixAvailability::None,
+                meta.fix_safety == FixSafety::None,
+                "{}: fix {:?} with fix safety {:?}",
                 meta.code,
-                meta.fix
+                meta.fix,
+                meta.fix_safety
             );
         }
     }

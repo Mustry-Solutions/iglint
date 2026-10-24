@@ -62,6 +62,9 @@ pub fn rule_page(rule: RuleCode) -> String {
         if meta.default_enabled { "yes" } else { "no" }
     ));
     out.push_str(&format!("| Fix available | {} |\n", fix_text(meta.fix)));
+    if let Some(safety) = fix_safety_text(meta.fix_safety) {
+        out.push_str(&format!("| Fix safety | {safety} |\n"));
+    }
     out.push_str(&format!("| ign-lint equivalent | {ign_lint} |\n"));
     if !meta.explanation.is_empty() {
         out.push('\n');
@@ -101,6 +104,17 @@ pub fn rule_page(rule: RuleCode) -> String {
         }
     }
     out
+}
+
+/// How safe a rule's fixes are, for its page; `None` without a fix.
+fn fix_safety_text(safety: iglint_linter::registry::FixSafety) -> Option<&'static str> {
+    use iglint_linter::registry::FixSafety;
+    match safety {
+        FixSafety::None => None,
+        FixSafety::Safe => Some("safe"),
+        FixSafety::Unsafe => Some("unsafe"),
+        FixSafety::Depends => Some("safe or unsafe, depending on the finding (see below)"),
+    }
 }
 
 /// The index page, one table per category.

@@ -41,6 +41,7 @@ pub static META: RuleMeta = RuleMeta {
     default_severity: Severity::Warning,
     default_enabled: false,
     fix: FixAvailability::Sometimes,
+    fix_safety: crate::registry::FixSafety::Depends,
     summary: "Message reported by pylint",
     explanation: r#"## What it does
 

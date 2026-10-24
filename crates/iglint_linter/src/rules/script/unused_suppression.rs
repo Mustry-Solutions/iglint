@@ -18,6 +18,7 @@ pub static META: RuleMeta = RuleMeta {
     default_severity: Severity::Info,
     default_enabled: true,
     fix: FixAvailability::Always,
+    fix_safety: crate::registry::FixSafety::Depends,
     summary: "`# iglint: ignore[...]` that suppresses nothing",
     explanation: r#"## What it does
 

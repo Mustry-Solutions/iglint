@@ -12,6 +12,7 @@ Custom property or view parameter is never read
 | Default severity | warning |
 | Enabled by default | yes |
 | Fix available | sometimes |
+| Fix safety | safe or unsafe, depending on the finding (see below) |
 | ign-lint equivalent | `UnusedCustomPropertiesRule` |
 
 ## What it does

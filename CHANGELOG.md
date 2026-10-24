@@ -77,6 +77,13 @@ from 0.1.0 on.
 
 ### Fixed
 
+- The rule catalogue (`docs/internal/rules.md`) labelled `NAME001`'s fix
+  unsafe although it offers safe renames, and `VIEW013`'s although it is
+  safe when there is no stored value. Rules whose fixes are safe or
+  unsafe per finding (`NAME001`, `VIEW013`, `VIEW015`, `SCR102`,
+  `SCR123`, `SCR900`) are now `S/U`; each rule declares its fix safety in
+  the registry (`fix_safety`), the catalogue test checks the column
+  against it, and the rule pages show it.
 - `iglint check <dir>` on a directory without an Ignition project (a
   folder of loose `.py` files) printed only "All checks passed!". It now
   warns that no Ignition project or lintable files were found under it

@@ -11,8 +11,12 @@ section 12 (lint opportunities), pyflakes/pylint error classes adapted to
 Jython 2.7.
 
 Column legend: **Sev** default severity (E error, W warning, I info), **Def**
-in the default set, **Fix** S safe, U unsafe, - none, **ign-lint** the
-equivalent ign-lint rule class.
+in the default set, **Fix** S safe, U unsafe, S/U safe or unsafe depending
+on the finding (the rule's documentation says when), - none, **ign-lint**
+the equivalent ign-lint rule class. Every safe fix is also unsafe while
+code in the workspace may read the files a fix edits (see
+`docs/internal/fix-safety.md`, "File reads"). The column is checked
+against each rule's `fix_safety` in the registry.
 
 ## ign-lint parity
 
@@ -47,9 +51,9 @@ All nine ign-lint rules have an equivalent. ign-lint option names are mapped
 | VIEW010 | unknown-action-type | E | yes | - | | Event action `type` not one Ignition knows. |
 | VIEW011 | duplicate-json-key | E | yes | - | | Object has the same key twice; Ignition keeps the last. |
 | VIEW012 | property-access | W | no | U | PropertyAccessRule | Same semantics as ign-lint (configuration-driven). |
-| VIEW013 | property-persistence | W | no | U | PropertyPersistenceRule | Same semantics as ign-lint (configuration-driven). |
+| VIEW013 | property-persistence | W | no | S/U | PropertyPersistenceRule | Same semantics as ign-lint (configuration-driven). |
 | VIEW014 | param-without-direction | W | yes | - | | View param has no `paramDirection` in `propConfig`. |
-| VIEW015 | unused-custom-property | W | yes | S | UnusedCustomPropertiesRule | Custom property or view param never read anywhere it could be read (expressions, property bindings, scripts, other views' params for in/out). Exact reference matching, not substrings. |
+| VIEW015 | unused-custom-property | W | yes | S/U | UnusedCustomPropertiesRule | Custom property or view param never read anywhere it could be read (expressions, property bindings, scripts, other views' params for in/out). Exact reference matching, not substrings. |
 | VIEW017 | message-handler-never-receives | W | yes | - | | Handler with page, session and view scope all false. |
 | VIEW018 | fragile-component-reference | W | no | - | BadComponentReferenceRule | `getSibling`/`getParent`/`getChild`/`.parent`/`.children`, `../` relative paths. Style rule, opt-in. Parsed, not substring matched. |
 | VIEW019 | output-param-never-written | I | no | - | | `output` param never assigned. |
@@ -60,7 +64,7 @@ All nine ign-lint rules have an equivalent. ign-lint option names are mapped
 
 | Code | Name | Sev | Def | Fix | ign-lint | Summary |
 |---|---|---|---|---|---|---|
-| NAME001 | name-pattern | W | no | U | NamePatternRule | Naming conventions per node type (component, property, message handler, custom method, view param, custom property, library module/function), presets and regexes; same option structure as ign-lint. Fix renames components and updates every reference in the view (unsafe: scripts may build names dynamically). |
+| NAME001 | name-pattern | W | no | S/U | NamePatternRule | Naming conventions per node type (component, property, message handler, custom method, view param, custom property, library module/function), presets and regexes; same option structure as ign-lint. Fix renames components and updates every reference in the view (safe only when nothing could refer to the component in a way the fix does not update). |
 | NAME002 | method-shadows-component-api | E | yes | - | | Custom method name equal to a built-in component method (`refreshBinding`, `getChild`, ...). |
 
 ## BIND: bindings, transforms and expressions
@@ -92,7 +96,7 @@ Jython builtins).
 | SCR002 | compile-error | E | yes | - | | Parses but Jython refuses to compile: `return`/`yield` outside function, `break`/`continue` outside loop, duplicate argument, `return` with value in generator, `None` as target, `import *` in function with free vars, `default except` not last. |
 | SCR003 | compile-warning | W | yes | - | | Jython compiles it with a `SyntaxWarning` (verified set): `global x` after an assignment to or a use of `x` in the same scope, `import *` below module level. |
 | SCR101 | undefined-name | E | yes | - | (E0602) | Name never bound in any enclosing scope, not a builtin, not injected. Suppressed when the scope has `import *` or unqualified `exec`, when the module writes its namespace or the builtins (`exec ... in globals()`, `globals()[...] =`, `setattr(sys.modules[__name__], ...)`, `__builtins__[...] =`), and in functions with `exec ... in locals()`. |
-| SCR102 | unused-import | W | yes | S | (W0611) | Import never used (not in `__init__`-like modules; `__all__` respected). |
+| SCR102 | unused-import | W | yes | S/U | (W0611) | Import never used (not in `__init__`-like modules; `__all__` respected). |
 | SCR103 | unused-variable | W | yes | U | (W0612) | Local assigned but never read (tuple unpacking and `_`-prefixed names excluded). |
 | SCR104 | redefined-unused | W | yes | - | (W0404/E0102) | Function/class/import redefined before use. |
 | SCR105 | unreachable-code | W | yes | - | (W0101) | Statements after `return`/`raise`/`break`/`continue`. |
@@ -113,7 +117,7 @@ Jython builtins).
 | SCR120 | dangerous-loop-closure | W | no | - | (W0640) | Lambda/def in loop captures the loop variable. |
 | SCR121 | global-at-module-level | I | yes | - | (W0604) | `global` at module level does nothing. |
 | SCR122 | print-statement | I | no | - | | `print` in scripts that run on the gateway goes to the wrapper log; use `system.util.getLogger`. |
-| SCR123 | unused-suppression | I | yes | S | | `# iglint: ignore[...]` that suppresses nothing. |
+| SCR123 | unused-suppression | I | yes | S/U | | `# iglint: ignore[...]` that suppresses nothing. |
 | SCR124 | trailing-whitespace | I | no | S | (C0303) | Spaces, tabs or form feeds at the end of a script line (not inside multi-line strings; scripts that do not parse are skipped). |
 
 ### System API (`system.*`)
@@ -142,7 +146,7 @@ Jython builtins).
 
 | Code | Name | Sev | Def | Fix | ign-lint | Summary |
 |---|---|---|---|---|---|---|
-| SCR900 | pylint | W | no | S | PylintScriptRule | Runs real pylint once per run (one process, `jobs` workers, default one per CPU) over every linted script, each written as its own module (`source`: generated header + body, as Ignition compiles it). Messages map back to exact file ranges through the source map (AST columns are UTF-8 bytes, token columns characters); header messages go to the script anchor, except naming/signature messages about Ignition's generated header (dropped; custom method headers are the user's). Dropped as wrong for Ignition: `undefined-variable`/`import-error` for injected names, library packages and Jython builtins (all `undefined-variable` when the library is unknown, like SCR101), and `syntax-error` when Jython parses the script (or SCR001 is on). Options `pylint` (command), `pylintrc` (default: bundled ign-lint rcfile), `jobs`, `category-mapping` (replaces F/E error, W/C/R warning). `# iglint: ignore[SCR900]` applies. pylint missing or failing: one run warning, other rules unaffected, no cache entries for the affected files. Fixes of other rules move its findings without re-running pylint. Fix: ign-lint's trailing-whitespace fix (C0303, every line `rstrip()`ed; unsafe inside multi-line strings). Messages a native rule also reports (same range and name) are dropped. |
+| SCR900 | pylint | W | no | S/U | PylintScriptRule | Runs real pylint once per run (one process, `jobs` workers, default one per CPU) over every linted script, each written as its own module (`source`: generated header + body, as Ignition compiles it). Messages map back to exact file ranges through the source map (AST columns are UTF-8 bytes, token columns characters); header messages go to the script anchor, except naming/signature messages about Ignition's generated header (dropped; custom method headers are the user's). Dropped as wrong for Ignition: `undefined-variable`/`import-error` for injected names, library packages and Jython builtins (all `undefined-variable` when the library is unknown, like SCR101), and `syntax-error` when Jython parses the script (or SCR001 is on). Options `pylint` (command), `pylintrc` (default: bundled ign-lint rcfile), `jobs`, `category-mapping` (replaces F/E error, W/C/R warning). `# iglint: ignore[SCR900]` applies. pylint missing or failing: one run warning, other rules unaffected, no cache entries for the affected files. Fixes of other rules move its findings without re-running pylint. Fix: ign-lint's trailing-whitespace fix (C0303, every line `rstrip()`ed; unsafe inside multi-line strings). Messages a native rule also reports (same range and name) are dropped. |
 
 ## REF: references between resources
 

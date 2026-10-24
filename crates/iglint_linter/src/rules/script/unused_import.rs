@@ -23,6 +23,7 @@ pub static META: RuleMeta = RuleMeta {
     default_severity: Severity::Warning,
     default_enabled: true,
     fix: FixAvailability::Sometimes,
+    fix_safety: crate::registry::FixSafety::Depends,
     summary: "Imported name is never used",
     explanation: r#"## What it does
 
