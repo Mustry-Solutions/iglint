@@ -16,7 +16,11 @@
 #
 #   ### <name>
 #   units <method> <bytes> <method> <bytes> ...   (or: units error)
+#   methods <method> <bytes> ...   every method of the class, in class order
+#   pool <entries>                 the constant pool count of the class
 #   ok | error <first line of the message>
+#
+# (the methods and pool lines are missing when the code generator fails).
 import struct
 import sys
 
@@ -27,6 +31,11 @@ from org.python.core import imp
 
 # Methods of the generated class that are not code units.
 SUPPORT = ('<init>', '<clinit>', 'getMain', 'main', 'getCodeBootstrap', 'call_function')
+
+
+def pool_count(data):
+    """The constant_pool_count of a class file."""
+    return struct.unpack('>H', data[8:10])[0]
 
 
 def method_sizes(data):
@@ -104,12 +113,15 @@ def record(out, name, data):
     try:
         stream = ByteArrayInputStream(jarray.array(data, 'b'))
         generated = imp.compileSource('m', stream, 'm.py').tostring()
-        units = [(m.rsplit('$', 1)[0], c) for m, c in method_sizes(generated) if m not in SUPPORT]
+        methods = method_sizes(generated)
+        units = [(m.rsplit('$', 1)[0], c) for m, c in methods if m not in SUPPORT]
         # The module, then the def and class bodies: lambdas and generator
         # expressions (methods named f, so inputs must not name a function
         # f) are left out.
         units = units[:1] + [(m, c) for m, c in units[1:] if m != 'f']
         out.write('units %s\n' % ' '.join('%s %d' % u for u in units))
+        out.write('methods %s\n' % ' '.join('%s %d' % (m, c or 0) for m, c in methods))
+        out.write('pool %d\n' % pool_count(generated))
     except (Exception, Throwable):
         out.write('units error\n')
     try:

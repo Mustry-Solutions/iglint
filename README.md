@@ -140,6 +140,8 @@ severity = { SCR = "info" }
 
 [fix]
 # assume-scripts-do-not-read-workspace-files = true  # see below
+# vetted-system-functions = ["system.mes.getThing"]  # see below
+# vetted-expression-functions = ["myModuleFunction"]
 ```
 
 * `select` replaces the default set, `extend-select` adds to it, `ignore`
@@ -160,6 +162,16 @@ severity = { SCR = "info" }
   this to `true` states that no script reads the files of the workspace;
   checking that is your responsibility. It lifts only this condition,
   not the other reasons a fix may be unsafe.
+* `[fix] vetted-system-functions` and `vetted-expression-functions`
+  (default empty): a `system.*` function or an expression function that
+  Ignition 8.3 does not have (one of a third-party module) may run code,
+  read a frame or read files, so it keeps the fixes that depend on what
+  code can do from being safe, and the fix says where it is. List the
+  ones you have checked cannot: a `system.*` path also covers what is
+  read from it (`system.mes.getThing` covers `system.mes.getThing.x`),
+  expression functions match in any letter case. Checking them is your
+  responsibility. `SCR201`'s `allow` and `BIND002`'s `extra-functions`
+  only silence those rules' findings.
 * Globs are relative to the configuration file and always use `/`.
 * The command line wins over the file: `--select`, `--extend-select`,
   `--ignore`, `--strict`, `--config FILE`, `--isolated`. `--select`

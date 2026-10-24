@@ -4,7 +4,9 @@
 //!   constants, objects and packages),
 //! * the expression functions with their accepted argument counts,
 //! * the Perspective component types with their property schemas,
-//! * the names in Jython's `__builtin__` module.
+//! * the names in Jython's `__builtin__` module,
+//! * which Perspective components can run code in the browser
+//!   ([`client_code`], measured on the client bundles).
 //!
 //! The data lives in `data/*.json` and is compiled into static tables
 //! (`src/generated.rs`), so nothing is parsed at run time. Both are produced
@@ -13,6 +15,7 @@
 //! text; [`Function::docs_url`] and [`ExpressionFunction::docs_url`] point to
 //! the official documentation instead.
 
+pub mod client_code;
 #[rustfmt::skip]
 mod generated;
 mod schema;
@@ -26,7 +29,7 @@ pub use system::{
     ArityError, ConstValue, Constant, ConstantVariant, Function, FunctionVariant, Member,
     ObjectKind, ObjectVariant, Overload, OverloadKind, Package, Param, ScriptObject, check_call,
     system_constant, system_function, system_member, system_members, system_object, system_package,
-    system_packages,
+    system_packages, system_path_listed,
 };
 
 /// Ignition version the data was generated from, e.g. `8.3.3`.

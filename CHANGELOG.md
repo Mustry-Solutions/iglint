@@ -45,6 +45,13 @@ from 0.1.0 on.
 
 ### Added
 
+- `[fix] vetted-system-functions` and `[fix] vetted-expression-functions`
+  (default empty): `system.*` paths and expression functions of
+  third-party modules that the project declares unable to evaluate code,
+  read a frame or read workspace files, so that they do not count as
+  unknown code. Checking that is the user's responsibility; `SCR201`'s
+  `allow` and `BIND002`'s `extra-functions` only silence the findings.
+
 - A drop-in `ign-lint` pre-commit hook (review round 14): the same id,
   `files` pattern (`view\.json$`), types, default `args`
   (`--config=.ignition-lint-precommit.json`) and file passing as
@@ -101,6 +108,42 @@ from 0.1.0 on.
   `PylintScriptRule` (every script line `rstrip()`ed).
 
 ### Fixed
+
+- Code iglint does not know no longer counts as vetted (review round 18,
+  Opus, B1). A `system.*` member that the measured 8.3 stubs do not list
+  (a third-party module's `system.perspective.runJavaScriptAsync`, a
+  package that does not exist), an expression function the gateway does
+  not register (`objectScript`, a simulation module's functions) and a
+  Perspective component or navigate action that can run JavaScript in the
+  browser (a component type that is not in the 8.3 list, inline frames,
+  amCharts and time series charts, maps, PDF and report viewers, the menu
+  components, SVG drawings with elements that are not plain shapes,
+  Markdown that renders HTML, links and navigate actions whose URL may be
+  a `javascript:` URL) are unknown code for the closed world and possible
+  file reads, with the site named. So are stores into the scripting API
+  (`system.tag.readBlocking = f`), its legacy alias `fpmi`, and
+  `system.perspective.navigate` with a URL that is not a literal that runs
+  no script. Before, `SCR102`, `VIEW015`, `NAME001` and `SCR124` kept
+  their safe fixes.
+- A safe fix near Jython's size limits is no longer applied (review round
+  18, Opus, B2): `SCR002`'s bounds are lower bounds, so the safety net
+  could not see a fix turn a function Jython rejects ("Module or method
+  too large") into one it compiles. Every code unit, the class's
+  `<init>` and `call_function` and the constant pool now also have a
+  sound upper bound, and a fix of a script whose bounds lie on both sides
+  of a limit is unsafe, with the bounds in the reason. The upper bounds
+  were calibrated on the oracle with 5,794 generated programs (3,000
+  random function bodies near the method limit, and programs near the
+  `<init>` and constant pool limits): no method or pool exceeds its
+  bound, method bounds are at least a quarter above the method's size
+  (15,659 bytes above any unit of more than 60,000 bytes) and pool bounds
+  at least 5% above the count. The measurement also found a limit
+  `SCR002` does not model: a module of about 760 small functions fails
+  because `<init>` builds a code object per unit.
+- `check`, the language server's diagnostics and its quick fixes report a
+  safe fix that the post-fix safety net would drop as unsafe, with the
+  net's reason (review round 18, Opus, N1). Before, it was listed as safe
+  and `--fix` said "fix not applied".
 
 - No more panics (exit 101) on text with multi-byte characters where a
   byte index was assumed to be a character boundary (review round 18,

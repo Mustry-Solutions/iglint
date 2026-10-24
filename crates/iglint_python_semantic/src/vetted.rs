@@ -306,6 +306,12 @@ const SYSTEM_RUNS_CODE: &[&str] = &[
     "system.vision.updateProject",
 ];
 
+/// The `system.perspective` function that hands the browser a URL to go
+/// to (see [`Walk::check_navigate_call`]): the audit of
+/// `system.perspective` for functions that pass a URL, HTML or code to the
+/// client found only this one.
+const SYSTEM_NAVIGATE: &str = "system.perspective.navigate";
+
 /// `system.tag` writes: a path may name a configuration property
 /// (`Tag.expression`, `Tag.eventScripts`) and store code. Vetted only as
 /// direct calls whose paths are value writes ([`value_write_paths`]).
@@ -654,12 +660,51 @@ pub struct UnknownCode {
     /// constructor with such a literal. Not part of [`UnknownCode::is_empty`]:
     /// the caller decides which fixes a file read keeps from being safe.
     pub file_read: Option<TextRange>,
+    /// Uses of `system.*` members that are not in the measured 8.3 stubs
+    /// (a third-party module's function, a package that does not exist),
+    /// by the dotted path of the whole chain, with the chain's range. Each
+    /// is unknown code, and a possible file read, unless the project vets
+    /// it ([`system_path_vetted`], `[fix] vetted-system-functions`).
+    pub system: Vec<(String, TextRange)>,
 }
 
 impl UnknownCode {
     pub fn is_empty(&self) -> bool {
-        self.other.is_none() && self.imports.is_empty()
+        self.other.is_none() && self.imports.is_empty() && self.system.is_empty()
     }
+
+    /// The first use of something that is not vetted when the project vets
+    /// the `system.*` paths `vetted_system`: [`UnknownCode::other`] or a
+    /// [`UnknownCode::system`] use that the list does not vet.
+    pub fn first(&self, vetted_system: &[String]) -> Option<TextRange> {
+        self.other
+            .into_iter()
+            .chain(
+                self.system
+                    .iter()
+                    .filter(|(path, _)| !system_path_vetted(path, vetted_system))
+                    .map(|(_, range)| *range),
+            )
+            .min_by_key(|r| r.start())
+    }
+
+    /// The first [`UnknownCode::system`] use that `vetted_system` does not
+    /// vet.
+    pub fn first_system(&self, vetted_system: &[String]) -> Option<&(String, TextRange)> {
+        self.system
+            .iter()
+            .filter(|(path, _)| !system_path_vetted(path, vetted_system))
+            .min_by_key(|(_, r)| r.start())
+    }
+}
+
+/// Whether the project vets the `system.*` chain `path`: an entry of
+/// `vetted` (`[fix] vetted-system-functions`) is the path itself or a
+/// member it is read from ([`iglint_stubs::system_path_listed`]). Default
+/// empty: a function the 8.3 stubs do not list may evaluate code or read
+/// the caller's frame, and only the user can say it does not.
+pub fn system_path_vetted(path: &str, vetted: &[String]) -> bool {
+    iglint_stubs::system_path_listed(path, vetted)
 }
 
 /// Every use in the module of `model` (nested scopes included) of a
@@ -776,6 +821,8 @@ fn binding_qualified(b: &Binding<'_>) -> Option<String> {
 fn implicit_qualified(name: &str) -> Option<String> {
     match name {
         "sys" | "system" => Some(name.to_owned()),
+        // Ignition's legacy alias of `system`.
+        "fpmi" => Some("system".to_owned()),
         _ if iglint_stubs::is_jython_builtin(name) => Some(format!("__builtin__.{name}")),
         _ => None,
     }
@@ -788,7 +835,8 @@ fn implicit_qualified(name: &str) -> Option<String> {
 fn implicit_bound(name: &str) -> Bound {
     match name {
         "sys" => Bound::Module("sys"),
-        "system" => Bound::Module("system"),
+        // `fpmi` is Ignition's legacy alias of `system`.
+        "system" | "fpmi" => Bound::Module("system"),
         "__builtins__" => Bound::Unknown,
         _ if iglint_stubs::is_jython_builtin(name) => {
             if builtin_vetted(name) {
@@ -911,9 +959,17 @@ impl Walk<'_, '_> {
         }
         let Expr::Name(n) = root else { return false };
         attrs.reverse();
+        // Storing into or deleting from the scripting API replaces a
+        // function every other script calls (`system.tag.readBlocking =
+        // f`).
+        let stored = matches!(expr, Expr::Attribute(a) if a.ctx != ExprContext::Load);
         for candidate in self.candidates(n) {
             if candidate == Bound::Module("system") {
-                self.check_system(&attrs, callee_checked);
+                if stored {
+                    self.other(expr.range());
+                } else {
+                    self.check_system(&attrs, callee_checked);
+                }
             }
             self.check_chain(candidate, n.range, &attrs);
         }
@@ -924,7 +980,12 @@ impl Walk<'_, '_> {
     /// `docs/internal/fix-safety.md`): functions that store or run code
     /// from run-time values are not vetted, `system.tag` writes only with
     /// value-only paths ([`value_write_paths`]), and a package used as a
-    /// value is not followed.
+    /// value is not followed. A member that the measured 8.3 stubs do not
+    /// list (a third-party module's `system.perspective.runJavaScriptAsync`,
+    /// a package that does not exist) is not vetted either: the audit
+    /// covers only the stubs ([`UnknownCode::system`]). What follows a
+    /// listed function, constant or object (`system.net.httpClient().get`)
+    /// is a value.
     fn check_system(&mut self, attrs: &[(&str, TextRange)], callee_checked: bool) {
         let mut dotted = String::from("system");
         for (i, (attr, range)) in attrs.iter().enumerate() {
@@ -937,11 +998,23 @@ impl Walk<'_, '_> {
                 self.other(*range);
                 return;
             }
-            if last && iglint_stubs::system_package(&dotted).is_some() {
-                // `t = system.tag`: what is read from it later is not
-                // checked.
-                self.other(*range);
+            if iglint_stubs::system_package(&dotted).is_some() {
+                if last {
+                    // `t = system.tag`: what is read from it later is not
+                    // checked.
+                    self.other(*range);
+                }
+                continue;
             }
+            if iglint_stubs::system_member(&dotted).is_none() {
+                let whole = attrs.last().map_or(*range, |(_, r)| *r);
+                let path = std::iter::once("system")
+                    .chain(attrs.iter().map(|(a, _)| *a))
+                    .collect::<Vec<_>>()
+                    .join(".");
+                self.out.system.push((path, whole));
+            }
+            return;
         }
     }
 
@@ -1200,6 +1273,41 @@ impl Walk<'_, '_> {
         }
     }
 
+    /// `system.perspective.navigate(url=...)` sends the browser to the URL
+    /// (`window.location.href`, or `window.open` with `newTab`, in the
+    /// 8.3.3 client): a `javascript:` URL runs code in the page, so the call
+    /// is vetted only when its `url` (second positional argument or
+    /// keyword) is absent or a literal that runs no script
+    /// ([`iglint_stubs::client_code::url_runs_no_script`]).
+    fn check_navigate_call(&mut self, c: &ExprCall) {
+        if !self
+            .dotted_names(&c.func)
+            .iter()
+            .any(|q| q == SYSTEM_NAVIGATE)
+        {
+            return;
+        }
+        let ok = c.starargs.is_none()
+            && c.kwargs.is_none()
+            && argument(c, 1, "url").is_none_or(|e| {
+                self.literal_path(e)
+                    .is_some_and(|u| iglint_stubs::client_code::url_runs_no_script(&u))
+            });
+        if !ok {
+            self.other(c.range);
+        }
+    }
+
+    /// `system.perspective.navigate` used as a value: its calls are not
+    /// checked.
+    fn check_navigate_value(&mut self, expr: &Expr) {
+        if self.callee != Some(expr.range())
+            && self.dotted_names(expr).iter().any(|q| q == SYSTEM_NAVIGATE)
+        {
+            self.other(expr.range());
+        }
+    }
+
     /// Members that hand out a gateway store (measured), named on any
     /// value but a vetted Python module: unknown code.
     fn check_store_members(&mut self, expr: &Expr) {
@@ -1304,12 +1412,14 @@ impl<'a> Visitor<'a> for Walk<'_, '_> {
         match expr {
             Expr::Call(c) => {
                 self.check_file_call(c);
+                self.check_navigate_call(c);
                 self.callee = Some(c.func.range());
             }
             Expr::Attribute(_) => {
                 self.check_store_members(expr);
                 self.check_file_members(expr);
                 self.check_file_value(expr);
+                self.check_navigate_value(expr);
             }
             Expr::Name(n) if n.ctx == ExprContext::Load => self.check_file_value(expr),
             _ => {}
@@ -1615,6 +1725,84 @@ mod tests {
             "system.db.runQuery(sql)\n",
         ] {
             assert!(unknown(src).is_empty(), "{src}");
+        }
+    }
+
+    /// Reviewer round 18 (Opus) blocker B1: a `system.*` member that the
+    /// measured 8.3 stubs do not list (a third-party module's function, a
+    /// package that does not exist) is not vetted, unless the project vets
+    /// it; stores into the API and `system.perspective.navigate` with a URL
+    /// that may be a script are unknown code.
+    #[test]
+    fn unlisted_system_members_are_unknown() {
+        for (src, path) in [
+            (
+                "def f():\n    return system.thirdparty.evalHere('x')\n",
+                "system.thirdparty.evalHere",
+            ),
+            (
+                "system.perspective.runJavaScriptAsync('x')\n",
+                "system.perspective.runJavaScriptAsync",
+            ),
+            (
+                "x = system.thirdparty.readFile(p)\n",
+                "system.thirdparty.readFile",
+            ),
+            ("x = system.tag.nope\n", "system.tag.nope"),
+            ("x = system.mes.obj.method()\n", "system.mes.obj.method"),
+            (
+                "x = fpmi.thirdparty.evalHere('x')\n",
+                "system.thirdparty.evalHere",
+            ),
+        ] {
+            let found = unknown(src);
+            assert_eq!(found.other, None, "{src}");
+            assert_eq!(
+                found
+                    .system
+                    .iter()
+                    .map(|(p, _)| p.as_str())
+                    .collect::<Vec<_>>(),
+                [path],
+                "{src}"
+            );
+            assert!(!found.is_empty(), "{src}");
+            assert!(found.first(&[]).is_some(), "{src}");
+            assert_eq!(found.first(&[path.to_owned()]), None, "{src}");
+            // An entry vets the member and what is read from it, nothing
+            // else.
+            let parent = path.rsplit_once('.').unwrap().0.to_owned();
+            assert_eq!(found.first(&[parent]), None, "{src}");
+            assert!(found.first(&[format!("{path}x")]).is_some(), "{src}");
+        }
+        for src in [
+            "system.tag.readBlocking = f\n",
+            "del system.util\n",
+            "system.util.x = 1\n",
+            "fpmi.tag.readBlocking = f\n",
+            "def f():\n    return fpmi\n",
+            "system.perspective.navigate(url=u)\n",
+            "system.perspective.navigate('/p', u)\n",
+            "system.perspective.navigate(url='javascript:alert(1)')\n",
+            "system.perspective.navigate(url=' JAVA\\tSCRIPT:x')\n",
+            "system.perspective.navigate(**kw)\n",
+            "n = system.perspective.navigate\n",
+        ] {
+            let found = unknown(src);
+            assert!(found.first(&[]).is_some(), "{src}");
+        }
+        for src in [
+            "system.tag.readBlocking(['[default]T'])\n",
+            "x = system.net.httpClient().get\n",
+            "fpmi.tag.readBlocking(['[default]T'])\n",
+            "system.perspective.navigate('/page')\n",
+            "system.perspective.navigate(page=p)\n",
+            "system.perspective.navigate(url='https://example.com', newTab=True)\n",
+            "system.perspective.navigate(view='V', params={'a': 1})\n",
+        ] {
+            let found = unknown(src);
+            assert_eq!(found.other, None, "{src}");
+            assert!(found.system.is_empty(), "{src}");
         }
     }
 

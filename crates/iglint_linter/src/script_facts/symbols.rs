@@ -103,6 +103,7 @@ pub fn module_symbols(model: &SemanticModel<'_>, ast: &Module) -> ModuleSymbols 
         unknown_code: unknown.other.is_some()
             || iglint_python_semantic::dynamic::reads_frames(&ast.body).is_some(),
         imports: unknown.imports.into_iter().map(|(name, _)| name).collect(),
+        system: unknown.system.into_iter().map(|(path, _)| path).collect(),
         library_names: super::access::library_names_used(model, &ast.body),
     }
 }

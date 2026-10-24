@@ -358,7 +358,7 @@ fn unsafe_fixes_name_the_code_that_makes_them_unsafe() {
     let r = reason(&first);
     assert_eq!(
         r["message"],
-        "closed world: code in the workspace is not vetted, reads frames or reaches other views, first"
+        "closed world: code in the workspace is not vetted, reads frames, reaches other views or runs in the browser, first"
     );
     assert_eq!(r["what"], "re.sys");
     assert_eq!(r["filename"], "p/ignition/script-python/m/code.py");
@@ -370,7 +370,7 @@ fn unsafe_fixes_name_the_code_that_makes_them_unsafe() {
     assert!(
         text.contains(
             "note: the fix is unsafe because closed world: code in the workspace is not vetted, \
-             reads frames or reaches other views, first: `re.sys` at \
+             reads frames, reaches other views or runs in the browser, first: `re.sys` at \
              p/ignition/script-python/m/code.py:2:5"
         ),
         "{text}"
@@ -1253,6 +1253,159 @@ fn webdev_gateway_context_is_unknown_code() {
     }
 }
 
+/// Reviewer round 18 (Opus) blocker B1, through the binary: a `system.*`
+/// function the 8.3 stubs do not list, an expression function the gateway
+/// does not register and a component that runs JavaScript in the browser
+/// are unknown code. Each keeps `SCR102`'s fix unsafe (with the site),
+/// and `--fix` does not apply it; the project vets the functions it lists
+/// under `[fix]`.
+#[test]
+fn unknown_functions_and_browser_code_keep_fixes_unsafe() {
+    let manifest = |file: &str| format!(r#"{{"scope": "A", "version": 1, "files": ["{file}"]}}"#);
+    let module = "import math\n\ndef f():\n    return 1\n";
+    for (other, file, what, config) in [
+        (
+            "def g():\n    return system.thirdparty.evalHere('x')\n",
+            "p/ignition/script-python/n/code.py",
+            "system.thirdparty.evalHere",
+            "[fix]\nvetted-system-functions = [\"system.thirdparty.evalHere\"]\n",
+        ),
+        (
+            r#"{"custom": {"x": 1}, "propConfig": {"custom.x": {"binding": {"type": "expr", "config": {"expression": "objectScript('1')"}}}}, "root": {"type": "ia.container.flex", "meta": {"name": "root"}}}"#,
+            "p/com.inductiveautomation.perspective/views/B/view.json",
+            "objectScript",
+            "[fix]\nvetted-expression-functions = [\"objectScript\"]\n",
+        ),
+        (
+            r#"{"root": {"type": "ia.container.flex", "meta": {"name": "root"}, "children": [{"type": "ia.display.iframe", "meta": {"name": "F"}}]}}"#,
+            "p/com.inductiveautomation.perspective/views/B/view.json",
+            "root/F (ia.display.iframe)",
+            "",
+        ),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let write = |rel: &str, text: &str| {
+            let path = dir.path().join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        };
+        write(
+            "p/project.json",
+            r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+        );
+        write(
+            "p/ignition/script-python/m/resource.json",
+            &manifest("code.py"),
+        );
+        write("p/ignition/script-python/m/code.py", module);
+        let name = std::path::Path::new(file)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
+        write(
+            &std::path::Path::new(file)
+                .with_file_name("resource.json")
+                .to_string_lossy(),
+            &manifest(name),
+        );
+        write(file, other);
+        let run = || {
+            let out = iglint(dir.path())
+                .args([
+                    "--no-cache",
+                    "--select",
+                    "SCR102",
+                    "--output-format",
+                    "json",
+                ])
+                .output()
+                .unwrap();
+            let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+            let found = v.as_array().unwrap().clone();
+            assert_eq!(found.len(), 1, "{v}");
+            found[0]["fix"].clone()
+        };
+        let fix = run();
+        assert_eq!(fix["applicability"], "unsafe", "{fix}");
+        let reason = &fix["unsafe_reason"];
+        assert!(
+            reason["what"].as_str().unwrap().starts_with(what),
+            "{reason}"
+        );
+        assert_eq!(reason["filename"], file, "{reason}");
+        iglint(dir.path())
+            .args(["--no-cache", "--select", "SCR102", "--fix"])
+            .output()
+            .unwrap();
+        let after =
+            std::fs::read_to_string(dir.path().join("p/ignition/script-python/m/code.py")).unwrap();
+        assert_eq!(after, module, "{what}");
+        if !config.is_empty() {
+            write("iglint.toml", config);
+            let fix = run();
+            assert_eq!(fix["applicability"], "safe", "{what}: {fix}");
+        }
+    }
+}
+
+/// Reviewer round 18 (Opus) blockers B2 and N1, through the binary: the
+/// review's repro (an import in a function near the 64 KB method limit)
+/// is reported with an unsafe fix that says why, and `--fix` leaves the
+/// file as it is.
+#[test]
+fn fixes_near_the_method_limit_are_reported_unsafe() {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        "p/project.json",
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    );
+    write(
+        "p/ignition/script-python/m/resource.json",
+        r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+    );
+    let mut code = String::from("def g():\n    import math\n");
+    for i in 0..2_176 {
+        code.push_str(&format!("    a = abs({})\n", i % 7));
+    }
+    code.push_str("    c = 1\n    c = 1\n    return a + c\n");
+    write("p/ignition/script-python/m/code.py", &code);
+    let out = iglint(dir.path())
+        .args([
+            "--no-cache",
+            "--select",
+            "SCR102",
+            "--output-format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let fix = &v[0]["fix"];
+    assert_eq!(fix["applicability"], "unsafe", "{v}");
+    assert!(
+        fix["unsafe_reason"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("compile status is not known"),
+        "{fix}"
+    );
+    let out = iglint(dir.path())
+        .args(["--no-cache", "--select", "SCR102", "--fix"])
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(!text.contains("fix not applied"), "{text}");
+    let after =
+        std::fs::read_to_string(dir.path().join("p/ignition/script-python/m/code.py")).unwrap();
+    assert_eq!(after, code);
+}
+
 /// Reviewer round 11: a directory of loose `.py` files has no Ignition
 /// project, so nothing under it is linted; the run says so (exit 0)
 /// instead of only "All checks passed!". Named on the command line, the
@@ -1984,8 +2137,8 @@ fn closed_world_reasons_do_not_depend_on_what_is_linted() {
     let dir = closed_world_repository("\tprint eval('1')\n");
     let root = dir.path();
     let project = root.join("projects/A");
-    let closed = "closed world: code in the workspace is not vetted, reads frames or reaches \
-                  other views, first";
+    let closed = "closed world: code in the workspace is not vetted, reads frames, reaches \
+                  other views or runs in the browser, first";
     let expected = vec![("unsafe".to_owned(), closed.to_owned())];
     let runs: [(&std::path::Path, Vec<&str>); 5] = [
         (root, vec![]),

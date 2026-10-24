@@ -356,7 +356,12 @@ impl LiveWorkspace {
         }
         let old = std::mem::replace(old, new);
         let summaries = std::mem::take(&mut self.summaries);
-        let index = crate::analyze::build_index(&self.ws, summaries, self.closed_world_unknown);
+        let index = crate::analyze::build_index(
+            &self.ws,
+            summaries,
+            self.closed_world_unknown,
+            &self.settings.vetted,
+        );
         let dependents = dependents(&self.ws, &index, rid, &old);
         self.summaries = index.into_summaries();
         dependents
@@ -386,7 +391,12 @@ impl LiveWorkspace {
         let old = std::mem::replace(&mut self.summaries[rid.index()], new);
         let changed = old != self.summaries[rid.index()];
         let summaries = std::mem::take(&mut self.summaries);
-        let index = crate::analyze::build_index(&self.ws, summaries, self.closed_world_unknown);
+        let index = crate::analyze::build_index(
+            &self.ws,
+            summaries,
+            self.closed_world_unknown,
+            &self.settings.vetted,
+        );
         let dependents = if changed {
             dependents(&self.ws, &index, rid, &old)
         } else {
@@ -405,7 +415,12 @@ impl LiveWorkspace {
     /// Findings of `paths`, in the order given.
     pub fn check(&mut self, paths: &[PathBuf]) -> Vec<FileDiagnostics> {
         let summaries = std::mem::take(&mut self.summaries);
-        let index = crate::analyze::build_index(&self.ws, summaries, self.closed_world_unknown);
+        let index = crate::analyze::build_index(
+            &self.ws,
+            summaries,
+            self.closed_world_unknown,
+            &self.settings.vetted,
+        );
         let result = self.check_with(&index, paths);
         self.summaries = index.into_summaries();
         result
@@ -518,6 +533,16 @@ impl LiveWorkspace {
                         Some(d)
                     })
                     .collect();
+                // A safe fix the post-fix net would drop is shown as
+                // unsafe, as `check` reports it.
+                if let Some(source) = self.source(path) {
+                    crate::safety::mark_rejected_safe_fixes(
+                        path,
+                        source.text(),
+                        &mut out.diagnostics,
+                        &|text: &str| self.script_texts(path, text),
+                    );
+                }
                 crate::rules::script::pylint::drop_duplicates(&mut out.diagnostics);
                 out.diagnostics
                     .sort_by(|a, b| a.sort_key().cmp(&b.sort_key()));
@@ -796,7 +821,12 @@ impl LiveWorkspace {
             return None;
         }
         let summaries = std::mem::take(&mut self.summaries);
-        let index = crate::analyze::build_index(&self.ws, summaries, self.closed_world_unknown);
+        let index = crate::analyze::build_index(
+            &self.ws,
+            summaries,
+            self.closed_world_unknown,
+            &self.settings.vetted,
+        );
         let mut options = CheckOptions {
             fix_mode: FixMode::DiffOnly { unsafe_fixes },
             stdin: Some((path.clone(), String::new())),
@@ -827,30 +857,7 @@ impl LiveWorkspace {
                     None => self.analyze_standalone(&index, &path, text, Vec::new(), forced),
                 }
             };
-        let scripts = |text: &str| -> Vec<crate::safety::ScriptText> {
-            let text: Arc<str> = Arc::from(text);
-            match self.by_path.get(&path) {
-                Some(f) => {
-                    let Some(rid) = self.ws.file(*f).resource else {
-                        return Vec::new();
-                    };
-                    let mut loaded = self.load_current(rid);
-                    for lf in &mut loaded.files {
-                        if lf.file == *f {
-                            crate::analyze::replace_text(lf, Arc::clone(&text));
-                        }
-                    }
-                    let model = build_model(&self.ws, &loaded);
-                    model
-                        .scripts()
-                        .into_iter()
-                        .filter(|(file, _)| file == f)
-                        .map(|(_, s)| crate::safety::ScriptText::of(s))
-                        .collect()
-                }
-                None => crate::analyze::standalone_scripts(&path, text),
-            }
-        };
+        let scripts = |text: &str| self.script_texts(&path, text);
         let result = fix_file(
             &self.settings,
             &options,
@@ -867,6 +874,32 @@ impl LiveWorkspace {
             applied: summary.applied.len(),
             fixed: summary.fixed,
         })
+    }
+
+    /// The scripts of `path` with the text `text`, for the safety net.
+    fn script_texts(&self, path: &Path, text: &str) -> Vec<crate::safety::ScriptText> {
+        let text: Arc<str> = Arc::from(text);
+        match self.by_path.get(path) {
+            Some(f) => {
+                let Some(rid) = self.ws.file(*f).resource else {
+                    return Vec::new();
+                };
+                let mut loaded = self.load_current(rid);
+                for lf in &mut loaded.files {
+                    if lf.file == *f {
+                        crate::analyze::replace_text(lf, Arc::clone(&text));
+                    }
+                }
+                let model = build_model(&self.ws, &loaded);
+                model
+                    .scripts()
+                    .into_iter()
+                    .filter(|(file, _)| file == f)
+                    .map(|(_, s)| crate::safety::ScriptText::of(s))
+                    .collect()
+            }
+            None => crate::analyze::standalone_scripts(path, text),
+        }
     }
 
     /// Whether findings of `rule` can be suppressed with a script comment:

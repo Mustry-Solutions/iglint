@@ -39,7 +39,11 @@ pub(crate) const TOP_KEYS: &[&str] = &[
     "fix",
 ];
 
-pub(crate) const FIX_KEYS: &[&str] = &["assume-scripts-do-not-read-workspace-files"];
+pub(crate) const FIX_KEYS: &[&str] = &[
+    "assume-scripts-do-not-read-workspace-files",
+    "vetted-expression-functions",
+    "vetted-system-functions",
+];
 
 pub(crate) const OVERRIDE_KEYS: &[&str] = &[
     "files",
@@ -114,6 +118,10 @@ pub(crate) struct RawConfig {
     pub overrides: Vec<RawOverride>,
     /// `[fix] assume-scripts-do-not-read-workspace-files`.
     pub assume_no_workspace_file_reads: Option<bool>,
+    /// `[fix] vetted-system-functions`.
+    pub vetted_system_functions: Option<Vec<String>>,
+    /// `[fix] vetted-expression-functions`.
+    pub vetted_expression_functions: Option<Vec<String>>,
 }
 
 struct Ctx<'a> {
@@ -519,6 +527,39 @@ fn parse_table(
                         "assume-scripts-do-not-read-workspace-files" => {
                             raw.assume_no_workspace_file_reads =
                                 Some(ctx.bool(key.get_ref(), value)?);
+                        }
+                        "vetted-system-functions" => {
+                            let mut paths = Vec::new();
+                            for (path, span) in ctx.strings(key.get_ref(), value)? {
+                                let valid = path.strip_prefix("system.").is_some_and(|rest| {
+                                    rest.split('.').all(|part| {
+                                        part.chars()
+                                            .next()
+                                            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                                            && part
+                                                .chars()
+                                                .all(|c| c.is_ascii_alphanumeric() || c == '_')
+                                    })
+                                });
+                                if !valid {
+                                    return Err(ctx.error(
+                                        &span,
+                                        format!(
+                                            "`{path}` is not a `system.*` path (`system.<package>.<function>`, no wildcards)"
+                                        ),
+                                    ));
+                                }
+                                paths.push(path);
+                            }
+                            raw.vetted_system_functions = Some(paths);
+                        }
+                        "vetted-expression-functions" => {
+                            raw.vetted_expression_functions = Some(
+                                ctx.strings(key.get_ref(), value)?
+                                    .into_iter()
+                                    .map(|(name, _)| name)
+                                    .collect(),
+                            );
                         }
                         _ => return Err(ctx.unknown_key(key, "fix", FIX_KEYS)),
                     }

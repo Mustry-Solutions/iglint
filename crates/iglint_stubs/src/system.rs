@@ -286,6 +286,16 @@ pub fn system_packages() -> &'static [Package] {
     generated::PACKAGES
 }
 
+/// Whether the `system.*` chain `path` is one of `listed` or a member read
+/// from one (`system.mes.getThing` lists `system.mes.getThing` and
+/// `system.mes.getThing.x`, not `system.mes.getThings`).
+pub fn system_path_listed(path: &str, listed: &[String]) -> bool {
+    listed.iter().any(|l| {
+        path.strip_prefix(l.as_str())
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+    })
+}
+
 /// Looks up any member by full path.
 pub fn system_member(path: &str) -> Option<Member> {
     if let Some(f) = system_function(path) {

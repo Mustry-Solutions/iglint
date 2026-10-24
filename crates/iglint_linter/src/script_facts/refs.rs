@@ -93,6 +93,15 @@ pub fn collect(model: &SemanticModel<'_>, ctx: &FactsContext<'_>, refs: &mut Ref
             .into_iter()
             .map(|(name, range)| (name, UnknownSite::detached(range))),
     );
+    // `system.*` members the 8.3 stubs do not list: unknown code and a
+    // possible file read unless the project vets them (the index decides).
+    refs.unvetted_names
+        .extend(unknown.system.into_iter().map(|(path, range)| {
+            (
+                iglint_project::UnvettedName::System(path),
+                UnknownSite::detached(range),
+            )
+        }));
     let mut chains = Chains { model, ctx, refs };
     chains.visit_module(model.module);
     // Imports make names attributes of the importing module.
@@ -356,6 +365,9 @@ fn literal_code(ctx: &FactsContext<'_>, code: &iglint_python::ast::ExprStr, refs
         site.range = code.range;
     }
     for (_, site) in &mut inner.unvetted_imports {
+        site.range = code.range;
+    }
+    for (_, site) in &mut inner.unvetted_names {
         site.range = code.range;
     }
     refs.extend(inner);

@@ -54,6 +54,10 @@ pub struct ModuleSymbols {
     /// Imports of modules that are not vetted, which are fine only when
     /// they are plain project library modules.
     pub imports: Vec<String>,
+    /// `system.*` chains the module uses that the 8.3 stubs do not list:
+    /// not vetted unless the project vets them
+    /// ([`crate::index::Vetted`]).
+    pub system: Vec<String>,
     /// Dotted names the module uses that may be library names.
     pub library_names: Vec<String>,
 }

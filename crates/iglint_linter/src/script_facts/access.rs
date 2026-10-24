@@ -253,6 +253,11 @@ impl ScriptFacts for AstScriptFacts {
         for (_, site) in &mut references.unvetted_imports {
             place(site);
         }
+        for (_, site) in &mut references.unvetted_names {
+            place(site);
+            site.what
+                .push_str(" (not in the Ignition 8.3 scripting API)");
+        }
         // Perspective objects that may reach other views.
         let roots = perspective_roots(unit.script, view.is_some());
         if !roots.is_empty() && reads_frames(&unit.parsed.module.body).is_none() {

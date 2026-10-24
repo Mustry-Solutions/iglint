@@ -317,8 +317,15 @@ fn quick_fixes_go_through_the_safety_net() {
             .filter(|a| a.title.starts_with("SCR123") && !a.title.contains("suppress on this line"))
             .collect()
     };
+    // The safe fix the net drops is offered as unsafe, with the net's
+    // reason, and not preferred (review round 18, N1).
     let rejected = fixes(&mut client, line(1));
-    assert!(rejected.is_empty(), "{rejected:#?}");
+    assert_eq!(rejected.len(), 1, "{rejected:#?}");
+    assert!(
+        rejected[0].title.contains("(unsafe: the safe fix could change what the code does (the test marker rejects safe fixes))"),
+        "{rejected:#?}"
+    );
+    assert_ne!(rejected[0].is_preferred, Some(true), "{rejected:#?}");
     let unsafe_fix = fixes(&mut client, line(2));
     assert_eq!(unsafe_fix.len(), 1, "{unsafe_fix:#?}");
     // Every unsafe fix says why (review round 14).
@@ -826,6 +833,16 @@ fn fix_all_keeps_imports_read_by_class_bodies() {
 /// The VIEW015 quick fixes (and fix-all) of `view` in a workspace where
 /// another view runs `script`: the titles and whether each is preferred.
 fn view015_fixes(script: &str) -> Vec<(String, Option<bool>)> {
+    view015_fixes_with(Some(script), None, None)
+}
+
+/// [`view015_fixes`] with view `B` holding a button that runs `script`, or
+/// the view `b`, and `config` as the workspace's `iglint.toml`.
+fn view015_fixes_with(
+    script: Option<&str>,
+    b: Option<&str>,
+    config: Option<&str>,
+) -> Vec<(String, Option<bool>)> {
     let dir = tempfile::tempdir().unwrap();
     let root = root(&dir);
     demo_project(&root);
@@ -848,7 +865,15 @@ fn view015_fixes(script: &str) -> Vec<(String, Option<bool>)> {
     write(&root, &format!("{views}/A/resource.json"), MANIFEST);
     let path = write(&root, &format!("{views}/A/view.json"), &a);
     write(&root, &format!("{views}/B/resource.json"), MANIFEST);
-    write(&root, &format!("{views}/B/view.json"), &view("{}", script));
+    let b = match (script, b) {
+        (Some(script), _) => view("{}", script),
+        (None, Some(b)) => b.to_owned(),
+        (None, None) => view("{}", ""),
+    };
+    write(&root, &format!("{views}/B/view.json"), &b);
+    if let Some(config) = config {
+        write(&root, "iglint.toml", config);
+    }
     let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
     let uri = client.open(&path, &a);
     let published = client.diagnostics(&uri, Some(1));
@@ -896,6 +921,112 @@ fn quick_fix_for_a_property_read_from_another_view_is_unsafe() {
         assert!(!title.contains("unsafe"), "{title}");
         assert_eq!(*preferred, Some(true), "{title}");
     }
+}
+
+/// Reviewer round 18 (Opus) blocker B1, through the language server: a
+/// third-party `system.perspective.runJavaScriptAsync` call, an expression
+/// function the gateway does not register and a component that runs
+/// JavaScript in the browser, in another view, make the VIEW015 quick fix
+/// unsafe with the site; the project can vet the function.
+#[test]
+fn quick_fix_with_unknown_functions_or_browser_code_is_unsafe() {
+    let b = |child: &str| {
+        format!(
+            r#"{{"custom": {{"y": 1}}, "propConfig": {{"custom.y": {{"binding": {{"type": "expr", "config": {{"expression": "now(0)"}}}}}}}}, "root": {{"meta": {{"name": "root"}}, "type": "ia.container.flex", "children": [{child}]}}}}"#
+        )
+    };
+    for (script, view, site) in [
+        (
+            Some(r"\tsystem.perspective.runJavaScriptAsync('x')"),
+            None,
+            "system.perspective.runJavaScriptAsync",
+        ),
+        (
+            None,
+            Some(b(r#"{"meta": {"name": "F"}, "type": "ia.display.iframe"}"#)),
+            "ia.display.iframe",
+        ),
+        (
+            None,
+            Some(b(
+                r#"{"meta": {"name": "L"}, "type": "ia.display.label", "propConfig": {"props.text": {"binding": {"type": "expr", "config": {"expression": "objectScript('x')"}}}}}"#,
+            )),
+            "objectScript",
+        ),
+    ] {
+        let fixes = view015_fixes_with(script, view.as_deref(), None);
+        assert!(!fixes.is_empty(), "{site}");
+        for (title, preferred) in &fixes {
+            assert!(title.contains("(unsafe: closed world"), "{title}");
+            assert!(title.contains(site), "{title}");
+            assert!(title.contains("views/B/view.json"), "{title}");
+            assert_eq!(*preferred, Some(false), "{title}");
+        }
+    }
+    let fixes = view015_fixes_with(
+        Some(r"\tsystem.perspective.runJavaScriptAsync('x')"),
+        None,
+        Some("[fix]\nvetted-system-functions = [\"system.perspective.runJavaScriptAsync\"]\n"),
+    );
+    assert!(!fixes.is_empty());
+    for (title, preferred) in &fixes {
+        assert!(!title.contains("unsafe"), "{title}");
+        assert_eq!(*preferred, Some(true), "{title}");
+    }
+}
+
+/// Reviewer round 18 (Opus) blockers B2 and N1, through the language
+/// server: the quick fix of the review's repro (an import in a function
+/// near the 64 KB method limit) is unsafe, says why and is not preferred.
+#[test]
+fn quick_fix_near_the_method_limit_is_unsafe() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    demo_project(&root);
+    let lib = "projects/demo/ignition/script-python/m";
+    write(
+        &root,
+        &format!("{lib}/resource.json"),
+        &MANIFEST.replace("view.json", "code.py"),
+    );
+    let mut text = String::from("def g():\n    import math\n");
+    for i in 0..2_176 {
+        text.push_str(&format!("    a = abs({})\n", i % 7));
+    }
+    text.push_str("    c = 1\n    c = 1\n    return a + c\n");
+    let path = write(&root, &format!("{lib}/code.py"), &text);
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&path, &text);
+    let published = client.diagnostics(&uri, Some(1));
+    let range = published
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.code
+                .as_ref()
+                .is_some_and(|c| *c == lsp_types::NumberOrString::String("SCR102".to_owned()))
+        })
+        .unwrap_or_else(|| panic!("{published:#?}"))
+        .range;
+    let fixes: Vec<CodeAction> = code_actions(
+        &mut client,
+        &uri,
+        range,
+        Some(vec![CodeActionKind::QUICKFIX]),
+    )
+    .into_iter()
+    .filter(|a| a.title.starts_with("SCR102") && !a.title.contains("suppress"))
+    .collect();
+    assert!(!fixes.is_empty());
+    for f in &fixes {
+        assert!(
+            f.title.contains("compile status is not known"),
+            "{}",
+            f.title
+        );
+        assert_ne!(f.is_preferred, Some(true), "{}", f.title);
+    }
+    client.shutdown();
 }
 
 /// Reviewer round 9 (Codex) blocker, through the language server: removing

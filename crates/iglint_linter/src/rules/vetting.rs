@@ -35,7 +35,12 @@ pub(crate) fn unknown_code_at(
     body: &[Stmt],
 ) -> Option<UnknownAt> {
     let unknown = iglint_python_semantic::vetted::unknown_code(model);
-    if let Some(range) = unknown.other {
+    // `system.*` members the 8.3 stubs do not list count unless the
+    // project vets them; without the index none is.
+    let vetted_system = cx
+        .index()
+        .map_or(&[][..], |index| &index.vetted().system_functions[..]);
+    if let Some(range) = unknown.first(vetted_system) {
         return Some(UnknownAt::Here(range));
     }
     let names = crate::script_facts::access::library_names_used(model, body);
@@ -129,8 +134,8 @@ pub(crate) fn workspace_reason(cx: &Checker<'_, '_>) -> UnsafeReason {
         };
     }
     UnsafeReason {
-        message: "closed world: code in the workspace is not vetted, reads frames or reaches \
-                  other views, first"
+        message: "closed world: code in the workspace is not vetted, reads frames, reaches \
+                  other views or runs in the browser, first"
             .to_owned(),
         site: None,
         workspace: true,
@@ -224,6 +229,10 @@ fn module_vetted(
     };
     let (globals, _) = index.script_library_globals(project);
     !symbols.unknown_code
+        && symbols
+            .system
+            .iter()
+            .all(|path| iglint_stubs::system_path_listed(path, &index.vetted().system_functions))
         && symbols
             .imports
             .iter()

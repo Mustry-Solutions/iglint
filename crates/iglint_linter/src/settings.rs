@@ -4,6 +4,7 @@
 //! linter only ever sees the resolved form. Settings for a file are the base
 //! settings with every matching override applied in order.
 
+pub use iglint_project::Vetted;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -157,6 +158,12 @@ pub struct ProjectSettings {
     /// (`ProjectIndex::may_read_workspace_files`) does not keep fixes from
     /// being safe. The user's responsibility; off by default.
     pub assume_no_workspace_file_reads: bool,
+    /// `[fix] vetted-system-functions` and `vetted-expression-functions`:
+    /// names outside the measured 8.3 lists (third-party modules' `system.*`
+    /// functions and expression functions) that the user states cannot
+    /// evaluate code, read a frame or read workspace files, so they do not
+    /// count as unknown code. The user's responsibility; empty by default.
+    pub vetted: Vetted,
 }
 
 impl Default for ProjectSettings {
@@ -174,6 +181,7 @@ impl Default for ProjectSettings {
             respect_gitignore: true,
             unfixable: BTreeSet::new(),
             assume_no_workspace_file_reads: false,
+            vetted: Vetted::default(),
         }
     }
 }

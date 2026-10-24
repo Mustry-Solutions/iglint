@@ -19,8 +19,17 @@
 //! The bound must never exceed the measured size of any unit, so that
 //! `SCR002` never reports a script Jython compiles; and it must report
 //! the shapes Jython rejects close to where Jython starts to reject them.
+//!
+//! The file also records every method of the class and its constant pool
+//! count, for the upper bounds (`iglint_python_semantic::upper`, review
+//! round 18): they must never be below what Jython generates, also for
+//! the programs close to each limit ([`near_limit_sources`]), and a
+//! program whose verdict both bounds decide must get Jython's verdict.
+//! A larger calibration run: `IGLINT_METHOD_SIZE_NEAR=3000` for writing
+//! the sources and for the check, with the output of the oracle in
+//! `IGLINT_METHOD_SIZE_EXPECTED`.
 
-use iglint_python_semantic::{CompileErrorKind, code_units, size_errors};
+use iglint_python_semantic::{CompileErrorKind, code_units, size_errors, size_unknown, upper};
 
 /// Runs `f` on a thread with a stack deep enough for the longest `elif`
 /// chains (as the linter does).
@@ -573,8 +582,80 @@ fn shape_sizes() -> Vec<(&'static str, usize)> {
     out
 }
 
-fn sources() -> Vec<(String, String)> {
+/// Programs close to the limits, for the upper bounds and the margins
+/// (reviewer round 18, B2): random function bodies whose lower bound lies
+/// around the method limit, many code units (each a code object in the
+/// class's `<init>`), many distinct constants and names around the
+/// constant pool limit, and the review's repro shape.
+fn near_limit_sources() -> Vec<(String, String)> {
     let mut out = Vec::new();
+    // Random statements in one function: 220 to 320 statements of this
+    // generator lie around 64 KB.
+    for seed in 300_000..300_000 + near_random() {
+        let size = 220 + (seed % 100) as usize;
+        out.push((format!("near-{seed}-{size}"), program(seed, size)));
+    }
+    // The review's repro: 2,176 `a = abs(i % 7)` lines, an import first.
+    for n in [2_100, 2_150, 2_170, 2_176, 2_180, 2_200] {
+        for import in [true, false] {
+            let mut s = String::from("def g():\n");
+            s.push_str(if import { "    import math\n" } else { "\n" });
+            for i in 0..n {
+                s.push_str(&format!("    a = abs({})\n", i % 7));
+            }
+            s.push_str("    c = 1\n    c = 1\n    return a + c\n");
+            out.push((format!("repro-{n}-{import}"), s));
+        }
+    }
+    // Code units: `<init>` builds a code object per unit with its names.
+    for (n, params) in [
+        (500, 8),
+        (700, 8),
+        (760, 8),
+        (800, 8),
+        (150, 40),
+        (200, 40),
+        (220, 40),
+    ] {
+        let mut s = String::new();
+        for i in 0..n {
+            let p: Vec<String> = (0..params).map(|j| format!("p{j}")).collect();
+            s.push_str(&format!("def g{i}({}):\n    return p0\n", p.join(", ")));
+        }
+        out.push((format!("units-{n}-{params}"), s));
+    }
+    // Distinct constants and names around the constant pool limit.
+    for n in [28_000, 31_000, 32_000, 32_400, 32_600, 33_000] {
+        for kind in ["strings", "names", "mixed"] {
+            let mut s = String::from("def g():\n");
+            for chunk in (0..n).collect::<Vec<_>>().chunks(500) {
+                let items: Vec<String> = chunk
+                    .iter()
+                    .map(|i| match (kind, i % 2) {
+                        ("strings", _) | ("mixed", 0) => format!("'s{i}'"),
+                        _ => format!("n{i}"),
+                    })
+                    .collect();
+                s.push_str(&format!("    x = [{}]\n", items.join(", ")));
+            }
+            out.push((format!("pool-{kind}-{n}"), s));
+        }
+    }
+    out
+}
+
+/// Random programs near the method limit in [`near_limit_sources`]: 400,
+/// or `IGLINT_METHOD_SIZE_NEAR` for a larger calibration run (set it for
+/// writing the sources and for checking them).
+fn near_random() -> u64 {
+    std::env::var("IGLINT_METHOD_SIZE_NEAR")
+        .ok()
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(400)
+}
+
+fn sources() -> Vec<(String, String)> {
+    let mut out = near_limit_sources();
     for &(start, count, size) in RANDOM {
         for seed in start..start + count {
             out.push((format!("random-{seed}-{size}"), program(seed, size)));
@@ -606,6 +687,11 @@ fn write_sources_here() {
 /// `None` when the code generator failed, and whether `compile()` passed.
 struct Measured {
     units: Option<Vec<(String, usize)>>,
+    /// Every method of the class (code units, lambdas and generator
+    /// expressions included, and the support methods), in class order.
+    methods: Option<Vec<(String, usize)>>,
+    /// The constant pool count of the class.
+    pool: Option<usize>,
     compiles: bool,
 }
 
@@ -634,8 +720,34 @@ fn measured() -> Vec<(String, Measured)> {
                 .map(|p| (p[0].to_owned(), p[1].parse().expect("size")))
                 .collect()
         });
-        let compiles = lines.next().expect("verdict") == "ok";
-        out.push((name, Measured { units, compiles }));
+        let mut methods = None;
+        let mut pool = None;
+        let verdict = loop {
+            let line = lines.next().expect("verdict");
+            if let Some(m) = line.strip_prefix("methods ") {
+                let parts: Vec<&str> = m.split(' ').collect();
+                methods = Some(
+                    parts
+                        .chunks(2)
+                        .map(|p| (p[0].to_owned(), p[1].parse().expect("size")))
+                        .collect(),
+                );
+            } else if let Some(n) = line.strip_prefix("pool ") {
+                pool = Some(n.parse().expect("pool"));
+            } else {
+                break line;
+            }
+        };
+        let compiles = verdict == "ok";
+        out.push((
+            name,
+            Measured {
+                units,
+                methods,
+                pool,
+                compiles,
+            },
+        ));
     }
     out
 }
@@ -648,6 +760,8 @@ fn bound_never_exceeds_what_jython_generates() {
 fn bound_never_exceeds_here() {
     let sources: std::collections::HashMap<String, String> = sources().into_iter().collect();
     let (mut units, mut programs, mut skipped, mut reported) = (0, 0, 0, 0);
+    let mut margins = Margins::default();
+    let mut violations: Vec<String> = Vec::new();
     let mut tightness: Vec<f64> = Vec::new();
     for (name, m) in measured() {
         let source = &sources[&name];
@@ -668,6 +782,7 @@ fn bound_never_exceeds_here() {
             reported += 1;
             assert!(!m.compiles, "{name}: reported, but Jython compiles it");
         }
+        violations.extend(check_upper(&name, &parsed.module, source, &m, &mut margins));
         let Some(sizes) = &m.units else {
             continue;
         };
@@ -682,25 +797,38 @@ fn bound_never_exceeds_here() {
             .filter(|(i, u)| *i == 0 || u.owner.is_some())
             .map(|(_, u)| u)
             .collect();
-        let sizes: Vec<&(String, usize)> = sizes.iter().collect();
         // Jython may generate a unit more often than the bound lists it
         // (a `def` in a `finally` body is compiled once per way out of
-        // the `try`): each bound is matched with the next unit of its name.
-        let mut next = 0;
+        // the `try`), and the copies come in an order of their own: per
+        // name, the bounds sorted must be at most the sizes sorted, which
+        // holds when every bound is at most the size of its own unit.
+        let mut real: std::collections::BTreeMap<&str, Vec<usize>> = Default::default();
+        for (n, size) in sizes {
+            real.entry(n.as_str()).or_default().push(*size);
+        }
+        let mut lower: std::collections::BTreeMap<&str, Vec<usize>> = Default::default();
         for bound in &bounds {
-            let Some(at) = sizes[next..].iter().position(|(n, _)| n == bound.name) else {
-                panic!("{name}: no unit `{}` where the bound has one", bound.name);
+            lower.entry(bound.name).or_default().push(bound.bytes);
+        }
+        for (unit, bounds) in &mut lower {
+            let Some(sizes) = real.get_mut(unit) else {
+                panic!("{name}: no unit `{unit}` where the bound has one");
             };
-            let (unit, size) = sizes[next + at];
-            next += at + 1;
-            units += 1;
             assert!(
-                bound.bytes <= *size,
-                "{name}: unit `{unit}` has {size} bytes, the bound says {}",
-                bound.bytes
+                sizes.len() >= bounds.len(),
+                "{name}: fewer units `{unit}` than bounds"
             );
-            if *size >= 1000 {
-                tightness.push(bound.bytes as f64 / *size as f64);
+            bounds.sort_unstable_by(|x, y| y.cmp(x));
+            sizes.sort_unstable_by(|x, y| y.cmp(x));
+            for (bound, size) in bounds.iter().zip(sizes.iter()) {
+                units += 1;
+                assert!(
+                    bound <= size,
+                    "{name}: unit `{unit}` has {size} bytes, the bound says {bound}"
+                );
+                if *size >= 1000 {
+                    tightness.push(*bound as f64 / *size as f64);
+                }
             }
         }
     }
@@ -713,7 +841,171 @@ fn bound_never_exceeds_here() {
         at(0.5),
         at(1.0)
     );
+    margins.report();
+    assert!(
+        violations.is_empty(),
+        "{} upper bounds below Jython's size, the first:\n{}",
+        violations.len(),
+        {
+            let mut v = violations.clone();
+            v.sort_by_key(|l| l.split(':').nth(1).map(str::to_owned));
+            v.dedup_by_key(|l| {
+                l.split(':')
+                    .nth(1)
+                    .map(|t| t.split(" has").next().unwrap_or("").to_owned())
+            });
+            v[..v.len().min(60)].join("\n")
+        }
+    );
     assert!(programs > 2_000, "{programs}");
+}
+
+/// How close the upper bounds come to what Jython generates.
+#[derive(Default)]
+struct Margins {
+    /// upper / size of methods of 1,000 bytes or more.
+    methods: Vec<f64>,
+    /// upper / count of constant pools.
+    pools: Vec<f64>,
+    /// Programs whose verdict the bounds leave open, and programs whose
+    /// bounds decide it.
+    unknown: usize,
+    known: usize,
+    /// The smallest distance in bytes from a measured unit of more than
+    /// 60,000 bytes to its upper bound.
+    closest: Option<usize>,
+}
+
+impl Margins {
+    fn report(&self) {
+        let q = |v: &[f64], f: f64| {
+            let mut v = v.to_vec();
+            v.sort_by(f64::total_cmp);
+            v.get(((v.len().max(1) - 1) as f64 * f) as usize)
+                .copied()
+                .unwrap_or(0.0)
+        };
+        eprintln!(
+            "upper / size of methods of 1,000 bytes or more: min {:.2}, median {:.2}, max {:.2} ({} methods); upper / count of constant pools: min {:.2}, median {:.2}, max {:.2}; verdict open for {} programs, decided for {}; closest upper bound above a unit of more than 60,000 bytes: {:?} bytes",
+            q(&self.methods, 0.0),
+            q(&self.methods, 0.5),
+            q(&self.methods, 1.0),
+            self.methods.len(),
+            q(&self.pools, 0.0),
+            q(&self.pools, 0.5),
+            q(&self.pools, 1.0),
+            self.unknown,
+            self.known,
+            self.closest
+        );
+    }
+}
+
+/// The upper bounds of every Java method and of the constant pool are at
+/// least what Jython generates (reviewer round 18, B2), and a program
+/// whose verdict the bounds decide gets that verdict.
+fn check_upper(
+    name: &str,
+    module: &iglint_python::ast::Module,
+    source: &str,
+    m: &Measured,
+    margins: &mut Margins,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    let open = size_unknown(module, source).is_some();
+    let reported = !size_errors(module, source).is_empty();
+    if open {
+        margins.unknown += 1;
+    } else {
+        margins.known += 1;
+        // Decided: SCR002 reports exactly the programs Jython rejects for
+        // their size (other compile errors aside).
+        if m.compiles {
+            assert!(!reported, "{name}: reported, but Jython compiles it");
+        } else if m.units.is_none() {
+            // The code generator failed: the class is too large.
+            assert!(
+                reported,
+                "{name}: Jython rejects it, the bounds say it fits"
+            );
+        }
+    }
+    let (Some(methods), Some(pool)) = (&m.methods, m.pool) else {
+        return out;
+    };
+    let class = upper::class(module, source);
+    if class.pool < pool {
+        out.push(format!("{name}: pool {pool}, upper {}", class.pool));
+    }
+    margins.pools.push(class.pool as f64 / pool as f64);
+    for (method, bound) in [
+        ("<init>", class.init),
+        ("call_function", class.call_function),
+    ] {
+        let size = methods.iter().find(|(n, _)| n == method).map_or(0, |m| m.1);
+        if bound < size {
+            out.push(format!(
+                "{name}: `{method}` has {size} bytes, upper {bound}"
+            ));
+        }
+    }
+    // Every code unit, lambdas and generator expressions included, by
+    // name: Jython numbers lambdas and nested units in an order of its own
+    // and compiles a unit in a `finally` body once per way out, so each
+    // measured method must be at most the largest bound of its name, and
+    // where Jython compiled each unit once, the sizes sorted must be at
+    // most the bounds sorted (a necessary condition for every unit's
+    // bound to hold).
+    let mut real: std::collections::BTreeMap<&str, Vec<usize>> = Default::default();
+    for (n, size) in methods.iter().filter(|(n, _)| n.starts_with("set$$")) {
+        if class.displays < *size {
+            out.push(format!(
+                "{name}: `{n}` has {size} bytes, upper {}",
+                class.displays
+            ));
+        }
+    }
+    for (n, size) in methods
+        .iter()
+        .filter(|(n, _)| n.contains('$') && !n.starts_with("set$$"))
+    {
+        real.entry(n.rsplit_once('$').map_or(n.as_str(), |p| p.0))
+            .or_default()
+            .push(*size);
+    }
+    let units = code_units(module, source);
+    let mut bounds: std::collections::BTreeMap<&str, Vec<usize>> = Default::default();
+    for unit in &units {
+        bounds.entry(unit.name).or_default().push(unit.upper);
+    }
+    for (unit, sizes) in &mut real {
+        let Some(b) = bounds.get_mut(unit) else {
+            out.push(format!("{name}: method `{unit}` without a bound"));
+            continue;
+        };
+        sizes.sort_unstable_by(|x, y| y.cmp(x));
+        b.sort_unstable_by(|x, y| y.cmp(x));
+        let pairs: Vec<(usize, usize)> = if sizes.len() == b.len() {
+            sizes.iter().copied().zip(b.iter().copied()).collect()
+        } else {
+            vec![(sizes[0], b[0])]
+        };
+        for (size, bound) in pairs {
+            if bound < size {
+                out.push(format!(
+                    "{name}: unit `{unit}` has {size} bytes, the upper bound says {bound}"
+                ));
+            }
+            if size >= 1_000 {
+                margins.methods.push(bound as f64 / size as f64);
+            }
+            if size > 60_000 {
+                let gap = bound.saturating_sub(size);
+                margins.closest = Some(margins.closest.map_or(gap, |c| c.min(gap)));
+            }
+        }
+    }
+    out
 }
 
 /// The shapes are reported close to where Jython starts to reject them.
@@ -790,4 +1082,40 @@ fn shapes_are_reported_here() {
             "{kind}: Jython fails from {limit} statements, iglint reports only from {first_report}"
         );
     }
+}
+
+/// How many `.py` files below `IGLINT_SIZE_SCAN` (a private corpus, read
+/// only) have a size verdict the bounds leave open: aggregate counts only.
+#[test]
+#[ignore = "needs IGLINT_SIZE_SCAN"]
+fn open_size_verdicts_in_a_corpus() {
+    let Some(root) = std::env::var_os("IGLINT_SIZE_SCAN") else {
+        return;
+    };
+    let mut stack = vec![std::path::PathBuf::from(root)];
+    let (mut files, mut open, mut largest) = (0, 0, 0);
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if !path.ends_with(".git") {
+                    stack.push(path);
+                }
+            } else if path.extension().is_some_and(|e| e == "py") {
+                let Ok(source) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let parsed = iglint_python::parse_module(&source);
+                if !parsed.errors.is_empty() {
+                    continue;
+                }
+                files += 1;
+                open += usize::from(size_unknown(&parsed.module, &source).is_some());
+                for unit in code_units(&parsed.module, &source) {
+                    largest = largest.max(unit.upper);
+                }
+            }
+        }
+    }
+    eprintln!("{files} files, {open} with an open size verdict, largest upper bound {largest}");
 }

@@ -953,3 +953,29 @@ fn fix_table_declares_no_workspace_file_reads() {
             .contains("must be a boolean")
     );
 }
+
+#[test]
+fn fix_table_lists_vetted_functions() {
+    let config = load_toml("").unwrap();
+    assert!(config.settings.vetted.system_functions.is_empty());
+    assert!(config.settings.vetted.expression_functions.is_empty());
+    let config = load_toml(
+        "[fix]\nvetted-system-functions = [\"system.mes.getThing\"]\nvetted-expression-functions = [\"myFunc\"]\n",
+    )
+    .unwrap();
+    assert_eq!(
+        config.settings.vetted.system_functions,
+        ["system.mes.getThing"]
+    );
+    assert_eq!(config.settings.vetted.expression_functions, ["myFunc"]);
+    for bad in ["system.mes.*", "mes.getThing", "system..x", "system"] {
+        let error =
+            load_toml(&format!("[fix]\nvetted-system-functions = [\"{bad}\"]\n")).unwrap_err();
+        assert!(error.contains("is not a `system.*` path"), "{bad}: {error}");
+    }
+    assert!(
+        load_toml("[fix]\nvetted-system-functions = \"system.x\"\n")
+            .unwrap_err()
+            .contains("an array of strings")
+    );
+}

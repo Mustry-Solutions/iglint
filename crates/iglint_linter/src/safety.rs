@@ -14,7 +14,10 @@
 //!   `warnings`, `logging`, Java stack traces);
 //! * whether the script compiles changes, in either direction (its syntax
 //!   and compile errors differ: a fix may neither break a script nor make
-//!   a broken one, such as a misplaced `from __future__` import, valid);
+//!   a broken one, such as a misplaced `from __future__` import, valid), or
+//!   it is not known before or after the fix: a Java method or the
+//!   constant pool whose lower and upper bounds lie on both sides of its
+//!   limit ([`iglint_python_semantic::size_unknown`]);
 //! * a docstring changes (a deletion may promote a later string);
 //! * the `from __future__` features differ;
 //! * the scopes differ, or a scope's generator status, `global`
@@ -81,6 +84,10 @@ pub(crate) type Scripts<'r> = dyn Fn(&str) -> Vec<ScriptText> + 'r;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ScriptFacts {
     errors: Vec<String>,
+    /// Why Jython's size verdict on the script is not known
+    /// ([`iglint_python_semantic::size_unknown`]): the bounds that decide
+    /// `errors` cannot see a change near a limit.
+    size_open: Option<String>,
     docstrings: Vec<String>,
     futures: Vec<String>,
     scopes: Vec<ScopeFacts>,
@@ -109,11 +116,13 @@ impl ScriptFacts {
         }
         let mut facts = ScriptFacts {
             errors: Vec::new(),
+            size_open: None,
             docstrings: docstrings(&parsed.module.body),
             futures: futures(&parsed.module.body),
             scopes: Vec::new(),
         };
         if parsed.errors.is_empty() {
+            facts.size_open = iglint_python_semantic::size_unknown(&parsed.module, &script.source);
             errors.extend(
                 iglint_python_semantic::size_errors(&parsed.module, &script.source)
                     .into_iter()
@@ -277,9 +286,81 @@ pub(crate) fn safe_fix_problem(
     None
 }
 
+/// Marks every safe fix of `diagnostics` that the net would drop as
+/// unsafe, with the net's reason, so that what `check`, the language
+/// server's diagnostics and its quick fixes report is what `--fix` and
+/// fix-all apply (review round 18, N1). `text` is the file `path` as the
+/// fixes were computed for; `scripts` lists the scripts of a text of it.
+///
+/// As [`crate::engine::fix_file`] does: when the net accepts all safe
+/// fixes of the file together, a fix pass applies them at once and none
+/// is marked; otherwise each safe fix is checked on its own, and one the
+/// net drops on its own is marked (one dropped only together with others
+/// is retried by a later pass, so it stays safe).
+pub(crate) fn mark_rejected_safe_fixes(
+    path: &Path,
+    text: &str,
+    diagnostics: &mut [crate::diagnostic::Diagnostic],
+    scripts: &Scripts<'_>,
+) {
+    use crate::diagnostic::{Applicability, UnsafeReason};
+    let safe_edits = |d: &crate::diagnostic::Diagnostic| -> Option<Vec<TextEdit>> {
+        let fix = d.fix.as_ref()?;
+        if fix.applicability != Applicability::Safe
+            || fix.edits.is_empty()
+            || fix.edits.iter().any(|e| e.path != path)
+        {
+            return None;
+        }
+        let mut edits: Vec<TextEdit> = fix.edits.iter().map(|e| e.edit.clone()).collect();
+        edits.sort_by_key(|e| e.range);
+        Some(edits)
+    };
+    let fixes: Vec<(usize, Vec<TextEdit>)> = diagnostics
+        .iter()
+        .enumerate()
+        .filter_map(|(i, d)| safe_edits(d).map(|e| (i, e)))
+        .collect();
+    if fixes.is_empty() {
+        return;
+    }
+    let before = scripts(text);
+    if before.is_empty() {
+        return;
+    }
+    let facts: Vec<ScriptFacts> = before.iter().map(ScriptFacts::of).collect();
+    let problem = |edits: &[TextEdit]| -> Option<String> {
+        let Ok(after) = iglint_text::apply_edits(text, edits) else {
+            return None;
+        };
+        safe_fix_problem(path, text, &before, &facts, edits, &scripts(&after))
+    };
+    let mut all: Vec<TextEdit> = fixes.iter().flat_map(|(_, e)| e.iter().cloned()).collect();
+    all.sort_by_key(|e| e.range);
+    all.dedup();
+    if iglint_text::apply_edits(text, &all).is_ok() && problem(&all).is_none() {
+        return;
+    }
+    for (i, edits) in fixes {
+        if let Some(p) = problem(&edits)
+            && let Some(fix) = diagnostics[i].fix.as_mut()
+        {
+            fix.applicability = Applicability::Unsafe;
+            fix.unsafe_reason = Some(UnsafeReason::new(format!(
+                "the safe fix could change what the code does ({p})"
+            )));
+        }
+    }
+}
+
 /// The first difference between the facts of a script before and after a
 /// fix.
 fn compare(before: &ScriptFacts, after: &ScriptFacts) -> Option<String> {
+    if let Some(open) = before.size_open.as_ref().or(after.size_open.as_ref()) {
+        return Some(format!(
+            "it changes a script whose compile status is not known: {open}"
+        ));
+    }
     if before.errors != after.errors {
         return Some("it would change whether a script compiles".to_owned());
     }
@@ -838,8 +919,27 @@ mod tests {
                 .iter()
                 .find(|s| s.path == p)
                 .map_or_else(|| code.clone(), |s| s.fixed.clone());
-            assert!(safe_kept(&fixed), "{mode:?}: {fixed}");
+            // The fix the net drops is reported as unsafe with the net's
+            // reason (review round 18, N1), so only an unsafe mode applies
+            // it, as it applies every unsafe fix.
+            assert_eq!(safe_kept(&fixed), !wants_unsafe, "{mode:?}: {fixed}");
             assert_eq!(unsafe_applied(&fixed), wants_unsafe, "{mode:?}: {fixed}");
+            let reported = result
+                .diagnostics
+                .iter()
+                .filter_map(|d| d.fix.as_ref())
+                .find(|f| {
+                    f.message.contains("suppression")
+                        && f.applicability == crate::Applicability::Unsafe
+                        && f.unsafe_reason
+                            .as_ref()
+                            .is_some_and(|r| r.message.contains("test marker"))
+                });
+            assert!(
+                reported.is_some() || mode.is_fixing(),
+                "{mode:?}: {:?}",
+                result.diagnostics
+            );
             if mode.writes() {
                 assert_eq!(std::fs::read_to_string(&p).unwrap(), fixed, "{mode:?}");
             }
@@ -851,7 +951,11 @@ mod tests {
             let fixed = live
                 .fix_all(&path, unsafe_fixes)
                 .map_or_else(|| code.clone(), |f| f.fixed);
-            assert!(safe_kept(&fixed), "fix-all {unsafe_fixes}: {fixed}");
+            assert_eq!(
+                safe_kept(&fixed),
+                !unsafe_fixes,
+                "fix-all {unsafe_fixes}: {fixed}"
+            );
             assert_eq!(unsafe_applied(&fixed), unsafe_fixes, "fix-all: {fixed}");
         }
         let diagnostics = live
@@ -872,7 +976,7 @@ mod tests {
         assert_eq!(
             quick,
             [
-                (crate::Applicability::Safe, false),
+                (crate::Applicability::Unsafe, true),
                 (crate::Applicability::Unsafe, true)
             ]
         );

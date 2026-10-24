@@ -1979,6 +1979,58 @@ skip-names = ["root", "Legacy_Name"]"#,
         );
     }
 
+    /// Reviewer round 18 (Opus) blocker B1: a third-party
+    /// `system.perspective.runJavaScriptAsync` call, an expression function
+    /// the gateway does not register and a component that runs JavaScript
+    /// in the browser make the rename unsafe; JavaScript in the page can
+    /// look the component up by its name.
+    #[test]
+    fn unknown_functions_and_browser_code_make_the_rename_unsafe() {
+        let rules = [("NAME001", "convention = \"PascalCase\"")];
+        let applicability = |b: &str| {
+            let a = root(&[component("submitButton", "ia.input.button", "")]);
+            let f = Fixture::new().with_view("A", &a).with_view("B", b);
+            let d = f.lint_with(&rules);
+            let d: Vec<_> = d
+                .into_iter()
+                .filter(|d| d.message.contains("submitButton"))
+                .collect();
+            assert_eq!(d.len(), 1, "{d:?}");
+            d[0].fix.as_ref().map(|f| f.applicability)
+        };
+        let button = |script: &str| {
+            root(&[component(
+                "Btn",
+                "ia.input.button",
+                &format!(
+                    r#", "events": {{"component": {{"onActionPerformed": {{"type": "script", "scope": "G", "config": {{"script": "{script}"}}}}}}}}"#
+                ),
+            )])
+        };
+        for b in [
+            button(r"\tsystem.perspective.runJavaScriptAsync('x')"),
+            button(r"\tsystem.perspective.navigate(url=self.props.text)"),
+            root(&[component("Frame", "ia.display.iframe", "")]),
+            root(&[component(
+                "Draw",
+                "ia.shapes.svg",
+                r#", "props": {"elements": [{"type": "script", "text": "x"}]}"#,
+            )]),
+            root(&[component("J", "embr.periscope.embedding.javascript", "")]),
+            root(&[component(
+                "Lbl",
+                "ia.display.label",
+                r#", "propConfig": {"props.text": {"binding": {"type": "expr", "config": {"expression": "objectScript('x')"}}}}"#,
+            )]),
+        ] {
+            assert_eq!(applicability(&b), Some(crate::Applicability::Unsafe), "{b}");
+        }
+        assert_eq!(
+            applicability(&button(r"\tsystem.perspective.navigate('/page')")),
+            Some(crate::Applicability::Safe)
+        );
+    }
+
     /// The NAME001 finding for component `name` in `view`, and its fix.
     fn rename_of(view: &str, name: &str) -> (Option<crate::Applicability>, Option<String>) {
         let f = Fixture::view(view);

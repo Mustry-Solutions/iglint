@@ -45,7 +45,11 @@ dateFormat(now(0), "yyyy-MM-dd")
 ## Options
 
 * `extra-functions`: names of additional functions provided by modules
-  (case-insensitive).
+  (case-insensitive). Listing a function here only silences this rule: an
+  expression function that Ignition 8.3 does not register may run code
+  (Vision's `objectScript` runs Python), so it still keeps the safe fixes
+  of other rules from being safe until the project lists it under
+  `[fix] vetted-expression-functions`.
 "#,
     options: &[OptionMeta {
         name: "extra-functions",

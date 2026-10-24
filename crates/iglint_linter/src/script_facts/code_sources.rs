@@ -146,7 +146,12 @@ pub fn run_script_code(
                     what: what(),
                 };
             }
-            for (_, site) in &mut inner.unvetted_imports {
+            for site in inner
+                .unvetted_imports
+                .iter_mut()
+                .map(|(_, s)| s)
+                .chain(inner.unvetted_names.iter_mut().map(|(_, s)| s))
+            {
                 *site = UnknownSite {
                     file,
                     range: at,

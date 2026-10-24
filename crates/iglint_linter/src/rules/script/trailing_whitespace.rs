@@ -165,6 +165,41 @@ mod tests {
     /// trailing whitespace sees the fix (`open(...).read().splitlines()`).
     /// A read of a computed path makes the fix unsafe, with the site named;
     /// a read of a literal path outside the workspace does not.
+    /// Reviewer round 18 (Opus) blocker B1: a `system.*` function the 8.3
+    /// stubs do not list may read files, so it is a possible file read
+    /// unless the project vets it.
+    #[test]
+    fn unlisted_system_functions_may_read_files() {
+        let reader = "def last(p):\n    return system.thirdparty.readFile(p)\n";
+        let f = with_library(library("m", "x = 1  \n"), "r", reader);
+        let d = f.lint(&["SCR124"]);
+        assert_eq!(d.len(), 1);
+        let fix = d[0].fix.as_ref().unwrap();
+        assert_eq!(fix.applicability, crate::Applicability::Unsafe);
+        let reason = fix.unsafe_reason.as_ref().unwrap();
+        assert!(
+            reason
+                .message
+                .starts_with(crate::rules::vetting::FILE_READ_REASON),
+            "{reason:?}"
+        );
+        let site = reason.site.as_ref().unwrap();
+        assert!(
+            site.what.starts_with("system.thirdparty.readFile"),
+            "{site:?}"
+        );
+        assert!(!safe_fix_applies(&f, "SCR124", "m"));
+        let vetted = crate::settings::Vetted {
+            system_functions: vec!["system.thirdparty".to_owned()],
+            ..Default::default()
+        };
+        let d = f.lint_vetting(&["SCR124"], &vetted);
+        assert_eq!(
+            d[0].fix.as_ref().unwrap().applicability,
+            crate::Applicability::Safe
+        );
+    }
+
     #[test]
     fn file_reads_make_the_fix_unsafe() {
         let reader = "def last(p):\n    return open(p).read().splitlines()[-1]\n";

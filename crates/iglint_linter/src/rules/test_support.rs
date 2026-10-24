@@ -123,6 +123,27 @@ impl Fixture {
         self.run_assuming(rules, fix_mode, false)
     }
 
+    /// Lints with `rules` (default options) when the project vets the
+    /// names of `vetted` (`[fix] vetted-system-functions` and
+    /// `vetted-expression-functions`).
+    pub fn lint_vetting(
+        &self,
+        rules: &[&str],
+        vetted: &crate::settings::Vetted,
+    ) -> Vec<Diagnostic> {
+        let rules: Vec<(&str, &str)> = rules.iter().map(|r| (*r, "")).collect();
+        let mut settings = settings(self.root(), &rules);
+        settings.vetted = vetted.clone();
+        let result = check(
+            &settings,
+            &[self.root().to_path_buf()],
+            &CheckOptions::default(),
+        );
+        assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+        assert_unsafe_fixes_have_reasons(&result.diagnostics);
+        result.diagnostics
+    }
+
     /// [`Fixture::run`] with `[fix] assume-scripts-do-not-read-workspace-files`
     /// set to `assume_no_file_reads`.
     pub fn run_assuming(

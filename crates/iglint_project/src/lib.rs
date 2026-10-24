@@ -66,7 +66,7 @@ use rayon::prelude::*;
 pub use document::{JsonDocument, MAX_JSON_DEPTH};
 pub use expression::{EmbeddedExpression, ExpressionKind};
 pub use ids::*;
-pub use index::{HandlerSite, Lookup, PageMatch, ProjectIndex, SentMessage};
+pub use index::{HandlerSite, Lookup, PageMatch, ProjectIndex, SentMessage, Vetted};
 pub use kinds::{EventScriptKind, FileKind, HttpMethod, ResourceKind, RunScope};
 pub use library::{LibraryLookup, LibraryTree, ModuleSymbols};
 pub use model::{LoadedFile, LoadedResource, ModelData, ResourceModel, build_model};
@@ -74,7 +74,7 @@ pub use script::{
     EmbeddedScript, HeaderStatus, IMPLICIT_GLOBALS, Owner, ScriptFile, ScriptKind, TagEventKind,
 };
 pub use source_map::SourceMap;
-pub use summary::{ResourceSummary, UnknownSite, summarize};
+pub use summary::{ResourceSummary, UnknownSite, UnvettedName, summarize};
 pub use tags::{Tag, TagFolder};
 pub use view::{Component, SessionProps, View, build_view};
 pub use workspace::{Container, Existence, Workspace};

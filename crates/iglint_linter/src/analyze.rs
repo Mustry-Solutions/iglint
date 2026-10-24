@@ -307,6 +307,13 @@ pub(crate) fn analyze_with(
         layout_hash(&ws, &table)
             ^ pylint_context(rules, &sets, &targets, settings)
             ^ u64::from(closed_world_unknown).wrapping_mul(0x9e37_79b9_7f4a_7c15)
+            ^ {
+                // The vetted names decide what counts as unknown code.
+                use std::hash::{Hash, Hasher};
+                let mut hasher = FxHasher::default();
+                settings.vetted.hash(&mut hasher);
+                hasher.finish()
+            }
     });
 
     // Phase A, part 2: model, summarise and run local rules.
@@ -489,7 +496,7 @@ pub(crate) fn analyze_with(
         phase_a.into_iter().unzip();
 
     // Index.
-    let index = build_index(&ws, summaries, closed_world_unknown);
+    let index = build_index(&ws, summaries, closed_world_unknown, &settings.vetted);
 
     // Files outside any resource, modelled standalone.
     struct Standalone {
@@ -788,6 +795,21 @@ pub(crate) fn analyze_with(
                 &table,
                 settings.assume_no_workspace_file_reads,
             );
+            let scripts = |text: &str| -> Vec<ScriptText> {
+                let text: Arc<str> = Arc::from(text);
+                match (file_of_target.get(&t), standalone_by_target.get(&t)) {
+                    (Some(f), _) => resource_scripts(&ws, &overrides, *f, text),
+                    (None, Some(_)) => standalone_scripts(&target.path, text),
+                    _ => Vec::new(),
+                }
+            };
+            // A safe fix the post-fix net would drop is reported as unsafe.
+            crate::safety::mark_rejected_safe_fixes(
+                &target.path,
+                source.text(),
+                &mut diagnostics,
+                &scripts,
+            );
             // pylint findings are carried through the fixes, not recomputed.
             let pylint_code = RuleCode::new(&pylint::META);
             let carried = std::cell::RefCell::new(
@@ -831,6 +853,7 @@ pub(crate) fn analyze_with(
                     return out;
                 }
                 crate::rules::vetting::gate_file_reads(&mut out, &index, &table, assume_no_reads);
+                crate::safety::mark_rejected_safe_fixes(&target.path, &text, &mut out, &scripts);
                 let mut carried = carried.borrow_mut();
                 if !carried.is_empty() {
                     let file = SourceFile::new(target.path.clone(), text);
@@ -846,14 +869,6 @@ pub(crate) fn analyze_with(
                     out.extend(carried.iter().cloned());
                 }
                 out
-            };
-            let scripts = |text: &str| -> Vec<ScriptText> {
-                let text: Arc<str> = Arc::from(text);
-                match (file_of_target.get(&t), standalone_by_target.get(&t)) {
-                    (Some(f), _) => resource_scripts(&ws, &overrides, *f, text),
-                    (None, Some(_)) => standalone_scripts(&target.path, text),
-                    _ => Vec::new(),
-                }
             };
             let (fix, diagnostics) = fix_file(
                 settings,
@@ -1158,12 +1173,13 @@ pub(crate) fn run_phase(
 /// layer can derive from the whole index (Perspective objects handed to
 /// library functions that reach other views). Every index the linter uses
 /// is built here.
-pub(crate) fn build_index(
-    ws: &Workspace,
+pub(crate) fn build_index<'w>(
+    ws: &'w Workspace,
     summaries: Vec<ResourceSummary>,
     closed_world_unknown: bool,
-) -> ProjectIndex<'_> {
-    let mut index = ProjectIndex::build(ws, summaries);
+    vetted: &iglint_project::Vetted,
+) -> ProjectIndex<'w> {
+    let mut index = ProjectIndex::build_with(ws, summaries, vetted.clone());
     if closed_world_unknown {
         index.mark_closed_world_unknown();
     }

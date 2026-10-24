@@ -1430,6 +1430,218 @@ mod tests {
         assert!(fixed.starts_with("\nprint open("), "{fixed}");
     }
 
+    /// A view `B` whose root holds `child` (a component object).
+    fn client_view(child: &str) -> String {
+        format!(
+            r#"{{"root": {{"type": "ia.container.flex", "meta": {{"name": "root"}}, "children": [{child}]}}}}"#
+        )
+    }
+
+    /// Reviewer round 18 (Opus) blocker B1: `system.*` functions,
+    /// expression functions and components iglint does not know are
+    /// unknown code. A third-party `system.*` function in the module itself
+    /// names its site; one elsewhere, an expression function the gateway
+    /// does not register (`objectScript` runs Python) and a component that
+    /// runs JavaScript in the browser make the fix unsafe under the closed
+    /// world. `[fix] vetted-system-functions` and
+    /// `vetted-expression-functions` vet the names they list.
+    #[test]
+    fn unknown_system_and_expression_functions_and_client_code_are_unknown() {
+        let code = "import math\n\ndef f():\n    return system.thirdparty.evalHere('x')\n";
+        let f = library("m", code);
+        let d = f.lint(&["SCR102"]);
+        assert_eq!(d.len(), 1, "{d:?}");
+        let fix = d[0].fix.as_ref().unwrap();
+        assert_eq!(fix.applicability, crate::Applicability::Unsafe);
+        let site = fix.unsafe_reason.as_ref().unwrap().site.as_ref().unwrap();
+        assert_eq!(
+            (site.line, site.what.as_str()),
+            (4, "system.thirdparty.evalHere")
+        );
+        assert!(!safe_fix_applies(&f, "SCR102", "m"));
+        let vetted = crate::settings::Vetted {
+            system_functions: vec!["system.thirdparty.evalHere".to_owned()],
+            ..Default::default()
+        };
+        assert_eq!(
+            applicability(&f.lint_vetting(&["SCR102"], &vetted)),
+            [Some(crate::Applicability::Safe)]
+        );
+        // Elsewhere in the workspace.
+        let plain = "import math\n\ndef f():\n    return 1\n";
+        let elsewhere = with_library(
+            library("m", plain),
+            "n",
+            "def g():\n    return system.perspective.runJavaScriptAsync('1')\n",
+        );
+        let d = elsewhere.lint(&["SCR102"]);
+        assert_eq!(applicability(&d), [Some(crate::Applicability::Unsafe)]);
+        let reason = d[0].fix.as_ref().unwrap().unsafe_reason.as_ref().unwrap();
+        assert!(reason.message.starts_with("closed world"), "{reason:?}");
+        let site = reason.site.as_ref().unwrap();
+        assert!(
+            site.what
+                .starts_with("system.perspective.runJavaScriptAsync"),
+            "{reason:?}"
+        );
+        let binding = r#"{"custom": {"x": 1}, "propConfig": {"custom.x": {"binding": {"type": "expr", "config": {"expression": "objectScript(\"eval('1')\")"}}}}, "root": {"type": "ia.container.flex", "meta": {"name": "root"}}}"#;
+        let expression = library("m", plain).with_view("B", binding);
+        let d = expression.lint(&["SCR102"]);
+        assert_eq!(applicability(&d), [Some(crate::Applicability::Unsafe)]);
+        let site = d[0]
+            .fix
+            .as_ref()
+            .unwrap()
+            .unsafe_reason
+            .as_ref()
+            .unwrap()
+            .site
+            .as_ref()
+            .unwrap();
+        assert!(site.what.starts_with("objectScript"), "{site:?}");
+        let vetted = crate::settings::Vetted {
+            expression_functions: vec!["OBJECTSCRIPT".to_owned()],
+            ..Default::default()
+        };
+        assert_eq!(
+            applicability(&expression.lint_vetting(&["SCR102"], &vetted)),
+            [Some(crate::Applicability::Safe)]
+        );
+        for (child, safe) in [
+            (
+                r#"{"type": "ia.display.label", "meta": {"name": "L"}, "props": {"text": "<b>x</b>"}}"#,
+                true,
+            ),
+            (
+                r#"{"type": "ia.display.iframe", "meta": {"name": "F"}, "props": {"src": "https://example.com"}}"#,
+                false,
+            ),
+            (
+                r#"{"type": "embr.periscope.embedding.javascript", "meta": {"name": "J"}}"#,
+                false,
+            ),
+            (
+                r#"{"type": "ia.display.markdown", "meta": {"name": "M"}, "props": {"markdown": {"escapeHtml": false}}}"#,
+                false,
+            ),
+            (
+                r#"{"type": "ia.display.markdown", "meta": {"name": "M"}, "props": {"markdown": {"skipHtml": false}}}"#,
+                false,
+            ),
+            (
+                r#"{"type": "ia.display.markdown", "meta": {"name": "M"}, "props": {"markdown": {"escapeHtml": true, "allowDangerousHtml": true}}}"#,
+                false,
+            ),
+            (
+                r#"{"type": "ia.display.markdown", "meta": {"name": "M"}, "props": {"markdown": {"escapeHtml": true, "skipHtml": false, "renderers": {}}}}"#,
+                true,
+            ),
+            (
+                r#"{"type": "ia.display.markdown", "meta": {"name": "M"}, "props": {"markdown": {"escapeHtml": true}}, "propConfig": {"props.markdown.escapeHtml": {"binding": {"type": "expr", "config": {"expression": "false"}}}}}"#,
+                false,
+            ),
+            (
+                r#"{"type": "ia.navigation.link", "meta": {"name": "A"}, "props": {"url": "javascript:alert(1)"}}"#,
+                false,
+            ),
+            (
+                r#"{"type": "ia.navigation.link", "meta": {"name": "A"}, "props": {"url": "https://example.com"}}"#,
+                true,
+            ),
+            (
+                r#"{"type": "ia.navigation.link", "meta": {"name": "A"}, "props": {"url": "/page"}, "propConfig": {"props.url": {"binding": {"type": "expr", "config": {"expression": "'x'"}}}}}"#,
+                false,
+            ),
+            (
+                r#"{"type": "ia.input.button", "meta": {"name": "B"}, "events": {"dom": {"onClick": {"type": "nav", "config": {"url": "javascript:alert(1)"}}}}}"#,
+                false,
+            ),
+            (
+                r##"{"type": "ia.shapes.svg", "meta": {"name": "S"}, "props": {"elements": [{"type": "group", "elements": [{"type": "path", "d": "M0 0", "fill": {"url": "#g"}}, {"type": "use", "href": "#p"}]}, {"type": "linearGradient", "id": "g", "elements": [{"type": "stop", "offset": 0}]}]}}"##,
+                true,
+            ),
+            (
+                r#"{"type": "ia.shapes.svg", "meta": {"name": "S"}, "props": {"elements": [{"type": "group", "elements": [{"type": "a", "href": "javascript:alert(1)"}]}]}}"#,
+                false,
+            ),
+            (
+                r#"{"type": "ia.shapes.svg", "meta": {"name": "S"}, "props": {"elements": [{"type": "path", "onClick": "x"}]}}"#,
+                false,
+            ),
+            (
+                r#"{"type": "ia.shapes.svg", "meta": {"name": "S"}, "props": {"elements": [{"type": "use", "href": "data:x"}]}}"#,
+                false,
+            ),
+            (
+                r#"{"type": "ia.shapes.svg", "meta": {"name": "S"}, "props": {"elements": [{"type": "path"}]}, "propConfig": {"props.elements": {"binding": {"type": "expr", "config": {"expression": "1"}}}}}"#,
+                false,
+            ),
+            (
+                r#"{"type": "ia.input.button", "meta": {"name": "B"}, "events": {"dom": {"onClick": {"type": "nav", "config": {"url": "https://example.com"}}}}}"#,
+                true,
+            ),
+        ] {
+            let f = library("m", plain).with_view("B", &client_view(child));
+            let expected = if safe {
+                crate::Applicability::Safe
+            } else {
+                crate::Applicability::Unsafe
+            };
+            let d = f.lint(&["SCR102"]);
+            assert_eq!(applicability(&d), [Some(expected)], "{child}");
+            if !safe {
+                let site = d[0]
+                    .fix
+                    .as_ref()
+                    .unwrap()
+                    .unsafe_reason
+                    .as_ref()
+                    .unwrap()
+                    .site
+                    .as_ref()
+                    .unwrap();
+                assert!(site.what.contains("JavaScript in the browser"), "{site:?}");
+                assert!(site.path.ends_with("views/B/view.json"), "{site:?}");
+            }
+        }
+        // A plain Markdown component or link that a script of its view
+        // may change.
+        let scripted = r#"{"type": "ia.display.markdown", "meta": {"name": "M"}, "props": {"markdown": {"escapeHtml": true}}, "events": {"dom": {"onClick": {"type": "script", "scope": "G", "config": {"script": "\tpass"}}}}}"#;
+        let d = library("m", plain)
+            .with_view("B", &client_view(scripted))
+            .lint(&["SCR102"]);
+        assert_eq!(applicability(&d), [Some(crate::Applicability::Unsafe)]);
+    }
+
+    /// Reviewer round 18 (Opus) blocker B2: removing an import from a
+    /// function near the 64 KB method limit can make a function Jython
+    /// rejects compile (the review's repro: 2,176 `a = abs(...)` lines).
+    /// The lower bound cannot see it, so the safety net does not trust
+    /// the change: the fix is reported unsafe with the reason and `--fix`
+    /// does not apply it.
+    #[test]
+    fn removals_near_the_method_limit_are_unsafe() {
+        let mut code = String::from("def g():\n    import math\n");
+        for i in 0..2_176 {
+            code.push_str(&format!("    a = abs({})\n", i % 7));
+        }
+        code.push_str("    c = 1\n    c = 1\n    return a + c\n");
+        let f = library("m", &code);
+        let d = f.lint(&["SCR102"]);
+        assert_eq!(applicability(&d), [Some(crate::Applicability::Unsafe)]);
+        let reason = d[0].fix.as_ref().unwrap().unsafe_reason.as_ref().unwrap();
+        assert!(
+            reason
+                .message
+                .contains("compile status is not known: the function `g` needs between"),
+            "{reason:?}"
+        );
+        assert!(!safe_fix_applies(&f, "SCR102", "m"));
+        // A small function keeps the safe fix.
+        let d = library("m", "def g():\n    import math\n    return 1\n").lint(&["SCR102"]);
+        assert_eq!(applicability(&d), [Some(crate::Applicability::Safe)]);
+    }
+
     #[test]
     fn removing_an_import_that_fails_is_unsafe() {
         let code = "def f():\n    from java.util import MissingReviewClass\ntry:\n    f()\nexcept Exception:\n    print \"failed\"\nelse:\n    print \"succeeded\"\n";

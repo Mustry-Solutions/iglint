@@ -1547,6 +1547,68 @@ mod tests {
         );
     }
 
+    /// Reviewer round 18 (Opus) blocker B1: a button that calls a
+    /// third-party `system.perspective.runJavaScriptAsync` (whose shorter
+    /// overload finds the page through the caller's `self` and runs browser
+    /// code that reads component properties) makes the removal unsafe, and
+    /// so does a component of another view that runs JavaScript in the
+    /// browser; the project can vet the function.
+    #[test]
+    fn unknown_functions_and_browser_code_make_fixes_unsafe() {
+        let d = with_library("\\tsystem.perspective.runJavaScriptAsync('x')", &[]);
+        assert!(!d.is_empty());
+        for d in &d {
+            let fix = d.fix.as_ref().unwrap();
+            assert_eq!(fix.applicability, crate::Applicability::Unsafe, "{d:?}");
+            let site = fix.unsafe_reason.as_ref().unwrap().site.as_ref().unwrap();
+            assert_eq!(
+                site.what, "system.perspective.runJavaScriptAsync",
+                "{site:?}"
+            );
+        }
+        let v = view(
+            r#"{"a": 1}"#,
+            "{}",
+            &[label(
+                "Btn",
+                &event("\\tsystem.perspective.runJavaScriptAsync('x')"),
+            )],
+            "{}",
+        );
+        let vetted = crate::settings::Vetted {
+            system_functions: vec!["system.perspective.runJavaScriptAsync".to_owned()],
+            ..Default::default()
+        };
+        let d = Fixture::view(&v).lint_vetting(&["VIEW015"], &vetted);
+        assert!(!d.is_empty());
+        assert!(
+            d.iter()
+                .all(|d| d.fix.as_ref().unwrap().applicability == crate::Applicability::Safe),
+            "{d:?}"
+        );
+        let frame = r#"{"root": {"type": "ia.container.flex", "meta": {"name": "root"}, "children": [{"type": "ia.display.iframe", "meta": {"name": "F"}, "props": {"srcDoc": "<script>parent.x</script>"}}]}}"#;
+        let v = view(r#"{"a": 1}"#, "{}", &[], "{}");
+        let d = Fixture::view(&v)
+            .with_view("Other", frame)
+            .lint(&["VIEW015"]);
+        assert!(!d.is_empty());
+        for d in &d {
+            let fix = d.fix.as_ref().unwrap();
+            assert_eq!(fix.applicability, crate::Applicability::Unsafe, "{d:?}");
+            let reason = fix.unsafe_reason.as_ref().unwrap();
+            assert!(reason.message.starts_with("closed world"), "{reason:?}");
+            assert!(
+                reason
+                    .site
+                    .as_ref()
+                    .unwrap()
+                    .what
+                    .contains("ia.display.iframe"),
+                "{reason:?}"
+            );
+        }
+    }
+
     /// Reviewer round 10 (Codex) blocker: a view event that reads its own
     /// `view.json` sees the removed property. Reads of possibly-workspace
     /// files make every fix unsafe, with the site named; a read of a

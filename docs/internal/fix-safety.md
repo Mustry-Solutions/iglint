@@ -90,7 +90,9 @@ Three mechanisms carry it:
    `--fix`, `--diff` and the language server's fix-all). A safe fix on
    Python code is dropped when, for any script of the file, it moves a
    line, changes whether the script compiles (syntax and compile errors,
-   in either direction), changes a docstring or the `__future__` imports,
+   in either direction), changes a script whose compile status is not
+   known (its size bounds lie on both sides of a limit, see "Size
+   limits" under "Decisions"), changes a docstring or the `__future__` imports,
    changes the scopes (generator status, `global` declarations, `import
    *`, `exec`, frame reads), or changes what any remaining name resolves
    to (local, enclosing function, global, builtin, injected, and where a
@@ -1086,7 +1088,7 @@ as a value is itself a route.
 | `operator` | Except `attrgetter` and `methodcaller`, which look attributes up by name (verified). |
 | `os` | Only path and file functions and constants (`path`, `sep`, `getcwd`, `listdir`, `stat`, `environ`, `getenv`, `makedirs`, `remove`, `rename`, `walk`, ...). Not processes or anything else. Every path-taking one counts as a possible file access (see "File reads"). |
 | `sys` (also as Ignition's implicit global) | Only `version`, `version_info`, `hexversion`, `platform`, `maxint`, `maxsize`, `maxunicode`, `byteorder`, `float_info`, `stdout`, `stderr`, `exit`, `getdefaultencoding`, `getfilesystemencoding`, `getrecursionlimit`. Not `_getframe`, `modules`, `exc_info`, `path` (it decides which module an import loads), trace hooks. |
-| `system` (Ignition's scripting API) | No `system.*` function of 8.3 evaluates Python code in the caller's frame or resolves a callable by name in it (checked against the generated stubs): functions that take callables call the value, message handlers are looked up among the project's handlers, not in the caller. Except the functions that store or run code from run-time values, which are not vetted (see "`system.*` functions that run code"). A `system` package used as a value (`t = system.tag`) is not vetted either. |
+| `system` (Ignition's scripting API, also as its legacy alias `fpmi`) | No `system.*` function of 8.3 evaluates Python code in the caller's frame or resolves a callable by name in it (checked against the generated stubs): functions that take callables call the value, message handlers are looked up among the project's handlers, not in the caller. Except the functions that store or run code from run-time values, which are not vetted (see "`system.*` functions that run code"). Only members the stubs list are vetted (see "`system.*` members the stubs do not list"); a `system` package used as a value (`t = system.tag`) and any store into or deletion from the API (`system.tag.readBlocking = f`, which replaces the function for every script) are not vetted either. |
 | `__future__` | Compile-time only. |
 | `java.util` (except `ServiceLoader` and the resource bundles, which load classes by name), `java.util.concurrent` (and `atomic`, `locks`), `java.util.function`, `java.util.regex`, `java.util.stream`, `java.math`, `java.text`, `java.time` (and `chrono`, `format`, `temporal`), `java.nio.charset` | Data structures and formatting; no reflection. |
 | `java.lang`: `Math`, `StrictMath`, `String`, `StringBuilder`, `StringBuffer`, the boxed number types, `Boolean`, `Character`, `Number`, `System` (except `load`, `loadLibrary`, `mapLibraryName`, security managers, `inheritedChannel`), `Exception` and common runtime exceptions | Not `Class`, `ClassLoader`, `Thread`, `Throwable`, `Runtime`, `Process*`, reflection, `invoke` or `StackWalker`. The exception classes hand out only stack traces (class, method, file and line), which safe fixes never change. |
@@ -1142,6 +1144,47 @@ writes into a project directory take effect only after a resource scan
 (`requestScan`, not vetted) or a gateway restart; projects and gateway
 tags outside the workspace are outside the closed world.
 
+`system.perspective.navigate(url=...)` sends the browser to the URL
+(`window.location.href`, or `window.open` with `newTab`, in the 8.3.3
+client bundle), and a `javascript:` URL runs code in the page (see
+"Client-side code"). The call is vetted only when its `url` (the second
+positional argument or the keyword) is absent or a literal that runs no
+script: relative, or `http`, `https`, `mailto`, `tel` or `ftp` after the
+browser's clean-up (spaces and control characters around it, tabs and
+line breaks inside it, letter case; `client_code::url_runs_no_script`).
+Used as a value it is unknown. The audit of `system.perspective` for
+functions that hand the client a URL, HTML or code found only this one
+(`download` hands it a file to save; `openPopup`, `openDock` and
+`navigate`'s `page` and `view` name project resources).
+
+#### `system.*` members the stubs do not list
+
+Review round 18 (Opus) found the private project calling
+`system.perspective.runJavaScriptAsync(...)`, a function of a third-party
+module: its shorter overload finds the page through the caller's `self`
+(a frame read) and runs browser JavaScript that can read component
+properties. The audit above covers the stubs only, so a member they do
+not list is not vetted: `vetted::Walk::check_system` records every
+`system.*` chain whose first member that is not a package is not a
+function, constant or object of the stubs (`system.thirdparty.evalHere`,
+a package that does not exist, `system.tag.nope`) in
+`UnknownCode::system`, with the chain and its range. Each is unknown code
+for the closed world and a possible file read
+(`References::unvetted_names`, resolved by the project index), and the
+unsafe reason names the site ("`system.thirdparty.readFile (not in the
+Ignition 8.3 scripting API)` at `m/code.py:2:12`"). What follows a listed
+function, constant or object (`system.net.httpClient().get`) is a value.
+`SCR201`'s `allow` does not vet a path: it silences the rule.
+
+**The opt-in.** `[fix] vetted-system-functions = [...]` (default empty)
+lists `system.*` paths that the project declares unable to evaluate code,
+read a frame or read workspace files; an entry also covers what is read
+from it (`system.mes.getThing` covers `system.mes.getThing.x`, not
+`system.mes.getThings`), and wildcards are rejected. Checking the
+entries is the user's responsibility. `[fix] vetted-expression-functions`
+does the same for expression functions (below), case-insensitively. Both
+are part of the cache context.
+
 ### Expressions and resources iglint does not read
 
 Expressions run Python through `runScript(script, [pollRate],
@@ -1159,6 +1202,15 @@ tags, derived tag getters and setters, bound tag and alarm properties):
   (vetting, frame reads, library references), and if it does not parse it
   is unknown code;
 * a computed first argument is unknown code.
+
+Expression functions the 8.3 gateway does not register (a third-party
+module's; Vision's `objectScript`, which exists only in Vision clients;
+a simulation module's functions that run Python) are code iglint does not
+read: every call of one, in every modelled expression that parses, is
+unknown code and a possible file read with its site
+(`summary::unknown_expression_functions`), unless the project lists it
+under `[fix] vetted-expression-functions`. `BIND002`'s `extra-functions`
+only silences that rule.
 
 Resources of kinds iglint identifies but does not read hold code or
 expressions it cannot analyse: reports, alarm pipelines, SFC charts,
@@ -1184,6 +1236,89 @@ not exist, and a `core` directory without one keeps the gateway from
 starting). Their scripts never run, so they are not unknown code; `REF009`
 reports each such file, so that nothing iglint lists goes unread without a
 finding (`every_listed_file_is_analysed_or_reported`).
+
+### Client-side code
+
+JavaScript in a Perspective page reads the page's DOM and the client's
+property store, writes the properties the client may write, opens other
+pages of the session's origin (`window.open` hands it the new window)
+and calls the gateway with the session's credentials, and the gateway
+serves workspace content over HTTP. So a component or action that can run
+code the view does not show is code iglint does not read. Scope, decided
+fail closed: such code may reach every view of its page and, through
+windows of the same origin and the gateway, every page of the session, so
+it counts for the whole workspace (unknown code for the closed world, and
+a possible file read), not only for its view. `summary::client_code`
+records it with its site, from the policy in `iglint_stubs::client_code`,
+measured on the client bundles of the 8.3.3 image
+(`Perspective-module.modl`, `app-3.3.3.jar`, `mounted/js/*.js`; React
+18.2, which renders `javascript:` URLs as written):
+
+* a component type that is not in the measured 8.3 component list (a
+  third-party module's, or a missing type): its client code is not known;
+* always: `ia.display.iframe` (it reads a `srcDoc` property the schema
+  does not list and shows `src` otherwise; a same-origin document runs
+  with the page's origin), `ia.display.map` and `ia.display.google-map`
+  (their map libraries render popup and tooltip texts as HTML), the
+  amCharts components (`ia.chart.xy`, `pie`, `gauge`, `simple-gauge`)
+  and the time series bundle (`ia.chart.timeseries`, `powerchart`,
+  `chartrangeselector`), whose bundles write `innerHTML`,
+  `ia.display.pdf-viewer` (its renderer can evaluate code),
+  `ia.reporting.report-viewer` (reports are not read) and the menu
+  components (`ia.navigation.horizontalmenu`, `menutree`, `navlinks`),
+  which open item targets that are not project paths with `window.open`.
+  The entries marked "not reviewed further" in the table were not traced
+  to a property: counting them is the fail-closed choice;
+* `ia.display.markdown` renders its source with `react-markdown`, passing
+  every key of `props.markdown` except `escapeHtml`, and
+  `allowDangerousHtml: !escapeHtml` (an absent `escapeHtml` renders raw
+  HTML; `allowDangerousHtml` or `transformLinkUri` in `props.markdown`
+  turn the guards off; `renderers` such as `{"image": "iframe"}` load
+  URLs as documents). It counts unless `props.markdown` is a literal
+  object with `escapeHtml: true`, only the schema's keys and empty
+  `renderers`;
+* `ia.navigation.link` makes `props.url` the anchor's `href` (a path that
+  starts with `/` becomes a project path): it counts unless the URL is
+  absent or a literal that runs no script (`url_runs_no_script`, as for
+  `system.perspective.navigate`);
+* `ia.shapes.svg` creates the element type and passes every attribute it
+  does not know that `props.elements` names: it counts unless every
+  element is a literal of a plain type (shapes, groups, gradients, text,
+  clip paths, masks, markers, filter primitives, `use`; not `script`,
+  `a`, `foreignObject`, `image` or the animation elements) whose links
+  are `#` references and which has no `on...` attribute;
+* a navigate action (`nav`) whose `config.url` is not a literal that runs
+  no script.
+
+A Markdown component, link or SVG drawing whose literal configuration is
+plain counts all the same when something can change it at run time: a
+`propConfig` entry of the component on `props` or on the property, or any
+script in its view (only the view's own scripts, and code they hand one
+of its components, can write its properties; other views reach it only
+through a page or session, which is unknown code already). Every other
+component of the 8.3 list reads named properties (`getPropsReducer`) and
+renders them as text, numbers, styles or project paths; the review of the
+components bundle found no other HTML sink (`dangerouslySetInnerHTML`
+only in Markdown, `innerHTML` only with constant text) and no other URL
+passed to `href`, `window.open` or `location`.
+
+Tests: `client_code::tests`, the rule tests
+`unknown_system_and_expression_functions_and_client_code_are_unknown`
+(`SCR102`), `unknown_functions_and_browser_code_make_fixes_unsafe`
+(`VIEW015`), `unknown_functions_and_browser_code_make_the_rename_unsafe`
+(`NAME001`), `unlisted_system_functions_may_read_files` (`SCR124`),
+`vetted::tests::unlisted_system_members_are_unknown`, the binary test
+`unknown_functions_and_browser_code_keep_fixes_unsafe` and the language
+server test `quick_fix_with_unknown_functions_or_browser_code_is_unsafe`.
+
+Measured on the private project (its revision of 2026-10-24): 3 uses of
+`system.*` members the stubs do not list (under 2 package prefixes), 1
+call of an expression function the gateway does not register, and among
+287 views 28 components of types outside the 8.3 list, 16 charts, 1
+inline frame, 1 menu, 10 Markdown components, 2 links, 692 SVG drawings
+and 22 navigate actions with a URL. Its findings and fix applicabilities
+are unchanged (2,928 findings with the default rules; its fixes were
+unsafe before, through other unknown code).
 
 ### Perspective fields and component names
 
@@ -1283,8 +1418,17 @@ that applies or offers a fix goes through one function,
 safety net (see "Threat model"): `--fix`, `--fix --unsafe-fixes`,
 `--diff`, `iglint ign-lint --fix`, the language server's fix-all (code
 action, `source.fixAll` on save, command) and its single quick fixes
-(`Live::fix_one`). A safe fix that fails the net is not applied, reported
-as skipped, and not offered as a quick fix
+(`Live::fix_one`). A safe fix that fails the net is not applied. So that
+what is reported is what is applied (review round 18, N1), every path
+that reports fixes (`check` without `--fix`, the findings left after
+`--fix`, the language server's diagnostics and quick fixes) runs the net
+first, as `fix_file` does: all safe fixes of the file together, and when
+the net drops them, each on its own (`safety::mark_rejected_safe_fixes`).
+A safe fix the net drops on its own is reported as unsafe with the net's
+reason ("the safe fix could change what the code does (...)"), offered as
+an unsafe quick fix, and applied only with `--unsafe-fixes`, like every
+unsafe fix; one the net drops only together with others stays safe, and
+a later fix pass applies it once the others are applied or dropped
 (`every_fix_path_goes_through_the_net`,
 `quick_fixes_go_through_the_safety_net`).
 
@@ -1361,6 +1505,41 @@ remaining documented assumption.
   deletion before a `__future__` import is therefore unsafe in `SCR102`,
   and the safety net rejects any safe fix that changes whether a script
   compiles, in either direction.
+* **Size limits.** `SCR002`'s figures are lower bounds (it reports only
+  what certainly fails), so comparing compile status with them alone does
+  not see a fix near a limit: review round 18 (Opus, B2) removed an
+  import from a function of 2,176 `a = abs(i % 7)` lines, which Jython
+  rejects ("Module or method too large") and accepts without the import
+  (65,530 bytes), and `--fix` applied it. Every code unit, the class's
+  `<init>` (a code object per unit, with its variable names) and
+  `call_function` (a branch per unit), the methods that fill large
+  constant displays and the constant pool now also have a sound upper
+  bound (`limits::upper`): the largest cost measured per construct with a
+  quarter on top, the code after a statement that ends a suite, a
+  `finally` body once for the normal exit, once for the handler and once
+  per `return`, `break` and `continue` inside the `try`, the exit code of
+  a `with` at each of those, the stack a `yield` saves, cells for the
+  names nested units may close over, and for the pool every distinct
+  string and name, numbers, units, long lines and the runtime's own
+  entries with a twentieth on top. Where the lower bound fits a limit
+  and the upper bound does not (`limits::size_unknown`), the compile
+  status is not known, and the safety net drops (so `check` reports as
+  unsafe, see the end of "Line numbers") every safe fix that changes that
+  script, with the bounds in the reason. The 100,000-character
+  look-ahead of the first two lines is exact and needs no upper bound.
+  `tests/method_size_oracle.rs` checks the bounds against the oracle
+  (`oracle/run-oracle.sh --method-size`, which now also records every
+  method of the class and its constant pool count): 3,194 programs in
+  the committed data, 400 of them random function bodies around 64 KB,
+  the review's repro, modules of 150 to 800 functions and pools around
+  65,535 entries. A calibration run with 3,000 bodies around 64 KB
+  (5,794 programs) found no method or pool above its bound, method
+  bounds at least 1.25 times the size (median 2.1; 15,659 bytes above
+  the closest unit of more than 60,000 bytes) and pool bounds at least
+  1.05 times the count. The measurement found a limit `SCR002` does not
+  model: about 760 functions of eight parameters fail on `<init>`; their
+  verdict is open. On the private project no script has an open verdict
+  (458 library modules; the largest unit's upper bound is 50,874 bytes).
 * **Import side effects.** Removing an import is safe only with positive
   evidence that the import succeeds and has no effect: a Java class
   measured to exist in the image (a public top-level class of a vetted

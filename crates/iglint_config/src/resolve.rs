@@ -133,6 +133,8 @@ struct Merged {
     overrides: Vec<RawOverride>,
     layers: Vec<Layer>,
     assume_no_workspace_file_reads: Option<bool>,
+    vetted_system_functions: Option<Vec<String>>,
+    vetted_expression_functions: Option<Vec<String>>,
 }
 
 fn merge(chain: Vec<RawConfig>) -> Merged {
@@ -153,6 +155,12 @@ fn merge(chain: Vec<RawConfig>) -> Merged {
         merged.assume_no_workspace_file_reads = raw
             .assume_no_workspace_file_reads
             .or(merged.assume_no_workspace_file_reads);
+        merged.vetted_system_functions = raw
+            .vetted_system_functions
+            .or(merged.vetted_system_functions);
+        merged.vetted_expression_functions = raw
+            .vetted_expression_functions
+            .or(merged.vetted_expression_functions);
         for (rule, settings) in raw.rules {
             let combined = merged
                 .rules
@@ -420,6 +428,10 @@ pub(crate) fn load_source(
                 assume_no_workspace_file_reads: merged
                     .assume_no_workspace_file_reads
                     .unwrap_or(false),
+                vetted: iglint_linter::settings::Vetted {
+                    system_functions: merged.vetted_system_functions.unwrap_or_default(),
+                    expression_functions: merged.vetted_expression_functions.unwrap_or_default(),
+                },
             };
             Ok(Configuration {
                 source,

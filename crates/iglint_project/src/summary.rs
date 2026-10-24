@@ -285,12 +285,29 @@ pub struct References {
     /// that is not a project library module counts as
     /// [`References::unknown_code`].
     pub unvetted_imports: Vec<(String, UnknownSite)>,
+    /// Names that are not in the measured 8.3 lists, with where they are
+    /// used: `system.*` members the stubs do not list and expression
+    /// functions the gateway does not register (a third-party module's).
+    /// Each counts as [`References::unknown_code`] and as a file read,
+    /// unless the project vets it ([`crate::index::Vetted`]).
+    pub unvetted_names: Vec<(UnvettedName, UnknownSite)>,
     /// Calls that hand a Perspective object (a component, a view, a page
     /// or a session) to a dotted name that may be a library function. The
     /// linter resolves them once the index is built: a callee that may
     /// reach other views with it counts as [`References::unknown_code`]
     /// ([`crate::ProjectIndex::mark_unknown_code`]).
     pub perspective_calls: Vec<PerspectiveCall>,
+}
+
+/// A name that is not in the measured 8.3 lists
+/// ([`References::unvetted_names`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UnvettedName {
+    /// A `system.*` chain the stubs do not list, as written
+    /// (`system.perspective.runJavaScriptAsync`).
+    System(String),
+    /// An expression function the gateway does not register, as written.
+    ExpressionFunction(String),
 }
 
 /// A call that hands a Perspective object to a name that may be a library
@@ -382,6 +399,7 @@ impl References {
             self.file_read_site = other.file_read_site;
         }
         self.unvetted_imports.extend(other.unvetted_imports);
+        self.unvetted_names.extend(other.unvetted_names);
         self.perspective_calls.extend(other.perspective_calls);
     }
 }
@@ -402,6 +420,7 @@ pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
     let facts = match &model.data {
         ModelData::View { view, file } => {
             hidden_code(&view.problems, *file, &mut references);
+            client_code(view, *file, &mut references);
             configuration_reads(*file, &view.bindings, &mut references);
             Facts::View(view_facts(view, &mut references))
         }
@@ -516,6 +535,7 @@ pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
     };
     for (file, e) in model.expressions() {
         expression_configuration_reads(file, e, &mut references);
+        unknown_expression_functions(file, e, &mut references);
     }
     if !model.errors.is_empty() {
         valid = false;
@@ -739,6 +759,195 @@ fn hidden_code(problems: &[crate::view::ModelProblem], file: FileId, refs: &mut 
             range: p.range,
             what: p.message.clone(),
         };
+        refs.unknown_code = true;
+        refs.reads_files = true;
+        if refs.unknown_site.is_none() {
+            refs.unknown_site = Some(site.clone());
+        }
+        if refs.file_read_site.is_none() {
+            refs.file_read_site = Some(site);
+        }
+    }
+}
+
+/// Calls of expression functions that the 8.3 gateway does not register
+/// (a third-party module's: Vision's `objectScript` or a simulation
+/// module's run Python): code iglint does not read
+/// ([`References::unvetted_names`]). Expressions that do not parse do not
+/// run.
+fn unknown_expression_functions(
+    file: FileId,
+    e: &crate::EmbeddedExpression<'_>,
+    refs: &mut References,
+) {
+    if !e.parsed.is_valid() {
+        return;
+    }
+    for call in e.parsed.expr.calls() {
+        if iglint_stubs::expression_function(&call.name).is_none() {
+            refs.unvetted_names.push((
+                UnvettedName::ExpressionFunction(call.name.clone()),
+                UnknownSite {
+                    file,
+                    range: e.file_range(call.name_range),
+                    what: format!("{} (not an expression function of Ignition 8.3)", call.name),
+                },
+            ));
+        }
+    }
+}
+
+/// What in a view can run JavaScript in the browser
+/// ([`iglint_stubs::client_code`]): a component whose properties can run
+/// code (a type the 8.3 component list does not have, an inline frame, an
+/// SVG drawing, ...; a Markdown component that renders HTML, a link whose
+/// URL may be a script), and a navigate action whose URL may be a script.
+/// Code in a page reads and writes the properties of every view the page
+/// shows, opens other pages of the session and calls the gateway with the
+/// session's credentials, so it is unknown code for the whole workspace
+/// and may read the files a fix edits.
+///
+/// A Markdown component or link counts unless its literal configuration
+/// is plain and nothing can change it at run time: no `propConfig` entry
+/// on `props` or the property, and no script in the view (only the view's
+/// own scripts, and code handed one of its components by them, can write
+/// its properties; other views reach it only through a page or session,
+/// which is unknown code already).
+fn client_code(view: &View<'_>, file: FileId, refs: &mut References) {
+    use iglint_stubs::client_code::{
+        ClientCode, MarkdownValue, component_client_code, markdown_is_plain, url_runs_no_script,
+    };
+    fn plain_svg(elements: &iglint_json::Value<'_>) -> bool {
+        use iglint_stubs::client_code::{svg_attribute_is_plain, svg_element_type_is_plain};
+        let plain_type = |v: Option<&iglint_json::Value<'_>>| {
+            v.and_then(|t| t.as_str())
+                .is_some_and(svg_element_type_is_plain)
+        };
+        elements.as_array().is_some_and(|a| {
+            a.iter().all(|e| {
+                e.as_object().is_some_and(|o| {
+                    plain_type(o.get("type"))
+                        && o.iter().all(|m| match m.key() {
+                            "type" | "style" | "name" => true,
+                            "elements" => plain_svg(&m.value),
+                            "wrapper" => m.value.as_object().is_some_and(|w| {
+                                w.iter().all(|wm| match wm.key() {
+                                    "type" => {
+                                        wm.value.as_str() == Some("") || plain_type(Some(&wm.value))
+                                    }
+                                    key => svg_attribute_is_plain(key, wm.value.as_str()),
+                                })
+                            }),
+                            key => svg_attribute_is_plain(key, m.value.as_str()),
+                        })
+                })
+            })
+        })
+    }
+    let bound = |c: &crate::view::Component<'_>, property: &str| {
+        view.prop_configs.iter().any(|p| {
+            let key = p.key.value();
+            p.owner == crate::script::Owner::Component(c.id)
+                && (key == "props"
+                    || key
+                        .strip_prefix("props.")
+                        .and_then(|k| k.strip_prefix(property))
+                        .is_some_and(|rest| {
+                            rest.is_empty() || rest.starts_with('.') || rest.starts_with('[')
+                        }))
+        })
+    };
+    let fixed = |c: &crate::view::Component<'_>, property: &str| {
+        view.scripts.is_empty() && !bound(c, property)
+    };
+    let mut found: Option<(TextRange, String)> = None;
+    for c in &view.components {
+        let why = match component_client_code(c.type_id) {
+            ClientCode::None => None,
+            ClientCode::Always(why) => Some(why.to_owned()),
+            ClientCode::Markdown => {
+                let plain = c
+                    .props
+                    .and_then(|p| p.get("markdown"))
+                    .and_then(|m| m.as_object())
+                    .is_some_and(|m| {
+                        markdown_is_plain(m.iter().map(|member| {
+                            let value = if member.value.as_bool() == Some(true) {
+                                MarkdownValue::True
+                            } else if member.value.as_object().is_some_and(|o| o.is_empty()) {
+                                MarkdownValue::EmptyObject
+                            } else {
+                                MarkdownValue::Other
+                            };
+                            (member.key(), value)
+                        }))
+                    });
+                (!(plain && fixed(c, "markdown"))).then(|| {
+                    "it renders raw HTML unless props.markdown is a literal with escapeHtml true \
+                     and only the documented keys, which nothing in the view can change"
+                        .to_owned()
+                })
+            }
+            ClientCode::Svg => {
+                let plain = c
+                    .props
+                    .and_then(|p| p.get("elements"))
+                    .is_none_or(plain_svg);
+                (!(plain && fixed(c, "elements"))).then(|| {
+                    "it renders the element types and attributes that props.elements names (a \
+                     script, a or foreignObject element, a link that is not a #reference), and \
+                     they are not plain literals that nothing in the view can change"
+                        .to_owned()
+                })
+            }
+            ClientCode::Link => {
+                let plain = c
+                    .props
+                    .and_then(|p| p.get("url"))
+                    .is_none_or(|u| u.as_str().is_some_and(url_runs_no_script));
+                (!(plain && fixed(c, "url"))).then(|| {
+                    "props.url is the address of the link, and a javascript: URL runs code; it \
+                     is not a literal URL that nothing in the view can change"
+                        .to_owned()
+                })
+            }
+        };
+        if let Some(why) = why
+            && found.is_none()
+        {
+            let range = c.type_value.map_or(c.value.range, |t| t.range);
+            found = Some((
+                range,
+                format!(
+                    "{} ({}): can run JavaScript in the browser, {why}",
+                    c.path,
+                    c.type_id.unwrap_or("no type")
+                ),
+            ));
+        }
+    }
+    for e in &view.events {
+        for a in &e.actions {
+            if !matches!(a.kind, ActionKind::Navigate(_)) {
+                continue;
+            }
+            let Some(url) = a.config.and_then(|c| c.get("url")) else {
+                continue;
+            };
+            if url.as_str().is_some_and(url_runs_no_script) || found.is_some() {
+                continue;
+            }
+            found = Some((
+                url.range,
+                format!(
+                    "{}: a navigate action to a URL that may run JavaScript in the browser",
+                    a.node_path
+                ),
+            ));
+        }
+    }
+    if let Some((range, what)) = found {
+        let site = UnknownSite { file, range, what };
         refs.unknown_code = true;
         refs.reads_files = true;
         if refs.unknown_site.is_none() {

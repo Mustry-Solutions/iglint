@@ -186,6 +186,49 @@ pub struct ProjectIndex<'w> {
     /// No workspace root was found around a linted path, so the closed
     /// world is not known ([`ProjectIndex::mark_closed_world_unknown`]).
     closed_world_unknown: bool,
+    /// The names the project declares vetted.
+    vetted: Vetted,
+}
+
+/// Names that are not in the measured 8.3 lists but that the project
+/// declares vetted (`[fix] vetted-system-functions` and
+/// `vetted-expression-functions`): checking that they cannot evaluate
+/// code, read a frame or read workspace files is the user's
+/// responsibility. Default empty.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Vetted {
+    /// `system.*` paths; an entry also vets the members read from it.
+    pub system_functions: Vec<String>,
+    /// Expression function names, matched case-insensitively as Ignition
+    /// resolves them.
+    pub expression_functions: Vec<String>,
+}
+
+impl Vetted {
+    /// Whether the project vets `name`.
+    pub fn vets(&self, name: &crate::summary::UnvettedName) -> bool {
+        match name {
+            crate::summary::UnvettedName::System(path) => {
+                iglint_stubs::system_path_listed(path, &self.system_functions)
+            }
+            crate::summary::UnvettedName::ExpressionFunction(f) => self
+                .expression_functions
+                .iter()
+                .any(|v| v.eq_ignore_ascii_case(f)),
+        }
+    }
+
+    /// The first site of `refs` that uses a name the project does not vet
+    /// ([`crate::summary::References::unvetted_names`]).
+    pub fn first_unvetted<'r>(
+        &self,
+        refs: &'r crate::summary::References,
+    ) -> Option<&'r UnknownSite> {
+        refs.unvetted_names
+            .iter()
+            .find(|(name, _)| !self.vets(name))
+            .map(|(_, site)| site)
+    }
 }
 
 /// Lowercases ASCII and non-ASCII letters (tag paths are case-insensitive).
@@ -197,6 +240,16 @@ impl<'w> ProjectIndex<'w> {
     /// Builds the index. `summaries` may come in any order; resources
     /// without a summary are treated as existing with unknown content.
     pub fn build(ws: &'w Workspace, summaries: Vec<ResourceSummary>) -> ProjectIndex<'w> {
+        Self::build_with(ws, summaries, Vetted::default())
+    }
+
+    /// [`ProjectIndex::build`] for a project that declares the names of
+    /// `vetted` vetted.
+    pub fn build_with(
+        ws: &'w Workspace,
+        summaries: Vec<ResourceSummary>,
+        vetted: Vetted,
+    ) -> ProjectIndex<'w> {
         let mut by_id: Vec<Option<ResourceSummary>> =
             (0..ws.resources.len()).map(|_| None).collect();
         for s in summaries {
@@ -220,6 +273,7 @@ impl<'w> ProjectIndex<'w> {
             first_file_read: None,
             gateway_unknown_code: false,
             closed_world_unknown: false,
+            vetted,
             databases: FxHashSet::default(),
             has_databases: false,
             usage: FxHashMap::default(),
@@ -465,13 +519,15 @@ impl<'w> ProjectIndex<'w> {
                             | LibraryLookup::Symbol { .. }
                     )
                 });
-                if refs.unknown_code || unvetted.is_some() {
+                let unvetted_name = self.vetted.first_unvetted(refs);
+                if refs.unknown_code || unvetted.is_some() || unvetted_name.is_some() {
                     unknown_code[pid.index()] = true;
                     let sites = refs
                         .unknown_site
                         .iter()
                         .filter(|_| refs.unknown_code)
-                        .chain(unvetted.map(|(_, site)| site));
+                        .chain(unvetted.map(|(_, site)| site))
+                        .chain(unvetted_name);
                     for site in sites {
                         let key = |s: &UnknownSite| (ws.file(s.file).path.clone(), s.range.start());
                         if site.file != UnknownSite::DETACHED
@@ -620,7 +676,8 @@ impl<'w> ProjectIndex<'w> {
                 };
                 let refs = &summary.references;
                 let unvetted = refs.unvetted_imports.first();
-                if !refs.unknown_code && unvetted.is_none() {
+                let unvetted_name = self.vetted.first_unvetted(refs);
+                if !refs.unknown_code && unvetted.is_none() && unvetted_name.is_none() {
                     continue;
                 }
                 self.gateway_unknown_code = true;
@@ -628,7 +685,8 @@ impl<'w> ProjectIndex<'w> {
                     .unknown_site
                     .iter()
                     .filter(|_| refs.unknown_code)
-                    .chain(unvetted.map(|(_, site)| site));
+                    .chain(unvetted.map(|(_, site)| site))
+                    .chain(unvetted_name);
                 for site in sites {
                     let key = |s: &UnknownSite| (ws.file(s.file).path.clone(), s.range.start());
                     if site.file != UnknownSite::DETACHED
@@ -932,6 +990,11 @@ impl<'w> ProjectIndex<'w> {
             || self.projects.iter().any(|p| p.unknown_code)
     }
 
+    /// The names the project declares vetted.
+    pub fn vetted(&self) -> &Vetted {
+        &self.vetted
+    }
+
     /// Records that the closed world is not known: no workspace root was
     /// found around a linted path (a loose file, a project with nothing
     /// around it that says where the rest of its gateway is). Every fix
@@ -1002,7 +1065,9 @@ impl<'w> ProjectIndex<'w> {
                         )
                     })
             });
-            if !refs.reads_files && unvetted.is_none() {
+            // A name that is not vetted may read files too.
+            let unvetted_name = self.vetted.first_unvetted(refs);
+            if !refs.reads_files && unvetted.is_none() && unvetted_name.is_none() {
                 continue;
             }
             reads = true;
@@ -1010,7 +1075,8 @@ impl<'w> ProjectIndex<'w> {
                 .file_read_site
                 .iter()
                 .filter(|_| refs.reads_files)
-                .chain(unvetted.map(|(_, site)| site));
+                .chain(unvetted.map(|(_, site)| site))
+                .chain(unvetted_name);
             for site in sites {
                 if site.file != UnknownSite::DETACHED
                     && first.as_ref().is_none_or(|f| key(site) < key(f))
