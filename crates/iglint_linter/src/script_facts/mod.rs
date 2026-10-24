@@ -37,6 +37,7 @@ pub mod calls;
 pub mod code_sources;
 pub mod refs;
 pub mod symbols;
+pub mod webdev;
 
 pub use access::AstScriptFacts;
 pub use refs::FactsContext;

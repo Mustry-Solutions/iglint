@@ -256,6 +256,30 @@ const JAVA_DENIED_MEMBERS: &[(&str, &[&str])] = &[(
     ],
 )];
 
+/// Gateway types that store or run code and configuration from data, besides
+/// the ones `stubs-gen/gen_vetted.py` finds by their methods (see
+/// [`store_member`]); the generator's copy is part of the generated
+/// signature (`generated_tables_match_vetted_inputs`).
+pub const STORE_TYPES: &[&str] = &[
+    "com.inductiveautomation.ignition.gateway.model.GatewayContext",
+    "com.inductiveautomation.perspective.gateway.api.PerspectiveContext",
+    "com.inductiveautomation.ignition.gateway.project.ProjectManager",
+    "com.inductiveautomation.ignition.gateway.config.ConfigurationManager",
+    "com.inductiveautomation.ignition.gateway.resourcecollection.ResourceCollectionManager",
+    "com.inductiveautomation.ignition.common.resourcecollection.ResourceCollection",
+    "com.inductiveautomation.ignition.common.script.ScriptManager",
+];
+
+/// Whether `name`, named as a member of any value, may hand out a gateway
+/// store (`JAVA_STORE_MEMBERS`, measured: `getTagManager`,
+/// `getGatewayContext`, `getScriptManager`, ...): an object that persists
+/// tag, project or gateway configuration or runs code from data.
+pub fn store_member(name: &str) -> bool {
+    crate::generated::JAVA_STORE_MEMBERS
+        .binary_search(&name)
+        .is_ok()
+}
+
 /// `system.*` functions and objects that store or run code from run-time
 /// values, or hand out the script context: never vetted. See the audit in
 /// `docs/internal/fix-safety.md` ("`system.*` functions that run code").
@@ -1085,7 +1109,11 @@ impl Walk<'_, '_> {
             } else if q == "__builtin__.getattr"
                 && let Some(Expr::Str(name)) = c.args.get(1)
             {
-                read |= crate::file_reads::file_member(&name.s.to_latin1());
+                let name = name.s.to_latin1();
+                read |= crate::file_reads::file_member(&name);
+                if store_member(&name) {
+                    self.other(c.range);
+                }
             }
         }
         if read {
@@ -1108,6 +1136,25 @@ impl Walk<'_, '_> {
         });
         if read {
             self.file_read(expr.range());
+        }
+    }
+
+    /// Members that hand out a gateway store (measured), named on any
+    /// value but a vetted Python module: unknown code.
+    fn check_store_members(&mut self, expr: &Expr) {
+        let (attrs, root) = chain_parts(expr);
+        if attrs.iter().any(|a| store_member(a)) && !self.module_root(root) {
+            self.other(expr.range());
+        }
+    }
+
+    fn module_root(&self, root: &Expr) -> bool {
+        match root {
+            Expr::Name(n) if n.ctx == ExprContext::Load => {
+                let c = self.candidates(n);
+                !c.is_empty() && c.iter().all(|b| matches!(b, Bound::Module(_)))
+            }
+            _ => false,
         }
     }
 
@@ -1199,6 +1246,7 @@ impl<'a> Visitor<'a> for Walk<'_, '_> {
                 self.callee = Some(c.func.range());
             }
             Expr::Attribute(_) => {
+                self.check_store_members(expr);
                 self.check_file_members(expr);
                 self.check_file_value(expr);
             }
@@ -1561,6 +1609,8 @@ mod tests {
                 .iter()
                 .map(|t| format!("file-handle:{t}")),
         );
+        // The store types named by hand.
+        sig.extend(STORE_TYPES.iter().map(|t| format!("store:{t}")));
         let generated: Vec<&str> = crate::generated::GENERATED_FROM.to_vec();
         assert_eq!(
             sig, generated,
@@ -1702,6 +1752,46 @@ mod tests {
             let found = unknown(src);
             assert_eq!(found.file_read, None, "file read in:\n{src}");
             assert!(found.is_empty(), "{src}");
+        }
+    }
+
+    /// Coordinator, round 10: members that hand out a gateway store
+    /// (`TagManager.importTagsAsync` stores tags with their scripts from a
+    /// JSON string) are unknown code.
+    #[test]
+    fn gateway_stores_are_unknown() {
+        for src in [
+            "m = self.session.getTagManager()\n",
+            "m = session.tagManager\n",
+            "c = self.session.getGatewayContext()\n",
+            "s = x.getScriptManager()\n",
+            "m = getattr(session, 'getTagManager')()\n",
+        ] {
+            assert!(unknown(src).other.is_some(), "{src}");
+        }
+        assert!(unknown("x = self.session.props.id\n").is_empty());
+        for (_, store) in crate::generated::JAVA_STORE_MEMBERS
+            .iter()
+            .map(|n| (n, store_member(n)))
+        {
+            assert!(store);
+        }
+        assert!(
+            crate::generated::JAVA_STORE_MEMBERS
+                .windows(2)
+                .all(|w| w[0] < w[1])
+        );
+        for t in STORE_TYPES {
+            assert!(
+                crate::generated::JAVA_STORE_TYPES.contains(t),
+                "{t} was not measured"
+            );
+        }
+        for t in [
+            "com.inductiveautomation.ignition.common.tags.model.TagManager",
+            "com.inductiveautomation.ignition.gateway.tags.model.GatewayTagManager",
+        ] {
+            assert!(crate::generated::JAVA_STORE_TYPES.contains(&t), "{t}");
         }
     }
 

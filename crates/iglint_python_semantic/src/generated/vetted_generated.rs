@@ -132,6 +132,13 @@ pub(crate) const GENERATED_FROM: &[&str] = &[
     "file-handle:com.inductiveautomation.ignition.gateway.resourcecollection.ResourceCollectionFileTree",
     "file-handle:com.inductiveautomation.ignition.gateway.resourcecollection.ResourceDataFile",
     "file-handle:com.inductiveautomation.ignition.gateway.resourcecollection.StreamingResource",
+    "store:com.inductiveautomation.ignition.gateway.model.GatewayContext",
+    "store:com.inductiveautomation.perspective.gateway.api.PerspectiveContext",
+    "store:com.inductiveautomation.ignition.gateway.project.ProjectManager",
+    "store:com.inductiveautomation.ignition.gateway.config.ConfigurationManager",
+    "store:com.inductiveautomation.ignition.gateway.resourcecollection.ResourceCollectionManager",
+    "store:com.inductiveautomation.ignition.common.resourcecollection.ResourceCollection",
+    "store:com.inductiveautomation.ignition.common.script.ScriptManager",
 ];
 
 /// Member names (Java method, Jython bean-property and field
@@ -380,6 +387,85 @@ pub(crate) const JAVA_FILE_CLASSES: &[&str] = &[
     "java.net.URL",
     "java.util.Formatter",
     "java.util.Scanner",
+];
+
+/// Member names (Java method, Jython bean-property and field
+/// spellings) whose declared type mentions a gateway store: a type that
+/// persists tag, project or gateway configuration or runs code from data
+/// (JAVA_STORE_TYPES). Naming any of these on any value is unknown code.
+/// Sorted.
+pub(crate) const JAVA_STORE_MEMBERS: &[&str] = &[
+    "cookieManager", // com.inductiveautomation.ignition.common.script.builtin.http.JythonHttpClient.getCookieManager
+    "gatewayContext", // com.inductiveautomation.perspective.gateway.api.Session.getGatewayContext
+    "getCookieManager", // com.inductiveautomation.ignition.common.script.builtin.http.JythonHttpClient.getCookieManager
+    "getGatewayContext", // com.inductiveautomation.perspective.gateway.api.Session.getGatewayContext
+    "getNamedQueryManager", // com.inductiveautomation.perspective.gateway.api.Session.getNamedQueryManager
+    "getPerspectiveContext", // com.inductiveautomation.perspective.gateway.api.Session.getPerspectiveContext
+    "getScriptManager", // com.inductiveautomation.perspective.gateway.api.Session.getScriptManager
+    "getTagManager", // com.inductiveautomation.perspective.gateway.api.Session.getTagManager
+    "namedQueryManager", // com.inductiveautomation.perspective.gateway.api.Session.getNamedQueryManager
+    "perspectiveContext", // com.inductiveautomation.perspective.gateway.api.Session.getPerspectiveContext
+    "scriptManager", // com.inductiveautomation.perspective.gateway.api.Session.getScriptManager
+    "tagManager", // com.inductiveautomation.perspective.gateway.api.Session.getTagManager
+];
+
+/// The store types (2376 types reachable from the gateway seeds scanned).
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) const JAVA_STORE_TYPES: &[&str] = &[
+    "com.inductiveautomation.ignition.common.db.namedquery.NamedQueryManager",
+    "com.inductiveautomation.ignition.common.execution.ExecutionManager",
+    "com.inductiveautomation.ignition.common.resourcecollection.ResourceCollection",
+    "com.inductiveautomation.ignition.common.script.ScriptManager",
+    "com.inductiveautomation.ignition.common.script.builtin.http.CookieManager",
+    "com.inductiveautomation.ignition.common.tags.model.TagManager",
+    "com.inductiveautomation.ignition.common.tags.model.TagProvider",
+    "com.inductiveautomation.ignition.gateway.alarming.AlarmManager",
+    "com.inductiveautomation.ignition.gateway.alarming.schedule.ScheduleManager",
+    "com.inductiveautomation.ignition.gateway.audit.AuditManager",
+    "com.inductiveautomation.ignition.gateway.auth.security.level.SecurityLevelManager",
+    "com.inductiveautomation.ignition.gateway.clientcomm.progress.GatewayProgressManager",
+    "com.inductiveautomation.ignition.gateway.config.ConfigurationManager",
+    "com.inductiveautomation.ignition.gateway.config.ResourceTypeMetaRegistry",
+    "com.inductiveautomation.ignition.gateway.config.migration.MigrationStrategyRegistry",
+    "com.inductiveautomation.ignition.gateway.datasource.DatasourceManager",
+    "com.inductiveautomation.ignition.gateway.gan.GatewayNetworkManager",
+    "com.inductiveautomation.ignition.gateway.images.ImageManager",
+    "com.inductiveautomation.ignition.gateway.licensing.LicenseManager",
+    "com.inductiveautomation.ignition.gateway.logging.GatewayLoggingManager",
+    "com.inductiveautomation.ignition.gateway.logging.LogPropertyRegistry",
+    "com.inductiveautomation.ignition.gateway.metrics.MetricHistoryManager",
+    "com.inductiveautomation.ignition.gateway.metrics.MetricsDashboardsManager",
+    "com.inductiveautomation.ignition.gateway.model.DiagnosticsManager",
+    "com.inductiveautomation.ignition.gateway.model.GatewayContext",
+    "com.inductiveautomation.ignition.gateway.model.SystemPropertiesManager",
+    "com.inductiveautomation.ignition.gateway.model.TelemetryManager",
+    "com.inductiveautomation.ignition.gateway.model.entity.EntityManager",
+    "com.inductiveautomation.ignition.gateway.opc.OpcConnectionManager",
+    "com.inductiveautomation.ignition.gateway.project.ProjectManager",
+    "com.inductiveautomation.ignition.gateway.redundancy.RedundancyManager",
+    "com.inductiveautomation.ignition.gateway.redundancy.types.AbstractSynchronizedStateProvider",
+    "com.inductiveautomation.ignition.gateway.resourcecollection.ResourceCollectionManager",
+    "com.inductiveautomation.ignition.gateway.serviceconnector.ServiceConnectorManager",
+    "com.inductiveautomation.ignition.gateway.services.ModuleServicesManager",
+    "com.inductiveautomation.ignition.gateway.storeforward.StoreAndForwardManager",
+    "com.inductiveautomation.ignition.gateway.sync.SyncManager",
+    "com.inductiveautomation.ignition.gateway.tags.config.TagConfigurationManager",
+    "com.inductiveautomation.ignition.gateway.tags.evaluation.groups.TagGroupManager",
+    "com.inductiveautomation.ignition.gateway.tags.managed.ManagedTagProvider",
+    "com.inductiveautomation.ignition.gateway.tags.model.GatewayTagManager",
+    "com.inductiveautomation.ignition.gateway.tags.scripting.TagScriptManager",
+    "com.inductiveautomation.ignition.gateway.tasks.RestartTasksManager",
+    "com.inductiveautomation.ignition.gateway.user.UserSourceManager",
+    "com.inductiveautomation.ignition.gateway.web.WebResourceManager",
+    "com.inductiveautomation.ignition.gateway.web.systemjs.SystemJsModuleRegistry",
+    "com.inductiveautomation.metro.api.MetroProtobufRegistry",
+    "com.inductiveautomation.metro.api.ServiceManager",
+    "com.inductiveautomation.metro.api.services.Service",
+    "com.inductiveautomation.perspective.common.api.ComponentRegistry",
+    "com.inductiveautomation.perspective.gateway.api.ActionRegistry",
+    "com.inductiveautomation.perspective.gateway.api.BindingRegistry",
+    "com.inductiveautomation.perspective.gateway.api.ComponentModelDelegateRegistry",
+    "com.inductiveautomation.perspective.gateway.api.PerspectiveContext",
 ];
 
 /// For every vetted Python module, the attributes that are

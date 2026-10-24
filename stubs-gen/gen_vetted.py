@@ -45,6 +45,11 @@
 #   treats any member name on any value as a possible file read. See
 #   docs/internal/fix-safety.md ("File reads").
 #
+#   JAVA_STORE_MEMBERS and JAVA_STORE_TYPES: the gateway types that store or
+#   run code and configuration from data (measured, see "what stores or runs
+#   code" below) and the member names that hand one out. vetted.rs treats any
+#   such name on any value as unknown code.
+#
 #   PERSPECTIVE_MEMBERS, PERSPECTIVE_PROPERTY_TYPES and
 #   PERSPECTIVE_DELEGATE_MEMBERS: the members of the objects Perspective
 #   hands to scripts (component, view, page and session SafetyWrappers),
@@ -716,12 +721,13 @@ def java_reflective_members(java_classes, packages, system_json):
     return sorted(names.items()), stats
 
 
-def java_file_members(loader, java_classes, packages, all_classes, system_json):
-    """JAVA_FILE_MEMBERS and JAVA_FILE_CLASSES (see the header)."""
-    closure = Closure(loader, FILE_HANDLE_TYPES)
-    # Gateway scope only: Vision clients run only for Vision resources,
-    # which are unknown code or (client event scripts) counted as possible
-    # file reads by the linter, so Vision's objects are not seeds here.
+def gateway_seeds(closure, java_classes, packages, all_classes, system_json):
+    """Seeds the file and store closures: the reflection closure's seeds in
+    the gateway scope only. Vision clients run only for Vision resources,
+    which are unknown code or (client event scripts) counted as possible
+    file reads by the linter, so Vision's objects are not seeds here.
+    Returns the vetted Java classes (and public classes of vetted
+    packages)."""
     _, returned = system_types(system_json, ['gateway'])
     injected_classes = [c for c in INJECTED_CLASSES if c not in VISION_INJECTED]
     injected_packages = [p for p in INJECTED_PACKAGES if p not in VISION_INJECTED]
@@ -738,6 +744,13 @@ def java_file_members(loader, java_classes, packages, all_classes, system_json):
                 vetted.append(n)
     for n in sorted(set(seeds)):
         closure.seed(n)
+    return vetted
+
+
+def java_file_members(loader, java_classes, packages, all_classes, system_json):
+    """JAVA_FILE_MEMBERS and JAVA_FILE_CLASSES (see the header)."""
+    closure = Closure(loader, FILE_HANDLE_TYPES)
+    vetted = gateway_seeds(closure, java_classes, packages, all_classes, system_json)
     for n in SCANNED_HANDLE_TYPES:
         closure.seed(n)
     closure.run()
@@ -757,6 +770,77 @@ def java_file_members(loader, java_classes, packages, all_classes, system_json):
                 classes.append(n)
                 break
     return sorted(closure.names.items()), classes, len(closure.scanned)
+
+
+# --- what stores or runs code and configuration --------------------------------
+#
+# Ignition's gateway managers (tag managers and providers, the project,
+# resource collection and configuration managers, alarm and schedule
+# managers, data sources, script managers, ...) persist tag, project and
+# gateway configuration or run code from the data they are given:
+# `TagManager.importTagsAsync` stores tags with their event scripts and
+# expressions from a JSON string. A script that holds one reaches code and
+# configuration that iglint does not see. The store types are measured: every
+# public type of an Ignition package reachable from the gateway seeds (a
+# fixed point stopping only at the reflection stop types) whose simple name
+# ends in Manager, Provider, Registry or Service and that has a
+# public method of its own (declared in an Ignition package) taking at least
+# one argument whose name starts with one of STORE_VERBS; plus STORE_TYPES.
+# JAVA_STORE_MEMBERS is then the third fixed point over the same seeds, with
+# the store types as stops: the members whose declared type mentions one
+# (the first hop to a store, `getTagManager`, `getProjectManager`, ...).
+
+STORE_VERBS = re.compile(
+    r'^(import|configure|save|edit|push|commit|create|update|delete|remove|add|'
+    r'write|install|register|run|exec|execute|eval|compile|restore|rename|move|'
+    r'copy|apply|set)')
+STORE_NAMES = re.compile(r'(Manager|Provider|Registry|Service)$')
+
+# Stores whose names the rule above does not catch, or that hold every
+# store: the gateway and Perspective contexts, the script managers.
+STORE_TYPES = [
+    'com.inductiveautomation.ignition.gateway.model.GatewayContext',
+    'com.inductiveautomation.perspective.gateway.api.PerspectiveContext',
+    'com.inductiveautomation.ignition.gateway.project.ProjectManager',
+    'com.inductiveautomation.ignition.gateway.config.ConfigurationManager',
+    'com.inductiveautomation.ignition.gateway.resourcecollection.ResourceCollectionManager',
+    'com.inductiveautomation.ignition.common.resourcecollection.ResourceCollection',
+    'com.inductiveautomation.ignition.common.script.ScriptManager',
+]
+
+
+def store_methods(closure, c):
+    out = []
+    try:
+        methods = Class.getMethods(c)
+    except (Exception, JavaThrowable):
+        return out
+    for m in methods:
+        if (STORE_VERBS.match(m.getName()) and len(m.getParameterTypes()) > 0
+                and Class.getName(m.getDeclaringClass()).startswith('com.inductiveautomation')):
+            out.append(m.getName())
+    return sorted(set(out))
+
+
+def java_store_members(loader, java_classes, packages, all_classes, system_json):
+    """JAVA_STORE_MEMBERS and JAVA_STORE_TYPES (see above)."""
+    reach = Closure(loader, [])
+    gateway_seeds(reach, java_classes, packages, all_classes, system_json)
+    reach.run()
+    stores = list(STORE_TYPES)
+    for cn in sorted(reach.scanned):
+        if not cn.startswith('com.inductiveautomation'):
+            continue
+        if not STORE_NAMES.search(cn.rsplit('.', 1)[-1].split('$')[-1]):
+            continue
+        c = reach.load(cn)
+        if c is not None and store_methods(reach, c):
+            stores.append(cn)
+    stores = sorted(set(stores))
+    closure = Closure(loader, stores)
+    gateway_seeds(closure, java_classes, packages, all_classes, system_json)
+    closure.run()
+    return sorted(closure.names.items()), stores, len(reach.scanned)
 
 
 # --- the Python module attribute measurement -------------------------------
@@ -1001,13 +1085,16 @@ def main():
     all_attrs = module_attrs(modules)
     file_members, file_classes, file_scanned = java_file_members(
         stats['loader'], java_classes, packages, stats['classes'], system_json)
+    store_members, store_types, store_scanned = java_store_members(
+        stats['loader'], java_classes, packages, stats['classes'], system_json)
 
     signature = (['mod:%s' % m for m in modules]
                  + ['java:%s' % c for c in sorted(java_classes)]
                  + ['pkg:%s' % p for p in sorted(packages)]
                  + ['stubs:%s' % stats['build']]
                  + ['perspective:%s=%s' % (short, name) for short, name in PERSPECTIVE_WRAPPERS]
-                 + ['file-handle:%s' % n for n in FILE_HANDLE_TYPES])
+                 + ['file-handle:%s' % n for n in FILE_HANDLE_TYPES]
+                 + ['store:%s' % n for n in STORE_TYPES])
 
     lines = []
     lines.append('// @generated by stubs-gen/gen_vetted.py; do not edit by hand.')
@@ -1060,6 +1147,23 @@ def main():
     lines.append('#[cfg_attr(not(test), allow(dead_code))]')
     lines.append('pub(crate) const JAVA_FILE_CLASSES: &[&str] = &[')
     lines.append(rust_str_list(file_classes, 4))
+    lines.append('];')
+    lines.append('')
+    lines.append('/// Member names (Java method, Jython bean-property and field')
+    lines.append('/// spellings) whose declared type mentions a gateway store: a type that')
+    lines.append('/// persists tag, project or gateway configuration or runs code from data')
+    lines.append('/// (JAVA_STORE_TYPES). Naming any of these on any value is unknown code.')
+    lines.append('/// Sorted.')
+    lines.append('pub(crate) const JAVA_STORE_MEMBERS: &[&str] = &[')
+    for name, where in store_members:
+        lines.append('    %s, // %s' % (rust_str(name), where))
+    lines.append('];')
+    lines.append('')
+    lines.append('/// The store types (%d types reachable from the gateway seeds scanned).'
+                 % store_scanned)
+    lines.append('#[cfg_attr(not(test), allow(dead_code))]')
+    lines.append('pub(crate) const JAVA_STORE_TYPES: &[&str] = &[')
+    lines.append(rust_str_list(store_types, 4))
     lines.append('];')
     lines.append('')
     lines.append('/// For every vetted Python module, the attributes that are')

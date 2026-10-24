@@ -213,6 +213,42 @@ class, package and module was measured to exist.
   fixes were unsafe before). Scanning every string literal instead would
   have cost 42 findings (VIEW015 179 to 151), mostly through `type` and
   `module` in literals that are data.
+* **Gateway stores, a third fixed point.** Ignition's gateway managers
+  persist tag, project and gateway configuration, or run code, from data
+  they are given: `TagManager.importTagsAsync` stores tags, with their event
+  scripts and expressions, from a JSON string, and the WebDev
+  `request['context']` (a `GatewayContext`) hands out every such manager.
+  `system.*` was audited for this ("`system.*` functions that run code"),
+  but these objects are reachable without `system.*`. The generator
+  measures them: a first fixed point over the gateway seeds (the file
+  closure's seeds, stopping only at the reflection stop types; 2,376 types
+  for 8.3.3) finds the **store types**, every Ignition type whose simple
+  name ends in `Manager`, `Provider`, `Registry` or `Service` and that has a
+  public method of its own taking an argument whose name starts with a
+  store verb (`import`, `configure`, `save`, `edit`, `push`, `commit`,
+  `create`, `update`, `delete`, `remove`, `add`, `write`, `install`,
+  `register`, `run`, `exec`, `execute`, `eval`, `compile`, `restore`,
+  `rename`, `move`, `copy`, `apply`, `set`), plus `vetted::STORE_TYPES`
+  (the gateway and Perspective contexts, the project, configuration and
+  resource collection managers, resource collections, `ScriptManager`):
+  54 types, among them `TagManager`, `GatewayTagManager`, `TagProvider`,
+  `ManagedTagProvider`, `AlarmManager`, `ScheduleManager`,
+  `DatasourceManager`, `SystemPropertiesManager`, `TagScriptManager` and
+  `NamedQueryManager`. A third fixed point over the same seeds, with the
+  store types as stops, records `JAVA_STORE_MEMBERS`, the members whose
+  declared type mentions one: 12 names for 8.3.3 (`getTagManager`,
+  `getGatewayContext`, `getPerspectiveContext`, `getScriptManager`,
+  `getNamedQueryManager`, `getCookieManager` and their bean spellings, all
+  on Perspective's `Session` or the HTTP client). `vetted::unknown_code`
+  treats any of them named on any value but a vetted Python module, or as a
+  literal `getattr` name, as unknown code. The WebDev context is an
+  injected store, so it is not followed: in a WebDev handler, any use of
+  the `request` parameter other than an item with a literal key that is not
+  `context` (`request['params']`, `request.get('remainingPath')`) is
+  unknown code with its site (`script_facts::webdev`). The regeneration
+  test `generated_tables_match_vetted_inputs` covers `STORE_TYPES`;
+  `gateway_stores_are_unknown`, `webdev::tests::context_uses` and the
+  binary test `webdev_gateway_context_is_unknown_code` cover the routes.
 * **Vetted module attributes, measured positively.** `sys` in Jython is a
   `PySystemState`, not a `types.ModuleType`, so `re.sys`, `calendar.sys`
   and `os.path.sys` slipped past a "deny the module attributes" rule and

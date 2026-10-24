@@ -94,6 +94,14 @@ from 0.1.0 on.
   write-only opens, directory listings and existence checks keep fixes
   safe. `docs/internal/fix-safety.md` has a new "File reads" section and
   no longer claims that whitespace and comments cannot be observed.
+- Gateway managers reachable without `system.*` store or run code and
+  configuration (`request['context'].getTagManager().importTagsAsync(...)`
+  in a WebDev handler imports tags with their scripts from JSON). The
+  generator now measures the gateway types that store or run code and
+  configuration from data and the members that hand one out
+  (`getTagManager`, `getGatewayContext`, `getScriptManager`, ...); naming
+  one, or using a WebDev handler's `request` in a way that may reach its
+  `context`, is unknown code for the closed world, with its site.
 - SCR112 missed format specs that raise for a literal argument:
   `'{0:z}'.format(1)`, `'{0:.2}'.format(1)`, `'{0:+s}'.format('ab')`. It
   now checks the whole spec per literal type (presentation type, sign,

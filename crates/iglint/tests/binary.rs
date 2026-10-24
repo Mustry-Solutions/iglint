@@ -713,3 +713,84 @@ fn component_renames_respect_measured_fields_and_name_reads() {
     assert!(fixed.contains("{../StartDate.props.value}"), "{fixed}");
     assert!(fixed.contains("{../APIToken.props.text}"), "{fixed}");
 }
+
+/// Coordinator, round 10: a WebDev handler that reaches the gateway
+/// context (`request['context']`) holds every gateway manager, among them
+/// tag managers that import tags with their scripts from a JSON string
+/// (`getTagManager().importTagsAsync(...)`). That is unknown code for the
+/// closed world: SCR102's fix becomes unsafe and names the site. A handler
+/// that reads only plain request items does not.
+#[test]
+fn webdev_gateway_context_is_unknown_code() {
+    for (handler, safe) in [
+        (
+            "def doPost(request, session):\n    tags = request['context'].getTagManager()\n    tags.importTagsAsync(None, request['data'], 'json', None)\n",
+            false,
+        ),
+        (
+            "def doPost(request, session):\n    ctx = request['context']\n    return {'json': str(ctx)}\n",
+            false,
+        ),
+        (
+            "def doPost(request, session):\n    return {'json': request['params']}\n",
+            true,
+        ),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let write = |rel: &str, text: &str| {
+            let path = dir.path().join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        };
+        write(
+            "p/project.json",
+            r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+        );
+        let api = "p/com.inductiveautomation.webdev/resources/api";
+        write(
+            &format!("{api}/resource.json"),
+            r#"{"scope": "G", "version": 1, "files": ["config.json", "doPost.py"]}"#,
+        );
+        write(
+            &format!("{api}/config.json"),
+            r#"{"resource-type": "python-resource", "doPost": {"enabled": true}}"#,
+        );
+        write(&format!("{api}/doPost.py"), handler);
+        write(
+            "p/ignition/script-python/m/resource.json",
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        );
+        write(
+            "p/ignition/script-python/m/code.py",
+            "def f():\n    import math\n    return 1\n",
+        );
+        let out = iglint(dir.path())
+            .args([
+                "--no-cache",
+                "--select",
+                "SCR102",
+                "--output-format",
+                "json",
+            ])
+            .output()
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+        let found = v.as_array().unwrap();
+        assert_eq!(found.len(), 1, "{v}");
+        let fix = &found[0]["fix"];
+        if safe {
+            assert_eq!(fix["applicability"], "safe", "{fix}");
+        } else {
+            assert_eq!(fix["applicability"], "unsafe", "{fix}");
+            let reason = &fix["unsafe_reason"];
+            assert!(
+                reason["what"].as_str().unwrap().starts_with("request"),
+                "{reason}"
+            );
+            assert!(
+                reason["filename"].as_str().unwrap().ends_with("doPost.py"),
+                "{reason}"
+            );
+        }
+    }
+}

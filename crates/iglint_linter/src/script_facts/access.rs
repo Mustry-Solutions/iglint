@@ -221,6 +221,24 @@ impl ScriptFacts for AstScriptFacts {
         if let Some(site) = &mut references.file_read_site {
             place(site);
         }
+        // The gateway context of a WebDev handler: every gateway manager,
+        // tag imports and resource writes included (`webdev`).
+        if matches!(
+            unit.script.kind,
+            iglint_project::ScriptKind::EventFile(iglint_project::EventScriptKind::WebDev(_))
+        ) && let Some(range) = super::webdev::context_use(&unit.parsed.module.body)
+        {
+            let mut site = iglint_project::summary::UnknownSite::detached(range);
+            place(&mut site);
+            references.unknown_code = true;
+            references.reads_files = true;
+            if references.unknown_site.is_none() {
+                references.unknown_site = Some(site.clone());
+            }
+            if references.file_read_site.is_none() {
+                references.file_read_site = Some(site);
+            }
+        }
         // A Vision client script holds the client's objects, whose members
         // are not measured for file handles (`JAVA_FILE_MEMBERS` covers the
         // gateway): it may read files.
