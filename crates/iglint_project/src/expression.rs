@@ -102,6 +102,19 @@ pub struct EmbeddedExpression<'a> {
     pub tentative: bool,
 }
 
+impl EmbeddedExpression<'_> {
+    /// Which expression functions the expression can call: tag and alarm
+    /// expressions the gateway's, Perspective's those of its bindings.
+    pub fn function_context(&self) -> iglint_stubs::ExpressionContext {
+        match self.context {
+            ReferenceContext::Gateway => iglint_stubs::ExpressionContext::Gateway,
+            ReferenceContext::PerspectiveBinding | ReferenceContext::PerspectiveTransform => {
+                iglint_stubs::ExpressionContext::Perspective
+            }
+        }
+    }
+}
+
 impl<'a> EmbeddedExpression<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(

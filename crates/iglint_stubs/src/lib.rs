@@ -167,17 +167,64 @@ impl ExpressionFunction {
     }
 }
 
-/// Looks up an expression function by name, case-insensitively.
-pub fn expression_function(name: &str) -> Option<&'static ExpressionFunction> {
-    generated::EXPRESSION_FUNCTIONS
-        .binary_search_by(|f| cmp_ascii_lowercase(f.key, name))
-        .ok()
-        .map(|i| &generated::EXPRESSION_FUNCTIONS[i])
+/// Where an expression is compiled, which decides the functions it can
+/// call (measured on the 8.3.3 gateway by `stubs-gen`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExpressionContext {
+    /// Tag expressions, derived tags, alarm and tag property bindings: the
+    /// gateway's function factory.
+    Gateway,
+    /// Perspective bindings, transforms and the other expressions of a view
+    /// (`ExpressionBindingParseContext`): the gateway's functions, plus
+    /// `isAuthorized` and `property`, and Perspective's own `runScript`.
+    Perspective,
 }
 
-/// All expression functions, sorted by lowercase name.
+fn lookup(table: &'static [ExpressionFunction], name: &str) -> Option<&'static ExpressionFunction> {
+    table
+        .binary_search_by(|f| cmp_ascii_lowercase(f.key, name))
+        .ok()
+        .and_then(|i| table.get(i))
+}
+
+/// Looks up an expression function of the gateway's function factory (tag
+/// expressions) by name, case-insensitively.
+pub fn expression_function(name: &str) -> Option<&'static ExpressionFunction> {
+    lookup(generated::EXPRESSION_FUNCTIONS, name)
+}
+
+/// Looks up an expression function by name, case-insensitively, as an
+/// expression compiled in `context` sees it.
+pub fn expression_function_in(
+    name: &str,
+    context: ExpressionContext,
+) -> Option<&'static ExpressionFunction> {
+    match context {
+        ExpressionContext::Perspective => lookup(generated::PERSPECTIVE_EXPRESSION_FUNCTIONS, name)
+            .or_else(|| expression_function(name)),
+        ExpressionContext::Gateway => expression_function(name),
+    }
+}
+
+/// All expression functions of the gateway's function factory, sorted by
+/// lowercase name.
 pub fn expression_functions() -> &'static [ExpressionFunction] {
     generated::EXPRESSION_FUNCTIONS
+}
+
+/// The functions an expression compiled in `context` can call.
+pub fn expression_functions_in(
+    context: ExpressionContext,
+) -> impl Iterator<Item = &'static ExpressionFunction> {
+    let extra: &'static [ExpressionFunction] = match context {
+        ExpressionContext::Perspective => generated::PERSPECTIVE_EXPRESSION_FUNCTIONS,
+        ExpressionContext::Gateway => &[],
+    };
+    extra.iter().chain(
+        generated::EXPRESSION_FUNCTIONS
+            .iter()
+            .filter(move |f| lookup(extra, f.key).is_none()),
+    )
 }
 
 /// Looks up a Perspective component type by id, e.g. `ia.display.label`.

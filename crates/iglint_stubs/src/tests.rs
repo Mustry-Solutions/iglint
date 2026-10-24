@@ -28,6 +28,7 @@ fn tables_are_sorted_and_unique() {
     check(generated::CONSTANTS, |c| c.path);
     check(generated::OBJECTS, |o| o.path);
     check(generated::EXPRESSION_FUNCTIONS, |f| f.key);
+    check(generated::PERSPECTIVE_EXPRESSION_FUNCTIONS, |f| f.key);
     check(generated::COMPONENT_TYPES, |c| c.id);
     check(generated::SHARED_SCHEMAS, |s| s.0);
     check(generated::BUILTINS, |b| b.name);
@@ -340,4 +341,34 @@ fn builtin_lookup() {
 fn slugs() {
     assert_eq!(slug("Date and Time"), "date-and-time");
     assert_eq!(slug("Type Casting"), "type-casting");
+}
+
+/// Perspective's own expressions add `isAuthorized` and `property` and
+/// replace `runScript`; tag expressions have neither (measured: an
+/// expression tag calling them has quality `Error_Configuration`).
+#[test]
+fn expression_functions_per_context() {
+    use crate::{ExpressionContext::*, expression_function_in, expression_functions_in};
+    for name in ["property", "isAuthorized", "PROPERTY"] {
+        assert!(
+            expression_function_in(name, Perspective).is_some(),
+            "{name}"
+        );
+        assert!(expression_function_in(name, Gateway).is_none(), "{name}");
+    }
+    let property = expression_function_in("property", Perspective).unwrap();
+    assert!(property.accepts_arg_count(1) && !property.accepts_arg_count(2));
+    for name in ["runScript", "now", "dateFormat"] {
+        assert!(
+            expression_function_in(name, Perspective).is_some(),
+            "{name}"
+        );
+        assert!(expression_function_in(name, Gateway).is_some(), "{name}");
+    }
+    let perspective: Vec<&str> = expression_functions_in(Perspective)
+        .map(|f| f.name)
+        .collect();
+    let gateway: Vec<&str> = expression_functions_in(Gateway).map(|f| f.name).collect();
+    assert_eq!(perspective.len(), gateway.len() + 2);
+    assert_eq!(perspective.iter().filter(|n| **n == "runScript").count(), 1);
 }

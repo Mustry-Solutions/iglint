@@ -770,11 +770,12 @@ fn hidden_code(problems: &[crate::view::ModelProblem], file: FileId, refs: &mut 
     }
 }
 
-/// Calls of expression functions that the 8.3 gateway does not register
-/// (a third-party module's: Vision's `objectScript` or a simulation
-/// module's run Python): code iglint does not read
-/// ([`References::unvetted_names`]). Expressions that do not parse do not
-/// run.
+/// Calls of expression functions that Ignition 8.3 does not register for
+/// the expression's context (a third-party module's: Vision's
+/// `objectScript` or a simulation module's run Python), and Perspective's
+/// `property`, which reads properties by a computed path: code iglint does
+/// not read ([`References::unvetted_names`]). Expressions that do not
+/// parse do not run.
 fn unknown_expression_functions(
     file: FileId,
     e: &crate::EmbeddedExpression<'_>,
@@ -784,16 +785,25 @@ fn unknown_expression_functions(
         return;
     }
     for call in e.parsed.expr.calls() {
-        if iglint_stubs::expression_function(&call.name).is_none() {
-            refs.unvetted_names.push((
-                UnvettedName::ExpressionFunction(call.name.clone()),
-                UnknownSite {
-                    file,
-                    range: e.file_range(call.name_range),
-                    what: format!("{} (not an expression function of Ignition 8.3)", call.name),
-                },
-            ));
-        }
+        let what =
+            if iglint_stubs::expression_function_in(&call.name, e.function_context()).is_none() {
+                "not an expression function of Ignition 8.3"
+            } else if call.name.eq_ignore_ascii_case("property") {
+                // Perspective's `property(path)` reads any property of the
+                // view or session by a path computed at run time, which the
+                // property access analysis does not follow.
+                "reads a property by a path computed at run time"
+            } else {
+                continue;
+            };
+        refs.unvetted_names.push((
+            UnvettedName::ExpressionFunction(call.name.clone()),
+            UnknownSite {
+                file,
+                range: e.file_range(call.name_range),
+                what: format!("{} ({what})", call.name),
+            },
+        ));
     }
 }
 

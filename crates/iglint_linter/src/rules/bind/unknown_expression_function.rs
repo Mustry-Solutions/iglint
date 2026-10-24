@@ -23,6 +23,11 @@ Function names are matched case-insensitively, as Ignition does. The list
 of functions is generated from a gateway with the standard modules; add
 functions of third-party modules with `extra-functions`.
 
+The functions depend on where the expression runs: Perspective bindings,
+transforms and the other expressions of a view can also call
+`isAuthorized` and `property`, which tag expressions, derived tags and
+alarm and tag property bindings cannot.
+
 Expressions with a syntax error are left to `BIND001`.
 
 ## Why is this bad?
@@ -91,7 +96,9 @@ impl ExpressionRule for UnknownExpressionFunction {
         let calls = e.parsed.expr.calls();
         let unknown: Vec<_> = calls
             .into_iter()
-            .filter(|c| iglint_stubs::expression_function(&c.name).is_none())
+            .filter(|c| {
+                iglint_stubs::expression_function_in(&c.name, e.function_context()).is_none()
+            })
             .filter(|c| {
                 !cx.options::<Options>()
                     .extra
@@ -107,7 +114,7 @@ impl ExpressionRule for UnknownExpressionFunction {
         for call in unknown {
             let suggestion = crate::suggest::closest(
                 &call.name,
-                iglint_stubs::expression_functions().iter().map(|f| f.name),
+                iglint_stubs::expression_functions_in(e.function_context()).map(|f| f.name),
             );
             let message = match suggestion {
                 Some(s) => format!(
@@ -151,6 +158,29 @@ mod tests {
                 .lint(&["BIND002"])
                 .is_empty()
         );
+    }
+
+    /// Reviewer round 19 (Opus) minor: Perspective's expressions (its
+    /// `ExpressionBindingParseContext`) add `isAuthorized` and `property`
+    /// to the gateway's functions; tag and alarm expressions have neither.
+    /// Measured on an 8.3.3 gateway: in a live session
+    /// `property('this.custom.x') + 1` evaluates to 43 for `custom.x = 42`
+    /// in an expression binding and in an expression transform, while an
+    /// expression tag calling `property` or `isAuthorized` has quality
+    /// `Error_Configuration`.
+    #[test]
+    fn functions_depend_on_the_context() {
+        assert!(
+            view("property('this.custom.x') + toInt(isAuthorized(false))")
+                .lint(&["BIND002"])
+                .is_empty()
+        );
+        let f = crate::rules::tag::fixtures::tags(
+            crate::rules::tag::fixtures::gateway(),
+            r#"[{"name": "T", "tagType": "AtomicTag", "valueSource": "expr", "expression": "property('x') + isAuthorized(true) + now(0)"}]"#,
+            "[]",
+        );
+        assert_eq!(flagged(&f.lint(&["BIND002"])), ["property", "isAuthorized"]);
     }
 
     #[test]

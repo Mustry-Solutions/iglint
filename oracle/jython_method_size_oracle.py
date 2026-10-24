@@ -15,12 +15,15 @@
 # each introduced by "### <name>". OUTPUT_FILE gets, per source:
 #
 #   ### <name>
-#   units <method> <bytes> <method> <bytes> ...   (or: units error)
 #   methods <method> <bytes> ...   every method of the class, in class order
+#                                  (`name$` for a code unit `name$N`)
 #   pool <entries>                 the constant pool count of the class
 #   ok | error <first line of the message>
 #
-# (the methods and pool lines are missing when the code generator fails).
+# or, when the code generator fails, `units error` instead of the methods
+# and pool lines. The code units are the methods other than the class's
+# own (`<init>`, `call_function`, ...) and the `set$$N` display fillers;
+# the reader (tests/method_size_oracle.rs) derives them.
 import struct
 import sys
 
@@ -114,13 +117,10 @@ def record(out, name, data):
         stream = ByteArrayInputStream(jarray.array(data, 'b'))
         generated = imp.compileSource('m', stream, 'm.py').tostring()
         methods = method_sizes(generated)
-        units = [(m.rsplit('$', 1)[0], c) for m, c in methods if m not in SUPPORT]
-        # The module, then the def and class bodies: lambdas and generator
-        # expressions (methods named f, so inputs must not name a function
-        # f) are left out.
-        units = units[:1] + [(m, c) for m, c in units[1:] if m != 'f']
-        out.write('units %s\n' % ' '.join('%s %d' % u for u in units))
-        out.write('methods %s\n' % ' '.join('%s %d' % (m, c or 0) for m, c in methods))
+        # The number after the `$` of a code unit's or display filler's
+        # name (its index in the class) is left out to keep the file small.
+        out.write('methods %s\n' % ' '.join(
+            '%s %d' % (m.rsplit('$', 1)[0] + '$' if '$' in m else m, c or 0) for m, c in methods))
         out.write('pool %d\n' % pool_count(generated))
     except (Exception, Throwable):
         out.write('units error\n')

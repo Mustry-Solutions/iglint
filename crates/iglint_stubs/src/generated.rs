@@ -1298,6 +1298,12 @@ pub(crate) static EXPRESSION_FUNCTIONS: &[ExpressionFunction] = &[
     ExpressionFunction { name: "yearsBetween", key: "yearsbetween", categories: &["Date and Time/<field>Between"], arity: Some(Arity { min: 2, max: Some(2), step: 1 }), params: "date, date" },
 ];
 
+pub(crate) static PERSPECTIVE_EXPRESSION_FUNCTIONS: &[ExpressionFunction] = &[
+    ExpressionFunction { name: "isAuthorized", key: "isauthorized", categories: &["Users"], arity: Some(Arity { min: 0, max: None, step: 1 }), params: "isAllOf[, securityLevel...]" },
+    ExpressionFunction { name: "property", key: "property", categories: &["Advanced"], arity: Some(Arity { min: 1, max: Some(1), step: 1 }), params: "path" },
+    ExpressionFunction { name: "runScript", key: "runscript", categories: &["Advanced"], arity: Some(Arity { min: 1, max: None, step: 1 }), params: "scriptFunction, [pollRate], [args...]" },
+];
+
 static S0: Schema = Schema { reference: Some("urn:ignition-schema:schemas/trend-style.schema.json"), default: Some("{\"colorScheme\":\"RdBu\",\"colors\":[]}"), ..Schema::EMPTY };
 static S1: Schema = Schema { types: TypeSet(TypeSet::STRING.0), default: Some("\"M-D-YYYY\""), ..Schema::EMPTY };
 static S2: Schema = Schema { types: TypeSet(TypeSet::STRING.0), default: Some("\"h:mm:ss\""), ..Schema::EMPTY };

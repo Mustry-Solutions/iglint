@@ -21,6 +21,11 @@ Function names are matched case-insensitively, as Ignition does. The list
 of functions is generated from a gateway with the standard modules; add
 functions of third-party modules with `extra-functions`.
 
+The functions depend on where the expression runs: Perspective bindings,
+transforms and the other expressions of a view can also call
+`isAuthorized` and `property`, which tag expressions, derived tags and
+alarm and tag property bindings cannot.
+
 Expressions with a syntax error are left to `BIND001`.
 
 ## Why is this bad?

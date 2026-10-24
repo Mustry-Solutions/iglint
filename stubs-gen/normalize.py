@@ -285,12 +285,28 @@ def build_expression(raw):
             "params": f.get("arg_hint") or "",
         })
     funcs.sort(key=lambda f: f["name"].lower())
+    # The functions Perspective's own expressions (bindings, transforms and
+    # the other expressions of a view) add to the gateway's, or replace.
+    contexts = {}
+    for context, data in sorted(load(raw, "perspective_expression.json").items()):
+        added = []
+        for f in data["functions"]:
+            added.append({
+                "name": f["name"],
+                "categories": [html.unescape(c) for c in f["categories"]],
+                "arity": arity(f["accepted_counts"], f["probe_max"]),
+                "params": f.get("arg_hint") or "",
+                "replaces_gateway_function": f["replaces"] is not None,
+            })
+        added.sort(key=lambda f: f["name"].lower())
+        contexts[context] = {"factory": data["factory"], "functions": added}
     return {
         "ignition_version": IGNITION_VERSION,
         "scope": "gateway",
         "arity_source": "initArgs probe with 0..%d constant arguments" % dump["functions"][0]["probe_max"],
         "docs_url_pattern": EXPRESSION_DOCS,
         "functions": funcs,
+        "contexts": contexts,
     }
 
 

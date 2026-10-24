@@ -4,8 +4,10 @@
 #   1. starts a throwaway gateway container (iglint-stubs-gen) from the
 #      inductiveautomation/ignition:8.3.3 image with the project in
 #      stubs-gen/project, whose WebDev endpoint runs posted Jython;
-#   2. dumps the gateway-scope system.* API, the expression functions, the
-#      Perspective component registry and Jython's builtins (introspect/*.py);
+#   2. dumps the gateway-scope system.* API, the expression functions (the
+#      gateway's, and those Perspective's own expressions add, found in the
+#      module bytecode by expression_contexts.py), the Perspective component
+#      registry and Jython's builtins (introspect/*.py);
 #   3. finds the Vision Client and Designer script module registrations in the
 #      client/designer bytecode (registrations.py) and replays them inside the
 #      gateway without running any client code (introspect/scopes.py);
@@ -139,6 +141,11 @@ if [[ $offline -eq 0 ]]; then
     echo "dumping $part ..." >&2
     dump "$here/introspect/$part.py" "$raw/$part.json"
   done
+  echo "dumping the expression functions of Perspective's own expressions ..." >&2
+  python3 -I "$here/expression_contexts.py" "$work/modules" "$work/contexts.json"
+  python3 -I -c 'import sys; print("import json as _json\nCONTEXTS = _json.loads(%r)\n" % open(sys.argv[1]).read() + open(sys.argv[2]).read())' \
+    "$work/contexts.json" "$here/introspect/perspective_expression.py" > "$work/perspective_expression.py"
+  dump "$work/perspective_expression.py" "$raw/perspective_expression.json"
   echo "dumping client and designer scopes ..." >&2
   python3 -I "$here/registrations.py" "$work/core" "$work/modules" "$raw/registrations.json"
   python3 -I "$here/payload.py" "$raw/registrations.json" "$here/introspect" "$work/scopes.py"

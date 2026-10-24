@@ -22,15 +22,27 @@
 //!
 //! The file also records every method of the class and its constant pool
 //! count, for the upper bounds (`iglint_python_semantic::upper`, review
-//! round 18): they must never be below what Jython generates, also for
-//! the programs close to each limit ([`near_limit_sources`]), and a
+//! rounds 18 and 19): every method's bound, in Jython's order and by
+//! name, must never be below what Jython generates, also for the programs
+//! close to each limit ([`near_limit_sources`]) and the adversarial
+//! families of `method_size_oracle/adversarial.rs` (one per term of the
+//! derivation in `docs/internal/fix-safety.md`, "Size limits"), and a
 //! program whose verdict both bounds decide must get Jython's verdict.
-//! A larger calibration run: `IGLINT_METHOD_SIZE_NEAR=3000` for writing
-//! the sources and for the check, with the output of the oracle in
+//! The check prints the smallest margin per family.
+//!
+//! The committed data is a stratified sample. A larger calibration run
+//! (10,000 programs): `IGLINT_METHOD_SIZE_SCALE=10` (programs per
+//! adversarial family), `IGLINT_METHOD_SIZE_NEAR=3000` (random bodies
+//! near 64 KB) and optionally `IGLINT_METHOD_SIZE_INIT` (modules near the
+//! class initializer's limit), the same for writing the sources and for
+//! the check, with the output of the oracle in
 //! `IGLINT_METHOD_SIZE_EXPECTED`.
 
+#[path = "method_size_oracle/adversarial.rs"]
+mod adversarial;
+
 use iglint_python_semantic::{
-    CompileErrorKind, code_units, init_lower, size_errors, size_unknown, upper,
+    CompileErrorKind, code_units, init_lower, mark_limit_error, size_errors, size_unknown, upper,
 };
 
 /// Runs `f` on a thread with a stack deep enough for the longest `elif`
@@ -631,7 +643,7 @@ fn near_limit_sources() -> Vec<(String, String)> {
     // nested functions, methods, lambdas, generator expressions and
     // constants, 1,000 to 2,400 units (Jython fails from about 1,300).
     let mut r = Rng::new(7);
-    for k in 0..NEAR_INIT {
+    for k in 0..near_init() {
         let n = 1_000 + r.below(1_400);
         let mut s = String::new();
         for i in 0..n {
@@ -674,8 +686,14 @@ fn near_limit_sources() -> Vec<(String, String)> {
 }
 
 /// Programs near the limit of the class initializer in
-/// [`near_limit_sources`].
-const NEAR_INIT: usize = 300;
+/// [`near_limit_sources`]: 120, or `IGLINT_METHOD_SIZE_INIT` for a larger
+/// calibration run.
+fn near_init() -> usize {
+    std::env::var("IGLINT_METHOD_SIZE_INIT")
+        .ok()
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(120)
+}
 
 /// Random programs near the method limit in [`near_limit_sources`]: 400,
 /// or `IGLINT_METHOD_SIZE_NEAR` for a larger calibration run (set it for
@@ -697,7 +715,65 @@ fn sources() -> Vec<(String, String)> {
     for (kind, n) in shape_sizes() {
         out.push((format!("shape-{kind}-{n}"), shape(kind, n)));
     }
+    out.extend(adversarial::sources());
+    out.extend(review_sources());
     out
+}
+
+/// The shapes of review round 19 (Opus, blocker): closures created many
+/// times over many free variables, and the end-to-end repro whose import
+/// the safe fix removed.
+fn review_sources() -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let p = |n: usize| {
+        (0..n)
+            .map(|i| format!("p{i}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    for (kind, params) in [
+        ("lambda", 150),
+        ("genexp", 150),
+        ("class", 150),
+        ("def", 250),
+    ] {
+        let mut s = format!("def big({}):\n", p(params));
+        for i in 0..30 {
+            s.push_str(&match kind {
+                "lambda" => format!("    l{i} = lambda: ({})\n", p(params)),
+                "genexp" => format!("    l{i} = (x for x in ({}))\n", p(params)),
+                "class" => format!("    class K{i}:\n        v = ({})\n", p(params)),
+                _ => format!("    def h{i}():\n        return ({})\n", p(params)),
+            });
+        }
+        out.push((format!("review19-{kind}-{params}"), s));
+    }
+    for import in [true, false] {
+        out.push((format!("review19-repro-{import}"), review_repro(import)));
+    }
+    out
+}
+
+/// Review round 19's end-to-end repro: Jython rejects it, and compiles it
+/// without the import (65,517 bytes).
+pub(crate) fn review_repro(import: bool) -> String {
+    let p = (0..150)
+        .map(|i| format!("p{i}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut s = format!("def big({p}):\n");
+    s.push_str(if import { "    import math\n" } else { "\n" });
+    for i in 0..25 {
+        s.push_str(&format!("    l{i} = lambda: ({p})\n"));
+    }
+    for _ in 0..84 {
+        s.push_str("    f(g(a, k=h(b, k=i(c, k=d))), k=j(a, b, c, d, e))\n");
+    }
+    for i in 0..8 {
+        s.push_str(&format!("    x = {i}\n"));
+    }
+    s.push_str("    return 1\n");
+    s
 }
 
 #[test]
@@ -741,19 +817,8 @@ fn measured() -> Vec<(String, Measured)> {
     let mut lines = text.lines();
     while let Some(header) = lines.next() {
         let name = header.strip_prefix("### ").expect("header").to_owned();
-        let units = lines
-            .next()
-            .expect("units")
-            .strip_prefix("units ")
-            .expect("units");
-        let units = (units != "error").then(|| {
-            let parts: Vec<&str> = units.split(' ').collect();
-            parts
-                .chunks(2)
-                .map(|p| (p[0].to_owned(), p[1].parse().expect("size")))
-                .collect()
-        });
-        let mut methods = None;
+        let mut units = None;
+        let mut methods: Option<Vec<(String, usize)>> = None;
         let mut pool = None;
         let verdict = loop {
             let line = lines.next().expect("verdict");
@@ -767,10 +832,34 @@ fn measured() -> Vec<(String, Measured)> {
                 );
             } else if let Some(n) = line.strip_prefix("pool ") {
                 pool = Some(n.parse().expect("pool"));
+            } else if line.starts_with("units ") {
+                // `units error`: the code generator failed.
             } else {
                 break line;
             }
         };
+        // The code units: the module, then the def and class bodies (the
+        // methods named `f` after the first are lambdas and generator
+        // expressions, left out; inputs never name a function `f`).
+        if let Some(methods) = &methods {
+            let all: Vec<(String, usize)> = methods
+                .iter()
+                .filter(|(m, _)| m.contains('$') && !m.starts_with("set$$"))
+                .map(|(m, c)| {
+                    (
+                        m.rsplit_once('$').map_or(m.as_str(), |p| p.0).to_owned(),
+                        *c,
+                    )
+                })
+                .collect();
+            units = Some(
+                all.iter()
+                    .take(1)
+                    .chain(all.iter().skip(1).filter(|(m, _)| m != "f"))
+                    .cloned()
+                    .collect(),
+            );
+        }
         let compiles = verdict == "ok";
         out.push((
             name,
@@ -855,10 +944,11 @@ fn bound_never_exceeds_here() {
             sizes.sort_unstable_by(|x, y| y.cmp(x));
             for (bound, size) in bounds.iter().zip(sizes.iter()) {
                 units += 1;
-                assert!(
-                    bound <= size,
-                    "{name}: unit `{unit}` has {size} bytes, the bound says {bound}"
-                );
+                if bound > size {
+                    violations.push(format!(
+                        "{name}: unit `{unit}` has {size} bytes, the lower bound says {bound}"
+                    ));
+                }
                 if *size >= 1000 {
                     tightness.push(*bound as f64 / *size as f64);
                 }
@@ -914,6 +1004,9 @@ struct Margins {
     /// The smallest distance in bytes from a measured unit of more than
     /// 60,000 bytes to its upper bound.
     closest: Option<usize>,
+    /// Per family of programs: the smallest upper / size and upper - size
+    /// of methods of 200 bytes or more, and how many there are.
+    families: std::collections::BTreeMap<String, (f64, usize, usize)>,
 }
 
 impl Margins {
@@ -945,7 +1038,21 @@ impl Margins {
             self.init_rejected.1,
             self.closest
         );
+        for (family, (ratio, gap, n)) in &self.families {
+            eprintln!(
+                "family {family}: {n} methods of 200 bytes or more, upper / size at least {ratio:.3}, upper - size at least {gap}"
+            );
+        }
     }
+}
+
+/// The family of a program: `adv-<family>-<n>`, else the name up to its
+/// first `-`.
+fn family(name: &str) -> String {
+    if let Some(rest) = name.strip_prefix("adv-") {
+        return rest.rsplit_once('-').map_or(rest, |p| p.0).to_owned();
+    }
+    name.split('-').next().unwrap_or(name).to_owned()
 }
 
 /// The upper bounds of every Java method and of the constant pool are at
@@ -960,7 +1067,8 @@ fn check_upper(
 ) -> Vec<String> {
     let mut out = Vec::new();
     let open = size_unknown(module, source).is_some();
-    let reported = !size_errors(module, source).is_empty();
+    // The first two lines too long for Jython's reader is reported too.
+    let reported = !size_errors(module, source).is_empty() || mark_limit_error(source).is_some();
     if !m.compiles && m.units.is_none() {
         margins.rejected += 1;
         margins.rejected_reported += usize::from(reported);
@@ -1017,14 +1125,9 @@ fn check_upper(
             ));
         }
     }
-    // Every code unit, lambdas and generator expressions included, by
-    // name: Jython numbers lambdas and nested units in an order of its own
-    // and compiles a unit in a `finally` body once per way out, so each
-    // measured method must be at most the largest bound of its name, and
-    // where Jython compiled each unit once, the sizes sorted must be at
-    // most the bounds sorted (a necessary condition for every unit's
-    // bound to hold).
-    let mut real: std::collections::BTreeMap<&str, Vec<usize>> = Default::default();
+    // Every code unit, lambdas and generator expressions included (a unit
+    // in a `finally` body once per copy), in Jython's order: the mirror
+    // compiles them in the same order with the same names.
     for (n, size) in methods.iter().filter(|(n, _)| n.starts_with("set$$")) {
         if class.displays < *size {
             out.push(format!(
@@ -1033,44 +1136,46 @@ fn check_upper(
             ));
         }
     }
-    for (n, size) in methods
+    let real: Vec<&(String, usize)> = methods
         .iter()
         .filter(|(n, _)| n.contains('$') && !n.starts_with("set$$"))
-    {
-        real.entry(n.rsplit_once('$').map_or(n.as_str(), |p| p.0))
-            .or_default()
-            .push(*size);
+        .collect();
+    let bounds = upper::methods(module);
+    if bounds.len() != real.len() {
+        out.push(format!(
+            "{name}: Jython compiles {} code units, the mirror {}",
+            real.len(),
+            bounds.len()
+        ));
+        return out;
     }
-    let units = code_units(module, source);
-    let mut bounds: std::collections::BTreeMap<&str, Vec<usize>> = Default::default();
-    for unit in &units {
-        bounds.entry(unit.name).or_default().push(unit.upper);
-    }
-    for (unit, sizes) in &mut real {
-        let Some(b) = bounds.get_mut(unit) else {
-            out.push(format!("{name}: method `{unit}` without a bound"));
-            continue;
-        };
-        sizes.sort_unstable_by(|x, y| y.cmp(x));
-        b.sort_unstable_by(|x, y| y.cmp(x));
-        let pairs: Vec<(usize, usize)> = if sizes.len() == b.len() {
-            sizes.iter().copied().zip(b.iter().copied()).collect()
-        } else {
-            vec![(sizes[0], b[0])]
-        };
-        for (size, bound) in pairs {
-            if bound < size {
-                out.push(format!(
-                    "{name}: unit `{unit}` has {size} bytes, the upper bound says {bound}"
-                ));
-            }
-            if size >= 1_000 {
-                margins.methods.push(bound as f64 / size as f64);
-            }
-            if size > 60_000 {
-                let gap = bound.saturating_sub(size);
-                margins.closest = Some(margins.closest.map_or(gap, |c| c.min(gap)));
-            }
+    let family = family(name);
+    for ((n, size), (bn, bound)) in real.iter().map(|m| (&m.0, m.1)).zip(&bounds) {
+        // The oracle leaves out the number after the `$`.
+        let unnumbered = |m: &str| m.rsplit_once('$').map_or(m, |p| p.0).to_owned();
+        if unnumbered(n) != unnumbered(bn) {
+            out.push(format!("{name}: method `{n}` where the mirror has `{bn}`"));
+        }
+        if *bound < size {
+            out.push(format!(
+                "{name}: unit `{n}` has {size} bytes, the upper bound says {bound}"
+            ));
+        }
+        if size >= 1_000 {
+            margins.methods.push(*bound as f64 / size as f64);
+        }
+        if size >= 200 {
+            let entry = margins
+                .families
+                .entry(family.clone())
+                .or_insert((f64::MAX, usize::MAX, 0));
+            entry.0 = entry.0.min(*bound as f64 / size as f64);
+            entry.1 = entry.1.min(bound.saturating_sub(size));
+            entry.2 += 1;
+        }
+        if size > 60_000 {
+            let gap = bound.saturating_sub(size);
+            margins.closest = Some(margins.closest.map_or(gap, |c| c.min(gap)));
         }
     }
     out
@@ -1186,4 +1291,70 @@ fn open_size_verdicts_in_a_corpus() {
         }
     }
     eprintln!("{files} files, {open} with an open size verdict, largest upper bound {largest}");
+}
+
+/// Prints, for the sources of the `.cases` file `IGLINT_PROBE_CASES` and
+/// the oracle's output for them in `IGLINT_METHOD_SIZE_EXPECTED`, every
+/// code unit's method with Jython's size and the mirror's bound, and
+/// `<init>`, `call_function` and the constant pool: a tool for checking
+/// new shapes against the oracle.
+#[test]
+#[ignore = "needs IGLINT_PROBE_CASES and IGLINT_METHOD_SIZE_EXPECTED"]
+fn probe_sources() {
+    big_stack(probe_sources_here);
+}
+
+fn probe_sources_here() {
+    let Some(cases) = std::env::var_os("IGLINT_PROBE_CASES") else {
+        return;
+    };
+    let cases = std::fs::read_to_string(cases).unwrap();
+    let mut sources = std::collections::HashMap::new();
+    let mut name = None;
+    let mut text = String::new();
+    for line in cases.split_inclusive('\n') {
+        if let Some(n) = line.strip_prefix("### ") {
+            if let Some(prev) = name.replace(n.trim_end().to_owned()) {
+                sources.insert(prev, std::mem::take(&mut text));
+            }
+        } else {
+            text.push_str(line);
+        }
+    }
+    if let Some(prev) = name {
+        sources.insert(prev, text);
+    }
+    for (name, m) in measured() {
+        let source = &sources[&name];
+        let parsed = iglint_python::parse_module(source);
+        let bounds = upper::methods(&parsed.module);
+        let class = upper::class(&parsed.module, source);
+        let Some(methods) = &m.methods else {
+            println!("{name}: the code generator failed; bounds {bounds:?}");
+            continue;
+        };
+        let units: Vec<&(String, usize)> = methods
+            .iter()
+            .filter(|(n, _)| n.contains('$') && !n.starts_with("set$$"))
+            .collect();
+        let mut line = format!("{name}:");
+        for (i, (n, size)) in units.iter().enumerate() {
+            let bound = bounds.get(i).map_or(0, |b| b.1);
+            let flag = if bound < *size { " UNDER" } else { "" };
+            line.push_str(&format!(" {n}={size}/{bound}{flag}"));
+        }
+        if bounds.len() != units.len() {
+            line.push_str(&format!(" COUNT {} vs {}", units.len(), bounds.len()));
+        }
+        for (method, bound) in [
+            ("<init>", class.init),
+            ("call_function", class.call_function),
+        ] {
+            let size = methods.iter().find(|(n, _)| n == method).map_or(0, |m| m.1);
+            let flag = if bound < size { " UNDER" } else { "" };
+            line.push_str(&format!(" {method}={size}/{bound}{flag}"));
+        }
+        line.push_str(&format!(" pool={}/{}", m.pool.unwrap_or(0), class.pool));
+        println!("{line}");
+    }
 }

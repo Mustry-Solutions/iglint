@@ -67,12 +67,13 @@ It also reports scripts that are too large for Jython:
 * a module with too many functions, classes, lambdas and generator
   expressions for Jython's class initializer (`Module or method too
   large`: the class's `<init>` builds one code object per body, with its
-  variable names, and is one Java method too). iglint counts at least 30
-  bytes per body and 6 per parameter or assigned local variable of a
-  function (measured: about 31 and 6), checked against the `<init>` of
-  hundreds of generated modules near the limit with 0 false reports.
+  variable names, and is one Java method too). iglint counts, per body,
+  the instructions Jython's code generator emits for its code object at
+  their shortest encoding (29 to 32 bytes, and 5 or 6 per parameter or
+  assigned local variable of a function), checked against the `<init>`
+  of hundreds of generated modules near the limit with 0 false reports.
   Jython fails from about 765 functions of eight parameters, and iglint
-  reports these from 840;
+  reports these from 900;
 * a module with more than 32,767 distinct string literals (`Class too
   large`: one module is one Java class, with at most 65,535 constants;
   Jython fails from 32,594).
@@ -314,7 +315,7 @@ mod tests {
                 .collect()
         };
         assert!(lint_module("SCR002", &functions(760)).is_empty());
-        let d = lint_module("SCR002", &functions(900));
+        let d = lint_module("SCR002", &functions(950));
         assert_eq!(d.len(), 1, "{d:?}");
         assert!(
             d[0].message

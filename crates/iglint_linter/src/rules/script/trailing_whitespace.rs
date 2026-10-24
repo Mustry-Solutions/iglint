@@ -131,6 +131,44 @@ mod tests {
         assert_eq!(fixed, "x = 1\n\ny = '''a  \nb'''\nz = 2\r\nw = 3");
     }
 
+    /// Reviewer round 19 (Codex) major: the upper bound overflowed on
+    /// nested `try`/`finally` chains (every `return` copies the `finally`
+    /// bodies around it, each with its own `return`): debug builds
+    /// panicked and release builds wrapped to a small bound, so the fix
+    /// of a 64-level chain was safe. The bounds saturate; such a chain's
+    /// compile status is not known (or the script does not parse), and
+    /// the fix is never safe.
+    #[test]
+    fn nested_finally_chains_never_get_a_safe_fix() {
+        for depth in [50, 64, 200] {
+            let mut code = String::from("def f():\n");
+            for d in 0..depth {
+                code.push_str(&format!("{}try:\n", "    ".repeat(d + 1)));
+            }
+            code.push_str(&format!("{}return 1\n", "    ".repeat(depth + 1)));
+            for d in (0..depth).rev() {
+                let pad = "    ".repeat(d + 1);
+                code.push_str(&format!("{pad}finally:\n{pad}    return 2\n"));
+            }
+            code.push_str("x = 1  \n");
+            let f = library("m", &code);
+            let d = f.lint(&["SCR124"]);
+            for d in &d {
+                let fix = d.fix.as_ref().unwrap();
+                assert_ne!(fix.applicability, crate::Applicability::Safe, "{depth}");
+            }
+            if depth < 100 {
+                assert_eq!(d.len(), 1, "{depth}");
+                let reason = d[0].fix.as_ref().unwrap().unsafe_reason.as_ref().unwrap();
+                assert!(
+                    reason.message.contains("compile status is not known"),
+                    "{reason:?}"
+                );
+            }
+            assert!(!safe_fix_applies(&f, "SCR124", "m"), "{depth}");
+        }
+    }
+
     /// Whitespace outside string literals is not in any value and line
     /// numbers do not move: Jython has no source for scripts compiled from
     /// strings (`inspect.getsource` fails, tracebacks show no lines;

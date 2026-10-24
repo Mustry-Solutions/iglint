@@ -1510,45 +1510,176 @@ remaining documented assumption.
   not see a fix near a limit: review round 18 (Opus, B2) removed an
   import from a function of 2,176 `a = abs(i % 7)` lines, which Jython
   rejects ("Module or method too large") and accepts without the import
-  (65,530 bytes), and `--fix` applied it. Every code unit, the class's
-  `<init>` (a code object per unit, with its variable names) and
-  `call_function` (a branch per unit), the methods that fill large
-  constant displays and the constant pool now also have a sound upper
-  bound (`limits::upper`): the largest cost measured per construct with a
-  quarter on top, the code after a statement that ends a suite, a
-  `finally` body once for the normal exit, once for the handler and once
-  per `return`, `break` and `continue` inside the `try`, the exit code of
-  a `with` at each of those, the stack a `yield` saves, cells for the
-  names nested units may close over, and for the pool every distinct
-  string and name, numbers, units, long lines and the runtime's own
-  entries with a twentieth on top. Where the lower bound fits a limit
-  and the upper bound does not (`limits::size_unknown`), the compile
-  status is not known, and the safety net drops (so `check` reports as
-  unsafe, see the end of "Line numbers") every safe fix that changes that
-  script, with the bounds in the reason. The 100,000-character
-  look-ahead of the first two lines is exact and needs no upper bound.
-  `tests/method_size_oracle.rs` checks the bounds against the oracle
-  (`oracle/run-oracle.sh --method-size`, which now also records every
-  method of the class and its constant pool count): 3,494 programs in
-  the committed data, 300 of them near the class initializer's limit, 400 of them random function bodies around 64 KB,
-  the review's repro, modules of 150 to 800 functions and pools around
-  65,535 entries. A calibration run with 3,000 bodies around 64 KB
-  (5,794 programs) found no method or pool above its bound, method
-  bounds at least 1.25 times the size (median 2.1; 15,659 bytes above
-  the closest unit of more than 60,000 bytes) and pool bounds at least
-  1.05 times the count. The measurement found a limit `SCR002` did not
-  model: Jython fails from about 765 functions of eight parameters on
-  `<init>`. `SCR002` now reports it from a lower bound too (30 bytes per
-  code unit, 6 per parameter or assigned local of a function; measured
-  about 31 and 6): on 300 generated modules of 1,000 to 2,400 mixed
-  functions, decorated functions with defaults, classes, methods, nested
-  functions, lambdas, generator expressions and constants, it reports 203
-  of the 245 that Jython rejects and none that compile (the lower bound
-  is 0.84 to 0.91 of the measured `<init>` from 30,000 bytes on); the
-  verdict between the bounds is open. The constant pool is reported
-  whenever its lower bound (two entries per distinct string literal)
-  exceeds the limit, and open between the bounds. On the private project no script has an open verdict
-  (458 library modules; the largest unit's upper bound is 50,874 bytes).
+  (65,530 bytes), and `--fix` applied it. Every Java method of the
+  module's class (each code unit, `<init>`, which builds a code object
+  per compiled unit, `call_function`, a branch per compiled unit, and the
+  `set$$N` methods that fill large constant displays) and the constant
+  pool therefore also have a sound upper bound (`limits::upper`). Where
+  the lower bound fits a limit and the upper bound does not
+  (`limits::size_unknown`), the compile status is not known, and the
+  safety net drops (so `check` reports as unsafe, see the end of "Line
+  numbers") every safe fix that changes that script, with the bounds in
+  the reason. The 100,000-character look-ahead of the first two lines is
+  exact and needs no upper bound.
+
+  The first upper bound (round 18) charged the largest cost measured per
+  construct with a quarter on top. Review round 19 (Opus, blocker) showed
+  that it undercounted closures by up to 4.6 times: Jython builds a
+  closure's cells at every creation, about 10.5 bytes per free variable,
+  while the bound charged a flat cost per creation and the free variables
+  once per unit (30 lambdas over 150 parameters: 48,723 bytes, bound
+  11,062; with 25 such lambdas and an import, Jython rejects a function
+  that compiles without the import, and `SCR102`'s safe fix removed it).
+  The measured programs never had many free variables, so no calibration
+  found it. The upper bound is now derived from Jython's code generator
+  itself.
+
+  *Source.* Jython 2.7.3's compiler (`org.python.compiler.CodeCompiler`,
+  `Module`, `Code`, `ScopeInfo`, `ScopesCompiler`, `ArgListCompiler`,
+  from the `v2.7.3` tag of github.com/jython/jython). The Ignition 8.3.3
+  image ships `jython-ia-2.7.3.5.jar`; `javap -c -p` (from the
+  `eclipse-temurin:17-jdk-alpine` image) of every class of
+  `org.python.compiler` in both jars differs only in `checkcast`
+  instructions of the compiler's own generic code (`visitDict`,
+  `visitImportFrom`, `ArgListCompiler.visitArgs`, `ScopeInfo.cook`), none
+  of which changes what it emits; `Code` and `Module` are byte for byte
+  the same.
+
+  *Method.* `limits/mirror.rs` walks the tree the way `CodeCompiler`
+  does: the same visitor per node kind, the same temporaries in the same
+  order (`Code.getLocal` takes the lowest free JVM local, so the size of
+  every `aload` and `astore` is known: 1 byte up to local 3, 2 up to
+  255, 4 with `wide`), the same record of the operand stack
+  (`stackProduce`, which a `yield` saves), the same stack of exception
+  handlers, and each nested unit compiled where its creating code is,
+  once per copy of that code. Where the generator's choice depends on
+  something not modelled (whether a name is local, global, a cell or
+  free; the constant pool index of an `ldc`), it charges the larger
+  alternative. Instructions: `iconst` 1, 2 (`bipush`) or 3 (`sipush`,
+  `ldc_w`) by value; `ldc` 3; field and method references, `new`,
+  `anewarray`, `checkcast`, `instanceof` 3; `invokeinterface` 5; a jump 3
+  while the method stays below 32,000 bytes, otherwise 5 for a `goto`
+  and 8 for a conditional jump whose span may exceed a 16-bit offset (ASM
+  widens them to `goto_w`, and a conditional jump to its inverse around a
+  `goto_w`). Each term, with the emission site and every multiplicity:
+
+  | Emission site | Bytes charged | Repeated |
+  |---|---|---|
+  | `setline` | 7 (`aload_1`, `iconst` of the line, `invokevirtual`) | per statement, and per `IfExp`, lambda, generator expression, `yield` and synthetic statement of a comprehension |
+  | `visitName` | 7 (`aload_1`, `ldc` of the name or `iconst` of its index, `invokevirtual`); a store adds the `aload` of the value | per name |
+  | `visitNum`, `visitStr` (`Module.*Constant.get`) | `iconst`/`ldc`/`ldc2_w` and `invokestatic`, at most 6; a string of more than 16,000 UTF-16 units goes through a `StringBuilder` (`Code.ldc`): 13 + `iconst` + 6 per chunk | per literal |
+  | `visitAttribute` | value, `ldc`, `invokevirtual` (store: and `aload`) | per attribute |
+  | `visitSubscript`, `Slice` | value, index or the parts of a simple slice (`aconst_null` for a missing one), `invokevirtual` (store: and `aload`); `visitExtSlice` an array of the dimensions, `new PyTuple` and `freeArray`; `visitSlice` `getstatic None` per missing part and a temporary | per subscript, per dimension |
+  | `visitCall`, `invokeNoKeywords` | up to 4 positional arguments on the stack: `aload_2`, `invokevirtual` (an attribute call adds `ldc` and `__getattr__`); otherwise `makeArray` of the values and `makeStrings` of the keywords, the star arguments or `aconst_null`, `dup2_x2`, `pop2`, `_callextra` or `__call__`, `freeArrayRef` | per argument, per keyword |
+  | `makeArray` | `iconst`, `anewarray`, `astore`; per element the value, `aload`, `swap`, `iconst`, `swap`, `aastore` | per element (call arguments, defaults, bases, displays in a generator, dimensions) |
+  | `makeStrings` | `iconst`, `anewarray`, `astore`; per name `aload`, `iconst`, `ldc`, `aastore` | per keyword, per name of a `from` import |
+  | `loadArray` (displays outside generators) | `iconst`, `anewarray`; per element `dup`, `iconst`, the value, `aastore`. 100 or more elements that are all number or string literals (`Module.emitPrimitiveArraySetters`): `dup` and `invokestatic` per 4,096 elements here, and a `set$$N` method of `aload_0`, `iconst`, the constant and `aastore` per element | per element |
+  | `visitBoolOp` | `dup`, `invokevirtual __nonzero__`, a jump, `pop` | per operand after the first |
+  | `visitCompare` | two temporaries; per comparator but the last `aload`, `swap`, `dup`, `astore`, the comparison, `dup`, `astore`, `__nonzero__`, a jump; the last `aload`, `swap`, the comparison | per comparator |
+  | `visitBinOp`, `visitUnaryOp`, `visitRepr` | `invokevirtual` | per operator |
+  | `visitIfExp` | line, test, `__nonzero__`, two jumps | per expression |
+  | `visitListComp`, `finishComp` | `new PyList` and `append` (13), `set` of `_[n]`, then a `for` loop per generator, an `if` per condition (with its `goto`: the `else` list exists, empty), the call statement and `del _[n]`, each with its line | per generator, per condition |
+  | creation of a unit (`visitFunctionDef`, `visitLambda`, `visitClassDef`, `visitGeneratorExp`, `visitSetComp`, `visitDictComp`) | the defaults or bases (`makeArray`), `new PyFunction` or `Py.makeClass`, the code object (`getstatic`), the docstring or `aconst_null`; a generator expression its first iterable and the call | per creation, per copy of the creating code |
+  | `makeClosure` | `iconst`, `anewarray`, `astore`; per free variable `aload`, `iconst`, `aload_1`, a `getfield f_back` per class body between the unit and the frame that holds the cell, `iconst`, `invokevirtual getclosure`, `aastore`; `aload` | per creation, per free variable, per `setup_closure` call (each call appends the free variables again, so the n-th compiled copy of a creation in a `finally` body passes n times as many) |
+  | free variables (`ScopeInfo.cook`, `setup_closure`) | at most the names of the unit's subtree that a function-like unit around it binds (without those the unit binds itself when it is function-like); a unit between the creator and the cell passes the cell on and pays for it at its own creation (`limits/scopes.rs`) | per unit on the way |
+  | `applyDecorators` | `storeTop`; per decorator the value, then `aload_2`, `aload`, `invokevirtual __call__`, `astore`; `aload` | per decorator |
+  | `visitAssign`, `set` | one target: `astore`, the store, `aconst_null`, `astore`; several: `astore` and each store | per target |
+  | `seqSet` (unpacking) | `aload`, `iconst`, `invokestatic unpackSequence`, `astore`; per element `aload`, `iconst`, `aaload` and a `set` of it | per element, at every nesting level |
+  | `visitAugAssign` | the target's parts into 2 temporaries (a simple slice 4, `saveAugTmps`), the load, the value, the operator, the result into a temporary, the parts back (`restoreAugTmps`), the store | per statement |
+  | `visitPrint` | per value the destination's `aload`, the value, `invokestatic` | per value |
+  | `visitImport`, `visitImportFrom` | per name `ldc`, `aload_1`, `iconst`, `invokestatic` and a `set`; a `from` import `makeStrings` of the names, `importFrom`, and per name `aload`, `iconst`, `aaload` and a `set` | per name |
+  | `visitDelete`, `visitExec`, `visitAssert`, `visitRaise` | each part, `invokestatic`/`athrow`; `assert` the `__debug__` test, two jumps and `AssertionError` | per target, per part |
+  | `visitIf`, `doTest` | line of the test, test, `__nonzero__`, `ifeq`, `goto` past the `else` after a body that does not exit | per `if` and `elif` |
+  | `visitWhile`, `visitFor` | two jumps; `for` two temporaries, `__iter__`, `__iternext__`, the line twice | per loop |
+  | `visitTryExcept`, `exceptionTest` | `setException` into a temporary; per handler the type test, the name's `set`, the body and a `goto`; `aload`, `athrow` | per handler |
+  | `visitTryFinally`, `inlineFinally`, `doFinallysDownTo` | the `finally` body at the normal exit (when the body does not exit), in the handler, and at every `return`, `break` and `continue` that leaves the `try`, each copy compiled with only the handlers outside it: nested `try`/`finally` bodies with ways out multiply | per way out, per nesting level |
+  | `visitWith` | 12 bytes of set-up, the handler (23), the exit call (9) at the normal exit and at every way out of the body | per way out |
+  | `visitReturn`, `visitBreak`, `visitContinue` | the `finally` bodies and `with` exits of every handler down to the loop (`return`: all), then `goto`, or the value through the return local, `f_lasti = -1`, `areturn` | per statement |
+  | `visitYield` | the line; `saveStack` (per recorded stack item `aload`, `swap`, `iconst`, `swap`, `aastore`; per thread state `pop`) and `restoreStack`; `f_lasti`; `saveLocals` (per active temporary `aload`, `iconst`, `aload`, `aastore`) and `restoreLocals` (`aload`, `iconst`, `aaload`, `checkcast`, `astore`); the restart's 18 bytes. The active temporaries are every JVM local live at the `yield`: two per enclosing `for`, the manager of each enclosing `with`, the exception local of each enclosing `try`/`finally`, the temporaries of an enclosing comparison or call | per `yield`, per live temporary and stack item |
+  | `parse` | a class body's `__module__` (14) and docstring; per parameter that is a cell `aload_1`, two `iconst`, `invokevirtual to_cell`; the `with` exits array; `f_lasti = -1`, `None`, `areturn` (a class body `getf_locals`); a generator's `tableswitch` (16 and 4 per `yield`) and the `goto` to it | per unit |
+  | `ArgListCompiler.appendInitCode` | the unpacking of tuple parameters, prepended to the function's statement list at every compile: the n-th copy of a `def` in a `finally` body has it n times | per copy |
+  | `<init>` (`PyCodeConstant.put`) | per compiled unit `iconst` of the argument count, the variable names, cell and free variables (`makeStrings`, the free variables per `setup_closure` call), name, line, flags, `Py.newCode`, `putstatic`; `aload_0`, `invokespecial` and `return` once | per compiled unit, per name |
+  | `call_function` (`Module.addFunctions`) | 25, and `tableswitch` entry, `invokevirtual`, `areturn` per compiled unit (8) | per compiled unit |
+
+  The constant pool's bound counts every distinct string and name (also
+  as Jython mangles private names in a class), chunks of long strings,
+  the names Jython makes (`_[n]`, `_(n)`, `_(x)`, `(a, b)`), numbers, 24
+  entries per compiled unit, line numbers beyond `sipush` and 600 entries
+  for the runtime's classes, methods and fields, with a twentieth on top.
+  Sizes are `Saturating<u64>` (`limits::Bytes`) and `limits` denies
+  unchecked arithmetic: review round 19 (Codex) found that 64 nested
+  `try: ... finally: return 2` wrapped the old bound to a small number in
+  release builds (and panicked in debug builds), so the fix of such a
+  script was safe. Release builds keep `overflow-checks` off: turning
+  them on measured no difference on the private project and 2 to 4% more
+  time on the synthetic corpora of 500 and 5,000 views. The mirror stops
+  after 4,000,000 node visits (2^50
+  copies of a `finally` body); then every bound counts as unknown, and so
+  does the script's compile status even where `SCR002` reports it.
+
+  *Calibration.* `tests/method_size_oracle.rs` compares every Java method
+  of every generated program with the oracle (`oracle/run-oracle.sh
+  --method-size`, which records every method of the class and its
+  constant pool count), in Jython's order and by name, and the constant
+  pool; it reports the smallest margin per family of programs. Besides
+  the random programs, the repetitions of single statements, programs
+  near each limit and the reviews' repros, `adversarial.rs` generates a
+  family per term of the table: closures over up to 300 free variables
+  created up to 60 times, three levels deep and through class bodies, in
+  loops and in `finally` bodies; nested `try`/`finally` and `with` with
+  ways out at every level; `yield` under up to ten loops, `try` and
+  `with` blocks and inside calls, comparisons and displays; calls of up
+  to 300 arguments and 50 keywords; unpacking of up to 200 nested
+  targets; up to 30 decorators, 100 defaults and 50 bases; comparison and
+  boolean chains of 200; displays below and above 100 and 4,096
+  elements, constant and not, in generators; strings of up to 75,000
+  characters and long integers; imports of up to 300 names; augmented
+  assignments to every kind of target; every other statement; JVM locals
+  beyond 255; the random statements over 300 names with nested units;
+  methods beyond 32,000 bytes; and combinations. A calibration run with
+  ten times the committed programs per family and 3,000 random bodies
+  near 64 KB (10,000 programs, 7,747 that Jython's code generator
+  compiles, 131,835 code units) found no method and no pool above its
+  bound, and no lower bound above Jython's size. The smallest margins
+  (upper bound over size, for methods of 200 bytes or more): closures
+  1.004, displays 1.000 (4 bytes), random bodies near 64 KB 1.000 (0
+  bytes: the mirror is exact for them), names 1.042, yields 1.023,
+  `finally` 1.111, `with` 1.056; for methods of 1,000 bytes or more the
+  median is 1.07, and the closest bound above a unit of more than 60,000
+  bytes is 109 bytes above it. Pool bounds are at least 1.05 times the
+  count. The committed data (`tests/oracle/method_size.expected`, a
+  stratified sample of 3,710 programs, the code generator's output
+  without the redundant `units` line and method numbers) gives the same
+  margins.
+
+  The new programs also found that `SCR002`'s lower bound was not sound
+  everywhere, now corrected and checked against every unit and every
+  `<init>` of the calibration run: a simple slice (`a[b:c]`, passed to
+  `__getslice__` as its parts), stores without a temporary (several
+  targets, loop and `with` targets) and unpacking, `del` of a tuple, an
+  `if`, `with` or `try` whose body ends, `exec` with both parts,
+  comprehensions with several generators, `from` imports, and `<init>`
+  in small modules (the code object of each unit is now counted per
+  instruction at its shortest encoding). `SCR002` reports a body only
+  when the corrected lower bound exceeds the limit, with 0 false reports
+  on the calibration run.
+
+  The measurement found a limit `SCR002` did not model in round 18:
+  Jython fails from about 765 functions of eight parameters on `<init>`.
+  `SCR002` reports it from the lower bound of `<init>` (per unit the
+  instructions of its code object at their shortest encoding, 29 to 32
+  bytes and 5 or 6 per parameter or assigned local of a function): on
+  generated modules of 1,000 to 2,400 mixed functions, decorated
+  functions with defaults, classes, methods, nested functions, lambdas,
+  generator expressions and constants, it reports 79 of the 98 of the
+  committed sample that Jython rejects and none that compile; the verdict
+  between the bounds is open. The constant pool is reported whenever its
+  lower bound (two entries per distinct string literal) exceeds the
+  limit, and open between the bounds.On the private project no script
+  has an open verdict (1,600 scripts: 458 library modules and the scripts
+  of its views; the largest unit's upper bound is 23,246 bytes, where the
+  round 18 bound said 50,874), and the findings and their applicability
+  are the same as before (all its fixes are unsafe for other reasons).
 * **Import side effects.** Removing an import is safe only with positive
   evidence that the import succeeds and has no effect: a Java class
   measured to exist in the image (a public top-level class of a vetted

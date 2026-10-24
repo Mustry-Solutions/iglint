@@ -507,6 +507,55 @@ fn deep_tags() {
 
 /// Scripts whose first two lines Jython cannot read (the 100,000
 /// character `Mark invalid` limit), and long lines it can.
+/// Reviewer round 19 (Codex) major: nested `try`/`finally` chains made
+/// the size bounds overflow (a debug panic; in release a wrapped bound
+/// that let the fix of a 64-level chain through as safe). In a release
+/// build too, no fix of such a script is safe and nothing panics.
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
+)]
+fn nested_finally_chains_are_never_safe() {
+    for depth in [50, 64, 200] {
+        let mut source = String::from("def f():\n");
+        for d in 0..depth {
+            source.push_str(&format!("{}try:\n", "    ".repeat(d + 1)));
+        }
+        source.push_str(&format!("{}return 1\n", "    ".repeat(depth + 1)));
+        for d in (0..depth).rev() {
+            let pad = "    ".repeat(d + 1);
+            source.push_str(&format!("{pad}finally:\n{pad}    return 2\n"));
+        }
+        source.push_str("x = 1  \n");
+        let dir = module(&source);
+        let output = iglint(
+            dir.path(),
+            &[
+                "--no-cache",
+                "--select",
+                "SCR124,SCR002,SCR001",
+                "--output-format",
+                "json",
+            ],
+        );
+        let shown = stdout(&output);
+        let findings: Value = serde_json::from_str(&shown).unwrap();
+        for finding in findings.as_array().unwrap() {
+            assert_ne!(
+                finding["fix"]["applicability"], "safe",
+                "{depth}: {finding}"
+            );
+        }
+        if depth < 100 {
+            assert!(
+                shown.contains("compile status is not known"),
+                "{depth}: {shown}"
+            );
+        }
+    }
+}
+
 #[test]
 #[cfg_attr(
     debug_assertions,

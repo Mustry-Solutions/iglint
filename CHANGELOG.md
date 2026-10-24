@@ -143,6 +143,46 @@ from 0.1.0 on.
   code object per body and is one Java method too): Jython fails from
   about 765 functions of eight parameters, `SCR002` reports these from
   840, with 0 false reports on 300 generated modules near the limit.
+- The upper bounds of Jython's code size follow its code generator
+  (review round 19, Opus, blocker): the round 18 bound charged a closure's
+  free variables once per unit, while Jython builds the cells at every
+  creation, so it undercounted functions full of closures by up to 4.6
+  times, and `SCR102` removed an import from a function Jython rejects
+  and compiles without it. Every Java method's bound now mirrors Jython
+  2.7.3's `CodeCompiler` (the image's Jython emits the same code)
+  instruction by instruction: cells per creation and free variable, also
+  through the units in between, every copy of a `finally` body and of the
+  units in it, the locals and stack a `yield` saves, wide locals and
+  jumps, and the class's `<init>` and `call_function` per compiled unit.
+  The derivation is a table in `docs/internal/fix-safety.md` ("Size
+  limits"). Calibrated on 10,000 generated programs with a family of
+  adversarial shapes per term: no method or constant pool above its
+  bound, median margin 7%. The review's repro now gets "compile status is
+  not known".
+- Size bounds saturate instead of overflowing (review round 19, Codex):
+  nested `try`/`finally` chains with a `return` in each `finally` made the
+  bound wrap in release builds (the `SCR124` fix of a 64-level chain was
+  safe) and panic in debug builds. Such a script's compile status is now
+  not known and no fix of it is safe.
+- `SCR002`'s lower bound no longer exceeds Jython's size for simple
+  slices, stores without a temporary and unpacking, `del` of a tuple, an
+  `if`, `with` or `try` whose body ends, `exec` with both parts,
+  comprehensions with several generators, `from` imports and the class
+  initializer of small modules (found by the new calibration programs;
+  `SCR002` never reported a script Jython compiles from these). The
+  class initializer's bound counts each code object per instruction:
+  `SCR002` reports modules of functions of eight parameters from 900
+  (was 840; Jython fails from about 765).
+- `BIND002` no longer reports `property` and `isAuthorized` in
+  Perspective bindings, transforms and the other expressions of a view,
+  which can call them (measured on an 8.3.3 gateway: Perspective's own
+  function factory adds them, and replaces `runScript`), and still
+  reports them in tag expressions and alarm and tag property bindings,
+  where an 8.3.3 gateway rejects them. `BIND003` checks their argument
+  counts. A call of `property` still keeps other rules' fixes from being
+  safe (it reads properties by a path computed at run time) unless the
+  project vets it. The generated lists come from `stubs-gen` (new:
+  `expression_contexts.py`, `introspect/perspective_expression.py`).
 - `check`, the language server's diagnostics and its quick fixes report a
   safe fix that the post-fix safety net would drop as unsafe, with the
   net's reason (review round 18, Opus, N1). Before, it was listed as safe

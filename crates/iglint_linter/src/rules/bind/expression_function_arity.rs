@@ -57,7 +57,8 @@ impl ExpressionRule for ExpressionFunctionArity {
         }
         let mut bad = Vec::new();
         for call in e.parsed.expr.calls() {
-            let Some(f) = iglint_stubs::expression_function(&call.name) else {
+            let Some(f) = iglint_stubs::expression_function_in(&call.name, e.function_context())
+            else {
                 continue;
             };
             if f.arity.is_some() && !f.accepts_arg_count(call.args.len()) {

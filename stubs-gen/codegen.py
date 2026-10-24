@@ -140,8 +140,14 @@ def gen_system(data, out):
 # Expression functions
 
 def gen_expression(data, out):
-    funcs = sorted(data["functions"], key=lambda f: f["name"].lower())
-    out.append("pub(crate) static EXPRESSION_FUNCTIONS: &[ExpressionFunction] = &[")
+    gen_expression_table("EXPRESSION_FUNCTIONS", data["functions"], out)
+    gen_expression_table("PERSPECTIVE_EXPRESSION_FUNCTIONS",
+                         data["contexts"]["perspective"]["functions"], out)
+
+
+def gen_expression_table(table, functions, out):
+    funcs = sorted(functions, key=lambda f: f["name"].lower())
+    out.append("pub(crate) static %s: &[ExpressionFunction] = &[" % table)
     for f in funcs:
         a = f["arity"]
         arity = "None" if a is None else "Some(Arity { min: %d, max: %s, step: %d })" % (

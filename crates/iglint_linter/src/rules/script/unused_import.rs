@@ -1507,6 +1507,26 @@ mod tests {
             applicability(&expression.lint_vetting(&["SCR102"], &vetted)),
             [Some(crate::Applicability::Safe)]
         );
+        // Perspective's `property` is an expression function of a view's
+        // bindings, but reads properties by a computed path: still
+        // unknown code; `isAuthorized` is not.
+        for (call, safe) in [
+            ("property('this.custom.' + 'x')", false),
+            ("isAuthorized(false)", true),
+        ] {
+            let binding = format!(
+                r#"{{"custom": {{"x": 1, "y": 2}}, "propConfig": {{"custom.y": {{"binding": {{"type": "expr", "config": {{"expression": "{call}"}}}}}}}}, "root": {{"type": "ia.container.flex", "meta": {{"name": "root"}}}}}}"#
+            );
+            let d = library("m", plain)
+                .with_view("B", &binding)
+                .lint(&["SCR102"]);
+            let expected = if safe {
+                crate::Applicability::Safe
+            } else {
+                crate::Applicability::Unsafe
+            };
+            assert_eq!(applicability(&d), [Some(expected)], "{call}");
+        }
         for (child, safe) in [
             (
                 r#"{"type": "ia.display.label", "meta": {"name": "L"}, "props": {"text": "<b>x</b>"}}"#,
@@ -1640,6 +1660,40 @@ mod tests {
         // A small function keeps the safe fix.
         let d = library("m", "def g():\n    import math\n    return 1\n").lint(&["SCR102"]);
         assert_eq!(applicability(&d), [Some(crate::Applicability::Safe)]);
+    }
+
+    /// Reviewer round 19 (Opus) blocker: the upper bound charged a
+    /// closure's free variables once per unit, not per creation, so it
+    /// said this function fits: Jython rejects it, and compiles it
+    /// without the import (65,517 bytes). The bound now follows Jython's
+    /// code generator (a cell per free variable at every creation); the
+    /// verdict is open and the fix is withheld.
+    #[test]
+    fn removals_from_functions_full_of_closures_are_unsafe() {
+        let p: Vec<String> = (0..150).map(|i| format!("p{i}")).collect();
+        let p = p.join(", ");
+        let mut code = format!("def big({p}):\n    import math\n");
+        for i in 0..25 {
+            code.push_str(&format!("    l{i} = lambda: ({p})\n"));
+        }
+        for _ in 0..84 {
+            code.push_str("    f(g(a, k=h(b, k=i(c, k=d))), k=j(a, b, c, d, e))\n");
+        }
+        for i in 0..8 {
+            code.push_str(&format!("    x = {i}\n"));
+        }
+        code.push_str("    return 1\n");
+        let f = library("m", &code);
+        let d = f.lint(&["SCR102"]);
+        assert_eq!(applicability(&d), [Some(crate::Applicability::Unsafe)]);
+        let reason = d[0].fix.as_ref().unwrap().unsafe_reason.as_ref().unwrap();
+        assert!(
+            reason
+                .message
+                .contains("compile status is not known: the function `big` needs between"),
+            "{reason:?}"
+        );
+        assert!(!safe_fix_applies(&f, "SCR102", "m"));
     }
 
     #[test]
