@@ -91,7 +91,7 @@ pub mod vetted;
 pub use compile::{CompileError, CompileErrorKind, compile_errors};
 pub use compile_warnings::{CompileWarning, compile_warnings};
 pub use dump::scope_dump;
-pub use limits::{MARK_LIMIT, mark_limit_error, size_errors};
+pub use limits::{CodeUnit, MARK_LIMIT, code_units, mark_limit_error, size_errors};
 pub use model::*;
 pub use resolve::UnboundNames;
 

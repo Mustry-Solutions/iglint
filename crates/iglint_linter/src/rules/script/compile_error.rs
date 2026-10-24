@@ -50,11 +50,20 @@ It also reports scripts that are too large for Jython:
   first line is the generated `def` header). Jython reads them ahead to
   look for an encoding declaration and fails with
   `java.io.IOException: Mark invalid`. Longer lines further down are fine;
-* a module, class or function body with more than 10,922 lines that start
-  a statement (`Module or method too large`: one body is one Java method of
-  at most 64 KiB). Jython already fails at about 3,000 to 9,400 lines,
-  depending on the statements; iglint only reports sizes that cannot
-  compile whatever the statements are;
+* a module, class or function body whose code certainly exceeds one Java
+  method (`Module or method too large`: one body is one Java method of at
+  most 65,535 bytes of bytecode). iglint adds, for every statement Jython
+  generates code for, the least bytecode Jython's code generator emits for
+  it and for each of its expressions (the line number update, every name,
+  constant, attribute, subscript, call, operator, comparison, display,
+  comprehension and branch), measured on Ignition 8.3.3's Jython and
+  checked against the size of every body of thousands of generated
+  programs, and reports a body only when that lower bound exceeds the
+  limit. How many statements fit depends on what they hold: Jython fails
+  from 9,380 lines of `pass`, 3,283 of `x = 1`, 2,741 of `xN = "vN"` at
+  module level, 1,880 of `f(N, "a", b)` and 680 of `d["kN"] = {"a": N,
+  "b": [1, 2, 3]}` in a function, and iglint reports these from 9,382,
+  3,290, about 3,200, about 2,100 and about 740 lines;
 * a module with more than 32,767 distinct string literals (`Class too
   large`: one module is one Java class, with at most 65,535 constants).
 
@@ -281,6 +290,17 @@ mod tests {
         assert_eq!(flagged(&d), ["f"]);
         assert!(d[0].message.contains("too large"));
         assert!(lint_module("SCR002", &"x = 1\n".repeat(3_000)).is_empty());
+        // Review round 14: expressions count. Jython fails from 680
+        // statements of this shape.
+        let items = |n: usize| -> String {
+            (0..n)
+                .map(|i| format!("    d[\"k{i}\"] = {{\"a\": {i}, \"b\": [1, 2, 3]}}\n"))
+                .collect()
+        };
+        assert!(lint_module("SCR002", &format!("def f():\n{}", items(679))).is_empty());
+        let d = lint_module("SCR002", &format!("def f():\n{}", items(760)));
+        assert_eq!(flagged(&d), ["f"]);
+        assert!(d[0].message.contains("at least"), "{}", d[0].message);
         // Dead code generates nothing (Jython compiles these).
         let dead = format!("def f():\n    return\n{}", "    pass\n".repeat(12_000));
         assert!(lint_module("SCR002", &dead).is_empty());

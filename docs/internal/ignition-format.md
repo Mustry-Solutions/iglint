@@ -603,20 +603,39 @@ and with `-Xss16m`.
   1,000,000-character comment and 100,000-digit numbers compile. There is
   no 65,535-byte limit on a string constant. `SCR002` reports this limit
   exactly.
-* **Method too large.** The module body, each function body and each
-  class body compile to one Java method of at most 65,535 bytes of
-  bytecode (`java.lang.RuntimeException: Module or method too large in
-  <file>`). Each statement updates the frame's line number (at least 6
-  bytes from line 6 on, also for statements sharing a line: 11,000 `pass`
-  on one line fail, 9,000 compile; `global` generates nothing). Largest
-  bodies that still compile: 9,379 lines of `pass`, 4,689 of `x`, 3,282 of
-  `x = 1` in a function (3,126 in a module), 2,746 distinct `xN = N`,
-  1,728 empty `def`s, a 9,352-term `1+1+...`, a call with 5,965 arguments.
-  The size depends on Jython's code generator, so `SCR002` reports only
-  what cannot compile whatever the statements are: more than 10,922
-  statement lines in one body (all bodies of 10,921 to 10,924 lines
-  tested fail). Lines count, not statements, which keeps the bound below
-  the real size.
+* **Method too large.** The module body, each function and class body,
+  each lambda and each generator expression compile to one Java method of
+  at most 65,535 bytes of bytecode (`java.lang.RuntimeException: Module
+  or method too large in <file>`). `oracle/run-oracle.sh --method-size`
+  records the bytecode length of every such method as Jython's code
+  generator (`imp.compileSource`) emits it. Every statement updates the
+  frame's line number (`aload` the frame, the line as `iconst`, `bipush`,
+  `sipush` or `ldc`, `invokevirtual PyFrame.setline`: 5 bytes up to line
+  5, 6 to line 127, 7 to line 32,767), also for statements sharing a
+  line, except `global` (nothing), `break` (a 3-byte jump) and
+  `continue`; then come its expressions: a local name 5 bytes, a global
+  6, an `int` constant 4 (`iconst` and `Py.newInteger`), a string 5, an
+  attribute 5 more than its object, a call of up to four positional
+  arguments 4 more than its parts (more arguments go through an array),
+  a single name target 9 (through a temporary), and so on. Measured
+  sizes per statement in a function body: 7 bytes for `pass`, 14 for
+  `x`, 20 for `x = 1`, 35 for `f(N, "a", b)`, 97 for `d["kN"] = {"a":
+  N, "b": [1, 2, 3]}`, 123 for `x = [i for i in y]`; at module level 24
+  for `xN = "vN"`. Jython therefore fails from 9,380 lines of `pass`,
+  3,283 of `x = 1`, 1,880 of `f(N, "a", b)`, 680 of the dict items,
+  542 of the list comprehension and 2,741 of `xN = "vN"`. A `finally`
+  body is generated twice when the `try` body completes (and once more
+  for each `return`, `break` or `continue` that leaves it), once when it
+  does not. A list, tuple, set or dict display of 100 or more constants
+  (`-1` included; a dict counts keys and values) is filled in separate
+  methods (`set$$0`, ...): the unit holds only a 16-byte call, so
+  `x = [1, 1, ...]` with 49,993 elements compiles. `SCR002` adds a lower
+  bound of each of these costs (`iglint_python_semantic::code_units`) and
+  reports a unit only when the bound exceeds 65,535 bytes;
+  `tests/method_size_oracle.rs` checks the bound against every recorded
+  method of about 2,300 generated programs and that every reported shape
+  fails, and that the shapes above are reported at most 50% later than
+  Jython fails (most within 15%).
 * **Dead code generates nothing.** Jython's code generator stops
   compiling a suite after a statement that ends it: `return`, `raise`,
   `continue`, and an `if` with an `else` (also at the end of an `elif`

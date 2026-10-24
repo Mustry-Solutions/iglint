@@ -109,7 +109,7 @@ tests run without Docker:
 
 ```sh
 cargo test -p iglint_python --test oracle --test float_repr
-cargo test -p iglint_python_semantic --test compile_oracle --test scope_oracle --test implicit_reads_oracle
+cargo test -p iglint_python_semantic --test compile_oracle --test scope_oracle --test implicit_reads_oracle --test method_size_oracle
 cargo test -p iglint_expression --test oracle
 ```
 
@@ -136,6 +136,12 @@ To record new outputs (needs Docker):
 * `oracle/run-oracle.sh --reads` records the names running each source
   looks up in its module's globals
   (`tests/oracle/implicit_reads.expected`).
+* `oracle/run-oracle.sh --method-size` records the bytecode length of
+  every code unit as Jython's code generator emits it, and whether
+  `compile()` succeeds; `tests/method_size_oracle.rs` (in
+  `iglint_python_semantic`) writes its sources (`write_sources`) and
+  checks `SCR002`'s lower bound against
+  `tests/oracle/method_size.expected`.
 * `oracle/format-spec.sh all OUT` records Jython's verdict on every
   generated `str.format` spec and literal argument (SCR112); the replayed
   sample in `crates/iglint_linter/tests/fixtures/format-spec/` is

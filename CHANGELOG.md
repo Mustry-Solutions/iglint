@@ -103,6 +103,14 @@ from 0.1.0 on.
   `from __future__` import, names other resources may use; `SCR103`,
   `SCR110`, `SCR115`, `SCR123`, `SCR206`, `SCR301`, `SCR900`, `VIEW012`,
   `VIEW013`, `VIEW015` and `NAME001` fixes that are unsafe by nature.
+- `SCR002` missed "Module or method too large" far below its threshold of
+  10,922 statement lines: Jython fails from 680 lines of
+  `d["kN"] = {"a": N, "b": [1, 2, 3]}` (review round 14). It now adds a
+  lower bound of the bytecode of every statement and expression,
+  measured on Jython's code generator and checked against every body of
+  about 2,300 generated programs (`oracle/run-oracle.sh --method-size`),
+  and reports a body from about 740 such lines.
+
 - `SCR102` removed imports that class bodies read, safely, and `--fix`
   broke the module (review round 13). A class body reads by name: a name
   it binds anywhere is looked up in the class namespace and then in the
