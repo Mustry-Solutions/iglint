@@ -5,11 +5,15 @@
 #
 # usage: oracle/format-spec.sh all OUT          every generated case
 #        oracle/format-spec.sh sample SEED COUNT OUT
+#        oracle/format-spec.sh nonascii OUT     non-ASCII fill characters
 #
 # The committed replay file
 # crates/iglint_linter/tests/fixtures/format-spec/sample.tsv is
 # `python3 oracle/format_spec_cases.py stratify ALL_RESULTS 10 4000` of the
-# results of `all` (5,414,400 cases, about twenty minutes).
+# results of `all` (5,414,400 cases, about twenty minutes);
+# crates/iglint_linter/tests/fixtures/format-spec/nonascii.tsv is
+# `python3 oracle/format_spec_cases.py stratify NONASCII_RESULTS 10 2000`
+# of the results of `nonascii` (844,800 cases, about three minutes).
 # Needs Docker and the inductiveautomation/ignition image (override with
 # IGLINT_ORACLE_IMAGE).
 set -euo pipefail

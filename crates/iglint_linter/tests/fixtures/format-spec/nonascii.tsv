@@ -1,0 +1,2000 @@
+b{0!s:<#0,.2F}	None	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0!s:<#0,.2r}	[1]	err ValueError: Unknown format code 'r' for object of type 'string'
+b{0!s:<#0.2}	5	err ValueError: Alternate form (#) not allowed in string format specifier
+b{0!s:<#5b}	5	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0!s:<#5j}	u'ab'	err ValueError: Unknown format code 'j' for object of type 'string'
+b{0!s:<+#5.2a}	u'ab'	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s:<+#5.2z}	1.5	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0!s:<+,.2E}	1.5	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0!s:<+.2u}	[1]	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0!s:<+0%}	'ab'	err ValueError: Unknown format code '%' for object of type 'string'
+b{0!s:<+0,n}	5	err ValueError: Unknown format code 'n' for object of type 'string'
+b{0!s:<+5X}	None	err ValueError: Unknown format code 'X' for object of type 'string'
+b{0!s:<.2}	1.5	ok
+b{0!s:<0,.2s}	'ab'	err ValueError: Grouping not allowed with string format specifier 's'
+b{0!s:<05,.2g}	u'ab'	err ValueError: Unknown format code 'g' for object of type 'string'
+b{0!s:<0s}	None	ok
+b{0!s:<}	None	ok
+b{0!s:=#,Z}	1.5	err ValueError: Unknown format code 'Z' for object of type 'string'
+b{0!s:=#05.2B}	None	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0!s:=#5,.2g}	'ab'	err ValueError: Unknown format code 'g' for object of type 'string'
+b{0!s:=+#,s}	1.5	err ValueError: Grouping not allowed with string format specifier 's'
+b{0!s:=+#0,.2c}	5	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0!s:=+.2X}	u'ab'	err ValueError: Unknown format code 'X' for object of type 'string'
+b{0!s:=+05d}	5	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0!s:=+S}	None	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0!s:=a}	[1]	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s:>#,.2a}	1.5	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s:>#5%}	[1]	err ValueError: Unknown format code '%' for object of type 'string'
+b{0!s:>+#0,F}	1.5	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0!s:>+#E}	5	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0!s:>+05,.2B}	1.5	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0!s:>+05,.2s}	5	err ValueError: Grouping not allowed with string format specifier 's'
+b{0!s:>+0u}	None	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0!s:>,f}	u'ab'	err ValueError: Unknown format code 'f' for object of type 'string'
+b{0!s:>0,a}	None	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s:>05,e}	u'ab'	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0!s:>0d}	u'ab'	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0!s:>0}	[1]	ok
+b{0!s:>5}	1.5	ok
+b{0!s:>5}	None	ok
+b{0!s:>a}	[1]	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s:^#0,.2%}	1.5	err ValueError: Unknown format code '%' for object of type 'string'
+b{0!s:^#o}	1.5	err ValueError: Unknown format code 'o' for object of type 'string'
+b{0!s:^+#05,.2r}	1.5	err ValueError: Unknown format code 'r' for object of type 'string'
+b{0!s:^+#5o}	'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+b{0!s:^+0.2n}	[1]	err ValueError: Unknown format code 'n' for object of type 'string'
+b{0!s:^+05.2B}	u'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0!s:^+05.2}	'ab'	err ValueError: Sign not allowed in string format specifier
+b{0!s:^+5,.2b}	1.5	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0!s:^+5,.2i}	'ab'	err ValueError: Unknown format code 'i' for object of type 'string'
+b{0!s:^+5,z}	None	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0!s:^+5i}	u'ab'	err ValueError: Unknown format code 'i' for object of type 'string'
+b{0!s:^,.2}	u'ab'	err ValueError: Grouping not allowed with string format specifier '\uffff'
+b{0!s:^0,.2a}	5	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s:^05,.2d}	[1]	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0!s:^5.2}	'ab'	ok
+b{0!s: <#0,x}	5	err ValueError: Unknown format code 'x' for object of type 'string'
+b{0!s: <+#05,.2i}	'ab'	err ValueError: Unknown format code 'i' for object of type 'string'
+b{0!s: <+#5,z}	None	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0!s: <+#5,z}	u'ab'	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0!s: <+,n}	None	err ValueError: Unknown format code 'n' for object of type 'string'
+b{0!s: <+05,.2B}	'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0!s: <+05,Z}	5	err ValueError: Unknown format code 'Z' for object of type 'string'
+b{0!s: <+05E}	[1]	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0!s: <+5,e}	None	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0!s: <+}	5	err ValueError: Sign not allowed in string format specifier
+b{0!s: <,.2o}	1.5	err ValueError: Unknown format code 'o' for object of type 'string'
+b{0!s: <05s}	u'ab'	ok
+b{0!s: <05}	None	ok
+b{0!s: <5x}	'ab'	err ValueError: Unknown format code 'x' for object of type 'string'
+b{0!s: =#0,.2o}	u'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+b{0!s: =#05,g}	None	err ValueError: Unknown format code 'g' for object of type 'string'
+b{0!s: =#5i}	5	err ValueError: Unknown format code 'i' for object of type 'string'
+b{0!s: =+05,.2G}	1.5	err ValueError: Unknown format code 'G' for object of type 'string'
+b{0!s: =+5,E}	u'ab'	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0!s: =+5,i}	5	err ValueError: Unknown format code 'i' for object of type 'string'
+b{0!s: =05u}	u'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0!s: =0S}	[1]	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0!s: >#.2s}	[1]	err ValueError: Alternate form (#) not allowed in string format specifier
+b{0!s: >#0,.2s}	5	err ValueError: Grouping not allowed with string format specifier 's'
+b{0!s: >#0,E}	u'ab'	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0!s: >#05,.2B}	[1]	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0!s: >#0u}	1.5	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0!s: >#5,.2c}	u'ab'	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0!s: >#5z}	[1]	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0!s: >+#05,Z}	1.5	err ValueError: Unknown format code 'Z' for object of type 'string'
+b{0!s: >+#05,a}	None	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s: >+#5s}	None	err ValueError: Sign not allowed in string format specifier
+b{0!s: >+5,.2d}	'ab'	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0!s: >05.2o}	5	err ValueError: Unknown format code 'o' for object of type 'string'
+b{0!s: >05}	'ab'	ok
+b{0!s: >0}	[1]	ok
+b{0!s: >5s}	'ab'	ok
+b{0!s: ^#05,c}	u'ab'	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0!s: ^#0B}	None	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0!s: ^+#0u}	u'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0!s: ^+,.2S}	'ab'	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0!s: ^0.2s}	5	ok
+b{0!s: ^05.2}	None	ok
+b{0!s: ^05.2}	[1]	ok
+b{0!s: ^05s}	u'ab'	ok
+b{0!s: ^05}	5	ok
+b{0!s: ^5.2b}	'ab'	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0!s: ^5.2s}	5	ok
+b{0!s: ^s}	None	ok
+b{0!s:é<#.2u}	u'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0!s:é<#05,.2E}	1.5	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0!s:é<+#05j}	'ab'	err ValueError: Unknown format code 'j' for object of type 'string'
+b{0!s:é<+#5,.2G}	'ab'	err ValueError: Unknown format code 'G' for object of type 'string'
+b{0!s:é<+#5,.2j}	5	err ValueError: Unknown format code 'j' for object of type 'string'
+b{0!s:é<+#5.2x}	1.5	err ValueError: Unknown format code 'x' for object of type 'string'
+b{0!s:é<.2%}	1.5	err ValueError: Unknown format code '%' for object of type 'string'
+b{0!s:é<.2d}	None	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0!s:é<05s}	[1]	ok
+b{0!s:é<0s}	None	ok
+b{0!s:é<5,.2b}	None	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0!s:é=#5,o}	u'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+b{0!s:é=+#05,Z}	'ab'	err ValueError: Unknown format code 'Z' for object of type 'string'
+b{0!s:é=+#5,r}	u'ab'	err ValueError: Unknown format code 'r' for object of type 'string'
+b{0!s:é=+#5j}	None	err ValueError: Unknown format code 'j' for object of type 'string'
+b{0!s:é=+#5r}	[1]	err ValueError: Unknown format code 'r' for object of type 'string'
+b{0!s:é=+#B}	u'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0!s:é=+#E}	'ab'	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0!s:é=+0,a}	[1]	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s:é=+5,r}	[1]	err ValueError: Unknown format code 'r' for object of type 'string'
+b{0!s:é=.2f}	1.5	err ValueError: Unknown format code 'f' for object of type 'string'
+b{0!s:é=0,u}	5	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0!s:é=05,.2b}	None	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0!s:é=05S}	[1]	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0!s:é=5i}	5	err ValueError: Unknown format code 'i' for object of type 'string'
+b{0!s:é>#0,.2X}	None	err ValueError: Unknown format code 'X' for object of type 'string'
+b{0!s:é>#0,.2c}	'ab'	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0!s:é>#0,.2u}	1.5	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0!s:é>#0,f}	u'ab'	err ValueError: Unknown format code 'f' for object of type 'string'
+b{0!s:é>#5,.2e}	5	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0!s:é>+#05,.2e}	[1]	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0!s:é>+#05,.2i}	5	err ValueError: Unknown format code 'i' for object of type 'string'
+b{0!s:é>+#05,.2z}	5	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0!s:é>+#5,a}	1.5	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s:é>+0.2Z}	None	err ValueError: Unknown format code 'Z' for object of type 'string'
+b{0!s:é>+05,.2E}	5	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0!s:é>+0a}	'ab'	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s:é>+5G}	u'ab'	err ValueError: Unknown format code 'G' for object of type 'string'
+b{0!s:é>,o}	5	err ValueError: Unknown format code 'o' for object of type 'string'
+b{0!s:é>0,.2e}	u'ab'	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0!s:é>05}	u'ab'	ok
+b{0!s:é>5}	None	ok
+b{0!s:é^+#0e}	[1]	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0!s:é^+#5.2u}	1.5	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0!s:é^+#5.2z}	None	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0!s:é^+.2n}	None	err ValueError: Unknown format code 'n' for object of type 'string'
+b{0!s:é^+0,.2i}	u'ab'	err ValueError: Unknown format code 'i' for object of type 'string'
+b{0!s:é^+5,.2f}	[1]	err ValueError: Unknown format code 'f' for object of type 'string'
+b{0!s:é^+B}	'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0!s:é^.2r}	[1]	err ValueError: Unknown format code 'r' for object of type 'string'
+b{0!s:é^.2s}	5	ok
+b{0!s:é^0.2X}	None	err ValueError: Unknown format code 'X' for object of type 'string'
+b{0!s:é^05.2S}	u'ab'	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0!s:é^05b}	5	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0!s:é^0s}	'ab'	ok
+b{0!s:é^5}	5	ok
+b{0!s:ÿ<#0,z}	None	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0!s:ÿ<#05.2F}	1.5	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0!s:ÿ<#05z}	None	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0!s:ÿ<+#0i}	1.5	err ValueError: Unknown format code 'i' for object of type 'string'
+b{0!s:ÿ<+05.2d}	'ab'	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0!s:ÿ<+05E}	1.5	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0!s:ÿ<+5,X}	[1]	err ValueError: Unknown format code 'X' for object of type 'string'
+b{0!s:ÿ<+5F}	None	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0!s:ÿ<,.2d}	u'ab'	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0!s:ÿ<.2}	'ab'	ok
+b{0!s:ÿ<0,.2F}	1.5	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0!s:ÿ<0,S}	1.5	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0!s:ÿ<0.2s}	None	ok
+b{0!s:ÿ<05,.2B}	1.5	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0!s:ÿ<05.2s}	[1]	ok
+b{0!s:ÿ<0j}	u'ab'	err ValueError: Unknown format code 'j' for object of type 'string'
+b{0!s:ÿ<0s}	u'ab'	ok
+b{0!s:ÿ<5,.2b}	1.5	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0!s:ÿ=#,S}	1.5	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0!s:ÿ=#.2f}	'ab'	err ValueError: Unknown format code 'f' for object of type 'string'
+b{0!s:ÿ=#0%}	1.5	err ValueError: Unknown format code '%' for object of type 'string'
+b{0!s:ÿ=#0,.2}	[1]	err ValueError: Grouping not allowed with string format specifier '\uffff'
+b{0!s:ÿ=#0.2a}	u'ab'	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s:ÿ=#5,.2g}	[1]	err ValueError: Unknown format code 'g' for object of type 'string'
+b{0!s:ÿ=#5,B}	'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0!s:ÿ=#5.2S}	None	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0!s:ÿ=+#,.2n}	None	err ValueError: Unknown format code 'n' for object of type 'string'
+b{0!s:ÿ=+#,b}	u'ab'	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0!s:ÿ=+#0.2o}	u'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+b{0!s:ÿ=+#0r}	1.5	err ValueError: Unknown format code 'r' for object of type 'string'
+b{0!s:ÿ=+#5,.2b}	'ab'	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0!s:ÿ=+#5a}	5	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s:ÿ=+#5s}	'ab'	err ValueError: Sign not allowed in string format specifier
+b{0!s:ÿ=+,c}	[1]	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0!s:ÿ=+,u}	'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0!s:ÿ=+0.2j}	1.5	err ValueError: Unknown format code 'j' for object of type 'string'
+b{0!s:ÿ=+d}	u'ab'	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0!s:ÿ=0.2b}	5	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0!s:ÿ=05,.2c}	u'ab'	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0!s:ÿ=5.2z}	'ab'	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0!s:ÿ>#,.2e}	[1]	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0!s:ÿ>#5.2F}	'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0!s:ÿ>#c}	[1]	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0!s:ÿ>+#.2u}	[1]	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0!s:ÿ>+#0,Z}	[1]	err ValueError: Unknown format code 'Z' for object of type 'string'
+b{0!s:ÿ>+#05,.2S}	u'ab'	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0!s:ÿ>+#05X}	1.5	err ValueError: Unknown format code 'X' for object of type 'string'
+b{0!s:ÿ>+#0F}	'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0!s:ÿ>+#5.2X}	'ab'	err ValueError: Unknown format code 'X' for object of type 'string'
+b{0!s:ÿ>+.2G}	None	err ValueError: Unknown format code 'G' for object of type 'string'
+b{0!s:ÿ>+0.2u}	u'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0!s:ÿ>+5b}	1.5	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0!s:ÿ>+S}	'ab'	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0!s:ÿ>0.2s}	1.5	ok
+b{0!s:ÿ>05.2s}	u'ab'	ok
+b{0!s:ÿ>5,.2i}	1.5	err ValueError: Unknown format code 'i' for object of type 'string'
+b{0!s:ÿ>}	1.5	ok
+b{0!s:ÿ^#,.2X}	5	err ValueError: Unknown format code 'X' for object of type 'string'
+b{0!s:ÿ^#05z}	u'ab'	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0!s:ÿ^+#.2G}	'ab'	err ValueError: Unknown format code 'G' for object of type 'string'
+b{0!s:ÿ^+#0a}	[1]	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0!s:ÿ^+#5,%}	[1]	err ValueError: Unknown format code '%' for object of type 'string'
+b{0!s:ÿ^+,G}	u'ab'	err ValueError: Unknown format code 'G' for object of type 'string'
+b{0!s:ÿ^05,.2G}	u'ab'	err ValueError: Unknown format code 'G' for object of type 'string'
+b{0!s:ÿ^05s}	1.5	ok
+b{0!s:ÿ^05s}	5	ok
+b{0!s:ÿ^5.2s}	1.5	ok
+b{0!s:ÿ^5}	u'ab'	ok
+b{0:<#0.2B}	u'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0:<#05.2r}	None	err ValueError: Unknown format code 'r' for object of type 'string'
+b{0:<#5.2g}	'ab'	err ValueError: Unknown format code 'g' for object of type 'string'
+b{0:<#5f}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+b{0:<#x}	5	ok
+b{0:<+#,}	5	ok
+b{0:<+#0,}	5	ok
+b{0:<+#05,.2f}	None	err ValueError: Unknown format code 'f' for object of type 'string'
+b{0:<+#05d}	5	ok
+b{0:<+#0o}	5	ok
+b{0:<+#5d}	5	ok
+b{0:<+,.2F}	5	ok
+b{0:<+,F}	1.5	ok
+b{0:<+,e}	1.5	ok
+b{0:<+.2F}	5	ok
+b{0:<+.2G}	5	ok
+b{0:<+0,.2F}	5	ok
+b{0:<+0,d}	5	ok
+b{0:<+0.2e}	5	ok
+b{0:<+05,g}	1.5	ok
+b{0:<+05,}	5	ok
+b{0:<+05G}	'ab'	err ValueError: Unknown format code 'G' for object of type 'string'
+b{0:<+05b}	5	ok
+b{0:<+05g}	1.5	ok
+b{0:<+5F}	1.5	ok
+b{0:<+E}	5	ok
+b{0:<+e}	None	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0:<,.2g}	1.5	ok
+b{0:<.2}	u'ab'	ok
+b{0:<0,.2%}	1.5	ok
+b{0:<0,G}	5	ok
+b{0:<0.2F}	5	ok
+b{0:<05,E}	1.5	ok
+b{0:<05.2F}	5	ok
+b{0:<05.2}	'ab'	ok
+b{0:<05s}	[1]	ok
+b{0:<5,.2F}	1.5	ok
+b{0:<5,f}	5	ok
+b{0:<X}	5	ok
+b{0:<s}	u'ab'	ok
+b{0:=#5.2%}	None	err ValueError: Unknown format code '%' for object of type 'string'
+b{0:=#5x}	5	ok
+b{0:=#x}	5	ok
+b{0:=+#,.2n}	1.5	err ValueError: Grouping not allowed with float format specifier 'n'
+b{0:=+#0,.2S}	None	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0:=+#05,u}	None	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0:=+#05b}	5	ok
+b{0:=+#0x}	5	ok
+b{0:=+#5o}	5	ok
+b{0:=+,.2x}	u'ab'	err ValueError: Unknown format code 'x' for object of type 'string'
+b{0:=+0,%}	5	ok
+b{0:=+0,S}	None	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0:=+0,Z}	u'ab'	err ValueError: Unknown format code 'Z' for object of type 'string'
+b{0:=+0,}	5	ok
+b{0:=+05,%}	1.5	ok
+b{0:=+05,.2j}	None	err ValueError: Unknown format code 'j' for object of type 'string'
+b{0:=+05,e}	'ab'	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0:=+05,}	1.5	ok
+b{0:=+0o}	5	ok
+b{0:=+5,X}	u'ab'	err ValueError: Unknown format code 'X' for object of type 'string'
+b{0:=+5e}	1.5	ok
+b{0:=+5}	5	ok
+b{0:=+G}	1.5	ok
+b{0:=+x}	5	ok
+b{0:=,Z}	u'ab'	err ValueError: Unknown format code 'Z' for object of type 'string'
+b{0:=,}	1.5	ok
+b{0:=.2a}	1.5	err ValueError: Unknown format code 'a' for object of type 'float'
+b{0:=.2g}	1.5	ok
+b{0:=0,%}	1.5	ok
+b{0:=0.2g}	1.5	ok
+b{0:=05,.2e}	5	ok
+b{0:=05,Z}	u'ab'	err ValueError: Unknown format code 'Z' for object of type 'string'
+b{0:=0}	'ab'	err ValueError: '=' alignment flag not allowed in string format specifier
+b{0:=5,g}	1.5	ok
+b{0:=5c}	5	ok
+b{0:=5e}	5	ok
+b{0:=x}	5	ok
+b{0:>#05,d}	None	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0:>#5,.2n}	None	err ValueError: Unknown format code 'n' for object of type 'string'
+b{0:>%}	1.5	ok
+b{0:>+#05d}	5	ok
+b{0:>+#5b}	5	ok
+b{0:>+,.2g}	1.5	ok
+b{0:>+,.2g}	5	ok
+b{0:>+,}	1.5	ok
+b{0:>+0,%}	5	ok
+b{0:>+0,.2f}	1.5	ok
+b{0:>+0.2G}	1.5	ok
+b{0:>+05,.2e}	5	ok
+b{0:>+0S}	'ab'	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0:>+0X}	5	ok
+b{0:>+0g}	5	ok
+b{0:>+5,.2f}	1.5	ok
+b{0:>+5,E}	1.5	ok
+b{0:>+5,G}	1.5	ok
+b{0:>+5,e}	5	ok
+b{0:>+5.2G}	1.5	ok
+b{0:>+5f}	5	ok
+b{0:>,F}	1.5	ok
+b{0:>,g}	5	ok
+b{0:>.2s}	u'ab'	ok
+b{0:>0,G}	5	ok
+b{0:>0.2F}	'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0:>0.2F}	5	ok
+b{0:>0.2e}	1.5	ok
+b{0:>05,F}	1.5	ok
+b{0:>05,f}	1.5	ok
+b{0:>05,j}	None	err ValueError: Unknown format code 'j' for object of type 'string'
+b{0:>05,}	1.5	ok
+b{0:>05.2G}	1.5	ok
+b{0:>0E}	1.5	ok
+b{0:>5,.2f}	5	ok
+b{0:>5,G}	5	ok
+b{0:>5}	[1]	ok
+b{0:>E}	1.5	ok
+b{0:>g}	[1]	err ValueError: Unknown format code 'g' for object of type 'string'
+b{0:>n}	1.5	ok
+b{0:>}	[1]	ok
+b{0:^#0.2d}	'ab'	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0:^#0F}	u'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0:^#5.2z}	[1]	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0:^+#,.2c}	1.5	err ValueError: Unknown format code 'c' for object of type 'float'
+b{0:^+#0,.2g}	[1]	err ValueError: Unknown format code 'g' for object of type 'string'
+b{0:^+#05,d}	5	ok
+b{0:^+#5.2%}	5	err ValueError: Alternate form (#) not allowed in float format specifier
+b{0:^+#j}	1.5	err ValueError: Unknown format code 'j' for object of type 'float'
+b{0:^+,%}	1.5	ok
+b{0:^+.2E}	5	ok
+b{0:^+0,%}	1.5	ok
+b{0:^+0,.2F}	1.5	ok
+b{0:^+0.2E}	5	ok
+b{0:^+05,}	5	ok
+b{0:^+05.2f}	1.5	ok
+b{0:^+05.2n}	1.5	ok
+b{0:^+05G}	[1]	err ValueError: Unknown format code 'G' for object of type 'string'
+b{0:^+0b}	1.5	err ValueError: Unknown format code 'b' for object of type 'float'
+b{0:^+0c}	None	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0:^+0f}	1.5	ok
+b{0:^+0x}	5	ok
+b{0:^+5,f}	1.5	ok
+b{0:^+5,}	5	ok
+b{0:^+5.2e}	5	ok
+b{0:^+5.2}	1.5	ok
+b{0:^+E}	1.5	ok
+b{0:^,x}	'ab'	err ValueError: Unknown format code 'x' for object of type 'string'
+b{0:^.2g}	1.5	ok
+b{0:^.2}	None	ok
+b{0:^0,.2%}	5	ok
+b{0:^0,.2F}	5	ok
+b{0:^0,.2g}	5	ok
+b{0:^0,Z}	None	err ValueError: Unknown format code 'Z' for object of type 'string'
+b{0:^0,g}	1.5	ok
+b{0:^0.2E}	1.5	ok
+b{0:^05,.2i}	[1]	err ValueError: Unknown format code 'i' for object of type 'string'
+b{0:^05E}	5	ok
+b{0:^0X}	5	ok
+b{0:^5,.2g}	5	ok
+b{0:^5,}	1.5	ok
+b{0:^5.2c}	[1]	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0: <#5b}	'ab'	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0: <#}	5	ok
+b{0: <+#0,S}	u'ab'	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0: <+#05,X}	None	err ValueError: Unknown format code 'X' for object of type 'string'
+b{0: <+#0c}	5	err ValueError: Sign not allowed with integer format specifier 'c'
+b{0: <+#5,d}	[1]	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0: <+#5,o}	1.5	err ValueError: Unknown format code 'o' for object of type 'float'
+b{0: <+#z}	u'ab'	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0: <+,.2f}	5	ok
+b{0: <+,.2f}	[1]	err ValueError: Unknown format code 'f' for object of type 'string'
+b{0: <+.2B}	None	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0: <+.2g}	1.5	ok
+b{0: <+0,.2G}	5	ok
+b{0: <+0,E}	1.5	ok
+b{0: <+05.2G}	5	ok
+b{0: <+05o}	5	ok
+b{0: <+5,G}	1.5	ok
+b{0: <+5,e}	5	ok
+b{0: <+5,f}	1.5	ok
+b{0: <+5x}	5	ok
+b{0: <.2%}	1.5	ok
+b{0: <.2E}	5	ok
+b{0: <.2e}	1.5	ok
+b{0: <0,%}	1.5	ok
+b{0: <0,f}	5	ok
+b{0: <05.2s}	[1]	ok
+b{0: <05b}	5	ok
+b{0: <0s}	u'ab'	ok
+b{0: <5,G}	5	ok
+b{0: <5e}	5	ok
+b{0: <5f}	1.5	ok
+b{0: =#,E}	[1]	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0: =#0,.2B}	5	err ValueError: Unknown format code 'B' for object of type 'integer'
+b{0: =#0,r}	'ab'	err ValueError: Unknown format code 'r' for object of type 'string'
+b{0: =#05,}	5	ok
+b{0: =#05.2F}	'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0: =+#.2o}	'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+b{0: =+#0,r}	[1]	err ValueError: Unknown format code 'r' for object of type 'string'
+b{0: =+#05,.2g}	5	err ValueError: Alternate form (#) not allowed in float format specifier
+b{0: =+,.2e}	5	ok
+b{0: =+,.2o}	1.5	err ValueError: Unknown format code 'o' for object of type 'float'
+b{0: =+,f}	5	ok
+b{0: =+0,.2F}	1.5	ok
+b{0: =+0,.2F}	5	ok
+b{0: =+05,.2o}	[1]	err ValueError: Unknown format code 'o' for object of type 'string'
+b{0: =+05n}	5	ok
+b{0: =+0X}	5	ok
+b{0: =+5,c}	5	err ValueError: Sign not allowed with integer format specifier 'c'
+b{0: =+5,e}	5	ok
+b{0: =+5,g}	5	ok
+b{0: =+5.2%}	1.5	ok
+b{0: =+5.2%}	5	ok
+b{0: =+5.2f}	5	ok
+b{0: =.2F}	1.5	ok
+b{0: =0,E}	5	ok
+b{0: =0,F}	5	ok
+b{0: =05,.2E}	5	ok
+b{0: =05,.2F}	None	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0: =05,.2e}	5	ok
+b{0: =05,.2}	None	err ValueError: Grouping not allowed with string format specifier '\uffff'
+b{0: =05,e}	5	ok
+b{0: =05,f}	5	ok
+b{0: =05.2%}	1.5	ok
+b{0: =05.2F}	1.5	ok
+b{0: =05.2G}	1.5	ok
+b{0: =05F}	1.5	ok
+b{0: =0E}	5	ok
+b{0: =0e}	5	ok
+b{0: =0}	5	ok
+b{0: =5,}	1.5	ok
+b{0: =5.2z}	5	err ValueError: Unknown format code 'z' for object of type 'integer'
+b{0: =5g}	1.5	ok
+b{0: =5n}	5	ok
+b{0: =5o}	5	ok
+b{0: =c}	5	ok
+b{0: >+#,.2c}	5	err ValueError: Sign not allowed with integer format specifier 'c'
+b{0: >+#0,j}	1.5	err ValueError: Unknown format code 'j' for object of type 'float'
+b{0: >+#0.2F}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+b{0: >+#05F}	u'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0: >+#0o}	5	ok
+b{0: >+#0}	5	ok
+b{0: >+.2f}	1.5	ok
+b{0: >+0,.2E}	1.5	ok
+b{0: >+0,.2X}	[1]	err ValueError: Unknown format code 'X' for object of type 'string'
+b{0: >+0,G}	5	ok
+b{0: >+05,.2G}	1.5	ok
+b{0: >+05.2r}	[1]	err ValueError: Unknown format code 'r' for object of type 'string'
+b{0: >+0f}	1.5	ok
+b{0: >+0o}	5	ok
+b{0: >+5,z}	1.5	err ValueError: Unknown format code 'z' for object of type 'float'
+b{0: >+5.2G}	5	ok
+b{0: >+5f}	1.5	ok
+b{0: >+E}	5	ok
+b{0: >+b}	5	ok
+b{0: >,%}	5	ok
+b{0: >,.2g}	1.5	ok
+b{0: >,E}	5	ok
+b{0: >.2E}	1.5	ok
+b{0: >.2s}	'ab'	ok
+b{0: >0,.2g}	5	ok
+b{0: >0,f}	1.5	ok
+b{0: >05,.2E}	1.5	ok
+b{0: >05,g}	1.5	ok
+b{0: >5%}	'ab'	err ValueError: Unknown format code '%' for object of type 'string'
+b{0: >5,f}	5	ok
+b{0: >5,g}	1.5	ok
+b{0: >5.2G}	5	ok
+b{0: >5.2}	'ab'	ok
+b{0: ^#05,d}	5	ok
+b{0: ^#05,g}	u'ab'	err ValueError: Unknown format code 'g' for object of type 'string'
+b{0: ^#0F}	5	err ValueError: Alternate form (#) not allowed in float format specifier
+b{0: ^+#.2G}	'ab'	err ValueError: Unknown format code 'G' for object of type 'string'
+b{0: ^+#0.2}	u'ab'	err ValueError: Sign not allowed in string format specifier
+b{0: ^+#05r}	5	err ValueError: Unknown format code 'r' for object of type 'integer'
+b{0: ^+#5,r}	1.5	err ValueError: Unknown format code 'r' for object of type 'float'
+b{0: ^+#5,u}	1.5	err ValueError: Unknown format code 'u' for object of type 'float'
+b{0: ^+#5,z}	'ab'	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0: ^+#b}	5	ok
+b{0: ^+,g}	1.5	ok
+b{0: ^+.2%}	1.5	ok
+b{0: ^+.2c}	None	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0: ^+0,.2f}	1.5	ok
+b{0: ^+0,.2r}	[1]	err ValueError: Unknown format code 'r' for object of type 'string'
+b{0: ^+0,c}	5	err ValueError: Sign not allowed with integer format specifier 'c'
+b{0: ^+05E}	'ab'	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0: ^+05X}	5	ok
+b{0: ^+05n}	u'ab'	err ValueError: Unknown format code 'n' for object of type 'string'
+b{0: ^+5,.2e}	5	ok
+b{0: ^+5f}	5	ok
+b{0: ^+F}	5	ok
+b{0: ^+b}	5	ok
+b{0: ^,.2}	1.5	ok
+b{0: ^,E}	1.5	ok
+b{0: ^.2F}	1.5	ok
+b{0: ^.2s}	None	ok
+b{0: ^.2}	1.5	ok
+b{0: ^0.2%}	5	ok
+b{0: ^05,G}	1.5	ok
+b{0: ^05,g}	1.5	ok
+b{0: ^0n}	1.5	ok
+b{0: ^0}	u'ab'	ok
+b{0: ^5,}	5	ok
+b{0: ^5.2}	[1]	ok
+b{0: ^5G}	1.5	ok
+b{0: ^5s}	[1]	ok
+b{0: ^5z}	1.5	err ValueError: Unknown format code 'z' for object of type 'float'
+b{0: ^F}	1.5	ok
+b{0:é<#05,.2%}	None	err ValueError: Unknown format code '%' for object of type 'string'
+b{0:é<#05,.2%}	u'ab'	err ValueError: Unknown format code '%' for object of type 'string'
+b{0:é<#0}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+b{0:é<#5,d}	5	ok
+b{0:é<+#,.2c}	u'ab'	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0:é<+#5o}	5	ok
+b{0:é<+,%}	5	ok
+b{0:é<+,.2E}	5	ok
+b{0:é<+,F}	1.5	ok
+b{0:é<+.2E}	5	ok
+b{0:é<+.2G}	5	ok
+b{0:é<+.2a}	u'ab'	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0:é<+.2e}	5	ok
+b{0:é<+0,.2E}	5	ok
+b{0:é<+0,f}	[1]	err ValueError: Unknown format code 'f' for object of type 'string'
+b{0:é<+0,g}	5	ok
+b{0:é<+05,.2E}	1.5	ok
+b{0:é<+05.2E}	5	ok
+b{0:é<+05d}	5	ok
+b{0:é<+05g}	1.5	ok
+b{0:é<+5,.2}	1.5	ok
+b{0:é<+5,F}	1.5	ok
+b{0:é<+5,e}	1.5	ok
+b{0:é<+5.2E}	5	ok
+b{0:é<+5.2}	1.5	ok
+b{0:é<+5e}	1.5	ok
+b{0:é<+5n}	1.5	ok
+b{0:é<+Z}	[1]	err ValueError: Unknown format code 'Z' for object of type 'string'
+b{0:é<.2d}	5	err ValueError: Precision not allowed in integer format specifier
+b{0:é<.2e}	5	ok
+b{0:é<0,e}	1.5	ok
+b{0:é<0.2E}	5	ok
+b{0:é<05,.2F}	5	ok
+b{0:é<05s}	None	ok
+b{0:é<0g}	u'ab'	err ValueError: Unknown format code 'g' for object of type 'string'
+b{0:é<0n}	5	ok
+b{0:é<0o}	5	ok
+b{0:é<5,.2F}	1.5	ok
+b{0:é<5,f}	5	ok
+b{0:é<5d}	5	ok
+b{0:é=#0,}	5	ok
+b{0:é=#05,a}	None	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0:é=#0n}	5	ok
+b{0:é=+#05,.2s}	'ab'	err ValueError: Grouping not allowed with string format specifier 's'
+b{0:é=+%}	1.5	ok
+b{0:é=+,.2f}	5	ok
+b{0:é=+.2n}	1.5	ok
+b{0:é=+0,%}	1.5	ok
+b{0:é=+0,E}	1.5	ok
+b{0:é=+0,n}	5	err ValueError: Grouping not allowed with integer format specifier 'n'
+b{0:é=+0.2F}	5	ok
+b{0:é=+0.2G}	5	ok
+b{0:é=+05,d}	5	ok
+b{0:é=+0X}	5	ok
+b{0:é=+0n}	1.5	ok
+b{0:é=+5,g}	1.5	ok
+b{0:é=+5X}	5	ok
+b{0:é=+5Z}	'ab'	err ValueError: Unknown format code 'Z' for object of type 'string'
+b{0:é=+5}	1.5	ok
+b{0:é=,.2o}	'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+b{0:é=,j}	1.5	err ValueError: Unknown format code 'j' for object of type 'float'
+b{0:é=.2F}	5	ok
+b{0:é=0,.2G}	5	ok
+b{0:é=0.2F}	1.5	ok
+b{0:é=05,.2G}	1.5	ok
+b{0:é=05,.2f}	1.5	ok
+b{0:é=05,F}	1.5	ok
+b{0:é=05,r}	1.5	err ValueError: Unknown format code 'r' for object of type 'float'
+b{0:é=05.2%}	5	ok
+b{0:é=05F}	1.5	ok
+b{0:é=05g}	5	ok
+b{0:é=0c}	5	ok
+b{0:é=0x}	5	ok
+b{0:é=5,G}	1.5	ok
+b{0:é=5,G}	5	ok
+b{0:é=5,e}	1.5	ok
+b{0:é=5,f}	1.5	ok
+b{0:é=5.2%}	5	ok
+b{0:é=5.2F}	5	ok
+b{0:é=5.2}	1.5	ok
+b{0:é=5f}	1.5	ok
+b{0:é=5x}	5	ok
+b{0:é=z}	None	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0:é>#.2o}	None	err ValueError: Unknown format code 'o' for object of type 'string'
+b{0:é>#0,.2F}	None	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0:é>#0,.2a}	'ab'	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0:é>#05,}	5	ok
+b{0:é>#05d}	5	ok
+b{0:é>#0o}	5	ok
+b{0:é>#5,c}	1.5	err ValueError: Unknown format code 'c' for object of type 'float'
+b{0:é>#5E}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+b{0:é>+#,.2d}	None	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0:é>+#0,.2e}	None	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0:é>+#0,S}	'ab'	err ValueError: Unknown format code 'S' for object of type 'string'
+b{0:é>+#0u}	None	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0:é>+#5,d}	5	ok
+b{0:é>+#5.2F}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+b{0:é>+#5b}	5	ok
+b{0:é>+#5n}	5	ok
+b{0:é>+#}	5	ok
+b{0:é>+.2%}	5	ok
+b{0:é>+0,n}	'ab'	err ValueError: Unknown format code 'n' for object of type 'string'
+b{0:é>+0.2E}	1.5	ok
+b{0:é>+0.2}	1.5	ok
+b{0:é>+05,.2f}	1.5	ok
+b{0:é>+05,e}	1.5	ok
+b{0:é>+05g}	1.5	ok
+b{0:é>+5,%}	1.5	ok
+b{0:é>+5,E}	u'ab'	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0:é>+5F}	5	ok
+b{0:é>+g}	1.5	ok
+b{0:é>,.2E}	5	ok
+b{0:é>.2%}	1.5	ok
+b{0:é>.2%}	5	ok
+b{0:é>0,e}	'ab'	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0:é>0,e}	1.5	ok
+b{0:é>0.2e}	5	ok
+b{0:é>0.2s}	None	ok
+b{0:é>05,E}	1.5	ok
+b{0:é>05.2F}	5	ok
+b{0:é>05G}	1.5	ok
+b{0:é>05n}	[1]	err ValueError: Unknown format code 'n' for object of type 'string'
+b{0:é>05o}	5	ok
+b{0:é>05s}	None	ok
+b{0:é>0s}	[1]	ok
+b{0:é>5.2E}	1.5	ok
+b{0:é>5.2f}	5	ok
+b{0:é>5.2}	1.5	ok
+b{0:é>5s}	[1]	ok
+b{0:é>5}	[1]	ok
+b{0:é>c}	5	ok
+b{0:é>}	1.5	ok
+b{0:é^#0,a}	1.5	err ValueError: Unknown format code 'a' for object of type 'float'
+b{0:é^#05,}	5	ok
+b{0:é^#05d}	5	ok
+b{0:é^#0}	5	ok
+b{0:é^#5,.2o}	5	err ValueError: Grouping not allowed with integer format specifier 'o'
+b{0:é^+#05,i}	1.5	err ValueError: Unknown format code 'i' for object of type 'float'
+b{0:é^+#05.2d}	1.5	err ValueError: Unknown format code 'd' for object of type 'float'
+b{0:é^+#j}	'ab'	err ValueError: Unknown format code 'j' for object of type 'string'
+b{0:é^+,.2d}	1.5	err ValueError: Unknown format code 'd' for object of type 'float'
+b{0:é^+,E}	1.5	ok
+b{0:é^+.2G}	5	ok
+b{0:é^+0.2%}	5	ok
+b{0:é^+05,.2j}	1.5	err ValueError: Unknown format code 'j' for object of type 'float'
+b{0:é^+05}	1.5	ok
+b{0:é^+5,.2g}	5	ok
+b{0:é^+5.2F}	5	ok
+b{0:é^+X}	5	ok
+b{0:é^,d}	None	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0:é^0,.2g}	1.5	ok
+b{0:é^0.2G}	5	ok
+b{0:é^0.2f}	5	ok
+b{0:é^05%}	5	ok
+b{0:é^05,.2F}	None	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0:é^05,.2G}	1.5	ok
+b{0:é^05,.2x}	u'ab'	err ValueError: Unknown format code 'x' for object of type 'string'
+b{0:é^05,X}	None	err ValueError: Unknown format code 'X' for object of type 'string'
+b{0:é^05,c}	5	err ValueError: Grouping not allowed with integer format specifier 'c'
+b{0:é^05E}	5	ok
+b{0:é^05c}	5	ok
+b{0:é^5,z}	u'ab'	err ValueError: Unknown format code 'z' for object of type 'string'
+b{0:é^5.2f}	1.5	ok
+b{0:é^5s}	'ab'	ok
+b{0:é^f}	1.5	ok
+b{0:é^}	None	ok
+b{0:ÿ<#,g}	'ab'	err ValueError: Unknown format code 'g' for object of type 'string'
+b{0:ÿ<#.2u}	None	err ValueError: Unknown format code 'u' for object of type 'string'
+b{0:ÿ<#0,c}	u'ab'	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0:ÿ<#05,.2e}	u'ab'	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0:ÿ<#05Z}	1.5	err ValueError: Unknown format code 'Z' for object of type 'float'
+b{0:ÿ<#0e}	None	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0:ÿ<+#.2x}	u'ab'	err ValueError: Unknown format code 'x' for object of type 'string'
+b{0:ÿ<+#0x}	5	ok
+b{0:ÿ<+#o}	5	ok
+b{0:ÿ<+,.2%}	1.5	ok
+b{0:ÿ<+,e}	1.5	ok
+b{0:ÿ<+.2%}	1.5	ok
+b{0:ÿ<+0,%}	5	ok
+b{0:ÿ<+0,.2%}	1.5	ok
+b{0:ÿ<+05,.2B}	'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0:ÿ<+05,.2F}	1.5	ok
+b{0:ÿ<+05,.2g}	1.5	ok
+b{0:ÿ<+05,G}	1.5	ok
+b{0:ÿ<+05.2G}	1.5	ok
+b{0:ÿ<+0o}	5	ok
+b{0:ÿ<+5,.2F}	5	ok
+b{0:ÿ<+5,.2f}	5	ok
+b{0:ÿ<+5,.2g}	1.5	ok
+b{0:ÿ<+5.2g}	5	ok
+b{0:ÿ<,.2g}	1.5	ok
+b{0:ÿ<,}	1.5	ok
+b{0:ÿ<.2s}	None	ok
+b{0:ÿ<0.2s}	None	ok
+b{0:ÿ<05c}	5	ok
+b{0:ÿ<05e}	1.5	ok
+b{0:ÿ<5,.2e}	5	ok
+b{0:ÿ<5,}	1.5	ok
+b{0:ÿ<5.2E}	5	ok
+b{0:ÿ<5.2}	None	ok
+b{0:ÿ<5B}	'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+b{0:ÿ<5c}	5	ok
+b{0:ÿ<5}	'ab'	ok
+b{0:ÿ<}	u'ab'	ok
+b{0:ÿ=#0,F}	[1]	err ValueError: Unknown format code 'F' for object of type 'string'
+b{0:ÿ=#0,e}	None	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0:ÿ=#05,.2a}	'ab'	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0:ÿ=#05,.2n}	1.5	err ValueError: Grouping not allowed with float format specifier 'n'
+b{0:ÿ=#05,d}	5	ok
+b{0:ÿ=#05.2j}	'ab'	err ValueError: Unknown format code 'j' for object of type 'string'
+b{0:ÿ=+#05.2a}	[1]	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0:ÿ=+#05b}	5	ok
+b{0:ÿ=+#5,}	5	ok
+b{0:ÿ=+,f}	1.5	ok
+b{0:ÿ=+0,%}	5	ok
+b{0:ÿ=+0,.2}	1.5	ok
+b{0:ÿ=+0.2b}	u'ab'	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0:ÿ=+05,.2f}	[1]	err ValueError: Unknown format code 'f' for object of type 'string'
+b{0:ÿ=+05f}	5	ok
+b{0:ÿ=+05}	5	ok
+b{0:ÿ=+5,e}	5	ok
+b{0:ÿ=,g}	5	ok
+b{0:ÿ=,}	1.5	ok
+b{0:ÿ=0,.2G}	1.5	ok
+b{0:ÿ=0,G}	1.5	ok
+b{0:ÿ=05,.2%}	5	ok
+b{0:ÿ=05,.2e}	5	ok
+b{0:ÿ=05,.2s}	[1]	err ValueError: Grouping not allowed with string format specifier 's'
+b{0:ÿ=05,F}	5	ok
+b{0:ÿ=05,f}	5	ok
+b{0:ÿ=05,}	5	ok
+b{0:ÿ=05.2c}	[1]	err ValueError: Unknown format code 'c' for object of type 'string'
+b{0:ÿ=05e}	5	ok
+b{0:ÿ=0c}	5	ok
+b{0:ÿ=5,.2E}	u'ab'	err ValueError: Unknown format code 'E' for object of type 'string'
+b{0:ÿ=5,g}	5	ok
+b{0:ÿ=5.2%}	1.5	ok
+b{0:ÿ=5.2E}	5	ok
+b{0:ÿ>#0a}	[1]	err ValueError: Unknown format code 'a' for object of type 'string'
+b{0:ÿ>#5,e}	'ab'	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0:ÿ>+#,B}	1.5	err ValueError: Unknown format code 'B' for object of type 'float'
+b{0:ÿ>+#05,}	5	ok
+b{0:ÿ>+#05d}	5	ok
+b{0:ÿ>+#0x}	5	ok
+b{0:ÿ>+#5,d}	5	ok
+b{0:ÿ>+#5x}	5	ok
+b{0:ÿ>+,.2e}	1.5	ok
+b{0:ÿ>+.2f}	1.5	ok
+b{0:ÿ>+0,e}	1.5	ok
+b{0:ÿ>+0.2e}	5	ok
+b{0:ÿ>+0.2f}	1.5	ok
+b{0:ÿ>+05,e}	5	ok
+b{0:ÿ>+05.2F}	5	ok
+b{0:ÿ>+5,.2G}	5	ok
+b{0:ÿ>+5,.2f}	5	ok
+b{0:ÿ>+5}	5	ok
+b{0:ÿ>+b}	5	ok
+b{0:ÿ>+e}	5	ok
+b{0:ÿ>,.2e}	5	ok
+b{0:ÿ>.2s}	'ab'	ok
+b{0:ÿ>.2s}	[1]	ok
+b{0:ÿ>0,e}	5	ok
+b{0:ÿ>0,}	5	ok
+b{0:ÿ>0.2F}	1.5	ok
+b{0:ÿ>05,.2e}	5	ok
+b{0:ÿ>05.2f}	1.5	ok
+b{0:ÿ>05X}	5	ok
+b{0:ÿ>0g}	1.5	ok
+b{0:ÿ>5.2%}	1.5	ok
+b{0:ÿ>5.2E}	1.5	ok
+b{0:ÿ>5g}	5	ok
+b{0:ÿ>F}	5	ok
+b{0:ÿ>n}	1.5	ok
+b{0:ÿ^#,.2d}	[1]	err ValueError: Unknown format code 'd' for object of type 'string'
+b{0:ÿ^#.2b}	[1]	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0:ÿ^#0,o}	1.5	err ValueError: Unknown format code 'o' for object of type 'float'
+b{0:ÿ^+#05,.2i}	None	err ValueError: Unknown format code 'i' for object of type 'string'
+b{0:ÿ^+#x}	5	ok
+b{0:ÿ^+,%}	1.5	ok
+b{0:ÿ^+,.2g}	5	ok
+b{0:ÿ^+.2j}	[1]	err ValueError: Unknown format code 'j' for object of type 'string'
+b{0:ÿ^+0.2F}	1.5	ok
+b{0:ÿ^+0.2F}	5	ok
+b{0:ÿ^+0.2g}	1.5	ok
+b{0:ÿ^+05,E}	5	ok
+b{0:ÿ^+05,}	1.5	ok
+b{0:ÿ^+05.2b}	[1]	err ValueError: Unknown format code 'b' for object of type 'string'
+b{0:ÿ^+05.2n}	1.5	ok
+b{0:ÿ^+5,.2F}	5	ok
+b{0:ÿ^+5,.2g}	5	ok
+b{0:ÿ^+5,e}	'ab'	err ValueError: Unknown format code 'e' for object of type 'string'
+b{0:ÿ^+5X}	1.5	err ValueError: Unknown format code 'X' for object of type 'float'
+b{0:ÿ^,.2%}	5	ok
+b{0:ÿ^.2%}	1.5	ok
+b{0:ÿ^.2G}	1.5	ok
+b{0:ÿ^05,.2f}	5	ok
+b{0:ÿ^5,B}	1.5	err ValueError: Unknown format code 'B' for object of type 'float'
+b{0:ÿ^5,f}	'ab'	err ValueError: Unknown format code 'f' for object of type 'string'
+b{0:ÿ^5E}	5	ok
+b{0:ÿ^f}	1.5	ok
+b{0:ÿ^}	[1]	ok
+u{0!s:<#5,.2E}	None	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0!s:<#5,.2F}	'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0!s:<+#0,%}	5	err ValueError: Unknown format code '%' for object of type 'string'
+u{0!s:<+#0,Z}	None	err ValueError: Unknown format code 'Z' for object of type 'string'
+u{0!s:<+#5,Z}	1.5	err ValueError: Unknown format code 'Z' for object of type 'string'
+u{0!s:<+#B}	[1]	err ValueError: Unknown format code 'B' for object of type 'string'
+u{0!s:<+,.2d}	None	err ValueError: Unknown format code 'd' for object of type 'string'
+u{0!s:<+05,G}	'ab'	err ValueError: Unknown format code 'G' for object of type 'string'
+u{0!s:<+F}	'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0!s:<+i}	5	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0!s:<.2b}	1.5	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0!s:<05.2}	None	ok
+u{0!s:<05s}	u'ab'	ok
+u{0!s:<05}	5	ok
+u{0!s:<0j}	'ab'	err ValueError: Unknown format code 'j' for object of type 'string'
+u{0!s:<5,S}	5	err ValueError: Unknown format code 'S' for object of type 'string'
+u{0!s:<5.2X}	'ab'	err ValueError: Unknown format code 'X' for object of type 'string'
+u{0!s:<5.2s}	None	ok
+u{0!s:<5.2s}	u'ab'	ok
+u{0!s:<5s}	5	ok
+u{0!s:<5}	u'ab'	ok
+u{0!s:=#05,.2b}	1.5	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0!s:=#5,x}	5	err ValueError: Unknown format code 'x' for object of type 'string'
+u{0!s:=+,z}	[1]	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0!s:=+0,.2z}	5	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0!s:=0,.2S}	5	err ValueError: Unknown format code 'S' for object of type 'string'
+u{0!s:=05j}	'ab'	err ValueError: Unknown format code 'j' for object of type 'string'
+u{0!s:=5,.2E}	1.5	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0!s:>#0.2E}	[1]	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0!s:>#05,.2}	[1]	err ValueError: Grouping not allowed with string format specifier '\uffff'
+u{0!s:>+#.2f}	1.5	err ValueError: Unknown format code 'f' for object of type 'string'
+u{0!s:>+#0,G}	5	err ValueError: Unknown format code 'G' for object of type 'string'
+u{0!s:>+,g}	'ab'	err ValueError: Unknown format code 'g' for object of type 'string'
+u{0!s:>+.2E}	u'ab'	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0!s:>.2o}	'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s:>0,z}	u'ab'	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0!s:>05,a}	'ab'	err ValueError: Unknown format code 'a' for object of type 'string'
+u{0!s:>05.2s}	5	ok
+u{0!s:>05.2}	None	ok
+u{0!s:>0}	u'ab'	ok
+u{0!s:^#,F}	u'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0!s:^#.2f}	u'ab'	err ValueError: Unknown format code 'f' for object of type 'string'
+u{0!s:^#0,.2d}	1.5	err ValueError: Unknown format code 'd' for object of type 'string'
+u{0!s:^#5,B}	[1]	err ValueError: Unknown format code 'B' for object of type 'string'
+u{0!s:^+#5.2G}	1.5	err ValueError: Unknown format code 'G' for object of type 'string'
+u{0!s:^+#5.2s}	'ab'	err ValueError: Sign not allowed in string format specifier
+u{0!s:^+.2G}	'ab'	err ValueError: Unknown format code 'G' for object of type 'string'
+u{0!s:^+05,%}	u'ab'	err ValueError: Unknown format code '%' for object of type 'string'
+u{0!s:^+05,f}	[1]	err ValueError: Unknown format code 'f' for object of type 'string'
+u{0!s:^,F}	None	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0!s:^.2s}	'ab'	ok
+u{0!s:^0,e}	'ab'	err ValueError: Unknown format code 'e' for object of type 'string'
+u{0!s:^0.2s}	5	ok
+u{0!s:^0.2s}	None	ok
+u{0!s:^0.2s}	[1]	ok
+u{0!s:^05.2}	1.5	ok
+u{0!s:^0}	'ab'	ok
+u{0!s:^5,x}	1.5	err ValueError: Unknown format code 'x' for object of type 'string'
+u{0!s:^5.2s}	None	ok
+u{0!s:^5.2s}	[1]	ok
+u{0!s:^5F}	u'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0!s:^u}	u'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0!s: <#,G}	5	err ValueError: Unknown format code 'G' for object of type 'string'
+u{0!s: <#05,.2Z}	None	err ValueError: Unknown format code 'Z' for object of type 'string'
+u{0!s: <#05.2f}	1.5	err ValueError: Unknown format code 'f' for object of type 'string'
+u{0!s: <#5,s}	1.5	err ValueError: Grouping not allowed with string format specifier 's'
+u{0!s: <+#5B}	u'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+u{0!s: <+#5X}	[1]	err ValueError: Unknown format code 'X' for object of type 'string'
+u{0!s: <+#5c}	None	err ValueError: Unknown format code 'c' for object of type 'string'
+u{0!s: <+05%}	[1]	err ValueError: Unknown format code '%' for object of type 'string'
+u{0!s: <+0X}	None	err ValueError: Unknown format code 'X' for object of type 'string'
+u{0!s: <+5S}	'ab'	err ValueError: Unknown format code 'S' for object of type 'string'
+u{0!s: <.2s}	'ab'	ok
+u{0!s: <.2s}	5	ok
+u{0!s: <05,.2z}	5	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0!s: <05s}	'ab'	ok
+u{0!s: <5,.2o}	1.5	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s: <5e}	5	err ValueError: Unknown format code 'e' for object of type 'string'
+u{0!s: <5s}	'ab'	ok
+u{0!s: <5s}	[1]	ok
+u{0!s: <5}	5	ok
+u{0!s: <E}	5	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0!s: <g}	None	err ValueError: Unknown format code 'g' for object of type 'string'
+u{0!s: =#0,d}	1.5	err ValueError: Unknown format code 'd' for object of type 'string'
+u{0!s: =#05E}	[1]	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0!s: =+#,.2c}	1.5	err ValueError: Unknown format code 'c' for object of type 'string'
+u{0!s: =+#,B}	1.5	err ValueError: Unknown format code 'B' for object of type 'string'
+u{0!s: =+#,S}	5	err ValueError: Unknown format code 'S' for object of type 'string'
+u{0!s: =+#5i}	u'ab'	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0!s: =+.2d}	None	err ValueError: Unknown format code 'd' for object of type 'string'
+u{0!s: =+5,.2}	'ab'	err ValueError: Grouping not allowed with string format specifier '\uffff'
+u{0!s: =,.2i}	5	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0!s: =5,.2S}	5	err ValueError: Unknown format code 'S' for object of type 'string'
+u{0!s: >+#5,.2}	[1]	err ValueError: Grouping not allowed with string format specifier '\uffff'
+u{0!s: >+#5o}	None	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s: >+05,.2b}	1.5	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0!s: >+05.2o}	'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s: >,F}	None	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0!s: >05.2}	1.5	ok
+u{0!s: >05.2}	[1]	ok
+u{0!s: >05r}	u'ab'	err ValueError: Unknown format code 'r' for object of type 'string'
+u{0!s: >5.2s}	1.5	ok
+u{0!s: >5}	'ab'	ok
+u{0!s: ^#0.2b}	None	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0!s: ^#05.2X}	1.5	err ValueError: Unknown format code 'X' for object of type 'string'
+u{0!s: ^#5.2d}	'ab'	err ValueError: Unknown format code 'd' for object of type 'string'
+u{0!s: ^#5.2x}	5	err ValueError: Unknown format code 'x' for object of type 'string'
+u{0!s: ^#5X}	u'ab'	err ValueError: Unknown format code 'X' for object of type 'string'
+u{0!s: ^+#0,.2b}	'ab'	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0!s: ^+#0.2n}	'ab'	err ValueError: Unknown format code 'n' for object of type 'string'
+u{0!s: ^+#05a}	u'ab'	err ValueError: Unknown format code 'a' for object of type 'string'
+u{0!s: ^+,.2B}	u'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+u{0!s: ^.2s}	None	ok
+u{0!s: ^0.2s}	None	ok
+u{0!s: ^05F}	'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0!s: ^05s}	[1]	ok
+u{0!s: ^5.2F}	None	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0!s:é<#,X}	[1]	err ValueError: Unknown format code 'X' for object of type 'string'
+u{0!s:é<#.2F}	'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0!s:é<#05,c}	1.5	err ValueError: Unknown format code 'c' for object of type 'string'
+u{0!s:é<#05e}	1.5	err ValueError: Unknown format code 'e' for object of type 'string'
+u{0!s:é<#F}	u'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0!s:é<+#0,.2d}	u'ab'	err ValueError: Unknown format code 'd' for object of type 'string'
+u{0!s:é<+#0,.2u}	u'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0!s:é<+#0u}	1.5	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0!s:é<+5,.2E}	None	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0!s:é<,n}	'ab'	err ValueError: Unknown format code 'n' for object of type 'string'
+u{0!s:é<.2}	[1]	ok
+u{0!s:é<05,.2b}	5	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0!s:é<05.2s}	'ab'	ok
+u{0!s:é<0s}	[1]	ok
+u{0!s:é<0}	None	ok
+u{0!s:é<5.2i}	u'ab'	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0!s:é<5.2}	None	ok
+u{0!s:é<5}	u'ab'	ok
+u{0!s:é=#05,a}	'ab'	err ValueError: Unknown format code 'a' for object of type 'string'
+u{0!s:é=#05e}	5	err ValueError: Unknown format code 'e' for object of type 'string'
+u{0!s:é=#Z}	None	err ValueError: Unknown format code 'Z' for object of type 'string'
+u{0!s:é=+#,Z}	[1]	err ValueError: Unknown format code 'Z' for object of type 'string'
+u{0!s:é=+#.2a}	1.5	err ValueError: Unknown format code 'a' for object of type 'string'
+u{0!s:é=+#.2a}	5	err ValueError: Unknown format code 'a' for object of type 'string'
+u{0!s:é=+0,d}	5	err ValueError: Unknown format code 'd' for object of type 'string'
+u{0!s:é=+0.2S}	None	err ValueError: Unknown format code 'S' for object of type 'string'
+u{0!s:é=05,c}	'ab'	err ValueError: Unknown format code 'c' for object of type 'string'
+u{0!s:é=05E}	u'ab'	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0!s:é>#0,.2b}	1.5	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0!s:é>#0,.2}	u'ab'	err ValueError: Grouping not allowed with string format specifier '\uffff'
+u{0!s:é>#05,.2S}	None	err ValueError: Unknown format code 'S' for object of type 'string'
+u{0!s:é>#0G}	1.5	err ValueError: Unknown format code 'G' for object of type 'string'
+u{0!s:é>+#0E}	None	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0!s:é>+,Z}	[1]	err ValueError: Unknown format code 'Z' for object of type 'string'
+u{0!s:é>+,c}	1.5	err ValueError: Unknown format code 'c' for object of type 'string'
+u{0!s:é>+05.2s}	[1]	err ValueError: Sign not allowed in string format specifier
+u{0!s:é>.2g}	5	err ValueError: Unknown format code 'g' for object of type 'string'
+u{0!s:é>.2s}	1.5	ok
+u{0!s:é>0.2f}	u'ab'	err ValueError: Unknown format code 'f' for object of type 'string'
+u{0!s:é>05}	1.5	ok
+u{0!s:é>0s}	u'ab'	ok
+u{0!s:é>5,i}	u'ab'	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0!s:é>5.2s}	'ab'	ok
+u{0!s:é>5c}	'ab'	err ValueError: Unknown format code 'c' for object of type 'string'
+u{0!s:é^+#05,.2B}	'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+u{0!s:é^+#05,.2u}	5	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0!s:é^+#5,.2G}	[1]	err ValueError: Unknown format code 'G' for object of type 'string'
+u{0!s:é^+05,b}	1.5	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0!s:é^+05,u}	u'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0!s:é^+05c}	1.5	err ValueError: Unknown format code 'c' for object of type 'string'
+u{0!s:é^+5,E}	5	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0!s:é^,.2z}	None	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0!s:é^0,o}	u'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s:é^0.2s}	[1]	ok
+u{0!s:é^05,o}	5	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s:é^05,}	[1]	err ValueError: Grouping not allowed with string format specifier '\uffff'
+u{0!s:é^05.2s}	None	ok
+u{0!s:ÿ<#0,.2Z}	'ab'	err ValueError: Unknown format code 'Z' for object of type 'string'
+u{0!s:ÿ<#0,G}	1.5	err ValueError: Unknown format code 'G' for object of type 'string'
+u{0!s:ÿ<#0,j}	5	err ValueError: Unknown format code 'j' for object of type 'string'
+u{0!s:ÿ<#0.2%}	'ab'	err ValueError: Unknown format code '%' for object of type 'string'
+u{0!s:ÿ<#0z}	None	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0!s:ÿ<#5,.2o}	5	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s:ÿ<#5.2o}	u'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s:ÿ<+#.2s}	'ab'	err ValueError: Sign not allowed in string format specifier
+u{0!s:ÿ<+#5u}	'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0!s:ÿ<+,.2g}	5	err ValueError: Unknown format code 'g' for object of type 'string'
+u{0!s:ÿ<+5,X}	[1]	err ValueError: Unknown format code 'X' for object of type 'string'
+u{0!s:ÿ<.2s}	1.5	ok
+u{0!s:ÿ<05.2s}	1.5	ok
+u{0!s:ÿ<05.2s}	5	ok
+u{0!s:ÿ<05.2}	'ab'	ok
+u{0!s:ÿ<05s}	5	ok
+u{0!s:ÿ<5o}	5	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s:ÿ<s}	None	ok
+u{0!s:ÿ=#,j}	u'ab'	err ValueError: Unknown format code 'j' for object of type 'string'
+u{0!s:ÿ=#0,.2F}	5	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0!s:ÿ=#05d}	[1]	err ValueError: Unknown format code 'd' for object of type 'string'
+u{0!s:ÿ=+#5.2z}	u'ab'	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0!s:ÿ=+05,.2o}	1.5	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s:ÿ=+05.2r}	5	err ValueError: Unknown format code 'r' for object of type 'string'
+u{0!s:ÿ=+B}	1.5	err ValueError: Unknown format code 'B' for object of type 'string'
+u{0!s:ÿ=0,.2z}	5	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0!s:ÿ=05,.2i}	5	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0!s:ÿ=5.2B}	None	err ValueError: Unknown format code 'B' for object of type 'string'
+u{0!s:ÿ>#,d}	[1]	err ValueError: Unknown format code 'd' for object of type 'string'
+u{0!s:ÿ>#i}	u'ab'	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0!s:ÿ>+#0,B}	u'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+u{0!s:ÿ>+#5,.2S}	None	err ValueError: Unknown format code 'S' for object of type 'string'
+u{0!s:ÿ>+%}	[1]	err ValueError: Unknown format code '%' for object of type 'string'
+u{0!s:ÿ>+,d}	[1]	err ValueError: Unknown format code 'd' for object of type 'string'
+u{0!s:ÿ>+0s}	u'ab'	err ValueError: Sign not allowed in string format specifier
+u{0!s:ÿ>+5,.2o}	1.5	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s:ÿ>0.2}	[1]	ok
+u{0!s:ÿ>05,E}	[1]	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0!s:ÿ>05,i}	'ab'	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0!s:ÿ>0a}	u'ab'	err ValueError: Unknown format code 'a' for object of type 'string'
+u{0!s:ÿ>5,.2c}	1.5	err ValueError: Unknown format code 'c' for object of type 'string'
+u{0!s:ÿ>5,.2e}	None	err ValueError: Unknown format code 'e' for object of type 'string'
+u{0!s:ÿ^#05,u}	5	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0!s:ÿ^+#05,o}	'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s:ÿ^+05,.2o}	'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0!s:ÿ^+0j}	None	err ValueError: Unknown format code 'j' for object of type 'string'
+u{0!s:ÿ^+5,.2}	[1]	err ValueError: Grouping not allowed with string format specifier '\uffff'
+u{0!s:ÿ^0,u}	None	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0!s:ÿ^0.2}	5	ok
+u{0!s:ÿ^05,.2c}	u'ab'	err ValueError: Unknown format code 'c' for object of type 'string'
+u{0!s:ÿ^0s}	None	ok
+u{0!s:ÿ^5.2s}	1.5	ok
+u{0!s:Ā<#0.2X}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100<#0.2X'
+u{0!s:Ā<#05,.2e}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100<#05,.2e'
+u{0!s:Ā<#05.2r}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100<#05.2r'
+u{0!s:Ā<#0u}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100<#0u'
+u{0!s:Ā<+#,E}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100<+#,E'
+u{0!s:Ā<+#0o}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100<+#0o'
+u{0!s:Ā<+#G}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100<+#G'
+u{0!s:Ā<+0.2G}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100<+0.2G'
+u{0!s:Ā<+0.2X}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100<+0.2X'
+u{0!s:Ā<+05,.2%}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100<+05,.2%'
+u{0!s:Ā<+0o}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100<+0o'
+u{0!s:Ā<+5,.2i}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100<+5,.2i'
+u{0!s:Ā<+5,.2n}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100<+5,.2n'
+u{0!s:Ā<+5,r}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100<+5,r'
+u{0!s:Ā<.2B}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100<.2B'
+u{0!s:Ā<0.2z}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100<0.2z'
+u{0!s:Ā=#0,G}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100=#0,G'
+u{0!s:Ā=#0.2o}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100=#0.2o'
+u{0!s:Ā=#5u}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100=#5u'
+u{0!s:Ā=#r}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100=#r'
+u{0!s:Ā=+#5.2f}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100=+#5.2f'
+u{0!s:Ā=+#5X}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100=+#5X'
+u{0!s:Ā=+.2X}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100=+.2X'
+u{0!s:Ā=5,n}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100=5,n'
+u{0!s:Ā>#0,c}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100>#0,c'
+u{0!s:Ā>+#0,.2a}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100>+#0,.2a'
+u{0!s:Ā>+#05,.2d}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100>+#05,.2d'
+u{0!s:Ā>+#X}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100>+#X'
+u{0!s:Ā>+#n}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100>+#n'
+u{0!s:Ā>+0}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100>+0'
+u{0!s:Ā>+5,.2E}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100>+5,.2E'
+u{0!s:Ā>+E}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100>+E'
+u{0!s:Ā>,.2e}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100>,.2e'
+u{0!s:Ā>0.2e}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100>0.2e'
+u{0!s:Ā>0n}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100>0n'
+u{0!s:Ā>5,.2r}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100>5,.2r'
+u{0!s:Ā>5,.2u}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100>5,.2u'
+u{0!s:Ā>5,c}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100>5,c'
+u{0!s:Ā^#,%}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100^#,%'
+u{0!s:Ā^#05,z}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100^#05,z'
+u{0!s:Ā^#5.2i}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100^#5.2i'
+u{0!s:Ā^+#0,.2a}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100^+#0,.2a'
+u{0!s:Ā^+#05,.2i}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100^+#05,.2i'
+u{0!s:Ā^+#05.2Z}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100^+#05.2Z'
+u{0!s:Ā^+,.2i}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100^+,.2i'
+u{0!s:Ā^+0e}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100^+0e'
+u{0!s:Ā^+5,.2X}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100^+5,.2X'
+u{0!s:Ā^+x}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100^+x'
+u{0!s:Ā^,e}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100^,e'
+u{0!s:Ā^05,s}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100^05,s'
+u{0!s:Ā^05o}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100^05o'
+u{0!s:Ā^5.2S}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100^5.2S'
+u{0!s:€<#c}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac<#c'
+u{0!s:€<+#0,.2e}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+#0,.2e'
+u{0!s:€<+#0,E}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+#0,E'
+u{0!s:€<+#5s}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+#5s'
+u{0!s:€<+,}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+,'
+u{0!s:€<+0,d}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+0,d'
+u{0!s:€<+0,z}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+0,z'
+u{0!s:€<+05,.2s}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+05,.2s'
+u{0!s:€<+0S}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+0S'
+u{0!s:€<+5,s}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+5,s'
+u{0!s:€<+5.2d}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+5.2d'
+u{0!s:€<0,.2j}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac<0,.2j'
+u{0!s:€<0,g}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac<0,g'
+u{0!s:€<0.2u}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac<0.2u'
+u{0!s:€<05,.2r}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac<05,.2r'
+u{0!s:€<5Z}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac<5Z'
+u{0!s:€<5r}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac<5r'
+u{0!s:€=#.2b}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac=#.2b'
+u{0!s:€=#0,}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac=#0,'
+u{0!s:€=#05,.2s}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac=#05,.2s'
+u{0!s:€=#05,u}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac=#05,u'
+u{0!s:€=#5,.2Z}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac=#5,.2Z'
+u{0!s:€=#5f}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac=#5f'
+u{0!s:€=#z}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac=#z'
+u{0!s:€=+#,.2i}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+#,.2i'
+u{0!s:€=+#,G}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+#,G'
+u{0!s:€=+#0.2r}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+#0.2r'
+u{0!s:€=+#05.2z}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+#05.2z'
+u{0!s:€=+#05b}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+#05b'
+u{0!s:€=+,g}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+,g'
+u{0!s:€=+0,B}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+0,B'
+u{0!s:€=+0,G}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+0,G'
+u{0!s:€=+5.2E}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+5.2E'
+u{0!s:€=,f}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac=,f'
+u{0!s:€=05,r}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac=05,r'
+u{0!s:€>#,.2n}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac>#,.2n'
+u{0!s:€>#05.2s}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac>#05.2s'
+u{0!s:€>#5,.2f}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac>#5,.2f'
+u{0!s:€>#5x}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac>#5x'
+u{0!s:€>+#05E}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+#05E'
+u{0!s:€>+#05a}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+#05a'
+u{0!s:€>+#0d}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+#0d'
+u{0!s:€>+#5.2u}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+#5.2u'
+u{0!s:€>+0,.2X}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+0,.2X'
+u{0!s:€>+05,b}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+05,b'
+u{0!s:€>+5,n}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+5,n'
+u{0!s:€>0,.2%}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac>0,.2%'
+u{0!s:€>0,.2E}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac>0,.2E'
+u{0!s:€>0.2c}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac>0.2c'
+u{0!s:€>05,Z}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac>05,Z'
+u{0!s:€>5,Z}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac>5,Z'
+u{0!s:€^#0,.2o}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac^#0,.2o'
+u{0!s:€^#05,.2d}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac^#05,.2d'
+u{0!s:€^#05,.2j}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac^#05,.2j'
+u{0!s:€^#05,.2o}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac^#05,.2o'
+u{0!s:€^#05,j}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac^#05,j'
+u{0!s:€^#5,X}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac^#5,X'
+u{0!s:€^#}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac^#'
+u{0!s:€^+.2G}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac^+.2G'
+u{0!s:€^+0,B}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac^+0,B'
+u{0!s:€^+0.2n}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac^+0.2n'
+u{0!s:€^,.2x}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac^,.2x'
+u{0!s:€^0.2X}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac^0.2X'
+u{0!s:€^0.2u}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac^0.2u'
+u{0!s:€^05.2e}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac^05.2e'
+u{0!s:🦀<#05,X}	5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<#05,X'
+u{0!s:🦀<+#,B}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#,B'
+u{0!s:🦀<+#05,.2f}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#05,.2f'
+u{0!s:🦀<+#5,.2c}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#5,.2c'
+u{0!s:🦀<+#5g}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#5g'
+u{0!s:🦀<+#c}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#c'
+u{0!s:🦀<+0,.2z}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+0,.2z'
+u{0!s:🦀<,F}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<,F'
+u{0!s:🦀<,d}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<,d'
+u{0!s:🦀<05.2d}	5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<05.2d'
+u{0!s:🦀<5.2x}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<5.2x'
+u{0!s:🦀=#.2j}	5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=#.2j'
+u{0!s:🦀=#0,%}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=#0,%'
+u{0!s:🦀=+05s}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=+05s'
+u{0!s:🦀=+5.2j}	5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=+5.2j'
+u{0!s:🦀=0.2r}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=0.2r'
+u{0!s:🦀=0.2s}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=0.2s'
+u{0!s:🦀=0g}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=0g'
+u{0!s:🦀=5,z}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=5,z'
+u{0!s:🦀=e}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=e'
+u{0!s:🦀>#05,X}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>#05,X'
+u{0!s:🦀>+#r}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>+#r'
+u{0!s:🦀>+0.2Z}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>+0.2Z'
+u{0!s:🦀^#,X}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^#,X'
+u{0!s:🦀^#0.2a}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^#0.2a'
+u{0!s:🦀^#0j}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^#0j'
+u{0!s:🦀^+#05,%}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+#05,%'
+u{0!s:🦀^+#05,G}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+#05,G'
+u{0!s:🦀^+#5u}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+#5u'
+u{0!s:🦀^+,j}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+,j'
+u{0!s:🦀^+0,B}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+0,B'
+u{0!s:🦀^+05.2B}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+05.2B'
+u{0!s:🦀^+5u}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+5u'
+u{0!s:🦀^,E}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^,E'
+u{0!s:🦀^05,S}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^05,S'
+u{0!s:🦀^05,X}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^05,X'
+u{0!s:🦀^05G}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^05G'
+u{0!s:🦀^5,u}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^5,u'
+u{0!s:🦀^j}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^j'
+u{0:<#0,Z}	u'ab'	err ValueError: Unknown format code 'Z' for object of type 'string'
+u{0:<#0,}	'ab'	err ValueError: Grouping not allowed with string format specifier '\uffff'
+u{0:<#05S}	5	err ValueError: Unknown format code 'S' for object of type 'integer'
+u{0:<#5,.2B}	u'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+u{0:<#5o}	5	ok
+u{0:<+#,d}	5	ok
+u{0:<+#0,.2n}	[1]	err ValueError: Unknown format code 'n' for object of type 'string'
+u{0:<+#05b}	5	ok
+u{0:<+#05o}	5	ok
+u{0:<+#05z}	u'ab'	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0:<+#5}	5	ok
+u{0:<+#d}	5	ok
+u{0:<+.2G}	5	ok
+u{0:<+0,f}	5	ok
+u{0:<+05,%}	5	ok
+u{0:<+05,.2g}	1.5	ok
+u{0:<+05.2S}	'ab'	err ValueError: Unknown format code 'S' for object of type 'string'
+u{0:<+5,e}	[1]	err ValueError: Unknown format code 'e' for object of type 'string'
+u{0:<+5.2e}	5	ok
+u{0:<+5}	1.5	ok
+u{0:<+F}	1.5	ok
+u{0:<+d}	5	ok
+u{0:<,G}	5	ok
+u{0:<.2a}	u'ab'	err ValueError: Unknown format code 'a' for object of type 'string'
+u{0:<0,E}	1.5	ok
+u{0:<05,.2E}	1.5	ok
+u{0:<05,.2E}	5	ok
+u{0:<05,.2G}	1.5	ok
+u{0:<05,g}	5	ok
+u{0:<05.2e}	1.5	ok
+u{0:<05}	[1]	ok
+u{0:<0f}	1.5	ok
+u{0:<0n}	5	ok
+u{0:<0s}	[1]	ok
+u{0:<5%}	5	ok
+u{0:<5,.2e}	1.5	ok
+u{0:<5,.2g}	1.5	ok
+u{0:<5g}	5	ok
+u{0:<n}	5	ok
+u{0:<o}	5	ok
+u{0:<s}	[1]	ok
+u{0:=#05X}	5	ok
+u{0:=#5e}	u'ab'	err ValueError: Unknown format code 'e' for object of type 'string'
+u{0:=+#,}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0:=+#05,u}	5	err ValueError: Unknown format code 'u' for object of type 'integer'
+u{0:=+#0x}	5	ok
+u{0:=+#x}	u'ab'	err ValueError: Unknown format code 'x' for object of type 'string'
+u{0:=+,%}	1.5	ok
+u{0:=+.2e}	5	ok
+u{0:=+0,F}	1.5	ok
+u{0:=+0,}	5	ok
+u{0:=+0.2F}	5	ok
+u{0:=+0.2g}	5	ok
+u{0:=+05,g}	5	ok
+u{0:=+05,u}	u'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0:=+0g}	5	ok
+u{0:=+0n}	1.5	ok
+u{0:=+5.2f}	'ab'	err ValueError: Unknown format code 'f' for object of type 'string'
+u{0:=+5n}	1.5	ok
+u{0:=+E}	5	ok
+u{0:=,e}	1.5	ok
+u{0:=,g}	5	ok
+u{0:=.2%}	[1]	err ValueError: Unknown format code '%' for object of type 'string'
+u{0:=.2e}	1.5	ok
+u{0:=.2e}	5	ok
+u{0:=.2n}	1.5	ok
+u{0:=0,X}	None	err ValueError: Unknown format code 'X' for object of type 'string'
+u{0:=0.2F}	1.5	ok
+u{0:=0.2G}	1.5	ok
+u{0:=05,G}	5	ok
+u{0:=05,f}	5	ok
+u{0:=05.2E}	5	ok
+u{0:=05.2F}	5	ok
+u{0:=05.2g}	1.5	ok
+u{0:=05.2n}	1.5	ok
+u{0:=05.2s}	[1]	err ValueError: '=' alignment flag not allowed in string format specifier
+u{0:=05b}	5	ok
+u{0:=05}	1.5	ok
+u{0:>#,g}	5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0:>#05,.2c}	5	err ValueError: Alternate form (#) not allowed with integer format specifier 'c'
+u{0:>#05,d}	5	ok
+u{0:>#05,i}	5	err ValueError: Unknown format code 'i' for object of type 'integer'
+u{0:>#05X}	5	ok
+u{0:>#0b}	5	ok
+u{0:>#0o}	5	ok
+u{0:>#5o}	5	ok
+u{0:>+#,.2%}	'ab'	err ValueError: Unknown format code '%' for object of type 'string'
+u{0:>+#,.2B}	5	err ValueError: Unknown format code 'B' for object of type 'integer'
+u{0:>+#,.2Z}	None	err ValueError: Unknown format code 'Z' for object of type 'string'
+u{0:>+#,j}	5	err ValueError: Unknown format code 'j' for object of type 'integer'
+u{0:>+#,}	5	ok
+u{0:>+#05,%}	u'ab'	err ValueError: Unknown format code '%' for object of type 'string'
+u{0:>+#05,.2d}	u'ab'	err ValueError: Unknown format code 'd' for object of type 'string'
+u{0:>+#05X}	5	ok
+u{0:>+#5,.2a}	1.5	err ValueError: Unknown format code 'a' for object of type 'float'
+u{0:>+#5,}	5	ok
+u{0:>+#X}	5	ok
+u{0:>+#g}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0:>+,.2E}	5	ok
+u{0:>+,.2j}	5	err ValueError: Unknown format code 'j' for object of type 'integer'
+u{0:>+,}	1.5	ok
+u{0:>+0,.2E}	1.5	ok
+u{0:>+0,.2j}	1.5	err ValueError: Unknown format code 'j' for object of type 'float'
+u{0:>+0,.2}	1.5	ok
+u{0:>+0,F}	5	ok
+u{0:>+0.2f}	1.5	ok
+u{0:>+05,g}	1.5	ok
+u{0:>+05,n}	5	err ValueError: Grouping not allowed with integer format specifier 'n'
+u{0:>+05.2%}	1.5	ok
+u{0:>+05.2g}	5	ok
+u{0:>+05.2r}	[1]	err ValueError: Unknown format code 'r' for object of type 'string'
+u{0:>+5,g}	1.5	ok
+u{0:>+5,}	5	ok
+u{0:>+5.2E}	5	ok
+u{0:>+5F}	5	ok
+u{0:>+5f}	1.5	ok
+u{0:>+5}	5	ok
+u{0:>,.2%}	1.5	ok
+u{0:>,.2G}	1.5	ok
+u{0:>.2a}	1.5	err ValueError: Unknown format code 'a' for object of type 'float'
+u{0:>.2s}	u'ab'	ok
+u{0:>0,%}	1.5	ok
+u{0:>0,.2E}	5	ok
+u{0:>0,g}	5	ok
+u{0:>0.2e}	1.5	ok
+u{0:>0.2}	None	ok
+u{0:>05,.2G}	1.5	ok
+u{0:>05e}	5	ok
+u{0:>05s}	u'ab'	ok
+u{0:>5,.2F}	1.5	ok
+u{0:>5,.2}	1.5	ok
+u{0:>5,d}	5	ok
+u{0:>5.2g}	1.5	ok
+u{0:>5.2s}	'ab'	ok
+u{0:>5F}	5	ok
+u{0:>E}	1.5	ok
+u{0:>E}	5	ok
+u{0:>g}	1.5	ok
+u{0:>n}	1.5	ok
+u{0:^#.2S}	u'ab'	err ValueError: Unknown format code 'S' for object of type 'string'
+u{0:^#05s}	u'ab'	err ValueError: Alternate form (#) not allowed in string format specifier
+u{0:^#0x}	5	ok
+u{0:^#5,}	5	ok
+u{0:^#5S}	5	err ValueError: Unknown format code 'S' for object of type 'integer'
+u{0:^#5X}	5	ok
+u{0:^+#0,d}	5	ok
+u{0:^+#0.2o}	'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0:^+#05d}	5	ok
+u{0:^+#05n}	5	ok
+u{0:^+05,.2f}	5	ok
+u{0:^+05,g}	1.5	ok
+u{0:^+G}	5	ok
+u{0:^+X}	5	ok
+u{0:^+x}	1.5	err ValueError: Unknown format code 'x' for object of type 'float'
+u{0:^+}	1.5	ok
+u{0:^,%}	5	ok
+u{0:^,.2E}	1.5	ok
+u{0:^,.2F}	5	ok
+u{0:^,.2G}	1.5	ok
+u{0:^,g}	5	ok
+u{0:^,}	1.5	ok
+u{0:^0,E}	1.5	ok
+u{0:^0,d}	5	ok
+u{0:^0,}	5	ok
+u{0:^0.2g}	1.5	ok
+u{0:^05,}	5	ok
+u{0:^05.2G}	1.5	ok
+u{0:^5,.2e}	u'ab'	err ValueError: Unknown format code 'e' for object of type 'string'
+u{0:^5,e}	5	ok
+u{0:^5.2%}	1.5	ok
+u{0:^5G}	1.5	ok
+u{0:^5o}	5	ok
+u{0:^5s}	u'ab'	ok
+u{0:^n}	1.5	ok
+u{0:^s}	[1]	ok
+u{0: <#,S}	1.5	err ValueError: Unknown format code 'S' for object of type 'float'
+u{0: <#5,d}	1.5	err ValueError: Unknown format code 'd' for object of type 'float'
+u{0: <%}	5	ok
+u{0: <+#05,.2f}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0: <+#05}	5	ok
+u{0: <+#5,}	5	ok
+u{0: <+.2f}	5	ok
+u{0: <+0.2g}	1.5	ok
+u{0: <+5,.2F}	1.5	ok
+u{0: <+5,.2e}	'ab'	err ValueError: Unknown format code 'e' for object of type 'string'
+u{0: <+5g}	5	ok
+u{0: <+5u}	None	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0: <+G}	u'ab'	err ValueError: Unknown format code 'G' for object of type 'string'
+u{0: <,.2e}	5	ok
+u{0: <,E}	5	ok
+u{0: <,F}	5	ok
+u{0: <.2%}	1.5	ok
+u{0: <.2c}	u'ab'	err ValueError: Unknown format code 'c' for object of type 'string'
+u{0: <.2}	'ab'	ok
+u{0: <0,.2a}	5	err ValueError: Unknown format code 'a' for object of type 'integer'
+u{0: <05.2g}	5	ok
+u{0: <05f}	5	ok
+u{0: <0E}	5	ok
+u{0: <0n}	1.5	ok
+u{0: <5,.2F}	1.5	ok
+u{0: <5,.2x}	u'ab'	err ValueError: Unknown format code 'x' for object of type 'string'
+u{0: <5,d}	5	ok
+u{0: <5F}	5	ok
+u{0: <5n}	u'ab'	err ValueError: Unknown format code 'n' for object of type 'string'
+u{0: <5x}	5	ok
+u{0: <o}	5	ok
+u{0: =#.2n}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0: =#0,E}	[1]	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0: =#05,.2%}	None	err ValueError: Unknown format code '%' for object of type 'string'
+u{0: =#0F}	u'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0: =#5d}	5	ok
+u{0: =+#5,F}	'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0: =+#5b}	None	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0: =+,.2i}	None	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0: =+.2F}	1.5	ok
+u{0: =+.2e}	1.5	ok
+u{0: =+.2g}	1.5	ok
+u{0: =+0,.2G}	5	ok
+u{0: =+0,.2f}	1.5	ok
+u{0: =+0,}	5	ok
+u{0: =+0.2G}	5	ok
+u{0: =+0.2b}	[1]	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0: =+05.2E}	5	ok
+u{0: =+05g}	1.5	ok
+u{0: =+05n}	1.5	ok
+u{0: =+0F}	'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0: =+5,%}	5	ok
+u{0: =+5,d}	5	ok
+u{0: =+5,e}	1.5	ok
+u{0: =+5e}	5	ok
+u{0: =+o}	5	ok
+u{0: =0,B}	1.5	err ValueError: Unknown format code 'B' for object of type 'float'
+u{0: =0,f}	5	ok
+u{0: =05,Z}	1.5	err ValueError: Unknown format code 'Z' for object of type 'float'
+u{0: =05.2E}	1.5	ok
+u{0: =05E}	1.5	ok
+u{0: =05e}	1.5	ok
+u{0: =5,%}	1.5	ok
+u{0: =5,.2e}	5	ok
+u{0: =E}	1.5	ok
+u{0: =f}	1.5	ok
+u{0: =u}	None	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0: >#0.2x}	5	err ValueError: Precision not allowed in integer format specifier
+u{0: >#05.2j}	5	err ValueError: Unknown format code 'j' for object of type 'integer'
+u{0: >#0x}	None	err ValueError: Unknown format code 'x' for object of type 'string'
+u{0: >#5,}	u'ab'	err ValueError: Grouping not allowed with string format specifier '\uffff'
+u{0: >#5d}	5	ok
+u{0: >+#5,.2%}	None	err ValueError: Unknown format code '%' for object of type 'string'
+u{0: >+#5j}	None	err ValueError: Unknown format code 'j' for object of type 'string'
+u{0: >+#}	5	ok
+u{0: >+,.2G}	1.5	ok
+u{0: >+0,.2%}	5	ok
+u{0: >+0,.2f}	5	ok
+u{0: >,%}	5	ok
+u{0: >,.2s}	u'ab'	err ValueError: Grouping not allowed with string format specifier 's'
+u{0: >.2F}	5	ok
+u{0: >.2}	None	ok
+u{0: >0.2g}	5	ok
+u{0: >05,i}	u'ab'	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0: >05.2E}	5	ok
+u{0: >05.2F}	5	ok
+u{0: >05.2}	1.5	ok
+u{0: >5,F}	5	ok
+u{0: >5.2%}	1.5	ok
+u{0: >5.2g}	1.5	ok
+u{0: >5s}	'ab'	ok
+u{0: >g}	1.5	ok
+u{0: >}	u'ab'	ok
+u{0: ^#0,.2}	'ab'	err ValueError: Grouping not allowed with string format specifier '\uffff'
+u{0: ^#05,.2Z}	5	err ValueError: Unknown format code 'Z' for object of type 'integer'
+u{0: ^#05.2j}	None	err ValueError: Unknown format code 'j' for object of type 'string'
+u{0: ^#05.2z}	'ab'	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0: ^+#05s}	u'ab'	err ValueError: Sign not allowed in string format specifier
+u{0: ^+#B}	1.5	err ValueError: Unknown format code 'B' for object of type 'float'
+u{0: ^+0,E}	5	ok
+u{0: ^+0.2E}	1.5	ok
+u{0: ^+0.2e}	1.5	ok
+u{0: ^+0.2f}	1.5	ok
+u{0: ^+05.2E}	1.5	ok
+u{0: ^+05.2z}	None	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0: ^+05G}	5	ok
+u{0: ^+05e}	5	ok
+u{0: ^+05f}	1.5	ok
+u{0: ^+05g}	5	ok
+u{0: ^+05n}	5	ok
+u{0: ^+0d}	5	ok
+u{0: ^+5,G}	5	ok
+u{0: ^+5.2E}	1.5	ok
+u{0: ^0,e}	5	ok
+u{0: ^0.2E}	1.5	ok
+u{0: ^0.2s}	'ab'	ok
+u{0: ^0.2}	[1]	ok
+u{0: ^05,.2E}	1.5	ok
+u{0: ^05,Z}	None	err ValueError: Unknown format code 'Z' for object of type 'string'
+u{0: ^05x}	5	ok
+u{0: ^0b}	5	ok
+u{0: ^c}	5	ok
+u{0:é<#,.2X}	1.5	err ValueError: Unknown format code 'X' for object of type 'float'
+u{0:é<#,}	5	ok
+u{0:é<#05j}	5	err ValueError: Unknown format code 'j' for object of type 'integer'
+u{0:é<#0F}	'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0:é<#X}	5	ok
+u{0:é<+#,d}	5	ok
+u{0:é<+#0,d}	'ab'	err ValueError: Unknown format code 'd' for object of type 'string'
+u{0:é<+#0,}	5	ok
+u{0:é<+#05.2S}	5	err ValueError: Unknown format code 'S' for object of type 'integer'
+u{0:é<+#05.2c}	1.5	err ValueError: Unknown format code 'c' for object of type 'float'
+u{0:é<+#0b}	5	ok
+u{0:é<+#5n}	5	ok
+u{0:é<+,f}	1.5	ok
+u{0:é<+.2e}	5	ok
+u{0:é<+0,.2g}	5	ok
+u{0:é<+0.2u}	5	err ValueError: Unknown format code 'u' for object of type 'integer'
+u{0:é<+05.2g}	5	ok
+u{0:é<+05X}	5	ok
+u{0:é<+05e}	1.5	ok
+u{0:é<+5%}	'ab'	err ValueError: Unknown format code '%' for object of type 'string'
+u{0:é<+5.2g}	1.5	ok
+u{0:é<,F}	5	ok
+u{0:é<,d}	5	ok
+u{0:é<,}	5	ok
+u{0:é<.2G}	5	ok
+u{0:é<.2}	[1]	ok
+u{0:é<0.2E}	5	ok
+u{0:é<05,.2G}	5	ok
+u{0:é<05,.2z}	5	err ValueError: Unknown format code 'z' for object of type 'integer'
+u{0:é<05,c}	u'ab'	err ValueError: Unknown format code 'c' for object of type 'string'
+u{0:é<05,g}	1.5	ok
+u{0:é<05.2}	'ab'	ok
+u{0:é<05F}	1.5	ok
+u{0:é<5,i}	5	err ValueError: Unknown format code 'i' for object of type 'integer'
+u{0:é<5,}	1.5	ok
+u{0:é<5r}	[1]	err ValueError: Unknown format code 'r' for object of type 'string'
+u{0:é=#,.2r}	5	err ValueError: Unknown format code 'r' for object of type 'integer'
+u{0:é=#0,.2F}	5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0:é=#0,X}	[1]	err ValueError: Unknown format code 'X' for object of type 'string'
+u{0:é=#05d}	5	ok
+u{0:é=#05}	5	ok
+u{0:é=#5,}	5	ok
+u{0:é=#5.2u}	'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0:é=#5d}	5	ok
+u{0:é=#d}	5	ok
+u{0:é=+#05.2z}	5	err ValueError: Unknown format code 'z' for object of type 'integer'
+u{0:é=+#05n}	5	ok
+u{0:é=+#0X}	5	ok
+u{0:é=+#0d}	5	ok
+u{0:é=+#5,.2z}	5	err ValueError: Unknown format code 'z' for object of type 'integer'
+u{0:é=+,.2G}	5	ok
+u{0:é=+,.2}	1.5	ok
+u{0:é=+,E}	1.5	ok
+u{0:é=+,d}	5	ok
+u{0:é=+.2e}	5	ok
+u{0:é=+0,G}	5	ok
+u{0:é=+0,d}	5	ok
+u{0:é=+05,.2f}	5	ok
+u{0:é=+05,B}	'ab'	err ValueError: Unknown format code 'B' for object of type 'string'
+u{0:é=+05,f}	1.5	ok
+u{0:é=+0g}	1.5	ok
+u{0:é=+0n}	5	ok
+u{0:é=+5,%}	1.5	ok
+u{0:é=+5,.2%}	5	ok
+u{0:é=+5,.2G}	1.5	ok
+u{0:é=+5,.2f}	1.5	ok
+u{0:é=+5,F}	1.5	ok
+u{0:é=+5.2f}	5	ok
+u{0:é=+5}	1.5	ok
+u{0:é=+g}	5	ok
+u{0:é=,.2E}	1.5	ok
+u{0:é=,}	5	ok
+u{0:é=0,.2G}	[1]	err ValueError: Unknown format code 'G' for object of type 'string'
+u{0:é=0,.2d}	1.5	err ValueError: Unknown format code 'd' for object of type 'float'
+u{0:é=0.2E}	5	ok
+u{0:é=0.2G}	5	ok
+u{0:é=05,.2g}	1.5	ok
+u{0:é=05,Z}	1.5	err ValueError: Unknown format code 'Z' for object of type 'float'
+u{0:é=05.2G}	1.5	ok
+u{0:é=05c}	5	ok
+u{0:é=5,.2e}	1.5	ok
+u{0:é=5,g}	1.5	ok
+u{0:é=5.2F}	1.5	ok
+u{0:é>#,X}	'ab'	err ValueError: Unknown format code 'X' for object of type 'string'
+u{0:é>#.2e}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0:é>#0,.2}	None	err ValueError: Grouping not allowed with string format specifier '\uffff'
+u{0:é>#0.2j}	1.5	err ValueError: Unknown format code 'j' for object of type 'float'
+u{0:é>#05,d}	5	ok
+u{0:é>#5,.2%}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0:é>#5,d}	5	ok
+u{0:é>+#0,E}	'ab'	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0:é>+%}	5	ok
+u{0:é>+,E}	5	ok
+u{0:é>+,o}	1.5	err ValueError: Unknown format code 'o' for object of type 'float'
+u{0:é>+.2n}	1.5	ok
+u{0:é>+.2n}	5	err ValueError: Precision not allowed in integer format specifier
+u{0:é>+0,%}	5	ok
+u{0:é>+0,.2F}	5	ok
+u{0:é>+0,.2f}	None	err ValueError: Unknown format code 'f' for object of type 'string'
+u{0:é>+05,.2b}	1.5	err ValueError: Unknown format code 'b' for object of type 'float'
+u{0:é>+05,.2n}	'ab'	err ValueError: Unknown format code 'n' for object of type 'string'
+u{0:é>+05,Z}	[1]	err ValueError: Unknown format code 'Z' for object of type 'string'
+u{0:é>+05g}	1.5	ok
+u{0:é>+05g}	5	ok
+u{0:é>+0F}	5	ok
+u{0:é>+5.2g}	5	ok
+u{0:é>+5B}	1.5	err ValueError: Unknown format code 'B' for object of type 'float'
+u{0:é>+5n}	None	err ValueError: Unknown format code 'n' for object of type 'string'
+u{0:é>+5}	5	ok
+u{0:é>,.2E}	1.5	ok
+u{0:é>,.2}	1.5	ok
+u{0:é>.2f}	1.5	ok
+u{0:é>.2n}	1.5	ok
+u{0:é>.2}	1.5	ok
+u{0:é>0,.2i}	[1]	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0:é>0,e}	5	ok
+u{0:é>0,j}	5	err ValueError: Unknown format code 'j' for object of type 'integer'
+u{0:é>0.2}	u'ab'	ok
+u{0:é>05,.2g}	1.5	ok
+u{0:é>05.2s}	'ab'	ok
+u{0:é>05.2s}	u'ab'	ok
+u{0:é>05G}	1.5	ok
+u{0:é>05}	[1]	ok
+u{0:é>0s}	[1]	ok
+u{0:é>0}	'ab'	ok
+u{0:é>5.2e}	5	ok
+u{0:é>X}	5	ok
+u{0:é>f}	1.5	ok
+u{0:é>n}	None	err ValueError: Unknown format code 'n' for object of type 'string'
+u{0:é^#0,E}	'ab'	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0:é^+#,b}	[1]	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0:é^+#,d}	5	ok
+u{0:é^+#0,.2s}	1.5	err ValueError: Unknown format code 's' for object of type 'float'
+u{0:é^+#0,d}	5	ok
+u{0:é^+#0,e}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0:é^+#05,.2X}	1.5	err ValueError: Unknown format code 'X' for object of type 'float'
+u{0:é^+#5n}	5	ok
+u{0:é^+,d}	5	ok
+u{0:é^+0,E}	5	ok
+u{0:é^+0,F}	5	ok
+u{0:é^+0.2n}	None	err ValueError: Unknown format code 'n' for object of type 'string'
+u{0:é^+05,f}	5	ok
+u{0:é^+05F}	1.5	ok
+u{0:é^+05d}	5	ok
+u{0:é^+05e}	1.5	ok
+u{0:é^+05}	1.5	ok
+u{0:é^+5,%}	1.5	ok
+u{0:é^+5,.2f}	5	ok
+u{0:é^+5F}	1.5	ok
+u{0:é^,.2F}	1.5	ok
+u{0:é^,.2n}	'ab'	err ValueError: Unknown format code 'n' for object of type 'string'
+u{0:é^0,.2Z}	5	err ValueError: Unknown format code 'Z' for object of type 'integer'
+u{0:é^0,.2s}	'ab'	err ValueError: Grouping not allowed with string format specifier 's'
+u{0:é^0,g}	1.5	ok
+u{0:é^0.2f}	5	ok
+u{0:é^05,.2e}	5	ok
+u{0:é^05.2r}	None	err ValueError: Unknown format code 'r' for object of type 'string'
+u{0:é^05F}	[1]	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0:é^05g}	5	ok
+u{0:é^0n}	5	ok
+u{0:é^5,a}	[1]	err ValueError: Unknown format code 'a' for object of type 'string'
+u{0:é^5.2G}	5	ok
+u{0:é^5G}	1.5	ok
+u{0:é^5G}	5	ok
+u{0:é^f}	1.5	ok
+u{0:é^o}	5	ok
+u{0:ÿ<#,j}	[1]	err ValueError: Unknown format code 'j' for object of type 'string'
+u{0:ÿ<#0,d}	5	ok
+u{0:ÿ<#05,d}	5	ok
+u{0:ÿ<#0n}	5	ok
+u{0:ÿ<#5,u}	None	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0:ÿ<#5u}	None	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0:ÿ<#5x}	None	err ValueError: Unknown format code 'x' for object of type 'string'
+u{0:ÿ<#5}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0:ÿ<#x}	5	ok
+u{0:ÿ<+#05d}	5	ok
+u{0:ÿ<+#5,S}	u'ab'	err ValueError: Unknown format code 'S' for object of type 'string'
+u{0:ÿ<+#5e}	5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0:ÿ<+%}	1.5	ok
+u{0:ÿ<+,d}	5	ok
+u{0:ÿ<+0,.2e}	1.5	ok
+u{0:ÿ<+05,.2E}	5	ok
+u{0:ÿ<+05,.2G}	None	err ValueError: Unknown format code 'G' for object of type 'string'
+u{0:ÿ<+05.2g}	1.5	ok
+u{0:ÿ<+05G}	1.5	ok
+u{0:ÿ<+05f}	5	ok
+u{0:ÿ<+05g}	1.5	ok
+u{0:ÿ<+0n}	5	ok
+u{0:ÿ<+0o}	5	ok
+u{0:ÿ<+0r}	'ab'	err ValueError: Unknown format code 'r' for object of type 'string'
+u{0:ÿ<+5,g}	5	ok
+u{0:ÿ<+5.2E}	1.5	ok
+u{0:ÿ<+5b}	1.5	err ValueError: Unknown format code 'b' for object of type 'float'
+u{0:ÿ<+z}	u'ab'	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0:ÿ<,E}	1.5	ok
+u{0:ÿ<,g}	1.5	ok
+u{0:ÿ<0,.2%}	1.5	ok
+u{0:ÿ<0,d}	5	ok
+u{0:ÿ<0,}	1.5	ok
+u{0:ÿ<0.2f}	1.5	ok
+u{0:ÿ<05,.2b}	'ab'	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0:ÿ<05,.2u}	'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0:ÿ<05,g}	5	ok
+u{0:ÿ<05.2b}	'ab'	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0:ÿ<05.2}	'ab'	ok
+u{0:ÿ<05.2}	1.5	ok
+u{0:ÿ<0e}	5	ok
+u{0:ÿ<0s}	'ab'	ok
+u{0:ÿ<0x}	5	ok
+u{0:ÿ<5,F}	1.5	ok
+u{0:ÿ<5.2s}	'ab'	ok
+u{0:ÿ<5.2s}	[1]	ok
+u{0:ÿ<5G}	1.5	ok
+u{0:ÿ<5g}	5	ok
+u{0:ÿ<g}	None	err ValueError: Unknown format code 'g' for object of type 'string'
+u{0:ÿ=#05,d}	5	ok
+u{0:ÿ=#05o}	5	ok
+u{0:ÿ=#5,u}	'ab'	err ValueError: Unknown format code 'u' for object of type 'string'
+u{0:ÿ=#5.2F}	u'ab'	err ValueError: Unknown format code 'F' for object of type 'string'
+u{0:ÿ=#b}	5	ok
+u{0:ÿ=+#.2S}	None	err ValueError: Unknown format code 'S' for object of type 'string'
+u{0:ÿ=+#05}	5	ok
+u{0:ÿ=+#b}	5	ok
+u{0:ÿ=+,f}	5	ok
+u{0:ÿ=+,g}	5	ok
+u{0:ÿ=+0,g}	5	ok
+u{0:ÿ=+05,.2F}	1.5	ok
+u{0:ÿ=+05,.2G}	1.5	ok
+u{0:ÿ=+0g}	1.5	ok
+u{0:ÿ=+5,}	5	ok
+u{0:ÿ=+E}	1.5	ok
+u{0:ÿ=+n}	5	ok
+u{0:ÿ=0,.2%}	1.5	ok
+u{0:ÿ=0,.2f}	5	ok
+u{0:ÿ=0,e}	1.5	ok
+u{0:ÿ=05,.2z}	u'ab'	err ValueError: Unknown format code 'z' for object of type 'string'
+u{0:ÿ=05,E}	5	ok
+u{0:ÿ=05,G}	1.5	ok
+u{0:ÿ=05,d}	5	ok
+u{0:ÿ=05.2E}	5	ok
+u{0:ÿ=05.2g}	5	ok
+u{0:ÿ=05.2}	1.5	ok
+u{0:ÿ=5%}	1.5	ok
+u{0:ÿ=5,f}	1.5	ok
+u{0:ÿ=5.2f}	1.5	ok
+u{0:ÿ=5g}	5	ok
+u{0:ÿ=5n}	5	ok
+u{0:ÿ>#,.2s}	u'ab'	err ValueError: Grouping not allowed with string format specifier 's'
+u{0:ÿ>#05i}	'ab'	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0:ÿ>#05x}	[1]	err ValueError: Unknown format code 'x' for object of type 'string'
+u{0:ÿ>#0o}	u'ab'	err ValueError: Unknown format code 'o' for object of type 'string'
+u{0:ÿ>#5,}	5	ok
+u{0:ÿ>#o}	5	ok
+u{0:ÿ>+#.2s}	1.5	err ValueError: Unknown format code 's' for object of type 'float'
+u{0:ÿ>+#05,.2a}	1.5	err ValueError: Unknown format code 'a' for object of type 'float'
+u{0:ÿ>+#05.2j}	1.5	err ValueError: Unknown format code 'j' for object of type 'float'
+u{0:ÿ>+#0o}	5	ok
+u{0:ÿ>+%}	1.5	ok
+u{0:ÿ>+,.2}	1.5	ok
+u{0:ÿ>+,F}	1.5	ok
+u{0:ÿ>+0,B}	[1]	err ValueError: Unknown format code 'B' for object of type 'string'
+u{0:ÿ>+0,E}	5	ok
+u{0:ÿ>+05,Z}	5	err ValueError: Unknown format code 'Z' for object of type 'integer'
+u{0:ÿ>+05,}	1.5	ok
+u{0:ÿ>+05.2%}	5	ok
+u{0:ÿ>+05.2f}	5	ok
+u{0:ÿ>+05g}	1.5	ok
+u{0:ÿ>+05o}	5	ok
+u{0:ÿ>+0a}	5	err ValueError: Unknown format code 'a' for object of type 'integer'
+u{0:ÿ>+0n}	5	ok
+u{0:ÿ>+}	1.5	ok
+u{0:ÿ>,.2g}	[1]	err ValueError: Unknown format code 'g' for object of type 'string'
+u{0:ÿ>,.2o}	5	err ValueError: Grouping not allowed with integer format specifier 'o'
+u{0:ÿ>,e}	1.5	ok
+u{0:ÿ>0,.2E}	5	ok
+u{0:ÿ>0,.2g}	1.5	ok
+u{0:ÿ>0.2E}	1.5	ok
+u{0:ÿ>05,E}	None	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0:ÿ>05.2a}	'ab'	err ValueError: Unknown format code 'a' for object of type 'string'
+u{0:ÿ>05.2}	u'ab'	ok
+u{0:ÿ>05g}	5	ok
+u{0:ÿ>05i}	[1]	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0:ÿ>05s}	'ab'	ok
+u{0:ÿ>0}	1.5	ok
+u{0:ÿ>5,.2c}	[1]	err ValueError: Unknown format code 'c' for object of type 'string'
+u{0:ÿ>5.2n}	1.5	ok
+u{0:ÿ>5.2}	[1]	ok
+u{0:ÿ>e}	1.5	ok
+u{0:ÿ>n}	1.5	ok
+u{0:ÿ>}	[1]	ok
+u{0:ÿ^#,.2e}	5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0:ÿ^#05X}	5	ok
+u{0:ÿ^#5,d}	5	ok
+u{0:ÿ^#5,}	5	ok
+u{0:ÿ^#5b}	5	ok
+u{0:ÿ^#5o}	5	ok
+u{0:ÿ^#5x}	5	ok
+u{0:ÿ^+#,G}	'ab'	err ValueError: Unknown format code 'G' for object of type 'string'
+u{0:ÿ^+#0,d}	5	ok
+u{0:ÿ^+#0.2E}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0:ÿ^+#05x}	5	ok
+u{0:ÿ^+#5.2r}	None	err ValueError: Unknown format code 'r' for object of type 'string'
+u{0:ÿ^+#5x}	5	ok
+u{0:ÿ^+#E}	u'ab'	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0:ÿ^+#g}	1.5	err ValueError: Alternate form (#) not allowed in float format specifier
+u{0:ÿ^+,}	5	ok
+u{0:ÿ^+0,.2%}	1.5	ok
+u{0:ÿ^+0,E}	1.5	ok
+u{0:ÿ^+0,b}	None	err ValueError: Unknown format code 'b' for object of type 'string'
+u{0:ÿ^+0.2F}	1.5	ok
+u{0:ÿ^+0.2i}	None	err ValueError: Unknown format code 'i' for object of type 'string'
+u{0:ÿ^+05%}	1.5	ok
+u{0:ÿ^+05,g}	1.5	ok
+u{0:ÿ^+05.2E}	1.5	ok
+u{0:ÿ^+05E}	5	ok
+u{0:ÿ^+05o}	5	ok
+u{0:ÿ^+05}	5	ok
+u{0:ÿ^+0F}	5	ok
+u{0:ÿ^+5,.2E}	1.5	ok
+u{0:ÿ^+5,.2e}	5	ok
+u{0:ÿ^+5.2e}	1.5	ok
+u{0:ÿ^+5.2f}	1.5	ok
+u{0:ÿ^+5E}	5	ok
+u{0:ÿ^,.2F}	5	ok
+u{0:ÿ^,G}	1.5	ok
+u{0:ÿ^.2g}	1.5	ok
+u{0:ÿ^.2s}	None	ok
+u{0:ÿ^.2}	'ab'	ok
+u{0:ÿ^0%}	5	ok
+u{0:ÿ^0,G}	5	ok
+u{0:ÿ^0.2E}	1.5	ok
+u{0:ÿ^0.2}	[1]	ok
+u{0:ÿ^05%}	1.5	ok
+u{0:ÿ^05,.2E}	1.5	ok
+u{0:ÿ^05,.2Z}	u'ab'	err ValueError: Unknown format code 'Z' for object of type 'string'
+u{0:ÿ^05,f}	5	ok
+u{0:ÿ^05n}	1.5	ok
+u{0:ÿ^0f}	'ab'	err ValueError: Unknown format code 'f' for object of type 'string'
+u{0:ÿ^5,F}	5	ok
+u{0:ÿ^5.2E}	'ab'	err ValueError: Unknown format code 'E' for object of type 'string'
+u{0:ÿ^5X}	5	ok
+u{0:ÿ^5s}	None	ok
+u{0:ÿ^}	[1]	ok
+u{0:Ā<#.2%}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100<#.2%'
+u{0:Ā<#0,.2S}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100<#0,.2S'
+u{0:Ā<#05,.2d}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100<#05,.2d'
+u{0:Ā<#05o}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100<#05o'
+u{0:Ā<#5,.2z}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100<#5,.2z'
+u{0:Ā<#5S}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100<#5S'
+u{0:Ā<+#,j}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100<+#,j'
+u{0:Ā<+.2S}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100<+.2S'
+u{0:Ā<+0,u}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100<+0,u'
+u{0:Ā<+5,.2b}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100<+5,.2b'
+u{0:Ā<+5x}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100<+5x'
+u{0:Ā<0,.2n}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100<0,.2n'
+u{0:Ā<05.2g}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100<05.2g'
+u{0:Ā<5.2Z}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100<5.2Z'
+u{0:Ā<5u}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100<5u'
+u{0:Ā=#05,i}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100=#05,i'
+u{0:Ā=#5.2G}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100=#5.2G'
+u{0:Ā=+#05,.2%}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100=+#05,.2%'
+u{0:Ā=+#05,e}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100=+#05,e'
+u{0:Ā=+05,x}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100=+05,x'
+u{0:Ā=+d}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100=+d'
+u{0:Ā>#5.2}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100>#5.2'
+u{0:Ā>#j}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100>#j'
+u{0:Ā>+#05g}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100>+#05g'
+u{0:Ā>+5,.2u}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100>+5,.2u'
+u{0:Ā>+5,f}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100>+5,f'
+u{0:Ā>+5.2f}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100>+5.2f'
+u{0:Ā>+5}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100>+5'
+u{0:Ā>05j}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100>05j'
+u{0:Ā>5j}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100>5j'
+u{0:Ā^#05,.2F}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100^#05,.2F'
+u{0:Ā^#05,S}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100^#05,S'
+u{0:Ā^#05,b}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100^#05,b'
+u{0:Ā^+#.2x}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100^+#.2x'
+u{0:Ā^+#0,.2F}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u0100^+#0,.2F'
+u{0:Ā^+#5.2j}	5	err ValueError: Cannot create PyString with non-byte value: '\u0100^+#5.2j'
+u{0:Ā^+#5}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100^+#5'
+u{0:Ā^+.2%}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100^+.2%'
+u{0:Ā^+.2}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100^+.2'
+u{0:Ā^+5,.2e}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100^+5,.2e'
+u{0:Ā^+5.2n}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100^+5.2n'
+u{0:Ā^0.2b}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u0100^0.2b'
+u{0:Ā^05i}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u0100^05i'
+u{0:Ā^u}	None	err ValueError: Cannot create PyString with non-byte value: '\u0100^u'
+u{0:€<#05,.2o}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac<#05,.2o'
+u{0:€<#5.2Z}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac<#5.2Z'
+u{0:€<#5.2c}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac<#5.2c'
+u{0:€<#n}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac<#n'
+u{0:€<+#0,f}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+#0,f'
+u{0:€<+#5,B}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+#5,B'
+u{0:€<+,.2S}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+,.2S'
+u{0:€<+5,.2E}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+5,.2E'
+u{0:€<+5,E}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+5,E'
+u{0:€<+5F}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac<+5F'
+u{0:€=#,j}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac=#,j'
+u{0:€=#0,.2E}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac=#0,.2E'
+u{0:€=#5g}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac=#5g'
+u{0:€=+#0,j}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+#0,j'
+u{0:€=+#0.2f}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+#0.2f'
+u{0:€=+#i}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+#i'
+u{0:€=+.2B}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+.2B'
+u{0:€=+0,g}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+0,g'
+u{0:€=+0u}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+0u'
+u{0:€=+5,}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac=+5,'
+u{0:€=05,.2g}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac=05,.2g'
+u{0:€=05,.2z}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac=05,.2z'
+u{0:€>#.2u}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac>#.2u'
+u{0:€>#0,.2z}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac>#0,.2z'
+u{0:€>#05,s}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac>#05,s'
+u{0:€>+#.2G}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+#.2G'
+u{0:€>+#0,o}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+#0,o'
+u{0:€>+#05,G}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+#05,G'
+u{0:€>+#05,z}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+#05,z'
+u{0:€>+,.2i}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+,.2i'
+u{0:€>+,.2i}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+,.2i'
+u{0:€>+0.2g}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac>+0.2g'
+u{0:€>0.2e}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac>0.2e'
+u{0:€>5,G}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac>5,G'
+u{0:€>5.2f}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac>5.2f'
+u{0:€^#0,F}	[1]	err ValueError: Cannot create PyString with non-byte value: '\u20ac^#0,F'
+u{0:€^#0,d}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac^#0,d'
+u{0:€^#05F}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\u20ac^#05F'
+u{0:€^+#05,.2o}	None	err ValueError: Cannot create PyString with non-byte value: '\u20ac^+#05,.2o'
+u{0:€^+#5F}	1.5	err ValueError: Cannot create PyString with non-byte value: '\u20ac^+#5F'
+u{0:€^+f}	5	err ValueError: Cannot create PyString with non-byte value: '\u20ac^+f'
+u{0:🦀<#,.2X}	5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<#,.2X'
+u{0:🦀<#.2F}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<#.2F'
+u{0:🦀<#05,.2B}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<#05,.2B'
+u{0:🦀<+#,S}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#,S'
+u{0:🦀<+#05,.2c}	5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#05,.2c'
+u{0:🦀<+#05,.2n}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#05,.2n'
+u{0:🦀<+#0F}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#0F'
+u{0:🦀<+#0S}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#0S'
+u{0:🦀<+#5,.2a}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#5,.2a'
+u{0:🦀<+#5,X}	5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#5,X'
+u{0:🦀<+#S}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+#S'
+u{0:🦀<+0s}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+0s'
+u{0:🦀<+5,.2S}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+5,.2S'
+u{0:🦀<+d}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<+d'
+u{0:🦀<,.2o}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<,.2o'
+u{0:🦀<0.2F}	5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<0.2F'
+u{0:🦀<05a}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<05a'
+u{0:🦀<5,.2i}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980<5,.2i'
+u{0:🦀=#.2a}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=#.2a'
+u{0:🦀=#0,.2n}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=#0,.2n'
+u{0:🦀=#05,o}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=#05,o'
+u{0:🦀=#05,}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=#05,'
+u{0:🦀=#05.2f}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=#05.2f'
+u{0:🦀=#05G}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=#05G'
+u{0:🦀=#0x}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=#0x'
+u{0:🦀=+#0.2S}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=+#0.2S'
+u{0:🦀=+#05,.2E}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=+#05,.2E'
+u{0:🦀=+#5,G}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=+#5,G'
+u{0:🦀=+0.2d}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=+0.2d'
+u{0:🦀=+05,F}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=+05,F'
+u{0:🦀=+0z}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=+0z'
+u{0:🦀=c}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=c'
+u{0:🦀=i}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=i'
+u{0:🦀=z}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980=z'
+u{0:🦀>#0,f}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>#0,f'
+u{0:🦀>#0.2X}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>#0.2X'
+u{0:🦀>#05,a}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>#05,a'
+u{0:🦀>+#,.2B}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>+#,.2B'
+u{0:🦀>+#,.2r}	5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>+#,.2r'
+u{0:🦀>+#5.2u}	5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>+#5.2u'
+u{0:🦀>+0,.2s}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>+0,.2s'
+u{0:🦀>+5,a}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>+5,a'
+u{0:🦀>0,.2%}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>0,.2%'
+u{0:🦀>0,b}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>0,b'
+u{0:🦀>05b}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>05b'
+u{0:🦀>5,z}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980>5,z'
+u{0:🦀^#05,E}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^#05,E'
+u{0:🦀^#05,F}	[1]	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^#05,F'
+u{0:🦀^#05,x}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^#05,x'
+u{0:🦀^#05.2g}	5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^#05.2g'
+u{0:🦀^+#0}	1.5	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+#0'
+u{0:🦀^+#5,s}	u'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+#5,s'
+u{0:🦀^+.2X}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+.2X'
+u{0:🦀^+05,Z}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+05,Z'
+u{0:🦀^+05,d}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+05,d'
+u{0:🦀^+5,B}	'ab'	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^+5,B'
+u{0:🦀^05,g}	None	err ValueError: Cannot create PyString with non-byte value: '\U0001f980^05,g'

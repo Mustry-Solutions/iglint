@@ -127,6 +127,11 @@ from 0.1.0 on.
 - NAME001 offers no suggestion or fix for a name with a character whose
   case mapping changes length (`ﬁle_name` became `FIleName`), and says
   why.
+- SCR112 checks format specs with a Latin-1 fill character
+  (`u'{0:é>10s}'.format(0)` raises `ValueError: Unknown format code 's'`
+  on Jython), in unicode and byte format strings; byte strings are read
+  as Latin-1. Verified on 614,400 generated cases with Latin-1 fills
+  (`oracle/format-spec.sh nonascii`), all matching Jython.
 
 - Code iglint does not know no longer counts as vetted (review round 18,
   Opus, B1). A `system.*` member that the measured 8.3 stubs do not list

@@ -363,11 +363,22 @@ impl StandardSpec {
     }
 }
 
-/// The standard format spec `spec`, when it is well formed (and ASCII);
-/// `None` otherwise (left alone).
+/// The standard format spec `spec`, when it is well formed (and ASCII but
+/// for the fill character); `None` otherwise (left alone).
 fn standard_spec(spec: &str) -> Option<StandardSpec> {
     let chars: Vec<char> = spec.chars().collect();
-    if chars.iter().any(|c| !c.is_ascii()) {
+    // Jython takes a Latin-1 character before an alignment as the fill, in
+    // byte and unicode format strings alike (review round 21, Codex 1;
+    // `oracle/format-spec.sh nonascii`). A spec with a character beyond
+    // U+00FF always fails (`Cannot create PyString with non-byte value`),
+    // which the Unicode check reports: left alone here.
+    let fill = usize::from(
+        chars.first().is_some_and(|c| u32::from(*c) <= 0xff)
+            && chars
+                .get(1)
+                .is_some_and(|c| matches!(c, '<' | '>' | '=' | '^')),
+    );
+    if chars.iter().skip(fill).any(|c| !c.is_ascii()) {
         return None;
     }
     let mut out = StandardSpec::default();
@@ -966,7 +977,10 @@ fn string_of(e: &Expr) -> Option<String> {
     match e {
         Expr::Str(s) => match &s.s {
             StringValue::Unicode(u) => Some(u.to_string()),
-            StringValue::Bytes(b) => Some(String::from_utf8_lossy(b).into_owned()),
+            // A byte string holds bytes: read as Latin-1, so that `\xe9`
+            // is the one character Jython sees (a fill, say), and the
+            // UTF-8 bytes of non-ASCII source text stay separate bytes.
+            StringValue::Bytes(b) => Some(b.iter().map(|&byte| char::from(byte)).collect()),
         },
         _ => None,
     }
@@ -1469,6 +1483,9 @@ mod tests {
                 parts.next().unwrap(),
                 parts.next().unwrap(),
             );
+            // `u` and `b` mark unicode and byte format strings with a
+            // non-ASCII fill; the spec reads the same in both.
+            let fmt = fmt.trim_start_matches(['u', 'b']);
             let field = fmt.strip_prefix("{0").unwrap().strip_suffix('}').unwrap();
             let (converted, spec) = match field.split_once(':') {
                 Some((conversion, spec)) => (!conversion.is_empty(), spec),
@@ -1503,6 +1520,21 @@ mod tests {
             "../../../tests/fixtures/format-spec/sample.tsv"
         ));
         assert_eq!(checked, 4000);
+    }
+
+    /// Review round 21 (Codex 1): a Latin-1 fill character in unicode and
+    /// byte format strings (`u'{0:\xe9>10s}'.format(0)` raises). A stratified
+    /// sample of 2,000 of the 844,800 cases of `oracle/format-spec.sh
+    /// nonascii`, half of which Jython accepts; specs with a fill beyond
+    /// U+00FF are left to the Unicode check and skipped here. All 614,400
+    /// Latin-1 cases match (`format_specs_match_jython_everywhere` on the
+    /// full results).
+    #[test]
+    fn non_ascii_fills_match_jython() {
+        let checked = replay_format_specs(include_str!(
+            "../../../tests/fixtures/format-spec/nonascii.tsv"
+        ));
+        assert_eq!(checked, 1702);
     }
 
     /// Every generated case (`oracle/format-spec.sh all OUT`, then
@@ -1700,6 +1732,17 @@ mod tests {
                 "x = '{0:>>10}'.format(5)",
                 "Invalid conversion specification",
             ),
+            // A Latin-1 fill (review round 21, Codex 1).
+            (
+                "x = u'{0:\u{e9}>10s}'.format(0)",
+                "Unknown format code 's' for object of type 'integer'",
+            ),
+            (
+                "x = '{0:\\xe9>10s}'.format(0)",
+                "Unknown format code 's' for object of type 'integer'",
+            ),
+            // Beyond Latin-1, the spec itself fails.
+            ("x = u'{0:\u{100}>10s}'.format(0)", "beyond U+00FF"),
         ] {
             let d = lint_module("SCR112", code);
             assert_eq!(d.len(), 1, "{code}");
@@ -1717,6 +1760,7 @@ mod tests {
             // `datetime` and other objects have a `__format__` of their own.
             "x = '{0:%Y-%m-%d}'.format(day)",
             "x = '{0:dd}'.format(d)",
+            "x = u'{0:\u{e9}>10s}'.format('ab')",
         ] {
             assert!(lint_module("SCR112", code).is_empty(), "{code}");
         }
