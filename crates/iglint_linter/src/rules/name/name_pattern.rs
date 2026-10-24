@@ -2,11 +2,12 @@
 
 use std::collections::BTreeMap;
 
-use iglint_json::{Value, ValueKind};
+use iglint_json::{JsonString, Value, ValueKind};
 use iglint_project::node_path::strip_indices;
-use iglint_project::view::{Component, View};
+use iglint_project::script::ScriptBody;
+use iglint_project::view::{BindingConfig, Component, PropCategory, View};
 use iglint_project::{FileId, Owner};
-use iglint_text::{TextEdit, TextRange};
+use iglint_text::{TextEdit, TextRange, TextSize};
 use regex::Regex;
 use rustc_hash::FxHashSet;
 
@@ -15,10 +16,11 @@ use super::convention::{
 };
 use super::rename::{References, escaped};
 use crate::checker::Checker;
-use crate::diagnostic::{Fix, Severity};
+use crate::diagnostic::{Fix, ReasonSite, Severity, UnsafeReason};
 use crate::options::OptionReader;
 use crate::registry::{Category, FixAvailability, OptionMeta, OptionType, RuleMeta};
 use crate::rule::{Hook, ParsedOptions, Phase, RuleImpl, ViewRule};
+use crate::script_facts::AccessTarget;
 use crate::settings::OptionValue;
 
 pub static META: RuleMeta = RuleMeta {
@@ -40,32 +42,45 @@ only component names are checked, against PascalCase, and `root` is skipped.
 A failing name gets a suggestion in the configured convention. For
 components the suggestion is offered as a fix that renames the component
 and updates every reference to it in the view: property references in
-expressions (`{../Label.props.text}`, `{/root/Panel/Label.custom.x}`),
-property binding paths, indirect tag binding references, and literal
-`getChild('...')` / `getSibling('...')` calls in scripts whose receiver
-resolves (`self`, `self.parent`, `self.view.rootContainer`, earlier
-lookups). References are found by resolution, so a different component with
-the same name elsewhere in the view is left alone. The rename is unsafe when
-a script could find the component another way: it reads `meta.name`,
-looks children up with a computed name or a matching string, hands a
-component to code outside the view, reaches `eval`, `locals()` or a
-frame in any way (also under another name, `__builtin__.eval`), calls an
-unnamed value (`factory()()`), or calls a library name that is not a
-plain function, class or literal constant (it may be `eval` under
-another name; outside a project any such name counts).
+every binding and transform field Perspective parses as an expression
+(`{../Label.props.text}`, `{/root/Panel/Label.custom.x}`; the fields are
+measured in the Ignition image: expression bindings and structures, query
+parameters, tag paths and indirect references, polling rates, tag history
+date ranges and return sizes, HTTP URLs, bodies, header and authorization
+values, expression and map transforms), property binding paths, and
+literal `getChild('...')` / `getSibling('...')` calls in scripts whose
+receiver resolves (`self`, `self.parent`, `self.view.rootContainer`,
+earlier lookups). References are found by resolution, so a different
+component with the same name elsewhere in the view is left alone. The
+rename is unsafe when a script could find the component another way: it
+reads `meta.name`, or the component's name through the members measured
+to return it (`self.name`, `c.getName()`, also for a component reached
+through `children`, `getChildren()`, a loop or an index), looks children
+up with a computed name or a matching string, hands a component to code
+outside the view, reaches `eval`, `locals()` or a frame in any way (also
+under another name, `__builtin__.eval`), calls an unnamed value
+(`factory()()`), or calls a library name that is not a plain function,
+class or literal constant (it may be `eval` under another name; outside a
+project any such name counts).
 
 The fix is offered only when every reference can be updated: a literal
 lookup on an unresolvable receiver naming the component, a suggestion that
 is taken by a sibling or that would itself break the convention, means no
 fix. It is *safe* when nothing could refer to the component in a way
-iglint cannot follow: no references at all, no script reads `meta.name`,
-no script looks up children with computed names or has a string literal
-equal to the name, every script parses, and no script hands a component
-to code outside the view (passing `self`, `self.parent`, `event.source`
-or another component to a library function, in a message payload, to
-`getGlobals()` or to any call iglint does not model): a library function
-that receives a component may call `getChild('SaveButton')` itself. It is
-*unsafe* otherwise.
+iglint cannot follow: no references at all, no script reads the
+component's name (`meta.name`, `name`, `getName()`), no script looks up
+children with computed names or has a string literal equal to the name,
+every script parses, no script hands a component to code outside the view
+(passing `self`, `self.parent`, `event.source` or another component to a
+library function, in a message payload, to `getGlobals()` or to any call
+iglint does not model): a library function that receives a component may
+call `getChild('SaveButton')` itself; no string of the view that iglint
+does not read as an expression or script holds a `{...}` reference (an
+action's settings, a field of an unknown binding type); no reference is
+written with whitespace inside its braces (`{ ../Label.props.text }`,
+which Perspective reads as a tag path); and no string of the view holds
+the name, as a word, anywhere the fix does not update it. It is *unsafe*
+otherwise, and names the place that keeps it from being safe.
 
 Keys of `props` that the component's schema declares (`text`, `style`,
 `pipes`, ...) are Ignition's names, not yours, and are never checked; only
@@ -650,14 +665,15 @@ fn emit(
         .fix_opt(fix);
 }
 
-fn check_components(
+fn check_components<'v>(
     cx: &mut Checker<'_, '_>,
-    view: &View<'_>,
+    view: &'v View<'v>,
     file: FileId,
     rules: &TypeRules,
     options: &Options,
 ) {
     let mut references: Option<References> = None;
+    let mut guards: Option<Guards<'v>> = None;
     // Names claimed by earlier renames, per parent.
     let mut claimed: FxHashSet<(Option<u32>, String)> = FxHashSet::default();
     for c in &view.components {
@@ -706,7 +722,7 @@ fn check_components(
             }
             let refs =
                 references.get_or_insert_with(|| References::collect(view, cx.parsed_scripts()));
-            let fix = rename_fix(cx, view, c, file, new, refs)?;
+            let fix = rename_fix(cx, view, c, file, new, refs, &mut guards)?;
             claimed.insert(key);
             Some(fix)
         });
@@ -714,13 +730,14 @@ fn check_components(
     }
 }
 
-fn rename_fix(
+fn rename_fix<'v>(
     cx: &Checker<'_, '_>,
-    view: &View<'_>,
+    view: &'v View<'v>,
     c: &Component<'_>,
     file: FileId,
     new: &str,
     refs: &References,
+    guards: &mut Option<Guards<'v>>,
 ) -> Option<Fix> {
     if refs.blocked.contains(c.name) {
         return None;
@@ -730,17 +747,22 @@ fn rename_fix(
     let style = editor.escape_style();
     let mut edits = vec![editor.replace_with_string(name_value, new)];
     let mut count = 0;
+    let mut sites = FxHashSet::default();
     for site in refs.sites.iter().filter(|s| s.component == c.id) {
         edits.push(TextEdit::replace(site.range, escaped(new, style)));
+        sites.insert(site.range);
         count += 1;
     }
     // Code that is not vetted may look the component up in ways iglint
     // does not know (`cPickle.loads` of an `eval` opcode). Closed world:
     // such code anywhere in the shared runtime counts.
     let vetting = crate::rules::vetting::unit_reason(cx);
+    let guards = guards.get_or_insert_with(|| Guards::collect(cx, view));
+    let observed = guards.observed(cx, file, c, refs, &sites);
     let risky = count > 0
         || components_may_escape(cx, view)
         || vetting.is_some()
+        || observed.is_some()
         || refs.meta_name_read.contains(&c.id)
         || refs.dynamic_meta_name
         || refs.dynamic_lookup
@@ -748,10 +770,233 @@ fn rename_fix(
     let message = format!("Rename component '{}' to '{new}'", c.name);
     let edits = cx.file_edits(file, edits);
     Some(if risky {
-        Fix::unsafe_edit(message, edits).because(vetting)
+        Fix::unsafe_edit(message, edits).because(vetting.or(observed))
     } else {
         Fix::safe(message, edits)
     })
+}
+
+/// What can read a component's name, or name a component, in ways the
+/// rename does not update, for every rename of one view: name reads of the
+/// scripts, and the strings of the view iglint does not read as code.
+struct Guards<'v> {
+    /// Reads of a component's name (`self.name`, `c.getName()` for a
+    /// child `c`, measured members of the component script object): the
+    /// component read (`AnyComponent` when it cannot be determined) and
+    /// the file range.
+    name_reads: Vec<(AccessTarget, TextRange)>,
+    /// Every JSON string (values and keys) of the view except the script
+    /// bodies (analysed as scripts) and the components' own names.
+    strings: Vec<&'v JsonString<'v>>,
+    /// The first `{...}` reference-like token in a string that is neither
+    /// a modelled expression nor a property binding path: Perspective may
+    /// read it as a reference iglint does not resolve.
+    token: Option<(TextRange, String)>,
+}
+
+impl<'v> Guards<'v> {
+    fn collect(cx: &Checker<'_, '_>, view: &'v View<'v>) -> Guards<'v> {
+        let (accesses, _) = cx.script_property_accesses();
+        let name_reads = accesses
+            .iter()
+            .filter(|a| {
+                a.category == PropCategory::Meta
+                    && a.read
+                    && a.name.as_deref().is_none_or(|n| n == "name")
+            })
+            .map(|a| (a.target, a.range))
+            .collect();
+        let mut skip: FxHashSet<TextRange> = FxHashSet::default();
+        for s in &view.scripts {
+            if let ScriptBody::Json(body) = &s.body {
+                skip.insert(body.range());
+            }
+        }
+        for comp in &view.components {
+            if let Some(ValueKind::String(n)) = comp.name_value.map(|v| &v.kind) {
+                skip.insert(n.range());
+            }
+        }
+        let mut parsed: FxHashSet<TextRange> =
+            view.expressions.iter().map(|e| e.source.range()).collect();
+        for b in &view.bindings {
+            if let BindingConfig::Property(p) = &b.typed
+                && let Some(path) = p.path
+            {
+                parsed.insert(path.range());
+            }
+        }
+        let mut strings = Vec::new();
+        collect_strings(view.root, &mut strings);
+        strings.retain(|s| !skip.contains(&s.range()));
+        let token = strings
+            .iter()
+            .filter(|s| !parsed.contains(&s.range()))
+            .find_map(|s| {
+                reference_like_token(s.value()).map(|r| (s.raw_range(r), s.value().to_owned()))
+            });
+        Guards {
+            name_reads,
+            strings,
+            token,
+        }
+    }
+
+    /// Why renaming `c` may change what the view does although the edits
+    /// update every reference iglint resolves (`sites`): a script reads
+    /// its name, a reference Perspective reads as a tag path names it, a
+    /// string iglint does not read may hold a reference, or a string holds
+    /// its name where the fix does not update it.
+    fn observed(
+        &self,
+        cx: &Checker<'_, '_>,
+        file: FileId,
+        c: &Component<'_>,
+        refs: &References,
+        sites: &FxHashSet<TextRange>,
+    ) -> Option<UnsafeReason> {
+        if let Some((_, range)) = self.name_reads.iter().find(|(t, _)| {
+            matches!(t, AccessTarget::AnyComponent)
+                || matches!(t, AccessTarget::Component(id) if *id == c.id)
+        }) {
+            return Some(reason_at(
+                cx,
+                file,
+                *range,
+                "a script reads the component's name, which the rename changes",
+            ));
+        }
+        if let Some((_, range)) = refs.fragile.iter().find(|(id, _)| *id == c.id) {
+            return Some(reason_at(
+                cx,
+                file,
+                *range,
+                "a reference with whitespace inside its braces names the component; \
+                 Perspective reads it as a tag path",
+            ));
+        }
+        if let Some((range, _)) = &self.token {
+            return Some(reason_at(
+                cx,
+                file,
+                *range,
+                "a string iglint does not read as an expression holds a `{...}` reference",
+            ));
+        }
+        for s in &self.strings {
+            for (i, _) in s.value().match_indices(c.name) {
+                if !is_word(s.value(), i, c.name.len()) {
+                    continue;
+                }
+                let range = s.raw_range(TextRange::at(
+                    TextSize::from(i as u32),
+                    TextSize::of(c.name),
+                ));
+                if !sites.contains(&range) {
+                    return Some(reason_at(
+                        cx,
+                        file,
+                        range,
+                        "a string of the view holds the component's name where the rename \
+                         does not update it",
+                    ));
+                }
+            }
+        }
+        None
+    }
+}
+
+/// Every JSON string of `v`: member keys and string values.
+fn collect_strings<'v>(v: &'v Value<'v>, out: &mut Vec<&'v JsonString<'v>>) {
+    match &v.kind {
+        ValueKind::String(s) => out.push(s),
+        ValueKind::Object(o) => {
+            for m in o.iter() {
+                out.push(&m.key);
+                collect_strings(&m.value, out);
+            }
+        }
+        ValueKind::Array(a) => {
+            for item in a.iter() {
+                collect_strings(item, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Whether `text[at..at + len]` is not part of a longer identifier.
+fn is_word(text: &str, at: usize, len: usize) -> bool {
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    !text[..at].chars().next_back().is_some_and(ident)
+        && !text[at + len..].chars().next().is_some_and(ident)
+}
+
+/// The first `{...}` in `text` whose content, without surrounding
+/// whitespace, starts like a Perspective property reference: `this`,
+/// `view`, `parent`, `page` or `session` followed by `.`, `[` or nothing;
+/// a relative (`.`) or absolute (`/`) path; or `Name.props`, `.custom`,
+/// `.meta`, `.position`, `.params`. The range of the braces and content.
+fn reference_like_token(text: &str) -> Option<TextRange> {
+    let mut from = 0;
+    while let Some(open) = text[from..].find('{').map(|i| i + from) {
+        let rest = &text[open + 1..];
+        let close = rest.find(['{', '}'])?;
+        if rest.as_bytes()[close] == b'}' && looks_like_reference(&rest[..close]) {
+            return Some(TextRange::new(
+                TextSize::from(open as u32),
+                TextSize::from((open + close + 2) as u32),
+            ));
+        }
+        from = open + 1 + close;
+    }
+    None
+}
+
+fn looks_like_reference(content: &str) -> bool {
+    let t = content.trim();
+    if t.starts_with('.') || t.starts_with('/') {
+        return true;
+    }
+    for head in ["this", "view", "parent", "page", "session"] {
+        if let Some(rest) = t.strip_prefix(head)
+            && (rest.is_empty() || rest.starts_with(['.', '[']))
+        {
+            return true;
+        }
+    }
+    let Some((first, rest)) = t.split_once('.') else {
+        return false;
+    };
+    !first.is_empty()
+        && ["props", "custom", "meta", "position", "params"]
+            .iter()
+            .any(|ty| {
+                rest == *ty
+                    || rest.starts_with(&format!("{ty}."))
+                    || rest.starts_with(&format!("{ty}["))
+            })
+}
+
+/// An [`UnsafeReason`] naming `range` of the view's file.
+fn reason_at(cx: &Checker<'_, '_>, file: FileId, range: TextRange, message: &str) -> UnsafeReason {
+    let site = cx.file(file).map(|source| {
+        let at = source
+            .line_index()
+            .line_column(range.start(), source.text());
+        ReasonSite {
+            path: source.path().to_path_buf(),
+            line: at.line,
+            column: at.column,
+            what: crate::script_facts::access::snippet(source.text(), range),
+        }
+    });
+    UnsafeReason {
+        message: message.to_owned(),
+        site,
+        workspace: false,
+    }
 }
 
 /// Whether a script of the view may hand a component to code outside the
@@ -1598,5 +1843,185 @@ skip-names = ["root", "Legacy_Name"]"#,
             applicability(r"\tself.page.props.path\n\tself.getSibling('Btn').props.text = 'x'"),
             Some(crate::Applicability::Safe)
         );
+    }
+
+    /// The NAME001 finding for component `name` in `view`, and its fix.
+    fn rename_of(view: &str, name: &str) -> (Option<crate::Applicability>, Option<String>) {
+        let f = Fixture::view(view);
+        let d = f.lint_with(&[("NAME001", "convention = \"PascalCase\"")]);
+        let d = d
+            .iter()
+            .find(|d| d.message.contains(&format!("'{name}'")))
+            .unwrap_or_else(|| panic!("{name}: {d:?}"));
+        let fix = d.fix.as_ref();
+        (
+            fix.map(|f| f.applicability),
+            fix.and_then(|f| f.unsafe_reason.as_ref())
+                .map(|r| r.describe(|p| p.display().to_string())),
+        )
+    }
+
+    fn with_bindings(bindings: &str) -> String {
+        root(&[
+            component("start_date", "ia.input.date-time-input", ""),
+            component("api_token", "ia.input.text-field", ""),
+            component(
+                "Chart",
+                "ia.display.label",
+                &format!(r#", "propConfig": {{{bindings}}}"#),
+            ),
+        ])
+    }
+
+    const HISTORY: &str = r#""props.text": {"binding": {"type": "tag-history", "config": {"dateRange": {"startDate": "{../start_date.props.value}", "endDate": "now()"}, "tags": [{"path": "[default]T"}], "returnSize": {"type": "raw"}}}}"#;
+    const HTTP: &str = r#""props.style": {"binding": {"type": "http", "config": {"request": {"url": "'https://example.com'", "method": "GET", "header": [{"key": "Authorization", "value": "'Bearer ' + {../api_token.props.text}"}]}}}}"#;
+
+    /// Reviewer round 10, O1: references in binding fields iglint did not
+    /// model (tag history date ranges, HTTP header values) are updated by
+    /// the rename, which is therefore unsafe, never a safe rename that
+    /// leaves them dangling.
+    #[test]
+    fn references_in_measured_binding_fields_are_renamed() {
+        let view = with_bindings(&format!("{HISTORY}, {HTTP}"));
+        assert_eq!(
+            rename_of(&view, "start_date").0,
+            Some(crate::Applicability::Unsafe)
+        );
+        assert_eq!(
+            rename_of(&view, "api_token").0,
+            Some(crate::Applicability::Unsafe)
+        );
+        let f = Fixture::view(&view);
+        let rules = [("NAME001", "convention = \"PascalCase\"")];
+        let fixed = f.fixed(&rules, true, &f.view_path("Main"));
+        assert!(fixed.contains("{../StartDate.props.value}"), "{fixed}");
+        assert!(fixed.contains("{../APIToken.props.text}"), "{fixed}");
+        assert!(!fixed.contains("start_date") && !fixed.contains("api_token"));
+    }
+
+    /// Reviewer round 10, O1 (c): a `{...}` reference in a string iglint
+    /// does not read as an expression (an action's settings), or the
+    /// component's name in any string the fix does not update, makes the
+    /// rename unsafe and names the place.
+    #[test]
+    fn unread_strings_make_the_rename_unsafe() {
+        let action = |config: &str| {
+            root(&[
+                component("start_date", "ia.input.date-time-input", ""),
+                component(
+                    "Btn",
+                    "ia.input.button",
+                    &format!(
+                        r#", "events": {{"component": {{"onActionPerformed": {{"type": "navigate", "scope": "C", "config": {config}}}}}}}"#
+                    ),
+                ),
+            ])
+        };
+        let (applicability, reason) = rename_of(
+            &action(r#"{"url": "/x?d={../start_date.props.value}"}"#),
+            "start_date",
+        );
+        assert_eq!(applicability, Some(crate::Applicability::Unsafe));
+        let reason = reason.unwrap();
+        assert!(
+            reason.contains("does not read as an expression"),
+            "{reason}"
+        );
+        assert!(reason.contains("{../start_date.props.value}"), "{reason}");
+        let (applicability, reason) =
+            rename_of(&action(r#"{"page": "/start_date"}"#), "start_date");
+        assert_eq!(applicability, Some(crate::Applicability::Unsafe));
+        assert!(reason.unwrap().contains("holds the component's name"));
+        // Braces that are no reference, and another word containing the
+        // name, keep the rename safe.
+        let (applicability, _) = rename_of(
+            &action(r#"{"page": "/x/{id}/my_start_dates", "text": "{not a reference}"}"#),
+            "start_date",
+        );
+        assert_eq!(applicability, Some(crate::Applicability::Safe));
+    }
+
+    /// Reviewer round 10, O2: reading a component's name through the
+    /// script object's `name` / `getName()` (measured members), directly,
+    /// through `children`, `getChildren()`, a loop or an index, blocks the
+    /// safe rename.
+    #[test]
+    fn name_reads_through_the_script_object_make_the_rename_unsafe() {
+        let view = |script: &str| {
+            format!(
+                r#"{{"custom": {{"selected": "", "target": "x"}}, "params": {{}}, "root": {{"meta": {{"name": "root"}}, "type": "ia.container.flex", "children": [{}, {}, {}]}}}}"#,
+                component("pump_a", "ia.input.button", ""),
+                component(
+                    "PumpB",
+                    "ia.input.button",
+                    &format!(
+                        r#", "events": {{"component": {{"onActionPerformed": {{"type": "script", "scope": "G", "config": {{"script": "{script}"}}}}}}}}"#
+                    ),
+                ),
+                component("my_label", "ia.display.label", ""),
+            )
+        };
+        let (applicability, reason) = rename_of(
+            &view(r"\tself.view.custom.selected = self.parent.getChild('pump_a').name"),
+            "pump_a",
+        );
+        assert_eq!(applicability, Some(crate::Applicability::Unsafe));
+        assert!(reason.unwrap().contains("reads the component's name"));
+        for script in [
+            r"\tfor c in self.parent.getChildren():\n\t\tif c.name == self.view.custom.target:\n\t\t\tc.props.text = 'x'",
+            r"\tself.view.custom.selected = self.parent.getChildren()[0].name",
+            r"\tfor c in self.parent.children:\n\t\tself.view.custom.selected = c.name",
+            r"\tself.view.custom.selected = self.parent.getChildren()[2].getName()",
+        ] {
+            let (applicability, reason) = rename_of(&view(script), "my_label");
+            assert_eq!(
+                applicability,
+                Some(crate::Applicability::Unsafe),
+                "{script}"
+            );
+            assert!(
+                reason
+                    .as_deref()
+                    .is_some_and(|r| r.contains("reads the component's name")),
+                "{script}: {reason:?}"
+            );
+        }
+        // `self.name` in a script of `pump_a` itself.
+        let own = root(&[component(
+            "pump_a",
+            "ia.input.button",
+            r#", "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": "\tself.view.custom.selected = self.name"}}}}"#,
+        )]);
+        let (applicability, reason) = rename_of(&own, "pump_a");
+        assert_eq!(applicability, Some(crate::Applicability::Unsafe));
+        assert!(reason.unwrap().contains("`name`"));
+        let own = own.replace("self.name", "self.getName()");
+        assert_eq!(
+            rename_of(&own, "pump_a").0,
+            Some(crate::Applicability::Unsafe)
+        );
+        // Reading another known component's name does not block this one.
+        let other = view(r"\tself.view.custom.selected = self.name");
+        assert_eq!(
+            rename_of(&other, "my_label").0,
+            Some(crate::Applicability::Safe)
+        );
+    }
+
+    /// Reviewer round 10, O3: `{ ../pump_a.props.text }` is a tag path to
+    /// Perspective; renaming `pump_a` cannot be proven not to change it.
+    #[test]
+    fn references_with_spaces_inside_the_braces_make_the_rename_unsafe() {
+        let view = root(&[
+            component("pump_a", "ia.input.button", ""),
+            component(
+                "Label",
+                "ia.display.label",
+                r#", "propConfig": {"props.text": {"binding": {"type": "expr", "config": {"expression": "{ ../pump_a.props.text }"}}}}"#,
+            ),
+        ]);
+        let (applicability, reason) = rename_of(&view, "pump_a");
+        assert_eq!(applicability, Some(crate::Applicability::Unsafe));
+        assert!(reason.unwrap().contains("whitespace inside its braces"));
     }
 }

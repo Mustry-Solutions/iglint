@@ -623,3 +623,93 @@ fn reads_of_files_outside_the_workspace_keep_fixes_safe() {
         "x = open('/tmp/report.csv').read()\n"
     );
 }
+
+/// Reviewer round 10, O1 and O2, through the binary: `--fix` must not
+/// rename a component referenced from a tag history date range or an HTTP
+/// header value (fields iglint did not model), nor one whose name a script
+/// reads through `name`; `--fix --unsafe-fixes` renames and updates the
+/// references; the JSON output names the place that makes it unsafe.
+#[test]
+fn component_renames_respect_measured_fields_and_name_reads() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("p")).unwrap();
+    std::fs::write(
+        dir.path().join("p/project.json"),
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("iglint.toml"),
+        "[rules.NAME001]\nconvention = \"PascalCase\"\n",
+    )
+    .unwrap();
+    let view = r#"{"custom": {"selected": ""}, "params": {}, "root": {"meta": {"name": "root"}, "type": "ia.container.flex", "children": [
+  {"meta": {"name": "start_date"}, "type": "ia.input.date-time-input"},
+  {"meta": {"name": "api_token"}, "type": "ia.input.text-field"},
+  {"meta": {"name": "pump_a"}, "type": "ia.input.button", "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": "\tself.view.custom.selected = self.name"}}}}},
+  {"meta": {"name": "Chart"}, "type": "ia.display.label", "propConfig": {
+    "props.text": {"binding": {"type": "tag-history", "config": {"dateRange": {"startDate": "{../start_date.props.value}", "endDate": "now(60000)"}, "tags": [{"path": "[default]T"}], "returnSize": {"type": "raw"}}}},
+    "props.style": {"binding": {"type": "http", "config": {"request": {"url": "'https://example.com'", "method": "GET", "header": [{"key": "Authorization", "value": "'Bearer ' + {../api_token.props.text}"}]}}}}}}]}}"#;
+    let dir_v = dir
+        .path()
+        .join("p/com.inductiveautomation.perspective/views/Main");
+    std::fs::create_dir_all(&dir_v).unwrap();
+    std::fs::write(
+        dir_v.join("resource.json"),
+        r#"{"scope": "G", "version": 1, "files": ["view.json"]}"#,
+    )
+    .unwrap();
+    let path = dir_v.join("view.json");
+    std::fs::write(&path, view).unwrap();
+    let out = iglint(dir.path())
+        .args([
+            "--no-cache",
+            "--select",
+            "NAME001",
+            "--output-format",
+            "json",
+        ])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let finding = |name: &str| {
+        v.as_array()
+            .unwrap()
+            .iter()
+            .find(|d| {
+                d["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains(&format!("'{name}'"))
+            })
+            .unwrap_or_else(|| panic!("{name}: {v}"))
+            .clone()
+    };
+    for name in ["start_date", "api_token", "pump_a"] {
+        assert_eq!(finding(name)["fix"]["applicability"], "unsafe", "{name}");
+    }
+    let reason = &finding("pump_a")["fix"]["unsafe_reason"];
+    assert_eq!(
+        reason["message"], "a script reads the component's name, which the rename changes",
+        "{reason}"
+    );
+    assert_eq!(reason["what"], "name", "{reason}");
+    iglint(dir.path())
+        .args(["--no-cache", "--fix", "--select", "NAME001"])
+        .output()
+        .unwrap();
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), view);
+    iglint(dir.path())
+        .args([
+            "--no-cache",
+            "--fix",
+            "--unsafe-fixes",
+            "--select",
+            "NAME001",
+        ])
+        .output()
+        .unwrap();
+    let fixed = std::fs::read_to_string(&path).unwrap();
+    assert!(fixed.contains("{../StartDate.props.value}"), "{fixed}");
+    assert!(fixed.contains("{../APIToken.props.text}"), "{fixed}");
+}

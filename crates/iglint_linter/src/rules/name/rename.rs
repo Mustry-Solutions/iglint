@@ -31,7 +31,7 @@
 //! separately (`components_may_escape`), since that code could read
 //! `meta.name` too.
 
-use iglint_expression::{PropertyRef, PropertyTarget, Reference};
+use iglint_expression::{PropertyRef, PropertyTarget, Reference, misspaced_property_ref};
 use iglint_project::view::{BindingConfig, View};
 use iglint_project::{ComponentId, EmbeddedScript, Owner};
 use iglint_python::ast::{Expr, ExprCall};
@@ -64,6 +64,11 @@ pub struct References {
     pub literals: FxHashSet<String>,
     /// `getChild(x)` / `getSibling(x)` with a computed argument.
     pub dynamic_lookup: bool,
+    /// References Perspective reads as tag paths only because of
+    /// whitespace inside the braces (`{ ../Label.props.text }`): the
+    /// components they would name (or whose `meta` they would read) and
+    /// where. Renaming cannot be proven not to change what they mean.
+    pub fragile: Vec<(ComponentId, TextRange)>,
 }
 
 impl References {
@@ -72,9 +77,25 @@ impl References {
     pub fn collect(view: &View<'_>, parsed: &[iglint_python::Parsed]) -> References {
         let mut refs = References::default();
         for e in &view.expressions {
-            for (_, r) in e.references() {
-                if let Reference::Property(p) = r {
-                    refs.property_ref(view, e.owner, &p, &|r| e.file_range(r));
+            for (bound, r) in e.references() {
+                match r {
+                    Reference::Property(p) => {
+                        refs.property_ref(view, e.owner, &p, &|r| e.file_range(r));
+                    }
+                    Reference::Tag(_) => {
+                        let Some(p) = misspaced_property_ref(&bound.path, bound.path_range.start())
+                        else {
+                            continue;
+                        };
+                        let mut named = References::default();
+                        named.property_ref(view, e.owner, &p, &|r| e.file_range(r));
+                        let at = e.file_range(bound.path_range);
+                        refs.fragile
+                            .extend(named.sites.iter().map(|s| (s.component, at)));
+                        refs.fragile
+                            .extend(named.meta_name_read.iter().map(|c| (*c, at)));
+                    }
+                    _ => {}
                 }
             }
         }

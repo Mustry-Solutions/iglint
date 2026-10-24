@@ -923,3 +923,75 @@ fn quick_fixes_are_unsafe_when_scripts_read_workspace_files() {
         client.shutdown();
     }
 }
+
+/// The NAME001 quick fixes offered for the component `name` of `view`: the
+/// title and whether each is preferred (safe).
+fn name001_fixes(view: &str, name: &str) -> Vec<(String, Option<bool>)> {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    demo_project(&root);
+    write(
+        &root,
+        "iglint.toml",
+        "extend-select = [\"NAME001\"]\n\n[rules.NAME001]\nconvention = \"PascalCase\"\n",
+    );
+    let views = "projects/demo/com.inductiveautomation.perspective/views";
+    write(&root, &format!("{views}/R10/resource.json"), MANIFEST);
+    let path = write(&root, &format!("{views}/R10/view.json"), view);
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&path, view);
+    let published = client.diagnostics(&uri, Some(1));
+    let range = published
+        .diagnostics
+        .iter()
+        .find(|d| d.message.contains(&format!("'{name}'")))
+        .unwrap_or_else(|| panic!("{published:#?}"))
+        .range;
+    let fixes = code_actions(
+        &mut client,
+        &uri,
+        range,
+        Some(vec![CodeActionKind::QUICKFIX]),
+    )
+    .into_iter()
+    .filter(|a| a.title.starts_with("NAME001") && !a.title.contains("suppress"))
+    .map(|a| (a.title, a.is_preferred))
+    .collect();
+    client.shutdown();
+    fixes
+}
+
+/// Reviewer round 10, O1 and O2, through the language server: a
+/// reference in an HTTP header value, or a script reading the
+/// component's `name`, makes the rename quick fix unsafe (not preferred);
+/// without them it is safe and preferred.
+#[test]
+fn rename_quick_fix_sees_measured_fields_and_name_reads() {
+    let view = |extra: &str, script: &str| {
+        format!(
+            r#"{{"custom": {{"s": ""}}, "params": {{}}, "root": {{"meta": {{"name": "root"}}, "type": "ia.container.flex", "children": [
+  {{"meta": {{"name": "api_token"}}, "type": "ia.input.text-field", "events": {{"component": {{"onActionPerformed": {{"type": "script", "scope": "G", "config": {{"script": "{script}"}}}}}}}}}},
+  {{"meta": {{"name": "Chart"}}, "type": "ia.display.label"{extra}}}]}}}}
+"#
+        )
+    };
+    let http = r#", "propConfig": {"props.text": {"binding": {"type": "http", "config": {"request": {"url": "'u'", "method": "GET", "header": [{"key": "A", "value": "'Bearer ' + {../api_token.props.text}"}]}}}}}"#;
+    for (extra, script) in [
+        (http, r"\tpass"),
+        ("", r"\tself.view.custom.s = self.name"),
+        ("", r"\tself.view.custom.s = self.getName()"),
+    ] {
+        let fixes = name001_fixes(&view(extra, script), "api_token");
+        assert!(!fixes.is_empty(), "{script}");
+        for (title, preferred) in &fixes {
+            assert!(title.contains("unsafe"), "{title}");
+            assert_eq!(*preferred, Some(false), "{title}");
+        }
+    }
+    let fixes = name001_fixes(&view("", r"\tpass"), "api_token");
+    assert!(!fixes.is_empty());
+    for (title, preferred) in &fixes {
+        assert!(!title.contains("unsafe"), "{title}");
+        assert_eq!(*preferred, Some(true), "{title}");
+    }
+}

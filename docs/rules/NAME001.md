@@ -25,32 +25,45 @@ only component names are checked, against PascalCase, and `root` is skipped.
 A failing name gets a suggestion in the configured convention. For
 components the suggestion is offered as a fix that renames the component
 and updates every reference to it in the view: property references in
-expressions (`{../Label.props.text}`, `{/root/Panel/Label.custom.x}`),
-property binding paths, indirect tag binding references, and literal
-`getChild('...')` / `getSibling('...')` calls in scripts whose receiver
-resolves (`self`, `self.parent`, `self.view.rootContainer`, earlier
-lookups). References are found by resolution, so a different component with
-the same name elsewhere in the view is left alone. The rename is unsafe when
-a script could find the component another way: it reads `meta.name`,
-looks children up with a computed name or a matching string, hands a
-component to code outside the view, reaches `eval`, `locals()` or a
-frame in any way (also under another name, `__builtin__.eval`), calls an
-unnamed value (`factory()()`), or calls a library name that is not a
-plain function, class or literal constant (it may be `eval` under
-another name; outside a project any such name counts).
+every binding and transform field Perspective parses as an expression
+(`{../Label.props.text}`, `{/root/Panel/Label.custom.x}`; the fields are
+measured in the Ignition image: expression bindings and structures, query
+parameters, tag paths and indirect references, polling rates, tag history
+date ranges and return sizes, HTTP URLs, bodies, header and authorization
+values, expression and map transforms), property binding paths, and
+literal `getChild('...')` / `getSibling('...')` calls in scripts whose
+receiver resolves (`self`, `self.parent`, `self.view.rootContainer`,
+earlier lookups). References are found by resolution, so a different
+component with the same name elsewhere in the view is left alone. The
+rename is unsafe when a script could find the component another way: it
+reads `meta.name`, or the component's name through the members measured
+to return it (`self.name`, `c.getName()`, also for a component reached
+through `children`, `getChildren()`, a loop or an index), looks children
+up with a computed name or a matching string, hands a component to code
+outside the view, reaches `eval`, `locals()` or a frame in any way (also
+under another name, `__builtin__.eval`), calls an unnamed value
+(`factory()()`), or calls a library name that is not a plain function,
+class or literal constant (it may be `eval` under another name; outside a
+project any such name counts).
 
 The fix is offered only when every reference can be updated: a literal
 lookup on an unresolvable receiver naming the component, a suggestion that
 is taken by a sibling or that would itself break the convention, means no
 fix. It is *safe* when nothing could refer to the component in a way
-iglint cannot follow: no references at all, no script reads `meta.name`,
-no script looks up children with computed names or has a string literal
-equal to the name, every script parses, and no script hands a component
-to code outside the view (passing `self`, `self.parent`, `event.source`
-or another component to a library function, in a message payload, to
-`getGlobals()` or to any call iglint does not model): a library function
-that receives a component may call `getChild('SaveButton')` itself. It is
-*unsafe* otherwise.
+iglint cannot follow: no references at all, no script reads the
+component's name (`meta.name`, `name`, `getName()`), no script looks up
+children with computed names or has a string literal equal to the name,
+every script parses, no script hands a component to code outside the view
+(passing `self`, `self.parent`, `event.source` or another component to a
+library function, in a message payload, to `getGlobals()` or to any call
+iglint does not model): a library function that receives a component may
+call `getChild('SaveButton')` itself; no string of the view that iglint
+does not read as an expression or script holds a `{...}` reference (an
+action's settings, a field of an unknown binding type); no reference is
+written with whitespace inside its braces (`{ ../Label.props.text }`,
+which Perspective reads as a tag path); and no string of the view holds
+the name, as a word, anywhere the fix does not update it. It is *unsafe*
+otherwise, and names the place that keeps it from being safe.
 
 Keys of `props` that the component's schema declares (`text`, `style`,
 `pipes`, ...) are Ignition's names, not yours, and are never checked; only
