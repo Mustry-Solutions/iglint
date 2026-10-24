@@ -769,3 +769,31 @@ fn cache_is_written_to_the_project_root() {
     assert_eq!(other.status, ExitStatus::Failure);
     assert!(dir.path().join("elsewhere").is_dir());
 }
+
+/// The drop-in `ign-lint` pre-commit hook declares what ign-lint 0.6.4's
+/// own hook declares (`docs/compat/ign-lint.md`, 10.1), with iglint's
+/// compatible mode as the entry.
+#[test]
+fn ign_lint_pre_commit_hook_matches_ign_lints() {
+    let hooks = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.pre-commit-hooks.yaml"),
+    )
+    .unwrap();
+    let hook = hooks
+        .split("\n- id: ")
+        .find(|h| h.starts_with("ign-lint\n"))
+        .expect("an ign-lint hook");
+    for line in [
+        "  entry: iglint ign-lint",
+        "  language: python",
+        "  types: [json]",
+        "  files: view\\.json$",
+        "  args: ['--config=.ignition-lint-precommit.json']",
+        "  pass_filenames: true",
+    ] {
+        assert!(
+            hook.lines().any(|l| l == line),
+            "missing `{line}` in:\n{hook}"
+        );
+    }
+}

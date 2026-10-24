@@ -1456,6 +1456,14 @@ fails with exit 1 unless the consumer repository provides it or overrides
 Parallel pre-commit batches are what the `_pid*_batch*` report naming and
 the 5-second clean-up guard exist for.
 
+iglint's `.pre-commit-hooks.yaml` has a drop-in hook with the same id,
+`ign-lint`: entry `iglint ign-lint`, the same `types`, `files`, default
+`args` and `pass_filenames`, so a repository switches by changing only
+`repo` and `rev`, and its `args` overrides keep working. Like ign-lint
+0.6.4, the hook exits with status 1 when the default
+`.ignition-lint-precommit.json` does not exist and `args` names no other
+configuration (bug 32 is kept, so that the hook behaves the same).
+
 ### 10.2 GitHub Actions
 
 v0.6.4 ships **no** `action.yml`. A composite action existed up to v0.2.4

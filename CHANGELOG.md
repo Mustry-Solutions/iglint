@@ -40,6 +40,11 @@ from 0.1.0 on.
 
 ### Added
 
+- A drop-in `ign-lint` pre-commit hook (review round 14): the same id,
+  `files` pattern (`view\.json$`), types, default `args`
+  (`--config=.ignition-lint-precommit.json`) and file passing as
+  ign-lint's own hook, running `iglint ign-lint`. Documented in the README
+  and `docs/compat/ign-lint.md`.
 - `SCR307 redefined-event-handler` (error): a gateway timer, tag change,
   message, startup, shutdown or update file, or a WebDev handler, whose
   last module-level binding of the handler name Ignition cannot call with

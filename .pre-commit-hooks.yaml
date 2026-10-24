@@ -18,3 +18,21 @@
   types_or: [json, python]
   require_serial: true
   minimum_pre_commit_version: "2.9.2"
+
+# Drop-in replacement for ign-lint's own hook (same id, `files`, `types`,
+# default `args` and file passing): repositories that use ign-lint's hook
+# switch by changing only `repo` and `rev`. Runs iglint's ign-lint
+# compatible mode, so the configuration, output and exit status are
+# ign-lint's (docs/compat/ign-lint.md). As with ign-lint 0.6.4, the
+# default `--config=.ignition-lint-precommit.json` must exist in the
+# repository, or `args` must name another configuration.
+- id: ign-lint
+  name: Ignition Lint (iglint)
+  description: ign-lint compatible linting of Perspective views with iglint (iglint ign-lint).
+  entry: iglint ign-lint
+  language: python
+  types: [json]
+  files: view\.json$
+  args: ['--config=.ignition-lint-precommit.json']
+  pass_filenames: true
+  minimum_pre_commit_version: "2.9.2"

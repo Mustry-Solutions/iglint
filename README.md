@@ -305,6 +305,21 @@ repos:
       - id: iglint        # or iglint-fix to apply safe fixes
 ```
 
+To replace ign-lint's own pre-commit hook, keep its id and change only
+the repository: the `ign-lint` hook runs `iglint ign-lint` with the same
+`files` pattern (`view\.json$`), file types, default `args`
+(`--config=.ignition-lint-precommit.json`) and file passing, so your
+configuration, `args` overrides, output and exit status stay as they were:
+
+```yaml
+repos:
+  - repo: https://github.com/Mustry-Solutions/iglint   # was bw-design-group/ignition-lint
+    rev: v0.1.0
+    hooks:
+      - id: ign-lint
+        args: ["--config=rule_config.json", "--ignore-warnings"]   # optional, as before
+```
+
 These hooks build iglint from source on first use, which needs a Rust
 toolchain. To use the PyPI wheel instead:
 
