@@ -11,7 +11,10 @@ from 0.1.0 on.
 
 - `bench/README.md` and `docs/compat/ign-lint.md` quote the private
   project's parity and aggregate numbers as of its revision of 2026-10-21
-  (measured 2026-10-23), and say that they depend on the revision.
+  (measured 2026-10-23; the parity table and pylint comparison in
+  `bench/README.md` re-measured 2026-10-24 with ign-lint 0.6.4 and
+  0.6.3, on a copy of the project), and say that they depend on the
+  revision.
 - Faster runs: about 3x on a 300-view project and 2x on 5,000 views
   (whitelist lookups, JSON formatting detected once per file, mimalloc,
   no teardown at exit, `iglint ign-lint` builds ign-lint's node model only
