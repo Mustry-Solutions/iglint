@@ -113,12 +113,18 @@ pub(crate) fn analyze_with(
         .enumerate()
         .map(|(i, t)| (absolute(&t.path), i))
         .collect();
-    let ws_roots: Vec<PathBuf> = if roots.is_empty() || targets.iter().any(|t| t.stdin.is_some()) {
-        targets.iter().map(|t| t.path.clone()).collect()
-    } else {
-        roots.to_vec()
-    };
-    let ws = Workspace::discover(&ws_roots);
+    let linted_paths: Vec<PathBuf> =
+        if roots.is_empty() || targets.iter().any(|t| t.stdin.is_some()) {
+            targets.iter().map(|t| t.path.clone()).collect()
+        } else {
+            roots.to_vec()
+        };
+    // The workspace is everything below the roots of the linted paths, not
+    // only the linted paths: the closed world and the uses of library
+    // names are the same whichever files are linted.
+    let ws_roots = crate::discovery::workspace_roots(settings, &linted_paths);
+    let ws = Workspace::discover(&ws_roots.roots);
+    let closed_world_unknown = !ws_roots.unknown.is_empty();
 
     // Which workspace file is which target. Files that are not linted as
     // part of their resource (see [`treatment`]) are linted standalone,
@@ -297,8 +303,11 @@ pub(crate) fn analyze_with(
     // the cache context is a hash of the layout, the manifests and every
     // summary: an edit that leaves all summaries as they were (most edits
     // inside one view) keeps every other unit's cached results valid.
-    let context_base =
-        cache.map(|_| layout_hash(&ws, &table) ^ pylint_context(rules, &sets, &targets, settings));
+    let context_base = cache.map(|_| {
+        layout_hash(&ws, &table)
+            ^ pylint_context(rules, &sets, &targets, settings)
+            ^ u64::from(closed_world_unknown).wrapping_mul(0x9e37_79b9_7f4a_7c15)
+    });
 
     // Phase A, part 2: model, summarise and run local rules.
     let models: Vec<ResourceModel<'_>> = loaded.par_iter().map(|l| build_model(&ws, l)).collect();
@@ -480,7 +489,7 @@ pub(crate) fn analyze_with(
         phase_a.into_iter().unzip();
 
     // Index.
-    let index = build_index(&ws, summaries);
+    let index = build_index(&ws, summaries, closed_world_unknown);
 
     // Files outside any resource, modelled standalone.
     struct Standalone {
@@ -1149,8 +1158,15 @@ pub(crate) fn run_phase(
 /// layer can derive from the whole index (Perspective objects handed to
 /// library functions that reach other views). Every index the linter uses
 /// is built here.
-pub(crate) fn build_index(ws: &Workspace, summaries: Vec<ResourceSummary>) -> ProjectIndex<'_> {
+pub(crate) fn build_index(
+    ws: &Workspace,
+    summaries: Vec<ResourceSummary>,
+    closed_world_unknown: bool,
+) -> ProjectIndex<'_> {
     let mut index = ProjectIndex::build(ws, summaries);
+    if closed_world_unknown {
+        index.mark_closed_world_unknown();
+    }
     crate::script_facts::access::resolve_perspective_calls(&mut index);
     index
 }

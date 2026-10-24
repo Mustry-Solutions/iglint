@@ -110,6 +110,7 @@ impl Fixture {
             &CheckOptions::default(),
         );
         assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+        assert_unsafe_fixes_have_reasons(&result.diagnostics);
         result.diagnostics
     }
 
@@ -138,6 +139,7 @@ impl Fixture {
         };
         let result = check(&settings, &[self.root().to_path_buf()], &options);
         assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+        assert_unsafe_fixes_have_reasons(&result.diagnostics);
         result
     }
 
@@ -195,6 +197,27 @@ impl Fixture {
             "fixable findings remain after fixing: {remaining:?}"
         );
         fixed
+    }
+}
+
+/// Every unsafe fix says why it is unsafe (review round 14): the rule
+/// tests lint thousands of fixtures through [`Fixture`], so this checks
+/// every unsafe fix those fixtures produce.
+pub fn assert_unsafe_fixes_have_reasons(diagnostics: &[Diagnostic]) {
+    for d in diagnostics {
+        if let Some(fix) = &d.fix
+            && fix.applicability == crate::diagnostic::Applicability::Unsafe
+        {
+            assert!(
+                fix.unsafe_reason
+                    .as_ref()
+                    .is_some_and(|r| !r.message.is_empty()),
+                "{} unsafe fix without a reason: {} ({})",
+                d.rule.code(),
+                fix.message,
+                d.message
+            );
+        }
     }
 }
 

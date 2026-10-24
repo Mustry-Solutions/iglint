@@ -321,8 +321,13 @@ repos:
         require_serial: true
 ```
 
-Only the changed files are reported, but cross-resource rules still see the
-whole project.
+Only the changed files are reported and fixed, but iglint analyses the
+whole workspace around them (every project and gateway collection below
+the workspace root: the configuration file's directory, the directory that
+holds `projects/`, or the Git work tree), so cross-resource rules and the
+safety of fixes are the same as for a run over the whole repository. A
+warm single-file run takes a few tens of milliseconds on a workspace of
+3,000 files.
 
 ## Editors
 

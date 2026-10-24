@@ -424,7 +424,7 @@ fn show_settings_and_files() {
     );
     assert_eq!(settings.status, ExitStatus::Success);
     let expected = format!(
-        "Configuration: iglint.toml\nRoot: {}\nSettings for: projects/p/ignition/script-python/lib/code.py\n  strict = false\n  respect-gitignore = true\n  exclude = [\"tmp\"]\n  overrides = 0\n  enabled rules (4):\n    NAME001 component-name [warning]\n    SCR101 undefined-name [error]\n    SCR102 unused-variable [warning]\n      ignore-names = [\"x\"]\n      exclude = [\"legacy/**\"]\n    VIEW001 unused-custom-property [warning]\n",
+        "Configuration: iglint.toml\nRoot: {0}\nWorkspace root: {0}\nSettings for: projects/p/ignition/script-python/lib/code.py\n  strict = false\n  respect-gitignore = true\n  exclude = [\"tmp\"]\n  overrides = 0\n  enabled rules (4):\n    NAME001 component-name [warning]\n    SCR101 undefined-name [error]\n    SCR102 unused-variable [warning]\n      ignore-names = [\"x\"]\n      exclude = [\"legacy/**\"]\n    VIEW001 unused-custom-property [warning]\n",
         dir.path().display()
     );
     assert_eq!(settings.stdout, expected);

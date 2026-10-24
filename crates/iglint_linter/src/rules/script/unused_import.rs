@@ -456,10 +456,23 @@ impl ScriptRule for UnusedImport {
         for (stmt, mut unused) in unused_imports(model, library) {
             // Top-level names of a library module are its attributes: other
             // resources may use them as `pkg.mod.name`.
-            let plain = unused.iter().all(|id| removal_is_pure(cx, model, *id))
-                && !unused.iter().any(|id| still_referenced(model, *id))
-                && !before_future_import(&unit.parsed.module.body, stmt);
-            let mut reason = if plain {
+            let impure = !unused.iter().all(|id| removal_is_pure(cx, model, *id));
+            let referenced = unused.iter().any(|id| still_referenced(model, *id));
+            let before_future = before_future_import(&unit.parsed.module.body, stmt);
+            let plain = !impure && !referenced && !before_future;
+            let mut reason = if impure {
+                Some(UnsafeReason::new(IMPURE_REASON))
+            } else if referenced {
+                Some(UnsafeReason::new(
+                    "the name is read in the import's scope, so without the import the read \
+                     finds another binding (a global or a builtin) instead of raising",
+                ))
+            } else if before_future {
+                Some(UnsafeReason::new(
+                    "the import comes before a `from __future__` import, which removing it may \
+                     make valid, changing how the script compiles",
+                ))
+            } else {
                 frames
                     .get_or_insert_with(|| {
                         let body = &unit.parsed.module.body;
@@ -486,11 +499,9 @@ impl ScriptRule for UnusedImport {
                         // function-local one through a callback or
                         // `sys._current_frames`.
                         crate::rules::vetting::workspace_has_unknown_code(cx)
-                            .then(crate::rules::vetting::workspace_reason)
+                            .then(|| crate::rules::vetting::workspace_reason(cx))
                     })
                     .clone()
-            } else {
-                None
             };
             let mut applicability = if plain && reason.is_none() {
                 Applicability::Safe
@@ -518,6 +529,9 @@ impl ScriptRule for UnusedImport {
                         ExternalUse::Unused => true,
                         ExternalUse::Unknown => {
                             applicability = Applicability::Unsafe;
+                            if reason.is_none() {
+                                reason = Some(UnsafeReason::new(EXTERNAL_USE_REASON));
+                            }
                             true
                         }
                     }
@@ -576,6 +590,18 @@ impl ScriptRule for UnusedImport {
         }
     }
 }
+
+/// Why removing an import that is not known to be free of effects is
+/// unsafe.
+const IMPURE_REASON: &str = "the import is not known to succeed without side effects: only \
+     standard modules and Java classes measured in the Ignition image are, and only when no \
+     library package has their name";
+
+/// Why removing a top-level import of a library module is unsafe when other
+/// resources may use the name.
+const EXTERNAL_USE_REASON: &str = "other resources may use the name as an attribute of the \
+     module: library references are computed at run time, the project is inheritable or has an \
+     incomplete parent chain, or the workspace has scripts iglint does not model";
 
 /// Whether `unused` holds every alias of the import statement `stmt`.
 fn removes_statement(stmt: &Stmt, unused: &[BindingId]) -> bool {

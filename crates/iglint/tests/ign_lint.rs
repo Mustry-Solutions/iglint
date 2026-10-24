@@ -69,6 +69,7 @@ fn analyze(file: &SourceFile, kind: FileKind, settings: &LinterSettings) -> Vec<
                         path: file.path().to_path_buf(),
                         edit: TextEdit::replace(range(at + 1, 6), "USED"),
                     }],
+                    "test",
                 )),
             );
         }

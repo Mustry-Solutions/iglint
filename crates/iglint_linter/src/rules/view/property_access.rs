@@ -241,6 +241,8 @@ fn fix(
     Some(Fix::unsafe_edit(
         format!("Set access mode of '{full}' to {expected}"),
         cx.file_edits(file, vec![edit]),
+        "the access mode decides who can read and write the property at run time (the browser, \
+         bindings of embedding views)",
     ))
 }
 

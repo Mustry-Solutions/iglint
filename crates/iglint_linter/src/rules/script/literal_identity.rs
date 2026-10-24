@@ -146,6 +146,12 @@ impl ScriptRule for LiteralIdentity {
                     Applicability::Unsafe,
                     vec![(r, replacement.to_owned())],
                 )
+                .map(|f| {
+                    f.reason_if_unsafe(
+                        "`==` calls `__eq__` and can give a different result than the identity \
+                         test",
+                    )
+                })
             });
             let _ = report(
                 cx,

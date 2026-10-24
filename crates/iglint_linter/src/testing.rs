@@ -289,7 +289,7 @@ pub fn analyze(file: &SourceFile, _kind: FileKind, settings: &LinterSettings) ->
                 diagnostic.fix = Some(if safe {
                     Fix::safe(message, edits)
                 } else {
-                    Fix::unsafe_edit(message, edits)
+                    Fix::unsafe_edit(message, edits, "test fix marked unsafe")
                 });
             }
             diagnostics.push(diagnostic);

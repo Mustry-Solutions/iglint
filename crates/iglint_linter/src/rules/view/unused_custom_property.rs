@@ -499,15 +499,19 @@ impl ViewRule for UnusedCustomProperty {
                 .clone();
             let interprocedural =
                 unchecked || local.is_read(i, def) || local.is_written(i, def) || vetting.is_some();
+            let unsafe_reason = if usage.is_written(i, def) {
+                Some(WRITTEN_REASON)
+            } else if unchecked {
+                Some(UNCHECKED_REASON)
+            } else if interprocedural {
+                Some(INTERPROCEDURAL_REASON)
+            } else {
+                None
+            };
             let fix = match def.category {
-                PropCategory::Custom => fix(
-                    cx,
-                    view,
-                    file,
-                    def,
-                    usage.is_written(i, def) || interprocedural,
-                )
-                .map(|f| f.because(vetting)),
+                PropCategory::Custom => {
+                    fix(cx, view, file, def, unsafe_reason).map(|f| f.because(vetting))
+                }
                 PropCategory::Params | PropCategory::Meta => None,
             };
             let message = if usage.is_written(i, def) {
@@ -527,12 +531,23 @@ impl ViewRule for UnusedCustomProperty {
     }
 }
 
+/// Why removing a written property is unsafe.
+const WRITTEN_REASON: &str = "a script writes the property, and the write recreates it at run \
+     time without the `access` and `persistent` settings of the removed `propConfig` entry";
+/// Why removing a property is unsafe when callees could not be checked.
+const UNCHECKED_REASON: &str = "the view's scripts call names that could not be resolved \
+     without a project, and any of them may read the property";
+/// Why removing a property proved unused through library code is unsafe.
+const INTERPROCEDURAL_REASON: &str = "the property is unused only because of what library \
+     functions do with the values they are handed, which other resources and run-time changes \
+     can invalidate";
+
 fn fix(
     cx: &Checker<'_, '_>,
     view: &View<'_>,
     file: iglint_project::FileId,
     def: &PropertyDef<'_>,
-    unsafe_fix: bool,
+    unsafe_reason: Option<&str>,
 ) -> Option<Fix> {
     let editor = cx.json_editor(file, view.root)?;
     let mut edits = Vec::new();
@@ -566,10 +581,9 @@ fn fix(
     let edits = cx.file_edits(file, edits);
     // A write recreates the property at run time, without the `access`
     // and `persistent` settings of the removed `propConfig` entry.
-    Some(if unsafe_fix {
-        Fix::unsafe_edit(message, edits)
-    } else {
-        Fix::safe(message, edits)
+    Some(match unsafe_reason {
+        Some(reason) => Fix::unsafe_edit(message, edits, reason),
+        None => Fix::safe(message, edits),
     })
 }
 

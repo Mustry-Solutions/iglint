@@ -343,7 +343,9 @@ fn make_fix(
         applicability: Applicability::Unsafe,
         edits: cx.file_edits(script.file, vec![edit]),
         suite: None,
-        unsafe_reason: None,
+        unsafe_reason: Some(crate::diagnostic::UnsafeReason::new(
+            "the fix changes the code Ignition runs: it repairs the header the gateway replaces",
+        )),
     }
 }
 

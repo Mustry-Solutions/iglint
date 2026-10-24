@@ -588,6 +588,12 @@ fn strip_trailing_whitespace(cx: &Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) ->
         applicability,
         ranges.into_iter().map(|r| (r, String::new())).collect(),
     )
+    .map(|f| {
+        f.reason_if_unsafe(
+            "the script does not parse, or some of the whitespace is inside a string literal, \
+             where removing it changes the string",
+        )
+    })
 }
 
 /// Whether a message is right for Ignition (see the rule documentation).

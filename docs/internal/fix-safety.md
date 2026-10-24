@@ -463,6 +463,46 @@ incomplete (`all_library_references_known`), so a child that may exist
 outside the workspace cannot invalidate a fix. The workspace is the closed
 world; there is no option to declare it complete while inheritable.
 
+**The workspace is found from the root, not from the linted paths.**
+Linting one file (the pre-commit hook passes the changed files, an editor
+opens one folder, `cd projects/A && iglint check --fix .`) analyses the
+same workspace as linting the whole repository: every project and gateway
+collection below the workspace root of each linted path
+(`iglint_linter::discovery::workspace_roots`), and reports and fixes only
+the linted files. A gateway tag script that uses `m.os` keeps `import os`
+in `m` used, and a tag script that is not vetted makes the fix unsafe,
+whichever file is linted. The root of a path is the outermost of the
+configuration file's directory and the directory that holds the Ignition
+layout around the path (`<root>/projects/<project>`,
+`<root>/config/resources/<collection>`,
+`<root>/services/<gateway>/config/resources/<collection>`), else the Git
+work tree, else (without a configuration file) the working directory; the
+Git work tree and the working directory count only when they hold a
+project, a collection, `projects/`, `services/` or `config/resources/`, and
+no root lies inside a project or collection. The language server finds
+the root of each workspace folder the same way. `--show-settings` prints
+the roots (`Workspace root:`).
+
+Exclusions do not shrink the closed world: `exclude`, the ign-lint
+whitelist and `.gitignore` decide which files are linted, but an excluded
+or ignored resource still runs on the gateway, so it still counts for the
+closed world, for the uses of library names and for every other
+cross-resource fact (discovery of the workspace walks every directory
+except hidden ones, `node_modules` and `target`).
+
+When no root is found around a linted path (a project directory linted
+from elsewhere with nothing around it, a loose file outside every Git work
+tree and configuration), the closed world is unknown
+(`ProjectIndex::mark_closed_world_unknown`): every safe fix that needs it
+(`SCR102`, `VIEW015`, `NAME001`) is unsafe, with the reason "closed world
+unknown". The scripts of gateway collections and files outside any project
+use the same closed world as project scripts (the runtime is the same).
+The binary tests `fixes_see_the_whole_workspace_whatever_is_linted`,
+`closed_world_reasons_do_not_depend_on_what_is_linted` and
+`fixes_that_need_the_closed_world_are_unsafe_without_a_root`, and the
+language server test `a_folder_inside_the_workspace_sees_the_whole_workspace`
+cover each way of linting part of a workspace.
+
 **Other views.** A Perspective page hands out the views it shows
 (`page.views`, `getViews()`, its primary `page.view`) and a session its
 pages (`session.pages`, `getPages()`, `getPage(id)`); the views arrive as
@@ -1119,9 +1159,15 @@ remaining documented assumption.
   level, which in Ignition often registers loggers, caches or message
   handlers.
 * **Unknown context is unsafe.** A file linted outside its project, an
-  inheritable project, an incomplete parent chain, or resources whose
-  scripts iglint does not model make cross-resource facts unknown; fixes
-  that depend on them are unsafe.
+  inheritable project, an incomplete parent chain, a path with no
+  workspace root (see "Closed world"), or resources whose scripts iglint
+  does not model make cross-resource facts unknown; fixes that depend on
+  them are unsafe.
+* **Every unsafe fix says why.** Each unsafe fix carries a reason (the
+  code that keeps it from being safe, or what the fix itself may change),
+  shown in every output format and in the language server's quick fix
+  titles. The rule tests check it for every fix their fixtures produce
+  (`test_support::assert_unsafe_fixes_have_reasons`).
 * **`VIEW015`: default deny.** Three review rounds each found a new way
   for a script to reach a property that the analysis did not know
   (`exec`, globals, method references, reads into unused locals,

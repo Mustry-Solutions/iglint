@@ -185,9 +185,16 @@ impl ScriptRule for UnusedVariable {
         }
         found.sort_by_key(|f| f.0.start());
         for (range, message, edit) in found {
-            let fix = edit.and_then(|e| {
-                statement_fix(cx, unit, "Remove the assignment", Applicability::Unsafe, e)
-            });
+            let fix = edit
+                .and_then(|e| {
+                    statement_fix(cx, unit, "Remove the assignment", Applicability::Unsafe, e)
+                })
+                .map(|f| {
+                    f.reason_if_unsafe(
+                        "the value may still be wanted under another name, and the removed reads \
+                     and operators may run special methods, properties or Java getters",
+                    )
+                });
             let _ = report(cx, unit, range, message).fix_opt(fix);
         }
     }

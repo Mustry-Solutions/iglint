@@ -328,6 +328,7 @@ pub(crate) fn load_source(
                 }
             }
             let mut settings = resolved.settings;
+            settings.root_is_configured = true;
             let mut enabled: BTreeSet<RuleCode> = settings.base.rules.keys().copied().collect();
             apply_layer(registry, &mut enabled, &cli);
             // The command line wins over the ign-lint scope overrides too
@@ -403,6 +404,7 @@ pub(crate) fn load_source(
                 .collect();
             let settings = ProjectSettings {
                 root: root.clone(),
+                root_is_configured: source.path().is_some(),
                 base: Arc::new(LinterSettings {
                     rules,
                     strict: options.cli.strict.or(merged.strict).unwrap_or(false),

@@ -766,20 +766,29 @@ fn rename_fix<'v>(
     let vetting = crate::rules::vetting::unit_reason(cx);
     let guards = guards.get_or_insert_with(|| Guards::collect(cx, view));
     let observed = guards.observed(cx, file, c, refs, &sites);
-    let risky = count > 0
-        || components_may_escape(cx, view)
-        || vetting.is_some()
-        || observed.is_some()
-        || refs.meta_name_read.contains(&c.id)
-        || refs.dynamic_meta_name
-        || refs.dynamic_lookup
-        || refs.literals.contains(c.name);
+    let risk = if count > 0 {
+        Some(
+            "the rename also rewrites references to the component in scripts and bindings, \
+             which code iglint does not see may name too",
+        )
+    } else if components_may_escape(cx, view) {
+        Some("a component of the view is handed to code outside it, which may look it up by name")
+    } else if refs.meta_name_read.contains(&c.id) || refs.dynamic_meta_name {
+        Some("a script reads the component's `meta.name`")
+    } else if refs.dynamic_lookup {
+        Some("a script looks up components by a computed name")
+    } else if refs.literals.contains(c.name) {
+        Some("the name appears in a string literal, which may be used to look the component up")
+    } else if vetting.is_some() || observed.is_some() {
+        Some("code may observe the component's name")
+    } else {
+        None
+    };
     let message = format!("Rename component '{}' to '{new}'", c.name);
     let edits = cx.file_edits(file, edits);
-    Some(if risky {
-        Fix::unsafe_edit(message, edits).because(vetting.or(observed))
-    } else {
-        Fix::safe(message, edits)
+    Some(match risk {
+        Some(reason) => Fix::unsafe_edit(message, edits, reason).because(vetting.or(observed)),
+        None => Fix::safe(message, edits),
     })
 }
 

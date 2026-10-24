@@ -99,10 +99,15 @@ fn diagnostics() -> Vec<Diagnostic> {
             range: range_of(VIEW_TEXT, "\"root\""),
             message: "the view root".to_owned(),
         })
-        .with_fix(Fix::unsafe_edit(
-            "Rename to `naive`",
-            vec![edit(VIEW, range_of(VIEW_TEXT, "naïve"), "naive")],
-        )),
+        .with_fix(Fix {
+            // The output without a reason (fixes recorded by older versions).
+            unsafe_reason: None,
+            ..Fix::unsafe_edit(
+                "Rename to `naive`",
+                vec![edit(VIEW, range_of(VIEW_TEXT, "naïve"), "naive")],
+                "",
+            )
+        }),
         Diagnostic::new(
             RuleCode::new(&STRUCTURE),
             Severity::Info,

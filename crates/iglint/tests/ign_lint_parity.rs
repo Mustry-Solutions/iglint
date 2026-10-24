@@ -160,6 +160,10 @@ fn actual_findings(view: &Path, config: &Value, variant: &str) -> Vec<Finding> {
         parse_rule_config(Path::new("rule_config.json"), &text).expect("valid rule config");
     let dir = view.parent().unwrap();
     let mut compat = to_settings(&rule_config, &REGISTRY, dir, CompatMode::IgnLintOnly);
+    // ign-lint ran with the configuration next to the view, which is the
+    // whole of its world (iglint's workspace root, so that the closed
+    // world is known).
+    compat.settings.root_is_configured = true;
     let mut rule_names: BTreeMap<&str, String> = BTreeMap::new();
     for (name, codes) in &compat.rule_map {
         if name == "PylintScriptRule" {

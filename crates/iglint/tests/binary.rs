@@ -1303,3 +1303,231 @@ fn directories_without_lintable_files_say_so() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(!stderr.contains("no Ignition project"), "{stderr}");
 }
+
+/// A repository with project `A` (library module `m` with an unused
+/// `import os`) and a gateway collection whose tag `T` has a value change
+/// script `tag_script`.
+fn closed_world_repository(tag_script: &str) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        "projects/A/project.json",
+        r#"{"title": "A", "enabled": true, "inheritable": false}"#,
+    );
+    write(
+        "projects/A/ignition/script-python/m/resource.json",
+        r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+    );
+    write(
+        "projects/A/ignition/script-python/m/code.py",
+        CLOSED_WORLD_MODULE,
+    );
+    let core = "services/gw/config/resources/core";
+    write(&format!("{core}/config-mode.json"), "{}");
+    write(
+        &format!("{core}/ignition/tag-provider/default/resource.json"),
+        r#"{"scope": "G", "version": 1, "files": ["config.json"]}"#,
+    );
+    write(
+        &format!("{core}/ignition/tag-provider/default/config.json"),
+        r#"{"profile": {"type": "STANDARD"}, "settings": {}}"#,
+    );
+    write(
+        &format!("{core}/ignition/tag-definition/default/unary-resource.json"),
+        r#"{"scope": "G", "version": 1, "restricted": false, "overridable": true, "files": ["tags.json"], "attributes": {"config": {}}}"#,
+    );
+    let script = serde_json::to_string(tag_script).unwrap();
+    write(
+        &format!("{core}/ignition/tag-definition/default/tags.json"),
+        &format!(
+            r#"[{{"name": "T", "tagType": "AtomicTag", "valueSource": "memory", "dataType": "Int4", "eventScripts": [{{"eventid": "valueChanged", "script": {script}}}]}}]"#
+        ),
+    );
+    dir
+}
+
+const CLOSED_WORLD_MODULE: &str = "import os\n\ndef f():\n    return 1\n";
+const MODULE: &str = "projects/A/ignition/script-python/m/code.py";
+
+/// SCR102 findings of `m` as (applicability, reason) from a JSON run.
+fn scr102_fixes(out: &std::process::Output) -> Vec<(String, String)> {
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout)
+        .unwrap_or_else(|_| panic!("{}", String::from_utf8_lossy(&out.stdout)));
+    v.as_array()
+        .unwrap()
+        .iter()
+        .filter(|d| d["code"] == "SCR102")
+        .map(|d| {
+            (
+                d["fix"]["applicability"].as_str().unwrap_or("").to_owned(),
+                d["fix"]["unsafe_reason"]["message"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// Review round 14 (Opus) blocker: the closed world and the uses of
+/// library names come from the workspace root, not from the paths given.
+/// A gateway tag script uses `m.os`, so the import must stay whichever way
+/// the module is linted: the file (pre-commit), its project, from inside
+/// the project, through standard input.
+#[test]
+fn fixes_see_the_whole_workspace_whatever_is_linted() {
+    let dir = closed_world_repository("\tprint m.os.sep\n");
+    let root = dir.path();
+    let project = root.join("projects/A");
+    let runs: [(&std::path::Path, Vec<&str>); 4] = [
+        (root, vec![MODULE]),
+        (root, vec!["projects/A"]),
+        (&project, vec!["."]),
+        (&project, vec!["ignition/script-python/m/code.py"]),
+    ];
+    for (cwd, paths) in &runs {
+        let mut args = vec!["check", "--no-cache", "--fix", "--select", "SCR102"];
+        args.extend(paths.iter().copied());
+        iglint(cwd).args(&args).assert().success();
+        assert_eq!(
+            std::fs::read_to_string(root.join(MODULE)).unwrap(),
+            CLOSED_WORLD_MODULE,
+            "{} {paths:?}",
+            cwd.display()
+        );
+    }
+    let out = iglint(root)
+        .args([
+            "check",
+            "--fix",
+            "--select",
+            "SCR102",
+            "--stdin-filename",
+            MODULE,
+        ])
+        .write_stdin(CLOSED_WORLD_MODULE)
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8(out.stdout).unwrap(), CLOSED_WORLD_MODULE);
+    // Without the tag script's use, the import goes, from the file too.
+    let dir = closed_world_repository("\tprint 1\n");
+    iglint(dir.path())
+        .args(["check", "--no-cache", "--fix", "--select", "SCR102", MODULE])
+        .assert()
+        .success();
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join(MODULE)).unwrap(),
+        "\n\ndef f():\n    return 1\n"
+    );
+}
+
+/// The `eval` variant: a tag script that is not vetted makes the fix
+/// unsafe under the closed-world rule, the same for a run over the root,
+/// the file, the project, from inside the project and through standard
+/// input, with and without the cache.
+#[test]
+fn closed_world_reasons_do_not_depend_on_what_is_linted() {
+    let dir = closed_world_repository("\tprint eval('1')\n");
+    let root = dir.path();
+    let project = root.join("projects/A");
+    let closed = "closed world: code in the workspace is not vetted, reads frames or reaches \
+                  other views, first";
+    let expected = vec![("unsafe".to_owned(), closed.to_owned())];
+    let runs: [(&std::path::Path, Vec<&str>); 5] = [
+        (root, vec![]),
+        (root, vec![MODULE]),
+        (root, vec!["projects/A"]),
+        (&project, vec!["."]),
+        (&project, vec!["ignition/script-python/m/code.py"]),
+    ];
+    for cache in [false, true] {
+        for (cwd, paths) in &runs {
+            let mut args = vec!["check", "--select", "SCR102", "--output-format", "json"];
+            if cache {
+                args.extend(["--cache-dir", "cache"]);
+            } else {
+                args.push("--no-cache");
+            }
+            args.extend(paths.iter().copied());
+            let out = iglint(cwd).args(&args).output().unwrap();
+            assert_eq!(scr102_fixes(&out), expected, "{} {paths:?}", cwd.display());
+        }
+    }
+    let out = iglint(root)
+        .args([
+            "check",
+            "--select",
+            "SCR102",
+            "--output-format",
+            "json",
+            "--stdin-filename",
+            MODULE,
+        ])
+        .write_stdin(CLOSED_WORLD_MODULE)
+        .output()
+        .unwrap();
+    assert_eq!(scr102_fixes(&out), expected);
+}
+
+/// With no workspace root around the file (a project directory on its
+/// own, linted from elsewhere, outside any Git work tree, configuration
+/// or `projects/` layout), the closed world is unknown: the fix that needs
+/// it is unsafe, with that reason.
+#[test]
+fn fixes_that_need_the_closed_world_are_unsafe_without_a_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("lone/A");
+    std::fs::create_dir_all(project.join("ignition/script-python/m")).unwrap();
+    std::fs::write(
+        project.join("project.json"),
+        r#"{"title": "A", "enabled": true, "inheritable": false}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("ignition/script-python/m/resource.json"),
+        r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+    )
+    .unwrap();
+    let module = project.join("ignition/script-python/m/code.py");
+    std::fs::write(&module, CLOSED_WORLD_MODULE).unwrap();
+    let elsewhere = tempfile::tempdir().unwrap();
+    let out = iglint(elsewhere.path())
+        .args([
+            "check",
+            "--no-cache",
+            "--select",
+            "SCR102",
+            "--output-format",
+            "json",
+        ])
+        .arg(&module)
+        .output()
+        .unwrap();
+    let fixes = scr102_fixes(&out);
+    assert_eq!(fixes.len(), 1, "{fixes:?}");
+    assert_eq!(fixes[0].0, "unsafe");
+    assert!(
+        fixes[0]
+            .1
+            .starts_with("closed world unknown: no workspace root"),
+        "{fixes:?}"
+    );
+    // Linted from the directory that holds the project, the root is known.
+    let out = iglint(&dir.path().join("lone"))
+        .args([
+            "check",
+            "--no-cache",
+            "--select",
+            "SCR102",
+            "--output-format",
+            "json",
+        ])
+        .arg(&module)
+        .output()
+        .unwrap();
+    assert_eq!(scr102_fixes(&out), [("safe".to_owned(), String::new())]);
+}

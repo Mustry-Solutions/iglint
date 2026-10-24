@@ -180,6 +180,12 @@ pub struct ProjectIndex<'w> {
     /// a library module), and the first such site by path and offset.
     reads_files: bool,
     first_file_read: Option<UnknownSite>,
+    /// Code of a gateway collection is not vetted or reads frames, in a
+    /// workspace without projects (with projects it counts for each).
+    gateway_unknown_code: bool,
+    /// No workspace root was found around a linted path, so the closed
+    /// world is not known ([`ProjectIndex::mark_closed_world_unknown`]).
+    closed_world_unknown: bool,
 }
 
 /// Lowercases ASCII and non-ASCII letters (tag paths are case-insensitive).
@@ -212,6 +218,8 @@ impl<'w> ProjectIndex<'w> {
             first_unknown: None,
             reads_files: false,
             first_file_read: None,
+            gateway_unknown_code: false,
+            closed_world_unknown: false,
             databases: FxHashSet::default(),
             has_databases: false,
             usage: FxHashMap::default(),
@@ -605,6 +613,34 @@ impl<'w> ProjectIndex<'w> {
             p.star_imported_modules = std::mem::take(&mut star_imported[i]);
             p.unknown_code = unknown_code[i];
         }
+        if ws.projects.is_empty() {
+            for rid in &gateway {
+                let Some(summary) = self.summaries[rid.index()].as_ref() else {
+                    continue;
+                };
+                let refs = &summary.references;
+                let unvetted = refs.unvetted_imports.first();
+                if !refs.unknown_code && unvetted.is_none() {
+                    continue;
+                }
+                self.gateway_unknown_code = true;
+                let sites = refs
+                    .unknown_site
+                    .iter()
+                    .filter(|_| refs.unknown_code)
+                    .chain(unvetted.map(|(_, site)| site));
+                for site in sites {
+                    let key = |s: &UnknownSite| (ws.file(s.file).path.clone(), s.range.start());
+                    if site.file != UnknownSite::DETACHED
+                        && first_unknown
+                            .as_ref()
+                            .is_none_or(|f: &UnknownSite| key(site) < key(f))
+                    {
+                        first_unknown = Some(site.clone());
+                    }
+                }
+            }
+        }
         self.first_unknown = first_unknown;
         self.count_file_reads();
         self.usage = usage;
@@ -890,7 +926,23 @@ impl<'w> ProjectIndex<'w> {
     /// `inheritable` / incomplete-inheritance checks, which already fail
     /// closed.
     pub fn has_any_unknown_code(&self) -> bool {
-        self.projects.iter().any(|p| p.unknown_code)
+        self.closed_world_unknown
+            || self.gateway_unknown_code
+            || self.projects.iter().any(|p| p.unknown_code)
+    }
+
+    /// Records that the closed world is not known: no workspace root was
+    /// found around a linted path (a loose file, a project with nothing
+    /// around it that says where the rest of its gateway is). Every fix
+    /// that needs the closed world is then unsafe
+    /// ([`ProjectIndex::has_any_unknown_code`]).
+    pub fn mark_closed_world_unknown(&mut self) {
+        self.closed_world_unknown = true;
+    }
+
+    /// Whether [`ProjectIndex::mark_closed_world_unknown`] was called.
+    pub fn closed_world_unknown(&self) -> bool {
+        self.closed_world_unknown
     }
 
     /// Whether any code of the workspace may read a file that a fix edits

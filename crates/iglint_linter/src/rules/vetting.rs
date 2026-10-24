@@ -113,7 +113,14 @@ pub(crate) fn script_reason(
 /// Why a fix is unsafe under the closed-world rule
 /// ([`workspace_has_unknown_code`]): the site, the first use in the
 /// workspace, is filled in after the cache from the project index.
-pub(crate) fn workspace_reason() -> UnsafeReason {
+pub(crate) fn workspace_reason(cx: &Checker<'_, '_>) -> UnsafeReason {
+    if cx.index().is_none_or(|index| index.closed_world_unknown()) {
+        return UnsafeReason {
+            message: CLOSED_WORLD_UNKNOWN.to_owned(),
+            site: None,
+            workspace: false,
+        };
+    }
     UnsafeReason {
         message: "closed world: code in the workspace is not vetted, reads frames or reaches \
                   other views, first"
@@ -122,6 +129,12 @@ pub(crate) fn workspace_reason() -> UnsafeReason {
         workspace: true,
     }
 }
+
+/// Why a fix that needs the closed world is unsafe when no workspace root
+/// was found around a linted path.
+pub(crate) const CLOSED_WORLD_UNKNOWN: &str = "closed world unknown: no workspace root (a \
+     configuration file, a `projects/` or `config/resources/` layout, a Git work tree or the \
+     working directory) contains the file, so code elsewhere on its gateway is not known";
 
 /// Why a fix of the unit is unsafe because of code that is not vetted:
 /// the unit's own first script that uses some, else the closed-world
@@ -143,7 +156,7 @@ pub(crate) fn unit_reason(cx: &Checker<'_, '_>) -> Option<UnsafeReason> {
             return Some(script_reason(cx, *file, script, at));
         }
     }
-    workspace_has_unknown_code(cx).then(workspace_reason)
+    workspace_has_unknown_code(cx).then(|| workspace_reason(cx))
 }
 
 /// Whether the library name `dotted` is vetted code: a package, or a
@@ -209,12 +222,11 @@ fn module_vetted(
 /// `sys._current_frames`, reflection or a `cPickle` opcode). Safe fixes
 /// that assume a name or value is not observed (`SCR102`, `VIEW015`,
 /// `NAME001`) are only safe when the whole closed world is free of it.
-/// With no project index (a single file linted on its own) this is
-/// unknown; the per-rule context checks (incomplete inheritance, an
-/// inheritable project, unmodelled scripts) already fail closed there.
+/// It holds for the scripts of gateway collections and for files outside
+/// any project too (the runtime is the same), and without a project index
+/// (which only rules of the local phase lack) it fails closed.
 pub(crate) fn workspace_has_unknown_code(cx: &Checker<'_, '_>) -> bool {
-    cx.project_index()
-        .is_some_and(|(index, _)| index.has_any_unknown_code())
+    cx.index().is_none_or(|index| index.has_any_unknown_code())
 }
 
 /// The first use of code that is not vetted, or that reads a frame, in the

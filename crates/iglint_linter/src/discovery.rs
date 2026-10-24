@@ -315,6 +315,184 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
     discovery
 }
 
+/// Where the workspace of a run is: the directories whose projects and
+/// gateway collections form the closed world (see `docs/internal/fix-safety.md`,
+/// "Closed world"), and the linted paths around which none was found.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct WorkspaceRoots {
+    /// Directories to discover the workspace in, sorted, none inside
+    /// another.
+    pub roots: Vec<PathBuf>,
+    /// Linted paths with no workspace root: a loose file, or a project
+    /// whose surroundings say nothing about the rest of its gateway. The
+    /// workspace is then only what encloses the path, and the closed world
+    /// is unknown.
+    pub unknown: Vec<PathBuf>,
+}
+
+/// The workspace roots of a run over `paths`. Every project and gateway
+/// collection below a root is analysed, whatever subset of files is
+/// linted, so that linting one file (pre-commit, an editor, `cd
+/// projects/A`) sees the same closed world and the same uses of library
+/// names as linting the whole repository. The root of a path is, in this
+/// order:
+///
+/// 1. the outermost of the configuration file's directory (when a
+///    configuration file was found) and the directory that holds the
+///    Ignition layout around the path: `<root>/projects/<project>`,
+///    `<root>/config/resources/<collection>` (a gateway data directory,
+///    widened to its parent when that holds `projects/` too) and
+///    `<root>/services/<gateway>/config/resources/<collection>`;
+/// 2. the Git work tree that contains the path;
+/// 3. without a configuration file, the working directory, when it
+///    contains the path.
+///
+/// The Git work tree and the working directory count only when they hold
+/// a project or a gateway collection directly, or a `projects/`,
+/// `services/` or `config/resources/` directory: a run from `/` or a home
+/// directory does not walk it, and a repository that is not an Ignition
+/// workspace (a tool's own test fixtures) does not become one.
+///
+/// A candidate inside (or equal to) a project or a gateway collection is
+/// not a root: the rest of the gateway lies outside it. Exclusions and
+/// `.gitignore` do not apply to the workspace: an excluded resource still
+/// runs on the gateway, so it still counts for the closed world and for
+/// the uses of library names. The roots configured with `projects` and
+/// `gateways` are added. A directory outside every project and collection
+/// is its own root when nothing above it is one. Any other path with no
+/// root is returned in
+/// [`WorkspaceRoots::unknown`], with its enclosing container (or itself)
+/// as the root, so that the run still has the context it had before.
+pub fn workspace_roots(settings: &ProjectSettings, paths: &[PathBuf]) -> WorkspaceRoots {
+    let base = if settings.root.as_os_str().is_empty() {
+        None
+    } else {
+        Some(absolute(&settings.root))
+    };
+    let (configured, cwd) = match base {
+        Some(base) if settings.root_is_configured => (Some(base), None),
+        Some(base) => (None, Some(base)),
+        None => (None, None),
+    };
+    let mut out = WorkspaceRoots::default();
+    let mut roots: Vec<PathBuf> = Vec::new();
+    for path in paths {
+        let path = absolute(path);
+        let container = enclosing_container(&path);
+        let usable = |dir: &Path| {
+            path.starts_with(dir)
+                && container.as_ref().is_none_or(|c| !dir.starts_with(c))
+                && !is_container(dir)
+        };
+        let layout = container.as_deref().and_then(layout_root);
+        let first = [
+            configured.clone().filter(|d| usable(d)),
+            layout.filter(|d| usable(d)),
+        ]
+        .into_iter()
+        .flatten()
+        .min_by_key(|d| d.components().count());
+        let root = first
+            .or_else(|| git_work_tree(&path).filter(|d| usable(d) && holds_ignition_layout(d)))
+            .or_else(|| {
+                cwd.clone()
+                    .filter(|d| usable(d) && holds_ignition_layout(d))
+            });
+        match root {
+            Some(root) => roots.push(root),
+            // A directory outside every project and collection is the
+            // tree the user asked about.
+            None if container.is_none() && path.is_dir() => roots.push(path),
+            None => {
+                out.unknown.push(path.clone());
+                roots.push(container.unwrap_or(path));
+            }
+        }
+    }
+    for extra in settings.projects.iter().chain(&settings.gateways) {
+        roots.push(absolute(&settings.root.join(extra)));
+    }
+    roots.sort();
+    roots.dedup();
+    // Drop roots inside another root.
+    let mut kept: Vec<PathBuf> = Vec::new();
+    for root in roots {
+        if !kept.iter().any(|k| root.starts_with(k)) {
+            kept.push(root);
+        }
+    }
+    out.roots = kept;
+    out
+}
+
+/// The project or gateway collection directory that `path` is in (or is).
+fn enclosing_container(path: &Path) -> Option<PathBuf> {
+    let start = if path.is_dir() { path } else { path.parent()? };
+    start
+        .ancestors()
+        .find(|d| is_container(d))
+        .map(Path::to_path_buf)
+}
+
+fn is_container(dir: &Path) -> bool {
+    TREE_ROOTS.iter().any(|m| dir.join(m).is_file())
+}
+
+/// The directory that holds the Ignition layout around `container`:
+/// `<root>/projects/<project>`, `<root>/config/resources/<collection>`
+/// (widened to `<root>/..` when it is `services/<gateway>` or when its
+/// parent holds `projects/`), or `None` for any other layout.
+fn layout_root(container: &Path) -> Option<PathBuf> {
+    let parent = container.parent()?;
+    let name = |p: &Path| p.file_name().and_then(|n| n.to_str()).map(str::to_owned);
+    if container.join("project.json").is_file() {
+        return (name(parent).as_deref() == Some("projects"))
+            .then(|| parent.parent().map(Path::to_path_buf))
+            .flatten();
+    }
+    if name(parent).as_deref() != Some("resources") {
+        return None;
+    }
+    let config = parent.parent()?;
+    if name(config).as_deref() != Some("config") {
+        return None;
+    }
+    let data = config.parent()?;
+    if data.join("projects").is_dir() {
+        return Some(data.to_path_buf());
+    }
+    let up = data.parent();
+    Some(
+        match up {
+            Some(up) if name(up).as_deref() == Some("services") => up.parent().unwrap_or(up),
+            Some(up) if up.join("projects").is_dir() => up,
+            _ => data,
+        }
+        .to_path_buf(),
+    )
+}
+
+/// Whether `dir` holds a project or a gateway collection directly, or a
+/// `projects/`, `services/` or `config/resources/` directory.
+fn holds_ignition_layout(dir: &Path) -> bool {
+    ["projects", "services", "config/resources"]
+        .iter()
+        .any(|d| dir.join(d).is_dir())
+        || std::fs::read_dir(dir).is_ok_and(|entries| {
+            entries
+                .flatten()
+                .any(|e| e.file_type().is_ok_and(|t| t.is_dir()) && is_container(&e.path()))
+        })
+}
+
+/// The top directory of the Git work tree that contains `path`: the
+/// nearest ancestor with a `.git` directory or file.
+fn git_work_tree(path: &Path) -> Option<PathBuf> {
+    path.ancestors()
+        .find(|d| d.join(".git").exists())
+        .map(Path::to_path_buf)
+}
+
 /// Why `file` is not linted (excluded or whitelisted), if it is not.
 pub fn skip_reason(settings: &ProjectSettings, file: &Path) -> Option<SkipReason> {
     Skip::new(settings).reason(file)

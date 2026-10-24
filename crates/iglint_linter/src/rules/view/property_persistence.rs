@@ -268,7 +268,12 @@ fn fix(
     // with one, scripts and expressions that run before the binding
     // delivers (query bindings are asynchronous) see a different value.
     Some(if stored.is_some() {
-        Fix::unsafe_edit(message, edits)
+        Fix::unsafe_edit(
+            message,
+            edits,
+            "the view stores a value for the property: scripts and expressions that run before \
+             the binding delivers (query bindings are asynchronous) would see a different value",
+        )
     } else {
         Fix::safe(message, edits)
     })

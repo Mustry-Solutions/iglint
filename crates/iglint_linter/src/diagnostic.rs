@@ -157,8 +157,9 @@ pub struct Fix {
     /// statements): fixes with the same guard never delete all statements
     /// of the suite in one pass.
     pub suite: Option<SuiteGuard>,
-    /// Why the fix is unsafe when only the code around it keeps it from
-    /// being safe (code that is not vetted, or that reads a frame).
+    /// Why the fix is unsafe. Every unsafe fix has one: the code around
+    /// it that keeps it from being safe (code that is not vetted, or that
+    /// reads a frame), or what the fix itself may change.
     pub unsafe_reason: Option<UnsafeReason>,
 }
 
@@ -188,6 +189,15 @@ pub struct ReasonSite {
 }
 
 impl UnsafeReason {
+    /// A reason without a site.
+    pub fn new(message: impl Into<String>) -> UnsafeReason {
+        UnsafeReason {
+            message: message.into(),
+            site: None,
+            workspace: false,
+        }
+    }
+
     /// The reason as one sentence, with the location shown by `display`.
     pub fn describe(&self, display: impl Fn(&Path) -> String) -> String {
         match &self.site {
@@ -215,9 +225,21 @@ pub struct SuiteGuard {
 }
 
 impl Fix {
-    /// Records why the fix is unsafe (see [`UnsafeReason`]).
+    /// Records why the fix is unsafe (see [`UnsafeReason`]); `None` keeps
+    /// the reason it has.
     pub fn because(mut self, reason: Option<UnsafeReason>) -> Self {
-        self.unsafe_reason = reason;
+        if reason.is_some() {
+            self.unsafe_reason = reason;
+        }
+        self
+    }
+
+    /// Records `message` as why the fix is unsafe, when it is unsafe and
+    /// has no reason yet. Every unsafe fix says why.
+    pub fn reason_if_unsafe(mut self, message: impl Into<String>) -> Self {
+        if self.applicability == Applicability::Unsafe && self.unsafe_reason.is_none() {
+            self.unsafe_reason = Some(UnsafeReason::new(message));
+        }
         self
     }
 
@@ -237,13 +259,18 @@ impl Fix {
         }
     }
 
-    pub fn unsafe_edit(message: impl Into<String>, edits: Vec<FileEdit>) -> Self {
+    /// An unsafe fix, with why it is unsafe.
+    pub fn unsafe_edit(
+        message: impl Into<String>,
+        edits: Vec<FileEdit>,
+        reason: impl Into<String>,
+    ) -> Self {
         Fix {
             message: message.into(),
             applicability: Applicability::Unsafe,
             edits,
             suite: None,
-            unsafe_reason: None,
+            unsafe_reason: Some(UnsafeReason::new(reason)),
         }
     }
 

@@ -198,6 +198,12 @@ pub(crate) fn report_unused(
                 applicability,
                 vec![e],
             )
+            .map(|f| {
+                f.reason_if_unsafe(
+                    "the comment holds more than the suppression (other text, a `# pylint:` \
+                     directive or a coding declaration), and the fix removes all of it",
+                )
+            })
         });
         for (_, message) in unused {
             let _ = report(cx, unit, s.comment, message).fix_opt(fix.clone());

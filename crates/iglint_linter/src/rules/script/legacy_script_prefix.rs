@@ -129,6 +129,12 @@ impl ScriptRule for LegacyScriptPrefix {
                     Applicability::Unsafe,
                     vec![(p, String::new())],
                 )
+                .map(|f| {
+                    f.reason_if_unsafe(
+                        "the code raises `NameError` today, and after the fix it calls the \
+                         library",
+                    )
+                })
             });
             let _ = report(cx, unit, range, message).fix_opt(fix);
         }

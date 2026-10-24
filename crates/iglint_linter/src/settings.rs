@@ -131,6 +131,10 @@ pub struct Override {
 pub struct ProjectSettings {
     /// Directory that relative paths in settings are resolved against.
     pub root: PathBuf,
+    /// `root` is the directory of a configuration file, not the working
+    /// directory of a run without one. A configured root bounds the
+    /// workspace ([`crate::discovery::workspace_roots`]).
+    pub root_is_configured: bool,
     pub base: Arc<LinterSettings>,
     /// Applied in order to files they match.
     pub overrides: Vec<Override>,
@@ -159,6 +163,7 @@ impl Default for ProjectSettings {
     fn default() -> Self {
         ProjectSettings {
             root: PathBuf::new(),
+            root_is_configured: false,
             base: Arc::default(),
             overrides: Vec::new(),
             exclude: Vec::new(),

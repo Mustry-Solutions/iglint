@@ -321,7 +321,14 @@ fn quick_fixes_go_through_the_safety_net() {
     assert!(rejected.is_empty(), "{rejected:#?}");
     let unsafe_fix = fixes(&mut client, line(2));
     assert_eq!(unsafe_fix.len(), 1, "{unsafe_fix:#?}");
-    assert!(unsafe_fix[0].title.ends_with("(unsafe)"));
+    // Every unsafe fix says why (review round 14).
+    assert!(
+        unsafe_fix[0]
+            .title
+            .ends_with("(unsafe: the comment holds more than the suppression (other text, a `# pylint:` directive or a coding declaration), and the fix removes all of it)"),
+        "{}",
+        unsafe_fix[0].title
+    );
     assert_eq!(unsafe_fix[0].is_preferred, Some(false));
     let actions = code_actions(
         &mut client,
@@ -1270,5 +1277,85 @@ fn rename_quick_fix_sees_measured_fields_and_name_reads() {
     for (title, preferred) in &fixes {
         assert!(!title.contains("unsafe"), "{title}");
         assert_eq!(*preferred, Some(true), "{title}");
+    }
+}
+
+/// Review round 14 (Opus) blocker: a folder opened on one project still
+/// sees the rest of the workspace (the root is discovered above it), so a
+/// gateway tag script that uses `m.os` keeps `import os` used, and one
+/// that is not vetted makes the fix unsafe, as in a run over the root.
+#[test]
+fn a_folder_inside_the_workspace_sees_the_whole_workspace() {
+    let module = "projects/A/ignition/script-python/m/code.py";
+    let text = "import os\n\ndef f():\n    return 1\n";
+    for (tag_script, expected) in [
+        ("\\tprint m.os.sep\\n", None),
+        ("\\tprint eval('1')\\n", Some("closed world")),
+        ("\\tprint 1\\n", Some("")),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        write(
+            &root,
+            "projects/A/project.json",
+            r#"{"title": "A", "enabled": true, "inheritable": false}"#,
+        );
+        write(
+            &root,
+            "projects/A/ignition/script-python/m/resource.json",
+            &MANIFEST.replace("view.json", "code.py"),
+        );
+        let path = write(&root, module, text);
+        let core = "services/gw/config/resources/core";
+        write(&root, &format!("{core}/config-mode.json"), "{}");
+        write(
+            &root,
+            &format!("{core}/ignition/tag-definition/default/unary-resource.json"),
+            r#"{"scope": "G", "version": 1, "files": ["tags.json"], "attributes": {"config": {}}}"#,
+        );
+        write(
+            &root,
+            &format!("{core}/ignition/tag-definition/default/tags.json"),
+            &format!(
+                r#"[{{"name": "T", "tagType": "AtomicTag", "valueSource": "memory", "dataType": "Int4", "eventScripts": [{{"eventid": "valueChanged", "script": "{tag_script}"}}]}}]"#
+            ),
+        );
+        let mut client = Client::start(Some(&root.join("projects/A")), json!({"debounceMs": 0}));
+        let uri = client.open(&path, text);
+        let published = client.diagnostics(&uri, Some(1));
+        let found: Vec<_> = published
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == Some(lsp_types::NumberOrString::String("SCR102".into())))
+            .collect();
+        let Some(reason) = expected else {
+            assert!(found.is_empty(), "{tag_script}: {published:#?}");
+            continue;
+        };
+        assert_eq!(found.len(), 1, "{tag_script}: {published:#?}");
+        let fixes: Vec<CodeAction> = code_actions(
+            &mut client,
+            &uri,
+            found[0].range,
+            Some(vec![CodeActionKind::QUICKFIX]),
+        )
+        .into_iter()
+        .filter(|a| a.title.starts_with("SCR102") && !a.title.contains("suppress"))
+        .collect();
+        assert_eq!(fixes.len(), 1, "{tag_script}: {fixes:#?}");
+        if reason.is_empty() {
+            assert_eq!(
+                fixes[0].is_preferred,
+                Some(true),
+                "{tag_script}: {fixes:#?}"
+            );
+        } else {
+            assert!(
+                fixes[0].title.contains(&format!("(unsafe: {reason}")),
+                "{tag_script}: {}",
+                fixes[0].title
+            );
+        }
+        client.shutdown();
     }
 }

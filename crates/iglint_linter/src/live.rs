@@ -89,6 +89,9 @@ pub struct LiveWorkspace {
     settings: ProjectSettings,
     roots: Vec<PathBuf>,
     ws: Workspace,
+    /// No workspace root was found around a root
+    /// ([`crate::discovery::WorkspaceRoots::unknown`]).
+    closed_world_unknown: bool,
     rules: &'static [&'static RuleImpl],
     sets: RuleSetCache,
     /// Current text of every readable workspace file.
@@ -107,8 +110,9 @@ pub struct LiveWorkspace {
 }
 
 impl LiveWorkspace {
-    /// Discovers the projects and gateway collections below `roots` and
-    /// summarises every resource.
+    /// Discovers the projects and gateway collections of the workspace
+    /// roots of `roots` ([`discovery::workspace_roots`]) and summarises
+    /// every resource. Findings are computed for files below `roots`.
     pub fn new(settings: ProjectSettings, roots: Vec<PathBuf>) -> LiveWorkspace {
         LiveWorkspace::with_rules(crate::rules::IMPLS, settings, roots)
     }
@@ -120,7 +124,11 @@ impl LiveWorkspace {
         roots: Vec<PathBuf>,
     ) -> LiveWorkspace {
         let roots: Vec<PathBuf> = roots.iter().map(|r| absolute(r)).collect();
-        let ws = Workspace::discover(&roots);
+        // Like `check`: the workspace is everything below the workspace
+        // roots of the folder, which may lie above it (a folder opened on
+        // one project still sees the gateway's tag scripts).
+        let ws_roots = discovery::workspace_roots(&settings, &roots);
+        let ws = Workspace::discover(&ws_roots.roots);
         let mut table = FileTable::with_len(ws.files.len());
         let mut read_errors = FxHashMap::default();
         for r in ws.resources.iter().filter(|r| !r.manifest.missing) {
@@ -210,6 +218,7 @@ impl LiveWorkspace {
             settings,
             roots,
             ws,
+            closed_world_unknown: !ws_roots.unknown.is_empty(),
             rules,
             sets: RuleSetCache::default(),
             table,
@@ -338,7 +347,7 @@ impl LiveWorkspace {
         }
         let old = std::mem::replace(old, new);
         let summaries = std::mem::take(&mut self.summaries);
-        let index = crate::analyze::build_index(&self.ws, summaries);
+        let index = crate::analyze::build_index(&self.ws, summaries, self.closed_world_unknown);
         let dependents = dependents(&self.ws, &index, rid, &old);
         self.summaries = index.into_summaries();
         dependents
@@ -368,7 +377,7 @@ impl LiveWorkspace {
         let old = std::mem::replace(&mut self.summaries[rid.index()], new);
         let changed = old != self.summaries[rid.index()];
         let summaries = std::mem::take(&mut self.summaries);
-        let index = crate::analyze::build_index(&self.ws, summaries);
+        let index = crate::analyze::build_index(&self.ws, summaries, self.closed_world_unknown);
         let dependents = if changed {
             dependents(&self.ws, &index, rid, &old)
         } else {
@@ -387,7 +396,7 @@ impl LiveWorkspace {
     /// Findings of `paths`, in the order given.
     pub fn check(&mut self, paths: &[PathBuf]) -> Vec<FileDiagnostics> {
         let summaries = std::mem::take(&mut self.summaries);
-        let index = crate::analyze::build_index(&self.ws, summaries);
+        let index = crate::analyze::build_index(&self.ws, summaries, self.closed_world_unknown);
         let result = self.check_with(&index, paths);
         self.summaries = index.into_summaries();
         result
@@ -778,7 +787,7 @@ impl LiveWorkspace {
             return None;
         }
         let summaries = std::mem::take(&mut self.summaries);
-        let index = crate::analyze::build_index(&self.ws, summaries);
+        let index = crate::analyze::build_index(&self.ws, summaries, self.closed_world_unknown);
         let mut options = CheckOptions {
             fix_mode: FixMode::DiffOnly { unsafe_fixes },
             stdin: Some((path.clone(), String::new())),

@@ -112,6 +112,24 @@ fn show_settings(
         None => writeln!(out, "Configuration: defaults")?,
     }
     writeln!(out, "Root: {}", settings.root.display())?;
+    // The directories whose projects and gateway collections form the
+    // closed world of a run over these paths.
+    let linted = if paths.is_empty() {
+        vec![environment.cwd.clone()]
+    } else {
+        paths.to_vec()
+    };
+    let workspace = discovery::workspace_roots(settings, &linted);
+    for root in &workspace.roots {
+        writeln!(out, "Workspace root: {}", root.display())?;
+    }
+    for path in &workspace.unknown {
+        writeln!(
+            out,
+            "Workspace root: none found for {} (the closed world is unknown)",
+            shown(path)
+        )?;
+    }
     let file = paths
         .first()
         .cloned()

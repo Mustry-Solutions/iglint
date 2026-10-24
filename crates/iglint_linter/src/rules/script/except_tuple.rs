@@ -197,6 +197,12 @@ impl ScriptRule for ExceptTuple {
                         Applicability::Unsafe,
                         vec![(whole, replacement)],
                     )
+                    .map(|f| {
+                        f.reason_if_unsafe(
+                            "the fix changes what the handler catches and no longer binds the \
+                             second name",
+                        )
+                    })
                 })
                 .flatten();
             let message = format!(

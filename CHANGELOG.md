@@ -83,6 +83,26 @@ from 0.1.0 on.
 
 ### Fixed
 
+- Linting part of a workspace (one file, as the pre-commit hooks do, a
+  project directory, `cd projects/A && iglint check --fix .`, standard
+  input, a language server folder opened on one project) analysed only
+  the projects around the linted paths, so a safe `SCR102` fix removed an
+  import that a gateway tag script used as `m.os`, and a tag script that
+  is not vetted did not make the fix unsafe (review round 14). The
+  workspace (closed world, uses of library names, every cross-resource
+  fact) is now everything below the workspace root of the linted paths:
+  the configuration file's directory, the directory that holds the
+  `projects/` or `config/resources/` layout, the Git work tree or the
+  working directory. Excluded and ignored files still count, since they
+  still run. Without a root the closed world is unknown and the fixes
+  that need it are unsafe. `--show-settings` prints the workspace roots.
+  A warm single-file run on a 3,000-file workspace takes about 55 ms
+  (17 ms before, when it saw only one project).
+- Every unsafe fix says why (review round 14): `SCR102` imports not known
+  to be free of effects, names still read after the import or before a
+  `from __future__` import, names other resources may use; `SCR103`,
+  `SCR110`, `SCR115`, `SCR123`, `SCR206`, `SCR301`, `SCR900`, `VIEW012`,
+  `VIEW013`, `VIEW015` and `NAME001` fixes that are unsafe by nature.
 - `SCR102` removed imports that class bodies read, safely, and `--fix`
   broke the module (review round 13). A class body reads by name: a name
   it binds anywhere is looked up in the class namespace and then in the
