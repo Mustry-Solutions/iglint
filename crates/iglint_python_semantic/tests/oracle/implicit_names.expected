@@ -1,0 +1,200 @@
+### no-statements
+library: __builtins__ __name__='m'
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### assignment
+library: __builtins__ __name__='m'
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### docstring
+library: __builtins__ __doc__='The module docstring.' __name__='m'
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__='The module docstring.' __file__='<file>' __name__='<name>' __package__=None
+### import
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### import-dotted
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### import-as
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### import-dotted-as
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### import-two-names
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### from-import
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### from-import-as
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### from-import-star
+library: __builtins__ __name__='m' __package__=None +acos +acosh +asin +asinh +atan +atan2 +atanh +ceil +classDictInit +copysign +cos +cosh +degrees +e +equals +erf +erfc +exp +expm1 +fabs +factorial +floor +fmod +frexp +fsum +gamma +getClass +hashCode +hypot +isinf +isnan +ldexp +lgamma +log +log10 +log1p +modf +notify +notifyAll +pi +pow +radians +sin +sinh +sqrt +tan +tanh +toString +trunc +wait
+function: __builtins__ +runAction
+toplevel: __builtins__ +acos +acosh +asin +asinh +atan +atan2 +atanh +ceil +classDictInit +copysign +cos +cosh +degrees +e +equals +erf +erfc +exp +expm1 +fabs +factorial +floor +fmod +frexp +fsum +gamma +getClass +hashCode +hypot +isinf +isnan +ldexp +lgamma +log +log10 +log1p +modf +notify +notifyAll +pi +pow +radians +runAction +sin +sinh +sqrt +tan +tanh +toString +trunc +wait
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None +acos +acosh +asin +asinh +atan +atan2 +atanh +ceil +classDictInit +copysign +cos +cosh +degrees +e +equals +erf +erfc +exp +expm1 +fabs +factorial +floor +fmod +frexp +fsum +gamma +getClass +hashCode +hypot +isinf +isnan +ldexp +lgamma +log +log10 +log1p +modf +notify +notifyAll +pi +pow +radians +sin +sinh +sqrt +tan +tanh +toString +trunc +wait
+### from-future
+library: __builtins__ __name__='m' __package__=None
+function: compile-error
+toplevel: compile-error
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### import-library-module
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### from-library-package
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### import-java-package
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### import-java-class-dotted
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### from-java-package
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### from-java-as
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### failing-import
+library: __builtins__ __name__='m' __package__=None r_error='ImportError'
+function: __builtins__ r_error='ImportError' +runAction
+toplevel: __builtins__ r_error='ImportError' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_error='ImportError'
+### failing-from-import
+library: __builtins__ __name__='m' __package__=None r_error='ImportError'
+function: __builtins__ r_error='ImportError' +runAction
+toplevel: __builtins__ r_error='ImportError' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_error='ImportError'
+### failing-java-import
+library: __builtins__ __name__='m' __package__=None r_error='ImportError'
+function: __builtins__ r_error='ImportError' +runAction
+toplevel: __builtins__ r_error='ImportError' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_error='ImportError'
+### relative-from-dot
+library: __builtins__ __name__='m' r_error='ValueError'
+function: __builtins__ __warningregistry__ r_error='ImportError' +runAction
+toplevel: __builtins__ __warningregistry__ r_error='ImportError' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_error='ValueError'
+### relative-from-dot-module
+library: __builtins__ __name__='m' r_error='ValueError'
+function: __builtins__ r_error='ImportError' +runAction
+toplevel: __builtins__ r_error='ImportError' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_error='ValueError'
+### relative-from-dotdot
+library: __builtins__ __name__='m' r_error='ValueError'
+function: __builtins__ __warningregistry__ r_error='ImportError' +runAction
+toplevel: __builtins__ __warningregistry__ r_error='ImportError' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_error='ValueError'
+### read-before-and-after-import
+library: __builtins__ __name__='m' __package__=None r_after=None r_before='NameError'
+function: __builtins__ r_after='NameError' r_before='NameError' +runAction
+toplevel: __builtins__ r_after='NameError' r_before='NameError' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_after=None r_before=None
+### import-in-function-called
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### import-in-function-not-called
+library: __builtins__ __name__='m'
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### import-in-class
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### import-in-unqualified-exec
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### import-in-exec-dict
+library: __builtins__ __name__='m' r_keys=['__builtins__']
+function: __builtins__ r_keys=['__builtins__'] +runAction
+toplevel: __builtins__ r_keys=['__builtins__'] +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_keys=['__builtins__']
+### dunder-import-call
+library: __builtins__ __name__='m'
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### dunder-import-call-globals
+library: __builtins__ __name__='m' __package__=None
+function: __builtins__ +runAction
+toplevel: __builtins__ +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None
+### name-assigned-then-import
+library: __builtins__ __name__='a.b' __package__='a' __warningregistry__ r_after='a'
+function: __builtins__ +runAction !NameError
+toplevel: __builtins__ __name__='a.b' __package__='a' __warningregistry__ r_after='a' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__='a' __warningregistry__ r_after='a'
+### package-assigned-then-import
+library: __builtins__ __name__='m' __package__='x' __warningregistry__ r_after='x'
+function: __builtins__ r_after='x' +runAction
+toplevel: __builtins__ __package__='x' __warningregistry__ r_after='x' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__='x' __warningregistry__ r_after='x'
+### package-deleted-then-import
+library: __builtins__ __name__='m' __package__=None r_after=None
+function: __builtins__ +runAction !UnboundLocalError
+toplevel: !NameError
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_after=None
+### statements-without-import
+library: __builtins__ __name__='m' r_c=[1]
+function: __builtins__ r_c=[1] +runAction
+toplevel: __builtins__ r_c=[1] +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_c=[1]
+### k1-repro-before
+library: __builtins__ __name__='m' __package__=None r_value=None
+function: __builtins__ r_value='ABSENT' +runAction
+toplevel: __builtins__ r_value='ABSENT' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_value=None
+### k1-repro-after-safe-fix
+library: __builtins__ __name__='m' r_value='ABSENT'
+function: __builtins__ r_value='ABSENT' +runAction
+toplevel: __builtins__ r_value='ABSENT' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_value=None
+### k1-repro-other-import-kept
+library: __builtins__ __name__='m' __package__=None r_value=None
+function: __builtins__ r_value='ABSENT' +runAction
+toplevel: __builtins__ r_value='ABSENT' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_value=None
+### k1-repro-other-import-kept-after
+library: __builtins__ __name__='m' __package__=None r_value=None
+function: __builtins__ r_value='ABSENT' +runAction
+toplevel: __builtins__ r_value='ABSENT' +runAction
+plain: __builtins__ __doc__=None __file__='<file>' __name__='<name>' __package__=None r_value=None

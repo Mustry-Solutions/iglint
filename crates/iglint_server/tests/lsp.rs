@@ -701,6 +701,71 @@ fn quick_fix_for_import_read_through_an_earlier_function_is_unsafe() {
     client.shutdown();
 }
 
+/// Reviewer round 12, K1: in a library module every import that runs
+/// binds `__package__`, so the quick fix that removes the only import of a
+/// module reading it is offered only as unsafe (not preferred), with the
+/// reason in its title, and fix-all keeps the import.
+#[test]
+fn quick_fix_for_an_import_whose_package_is_read_is_unsafe() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    demo_project(&root);
+    let lib = "projects/demo/ignition/script-python/m";
+    write(
+        &root,
+        &format!("{lib}/resource.json"),
+        &MANIFEST.replace("view.json", "code.py"),
+    );
+    let text = "import math\n\ndef get_package():\n    try:\n        return __package__\n    except NameError:\n        return 'ABSENT'\n";
+    let path = write(&root, &format!("{lib}/code.py"), text);
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&path, text);
+    let published = client.diagnostics(&uri, Some(1));
+    let range = published
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.code
+                .as_ref()
+                .is_some_and(|c| *c == lsp_types::NumberOrString::String("SCR102".to_owned()))
+        })
+        .unwrap_or_else(|| panic!("{published:#?}"))
+        .range;
+    assert_eq!(range.start, Position::new(0, 7));
+    let fixes: Vec<CodeAction> = code_actions(
+        &mut client,
+        &uri,
+        range,
+        Some(vec![CodeActionKind::QUICKFIX]),
+    )
+    .into_iter()
+    .filter(|a| a.title.starts_with("SCR102") && !a.title.contains("suppress"))
+    .collect();
+    assert!(!fixes.is_empty(), "{fixes:#?}");
+    for fix in &fixes {
+        assert!(
+            fix.title
+                .ends_with("(unsafe: the import binds `__package__`, which code may read)"),
+            "{fix:#?}"
+        );
+        assert_eq!(fix.is_preferred, Some(false), "{fix:#?}");
+    }
+    let actions = code_actions(
+        &mut client,
+        &uri,
+        full_range(),
+        Some(vec![CodeActionKind::SOURCE_FIX_ALL]),
+    );
+    for action in actions {
+        let resolved = client.request::<CodeActionResolveRequest>(action);
+        if let Some(edit) = resolved.edit {
+            let fixed = apply(text, &edit.changes.unwrap()[&uri]);
+            assert!(fixed.starts_with("import math\n"), "{fixed}");
+        }
+    }
+    client.shutdown();
+}
+
 /// The VIEW015 quick fixes (and fix-all) of `view` in a workspace where
 /// another view runs `script`: the titles and whether each is preferred.
 fn view015_fixes(script: &str) -> Vec<(String, Option<bool>)> {

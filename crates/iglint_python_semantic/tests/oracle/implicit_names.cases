@@ -1,0 +1,193 @@
+### no-statements
+pass
+### assignment
+x = 1
+### docstring
+"""The module docstring."""
+x = 1
+### import
+import math
+### import-dotted
+import os.path
+### import-as
+import math as m2
+### import-dotted-as
+import os.path as p2
+### import-two-names
+import math, time
+### from-import
+from math import pi
+### from-import-as
+from math import pi as p3
+### from-import-star
+from math import *
+### from-future
+from __future__ import division
+### import-library-module
+import pkg.other
+### from-library-package
+from pkg import other
+### import-java-package
+import java
+### import-java-class-dotted
+import java.lang.String
+### from-java-package
+from java.lang import String
+### from-java-as
+from java.util import ArrayList as AL
+### failing-import
+global r_error
+try:
+    import no_such_module_iglint
+except ImportError:
+    r_error = 'ImportError'
+### failing-from-import
+global r_error
+try:
+    from math import no_such_name_iglint
+except ImportError:
+    r_error = 'ImportError'
+### failing-java-import
+global r_error
+try:
+    from java.lang import NoSuchClassIglint
+except ImportError:
+    r_error = 'ImportError'
+### relative-from-dot
+global r_error
+try:
+    from . import other
+except (ImportError, ValueError), e:
+    r_error = type(e).__name__
+### relative-from-dot-module
+global r_error
+try:
+    from .other import Y
+except (ImportError, ValueError), e:
+    r_error = type(e).__name__
+### relative-from-dotdot
+global r_error
+try:
+    from .. import other
+except (ImportError, ValueError), e:
+    r_error = type(e).__name__
+### read-before-and-after-import
+global r_before, r_after
+try:
+    r_before = __package__
+except NameError:
+    r_before = 'NameError'
+import math
+try:
+    r_after = __package__
+except NameError:
+    r_after = 'NameError'
+### import-in-function-called
+def g():
+    import math
+g()
+### import-in-function-not-called
+def g():
+    import math
+### import-in-class
+class C:
+    import math
+### import-in-unqualified-exec
+exec "import math"
+### import-in-exec-dict
+global r_keys
+d = {}
+exec "import math" in d
+r_keys = sorted(k for k in d if k.startswith('__'))
+### dunder-import-call
+__import__('math')
+### dunder-import-call-globals
+__import__('math', globals())
+### name-assigned-then-import
+global r_after
+__name__ = 'a.b'
+import math
+r_after = __package__
+### package-assigned-then-import
+global r_after
+__package__ = 'x'
+import math
+r_after = __package__
+### package-deleted-then-import
+global r_after
+import math
+del __package__
+import time
+r_after = __package__
+### statements-without-import
+global r_c
+x = [i for i in range(3)]
+y = list(i for i in range(3))
+z = dict((i, i) for i in range(3))
+s = set([1])
+for i in range(2):
+    pass
+while False:
+    pass
+try:
+    raise ValueError('v')
+except ValueError, e:
+    pass
+finally:
+    pass
+class CM(object):
+    def __enter__(self):
+        return 1
+    def __exit__(self, *a):
+        return False
+with CM() as w:
+    pass
+assert True
+del x
+f = lambda q: q
+def gen():
+    yield 1
+r_c = [1 for c in gen()]
+print >> None, 'out'
+### k1-repro-before
+import math
+
+def get_package():
+    try:
+        return __package__
+    except NameError:
+        return 'ABSENT'
+global r_value
+r_value = get_package()
+### k1-repro-after-safe-fix
+pass
+
+def get_package():
+    try:
+        return __package__
+    except NameError:
+        return 'ABSENT'
+global r_value
+r_value = get_package()
+### k1-repro-other-import-kept
+import math
+import os
+
+def get_package():
+    try:
+        return __package__
+    except NameError:
+        return 'ABSENT'
+global r_value
+r_value = get_package()
+### k1-repro-other-import-kept-after
+pass
+import os
+
+def get_package():
+    try:
+        return __package__
+    except NameError:
+        return 'ABSENT'
+global r_value
+r_value = get_package()

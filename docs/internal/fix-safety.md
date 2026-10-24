@@ -94,7 +94,12 @@ Three mechanisms carry it:
    changes the scopes (generator status, `global` declarations, `import
    *`, `exec`, frame reads), or changes what any remaining name resolves
    to (local, enclosing function, global, builtin, injected) or whether it
-   may be unbound. It runs on every storage format: `.py` library modules
+   may be unbound. Names that statements bind without naming them are
+   bindings of the semantic model too: `__module__` in class bodies and
+   the `__package__` that every import binds in a library module's
+   globals (see "Names imports bind"), so removing the only import of a
+   module that reads `__package__` changes what the read finds. It runs
+   on every storage format: `.py` library modules
    and event files, and scripts in `view.json` and other resource JSON
    (event actions, transforms, change scripts, message handlers, custom
    methods, session and tag event scripts), each compiled with its
@@ -287,6 +292,44 @@ class, package and module was measured to exist.
   Java class is vetted only when it is listed there (an import of a
   missing class fails), and `SCR102` removes an import safely only with
   this positive evidence (see "Import side effects").
+
+### Names imports bind
+
+Reviewer round 12 (K1): a library module whose only import was removed
+safely returned `'ABSENT'` instead of `None` from a function reading
+`__package__`. Jython's import computes the importing module's package
+from the `__name__` of its globals and stores it as `__package__` before
+it looks the module up. Measured with `oracle/run-oracle.sh --implicit`
+inside the 8.3.3 image, through Ignition's own `ScriptManager` (the table
+is in `ignition-format.md`, "Names that statements create";
+`implicit_names_oracle.rs` checks the model against it):
+
+* in a library module every absolute import statement that runs binds
+  `__package__` (`None`, as `__name__` is the module's last path
+  component), wherever it is and whether it succeeds: plain, dotted, `as`,
+  `from`, `*`, `__future__`, Java, project library and failing imports;
+  relative imports raise `ValueError` first;
+* event scripts (function bodies and top-level code after the function)
+  run without `__name__`, so their imports bind nothing unless the code
+  binds `__name__` itself;
+* an import that warns leaves `__warningregistry__` (relative imports in
+  event scripts; any import once the code set a dotted `__name__` or a
+  `__package__`);
+* no other statement creates a name; `__doc__` comes only from a
+  docstring, and no context has `__file__`.
+
+The semantic model binds `__package__` in the module namespace at each
+such import (`BindingKind::ImportPackage`, with the import's scope as its
+site, like an assignment under `global`), so the safety net compares what
+reads of it resolve to. Across scopes the model is flow-insensitive (an
+import in a function that never runs still counts), so `SCR102` does not
+rely on the net alone: removing a whole import statement that binds
+`__package__` is unsafe whenever anything may observe the names above (see
+the `SCR102` row). Tests: `imports_bind_package_in_library_modules`,
+`the_net_sees_the_package_an_import_binds`,
+`removing_the_import_that_binds_package_is_unsafe_when_observed`, the
+binary test `imports_that_bind_a_read_package_are_kept` and the language
+server test `quick_fix_for_an_import_whose_package_is_read_is_unsafe`.
 
 ### String sinks
 
@@ -882,7 +925,7 @@ longer needed for safety.
 | `VIEW012` | Set, add or remove `access` in `propConfig` | Never: the access mode decides whether the browser receives the property and whether it may write it | Unsafe |
 | `VIEW013` | Set `persistent: false` (and remove the stored value) | No stored value: the property starts out absent either way; and no code in the workspace may read workspace files ("File reads") | Unsafe when a stored value is removed: scripts and expressions that run before the binding delivers (query bindings are asynchronous) see a different value |
 | `VIEW015` | Remove an unused custom property and its `propConfig` entries | Nothing reads or writes the property, and the view's own scripts prove it: resolved reads and writes cover expressions, bindings (bidirectional ones write) and scripts, analysed default-deny (every use of a component, the view, a page or session, a property container or an alias of one must be one of the forms listed under "`VIEW015`: understood forms" below; anything else reads and writes everything it reaches); a script that reads frames or reaches a frame builtin in any way reads everything, and every library name a script calls or uses as a value is checked to be a plain function, class or literal constant (or missing); properties with a binding or change script are never reported | Unsafe when a script, a library function it calls or a bidirectional binding writes the property (the write recreates it at run time without the `access` and `persistent` settings of the removed `propConfig` entry); unsafe when the finding relies on following a value into library functions (inter-procedural: the function's body, a function that does not exist, the depth limit); unsafe for a view linted outside its project whose scripts call names that may be library functions; unsafe when a script of the view, or a library module it imports or calls, uses code that is not vetted; unsafe when any code in the workspace reaches other views through a page or session (closed world, "Other views") |
-| `SCR102` | Remove unused import names or statements; the safe fix keeps the emptied lines, the unsafe fix removes them | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); not a top-level name of a library module that another resource reads (`pkg.mod.name`, a literal `getattr` or `hasattr` name) or uses as a value (a default argument, a container, `getGlobals()`, `sys.modules`; never reported); a top-level library import is provably unused by other resources and no resource of the project uses code that is not vetted; every removed import is known to succeed and to be effect-free: a measured Java class or package of the vetted packages, or a plain `import x` / non-package `from x import y` of a standard module on the verified list that was measured to import (and to have `y`), with no project library package of that name; the module uses only vetted code and calls no library name that may be a frame builtin; the import is not the only binding of a name still read in its scope or a nested scope; and it does not come before a `from __future__` import | Unsafe (project library modules, third-party and non-JDK Java packages, Java classes or module attributes not measured to exist, `socket`, `logging`, dotted imports, relative imports, unknown project, a library name that is not a plain function, class or literal constant, code that is not vetted, a name that would resolve differently, a misplaced future import that would become valid) |
+| `SCR102` | Remove unused import names or statements; the safe fix keeps the emptied lines, the unsafe fix removes them | Not in a class body (never reported); not a module-level name the module may read dynamically (never reported); not a top-level name of a library module that another resource reads (`pkg.mod.name`, a literal `getattr` or `hasattr` name) or uses as a value (a default argument, a container, `getGlobals()`, `sys.modules`; never reported); a top-level library import is provably unused by other resources and no resource of the project uses code that is not vetted; every removed import is known to succeed and to be effect-free: a measured Java class or package of the vetted packages, or a plain `import x` / non-package `from x import y` of a standard module on the verified list that was measured to import (and to have `y`), with no project library package of that name; the module uses only vetted code and calls no library name that may be a frame builtin; the import is not the only binding of a name still read in its scope or a nested scope; it does not come before a `from __future__` import; and, when the whole statement goes from a library module (where every import that runs binds `__package__`, see "Names imports bind"), nothing may observe `__package__` or `__warningregistry__`: no read or binding of either in the module, no binding of `__name__`, no read of the module's globals by name, and no other resource reading them, the module's `__dict__` or the module as a value (`external_use`, unknown counts as a reader) | Unsafe (project library modules, third-party and non-JDK Java packages, Java classes or module attributes not measured to exist, `socket`, `logging`, dotted imports, relative imports, unknown project, a library name that is not a plain function, class or literal constant, code that is not vetted, a name that would resolve differently, a misplaced future import that would become valid, a `__package__` that code may observe) |
 | `SCR103` | Remove `x = value`, or only `x = ` when the value calls or binds something | Never | Unsafe: the value may be wanted under another name, and a removed attribute or subscript read, operator, comparison, `in` or `%` formatting can raise or run code (getters, special methods). The statement is removed only when the value calls nothing (no call, no backticks, which call `repr`, no `yield`) and binds nothing (no list comprehension, whose variables Python 2 leaks), so no pointless statement (`SCR114`) is left |
 | `SCR110` | `is` to `==`, `is not` to `!=` | Never: the result changes whenever identity and equality differ (`int('1000') is 1000` is `False` in Jython), and `==` calls `__eq__` / Java `equals` | Unsafe |
 | `SCR115` | `except A, B:` to `except (A, B):` | Never: the handler then catches `B` and no longer rebinds the name | Unsafe. The finding itself requires `B` to resolve (ignoring the handler) to a class statement, a capitalized `from` import or a builtin exception, and the handler body not to read it |

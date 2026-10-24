@@ -194,15 +194,12 @@ impl ScriptFacts for AstScriptFacts {
             // does not compile has unknown symbols.
             return;
         }
-        let mut injected: Vec<&str> = unit.script.implicit_globals().collect();
-        if library {
-            injected.push("__package__");
-        }
         let model = iglint_python_semantic::SemanticModel::build(
             &unit.parsed.module,
             &iglint_python_semantic::SemanticOptions {
-                injected,
+                injected: unit.script.implicit_globals().collect(),
                 unknown_globals: false,
+                module_has_name: unit.script.has_module_name(),
             },
         );
         let mut references = iglint_project::summary::References::default();
@@ -686,15 +683,12 @@ fn script_model<'s>(unit: &ScriptUnit<'s, '_>) -> Option<SemanticModel<'s>> {
     if !unit.parsed.is_valid() {
         return None;
     }
-    let mut injected: Vec<&str> = unit.script.implicit_globals().collect();
-    if unit.script.kind == iglint_project::ScriptKind::LibraryModule {
-        injected.push("__package__");
-    }
     Some(SemanticModel::build(
         &unit.parsed.module,
         &iglint_python_semantic::SemanticOptions {
-            injected,
+            injected: unit.script.implicit_globals().collect(),
             unknown_globals: false,
+            module_has_name: unit.script.has_module_name(),
         },
     ))
 }

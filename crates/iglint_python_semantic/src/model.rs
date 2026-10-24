@@ -201,6 +201,11 @@ pub enum BindingKind {
     Injected,
     /// `__module__`, implicitly bound in every class body.
     ClassModule,
+    /// `__package__`, which an import statement binds in the module's
+    /// globals when it runs (see [`crate::SemanticOptions::module_has_name`]).
+    /// The binding's `stmt` is the import, its range the `import` or `from`
+    /// keyword, its scope the module and its site the scope of the import.
+    ImportPackage,
 }
 
 impl BindingKind {
@@ -241,6 +246,7 @@ impl BindingKind {
             BindingKind::Builtin => "builtin",
             BindingKind::Injected => "injected",
             BindingKind::ClassModule => "class-module",
+            BindingKind::ImportPackage => "import-package",
         }
     }
 }
@@ -291,11 +297,15 @@ impl Binding<'_> {
         !self.references.is_empty()
     }
 
-    /// Builtins and injected names (no source location).
+    /// Builtins, injected names and names bound without being named in
+    /// the source (`__module__`, `__package__`).
     pub fn is_implicit(&self) -> bool {
         matches!(
             self.kind,
-            BindingKind::Builtin | BindingKind::Injected | BindingKind::ClassModule
+            BindingKind::Builtin
+                | BindingKind::Injected
+                | BindingKind::ClassModule
+                | BindingKind::ImportPackage
         )
     }
 }

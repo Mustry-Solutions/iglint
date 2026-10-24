@@ -365,7 +365,12 @@ impl ScriptRule for Pylint {
         let script = unit.script;
         let mut reports = Vec::new();
         {
-            let (injected, unknown_globals) = injected_names(cx, script);
+            let (mut injected, unknown_globals) = injected_names(cx, script);
+            if script.has_module_name() {
+                // SCR101 reports a `__package__` that no import binds
+                // (the semantic model knows where imports bind it).
+                injected.push("__package__");
+            }
             for m in messages {
                 if !keep(
                     m,

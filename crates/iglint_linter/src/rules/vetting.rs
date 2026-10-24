@@ -136,6 +136,7 @@ pub(crate) fn unit_reason(cx: &Checker<'_, '_>) -> Option<UnsafeReason> {
             &iglint_python_semantic::SemanticOptions {
                 injected: script.implicit_globals().collect(),
                 unknown_globals: false,
+                module_has_name: script.has_module_name(),
             },
         );
         if let Some(at) = unknown_code_at(cx, &model, &parsed.module.body) {

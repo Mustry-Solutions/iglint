@@ -111,7 +111,22 @@ from 0.1.0 on.
   explains the three documented differences on the bundled fixtures;
   `cargo test -p iglint --test bench_parity` fails on any unexplained
   finding or severity difference.
-
+- SCR102's safe fix removed the only import of a library module that
+  reads `__package__`: in a library module every import statement that
+  runs (failing, Java and `__future__` imports too, in any scope) binds
+  `__package__` in the module's globals, so a function returning it gave
+  `None` before the fix and raised `NameError` after (measured on Ignition
+  8.3.3 through its own `ScriptManager`, `oracle/run-oracle.sh
+  --implicit`, recorded in
+  `crates/iglint_python_semantic/tests/oracle/implicit_names.expected`).
+  The semantic model now binds `__package__` at each such import, so the
+  safe-fix net sees the change, and the fix is unsafe whenever anything
+  may observe `__package__` or `__warningregistry__`: a read or binding in
+  the module, a binding of `__name__`, a read of the globals by name, or
+  another resource reading them, the module's `__dict__` or the module as
+  a value. Event scripts run without `__name__`, and their imports bind
+  nothing (unchanged). SCR101 now reports a `__package__` that no import
+  of the library module binds.
 - SCR112 missed format specs with characters after the type
   (`'{0:dd}'.format(1)`, `'{0:%Y}'.format(1)`, `'{0:.2.2}'.format(1.5)`,
   `'{0:s.}'.format('ab')`, `'{0:#x#}'.format(5)`) and a `.` without

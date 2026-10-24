@@ -237,6 +237,13 @@ impl<'a> EmbeddedScript<'a> {
             .chain((!self.function_name.is_empty()).then_some(self.function_name.as_ref()))
     }
 
+    /// Whether the script runs with `__name__` in its globals: a project
+    /// library module does (and an import there binds `__package__`), the
+    /// generated function of an event script does not.
+    pub fn has_module_name(&self) -> bool {
+        self.kind == ScriptKind::LibraryModule
+    }
+
     /// Builds a script whose body is a JSON string, compiled under `header`.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_json(

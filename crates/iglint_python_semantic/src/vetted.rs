@@ -1371,7 +1371,7 @@ mod tests {
             &parsed.module,
             &crate::SemanticOptions {
                 injected: vec!["system", "fpmi", "sys", "__builtins__"],
-                unknown_globals: false,
+                ..Default::default()
             },
         );
         unknown_code(&model)

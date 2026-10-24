@@ -509,11 +509,13 @@ module, a gateway message handler and a `compileFunction` call [gw]:
   script (the body of a generated function), it fails with `from __future__
   imports must occur at the beginning of the file`.
 * **Globals of a library module** at import time: `__builtins__`,
-  `__name__` (the dotted module path), `fpmi`, `sys`, `system` and every
-  top-level library package (including the module's own). There is no
+  `__name__`, `fpmi`, `sys`, `system` and every top-level library package
+  (including the module's own). `__name__` is the last component of the
+  module's path (`c` for `a/b/c`, measured with Ignition's own
+  `ScriptManager.addProjectScriptModules` [oracle]). There is no
   `__file__`; `__doc__` exists only when the module has a docstring
   (otherwise the builtin `__doc__` is found); `__package__` appears once an
-  `import` statement has run.
+  `import` statement has run (see "Names that statements create" below).
 * **Globals of an event script** (message handler, WebDev handler):
   `__builtins__`, `fpmi`, `sys`, `system`, the function's own name and the
   top-level library packages; no `__name__`, `__file__` or `__doc__`
@@ -541,6 +543,38 @@ Jython runtime facts that rules rely on (checked with IA's Jython 2.7.3):
   some assignment targets its parser accepts (`-a = 1`, `for f() in x`):
   see `crates/iglint_python_semantic/tests/oracle/compile.cases`, recorded
   with `oracle/run-oracle.sh --compile`.
+
+#### Names that statements create [oracle]
+
+Measured with `oracle/run-oracle.sh --implicit`
+(`crates/iglint_python_semantic/tests/oracle/implicit_names.cases` and
+`.expected`, checked by `tests/implicit_names_oracle.rs`): each source runs
+as a project library module loaded by Ignition's `ScriptManager`, as the
+body of an event function compiled with `ScriptManager.compileFunction`,
+and as top-level code after such a function, and the namespace is read
+afterwards.
+
+| Statement | Library module | Event script (body or top-level code) |
+|---|---|---|
+| `import a`, `import a.b`, `import a as b`, `from a import b [as c]`, `from a import *`, `from __future__ import x` (module, function or class body, once it runs) | binds `__package__ = None` in the module's globals, unless it is already set to something else | nothing (`from __future__` does not compile there) |
+| the same, failing (`ImportError` caught), Java and project library imports included | binds `__package__` too (it is computed before the lookup) | nothing |
+| `from . import x`, `from .m import x`, `from .. import x` | `ValueError` (`Attempted relative import in non-package`), binds nothing | `ImportError`; may leave `__warningregistry__` (an `ImportWarning` about `python.path` directories) |
+| an import in a function that never runs | nothing | nothing |
+| `exec "import m"` (unqualified) | binds `__package__` | nothing |
+| `exec "import m" in d`, `__import__('m')` | nothing (`d` gets only `__builtins__`) | nothing |
+| `__import__('m', globals())` | binds `__package__` | nothing |
+| any import after the code set `__name__` to a dotted name or `__package__` to a string | `__package__` is the parent name (or stays), and a `RuntimeWarning` (`Parent module ... not found`) leaves `__warningregistry__` | the same, for top-level code |
+| a module docstring | `__doc__` | nothing |
+| every other statement (comprehensions, generator expressions, `for`, `while`, `try`, `with`, `class`, `def`, `lambda`, `yield`, `assert`, `del`, `print`) | nothing | nothing |
+
+Event scripts run without `__name__`, and Jython's import stores
+`__package__` only in globals that have one, so their imports bind nothing
+unless the code binds `__name__` itself. The semantic model binds
+`__package__` for every absolute import of a library module
+(`BindingKind::ImportPackage`), and for relative ones too when the code
+binds `__name__`. A plain Jython module imported from a file (not how
+Ignition loads project code) has `__file__`, `__doc__` and `__package__`
+from the start.
 
 #### Size limits [oracle]
 

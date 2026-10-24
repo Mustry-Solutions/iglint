@@ -169,6 +169,15 @@ mod tests {
         );
         // `__package__` exists once an import ran.
         assert!(lint_module("SCR101", "import os\nx = __package__\n").is_empty());
+        // Without an import that binds it, `__package__` is undefined in a
+        // library module of a known project (measured: `NameError`).
+        let d = crate::rules::script::testing::library("m", "x = __package__\n").lint(&["SCR101"]);
+        assert_eq!(flagged(&d), ["__package__"]);
+        assert!(
+            crate::rules::script::testing::library("m", "import os\nx = __package__\n")
+                .lint(&["SCR101"])
+                .is_empty()
+        );
     }
 
     #[test]

@@ -17,6 +17,43 @@ pub(crate) struct SymbolTable<'a> {
     pub scope_of_node: FxHashMap<usize, ScopeId>,
     pub dunder_all: Vec<String>,
     pub dunder_all_dynamic: bool,
+    /// Which import statements bind [`PACKAGE`] in the module namespace.
+    pub package: PackageImports,
+    /// An import outside the module's own code (in a function or class
+    /// body) binds [`PACKAGE`].
+    pub package_bound_elsewhere: bool,
+}
+
+/// The name an import statement binds implicitly in the module's globals.
+pub(crate) const PACKAGE: &str = "__package__";
+
+/// Which import statements bind `__package__` in the module namespace when
+/// they run.
+///
+/// Measured on Ignition 8.3.3's Jython (`oracle/run-oracle.sh --implicit`,
+/// `tests/oracle/implicit_names.expected`): Jython's import computes the
+/// importing module's package from the `__name__` of its globals and stores
+/// it as `__package__` (`None` for a name without a dot) before it looks the
+/// module up, so every absolute import statement that runs binds it, a
+/// failing one too, wherever it is (module, function or class body). A
+/// relative import in a module whose name has no dot raises `ValueError`
+/// first. Where the globals have no `__name__` (event scripts) nothing is
+/// bound.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct PackageImports {
+    pub absolute: bool,
+    pub relative: bool,
+}
+
+impl PackageImports {
+    pub(crate) fn binds(self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Import(_) => self.absolute,
+            Stmt::ImportFrom(s) if s.level == 0 => self.absolute,
+            Stmt::ImportFrom(_) => self.relative,
+            _ => false,
+        }
+    }
 }
 
 struct Builder<'a> {
@@ -27,9 +64,11 @@ struct Builder<'a> {
     uses: Vec<Vec<(&'a str, TextRange)>>,
     dunder_all: Vec<String>,
     dunder_all_dynamic: bool,
+    /// Every import statement, with the scope whose code runs it.
+    imports: Vec<(ScopeId, &'a Stmt)>,
 }
 
-pub(crate) fn build(module: &Module) -> SymbolTable<'_> {
+pub(crate) fn build(module: &Module, module_has_name: bool) -> SymbolTable<'_> {
     let mut b = Builder {
         scopes: Vec::new(),
         scope_of_node: FxHashMap::default(),
@@ -37,6 +76,7 @@ pub(crate) fn build(module: &Module) -> SymbolTable<'_> {
         uses: Vec::new(),
         dunder_all: Vec::new(),
         dunder_all_dynamic: false,
+        imports: Vec::new(),
     };
     b.open(ScopeKind::Module, ScopeNode::Module(module), "<module>");
     for stmt in &module.body {
@@ -60,6 +100,25 @@ pub(crate) fn build(module: &Module) -> SymbolTable<'_> {
         }
         scope.locals = kept;
         scope.local_index = index(&scope.locals);
+    }
+    // The code binds `__name__` itself: an import may then compute any
+    // package, relative imports included.
+    let binds_name =
+        b.scopes[0].local_index.contains_key("__name__") || moved.contains(&"__name__");
+    let package = PackageImports {
+        absolute: module_has_name || binds_name,
+        relative: binds_name,
+    };
+    let mut package_bound_elsewhere = false;
+    let mut package_bound = false;
+    for (scope, stmt) in &b.imports {
+        if package.binds(stmt) {
+            package_bound = true;
+            package_bound_elsewhere |= *scope != ScopeId::MODULE;
+        }
+    }
+    if package_bound {
+        moved.push(PACKAGE);
     }
     let module_scope = &mut b.scopes[0];
     for name in moved {
@@ -93,6 +152,8 @@ pub(crate) fn build(module: &Module) -> SymbolTable<'_> {
         scope_of_node: b.scope_of_node,
         dunder_all: b.dunder_all,
         dunder_all_dynamic: b.dunder_all_dynamic,
+        package,
+        package_bound_elsewhere,
     }
 }
 
@@ -283,12 +344,14 @@ impl<'a> Builder<'a> {
                 self.opt_expr(s.msg.as_deref());
             }
             Stmt::Import(s) => {
+                self.imports.push((self.current, stmt));
                 for alias in &s.names {
                     let (name, range) = import_binding(alias);
                     self.bind(name, range);
                 }
             }
             Stmt::ImportFrom(s) => {
+                self.imports.push((self.current, stmt));
                 for alias in &s.names {
                     if &*alias.name.id == "*" {
                         let scope = self.scope();

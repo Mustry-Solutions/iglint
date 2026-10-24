@@ -21,7 +21,9 @@
 //!   declarations or dynamic features (`import *`, `exec`, frame reads);
 //! * any remaining name reference resolves differently (local, enclosing
 //!   function, global, builtin, injected) or changes whether it may be
-//!   unbound.
+//!   unbound. Names an import binds implicitly count too: in a library
+//!   module every import that runs binds `__package__`, so removing the
+//!   only one changes what a read of `__package__` finds.
 //!
 //! Scripts are compared in order; a safe fix that adds or removes a script
 //! is dropped as well.
@@ -44,6 +46,9 @@ pub struct ScriptText {
     pub source: String,
     /// The names the script sees without defining them.
     pub injected: Vec<String>,
+    /// The script runs with `__name__` in its globals (a library module),
+    /// so its imports bind `__package__`.
+    pub module_has_name: bool,
     /// For a script stored in a JSON string: the raw text between the
     /// quotes. `None` for a script that is the file itself.
     pub json_body: Option<TextRange>,
@@ -55,6 +60,7 @@ impl ScriptText {
             node_path: script.node_path.clone(),
             source: script.source.to_string(),
             injected: script.implicit_globals().map(str::to_owned).collect(),
+            module_has_name: script.has_module_name(),
             json_body: match script.body {
                 ScriptBody::Json(s) => Some(s.content_range()),
                 ScriptBody::File { .. } => None,
@@ -114,6 +120,7 @@ impl ScriptFacts {
             let options = SemanticOptions {
                 injected: script.injected.iter().map(String::as_str).collect(),
                 unknown_globals: true,
+                module_has_name: script.module_has_name,
             };
             let model = SemanticModel::build(&parsed.module, &options);
             errors.extend(
@@ -683,6 +690,62 @@ mod tests {
         let after = iglint_text::apply_edits(&text, &edits).unwrap();
         let problem = safe_fix_problem(&path, &text, &before, &facts, &edits, &scripts(&after));
         assert!(problem.is_some_and(|p| p.contains("compiles")));
+    }
+
+    /// The net sees the `__package__` an import binds in a library module:
+    /// removing the only import changes what a read of it finds (reviewer
+    /// round 12, K1; Ignition 8.3.3 returns `None` before and `'ABSENT'`
+    /// after). Event scripts run without `__name__`, so there the same
+    /// removal changes nothing.
+    #[test]
+    fn the_net_sees_the_package_an_import_binds() {
+        use crate::rules::script::testing::*;
+        use std::sync::Arc;
+        let repro = "import math\n\ndef get_package():\n    try:\n        return __package__\n    except NameError:\n        return 'ABSENT'\n";
+        let problem = |f: &crate::rules::test_support::Fixture, path: &Path, old: &str| {
+            let text = std::fs::read_to_string(path).unwrap();
+            let ws = iglint_project::Workspace::discover(&[f.root()]);
+            let file = ws.file_by_path(path).expect("file").id;
+            let scripts = |t: &str| {
+                crate::analyze::resource_scripts(&ws, &Default::default(), file, Arc::from(t))
+            };
+            let before = scripts(&text);
+            let facts: Vec<ScriptFacts> = before.iter().map(ScriptFacts::of).collect();
+            let at = text.find(old).unwrap();
+            let edits = [TextEdit::replace(
+                TextRange::new(
+                    iglint_text::TextSize::from(at),
+                    iglint_text::TextSize::from(at + old.len()),
+                ),
+                String::new(),
+            )];
+            let after = iglint_text::apply_edits(&text, &edits).unwrap();
+            safe_fix_problem(path, &text, &before, &facts, &edits, &scripts(&after))
+        };
+        let f = library("m", repro);
+        let p = problem(&f, &library_path(&f, "m"), "import math");
+        assert!(
+            p.as_deref() == Some("it would change what `__package__` refers to"),
+            "{p:?}"
+        );
+        // A read at module level after the import, and a function-local
+        // import.
+        let f = library("m", "import math\nx = __package__\n");
+        assert!(problem(&f, &library_path(&f, "m"), "import math").is_some());
+        let f = library("m", "def g():\n    import math\nprint __package__\n");
+        assert!(problem(&f, &library_path(&f, "m"), "import math").is_some());
+        // Another module-level import before the read still binds it.
+        let f = library(
+            "m",
+            &repro.replacen("import math", "import os\nimport math", 1),
+        );
+        assert_eq!(problem(&f, &library_path(&f, "m"), "import math"), None);
+        // An event script.
+        let f = view(
+            ViewScript::Action,
+            "\timport math\n\tdef get():\n\t\treturn __package__\n",
+        );
+        assert_eq!(problem(&f, &view_path(&f), "import math"), None);
     }
 
     /// Every path that applies or offers a fix goes through

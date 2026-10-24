@@ -72,6 +72,7 @@ pub fn compile_warnings(model: &SemanticModel<'_>) -> Vec<CompileWarning> {
                             | BindingKind::Builtin
                             | BindingKind::Injected
                             | BindingKind::ClassModule
+                            | BindingKind::ImportPackage
                             | BindingKind::Parameter
                     )
             }) || model.references().any(|(_, r)| {

@@ -545,3 +545,91 @@ fn qualified_names_of_unbound_globals() {
         Some("core.util.go")
     );
 }
+
+/// How each reference to `__package__` resolves in a library module
+/// (`module_has_name`) or an event script: (resolution, unbound).
+fn package_refs(src: &str, module_has_name: bool) -> Vec<(Resolution, bool)> {
+    let parsed = parse(src);
+    let options = SemanticOptions {
+        module_has_name,
+        ..SemanticOptions::default()
+    };
+    let model = SemanticModel::build(&parsed.module, &options);
+    let mut refs: Vec<_> = model
+        .references()
+        .filter(|(_, r)| r.name == "__package__")
+        .map(|(_, r)| (r.range.start(), (r.resolution, r.unbound)))
+        .collect();
+    refs.sort_by_key(|(at, _)| *at);
+    refs.into_iter().map(|(_, r)| r).collect()
+}
+
+/// Every import that runs binds `__package__` in a library module's
+/// globals, wherever it is (measured, `tests/oracle/implicit_names.cases`):
+/// the reviewer's repro (round 12, K1) reads it in a function.
+#[test]
+fn imports_bind_package_in_library_modules() {
+    use Resolution::*;
+    let repro = "import math\n\ndef get_package():\n    try:\n        return __package__\n    except NameError:\n        return 'ABSENT'\n";
+    assert_eq!(package_refs(repro, true), [(Global, false)]);
+    let without = repro.replacen("import math", "pass", 1);
+    assert_eq!(package_refs(&without, true), [(Unresolved, false)]);
+    // Event scripts run without `__name__`: their imports bind nothing.
+    assert_eq!(package_refs(repro, false), [(Unresolved, false)]);
+    // Module level: unbound before the first import, bound after.
+    let src = "x = __package__\nimport os\ny = __package__\n";
+    assert_eq!(package_refs(src, true), [(Local, true), (Local, false)]);
+    // Every kind of import statement, failing ones included.
+    for import in [
+        "import os.path",
+        "import os as o",
+        "from os import sep",
+        "from math import *",
+        "from __future__ import division",
+        "from java.lang import String",
+        "import pkg.other",
+        "try:\n    import no_such_module\nexcept ImportError:\n    pass",
+    ] {
+        let src = format!("{import}\ny = __package__\n");
+        assert_eq!(package_refs(&src, true), [(Local, false)], "{import}");
+    }
+    // A relative import raises `ValueError` first (the module name has no
+    // dot), unless the code sets `__name__` itself.
+    assert_eq!(
+        package_refs("from . import x\ny = __package__\n", true),
+        [(Unresolved, false)]
+    );
+    assert_eq!(
+        package_refs(
+            "__name__ = 'a.b'\nfrom . import x\ny = __package__\n",
+            false
+        ),
+        [(Local, false)]
+    );
+    // Imports in functions and class bodies write the module's globals.
+    let src = "def f():\n    import os\nclass C:\n    import json\nprint __package__\ndef g():\n    return __package__\n";
+    assert_eq!(package_refs(src, true), [(Local, false), (Global, false)]);
+    with_model_options(src, true, |m| {
+        let sites: Vec<ScopeKind> = m
+            .bindings()
+            .filter(|(_, b)| b.kind == BindingKind::ImportPackage)
+            .map(|(_, b)| {
+                assert_eq!(b.scope, ScopeId::MODULE);
+                m.scope(b.site).kind
+            })
+            .collect();
+        assert_eq!(sites, [ScopeKind::Function, ScopeKind::Class]);
+    });
+    // A function's own `__package__` does not hide the global one.
+    let src = "def f():\n    __package__ = 1\n    import os\ndef g():\n    return __package__\n";
+    assert_eq!(package_refs(src, true), [(Global, false)]);
+}
+
+fn with_model_options(src: &str, module_has_name: bool, f: impl FnOnce(&SemanticModel<'_>)) {
+    let parsed = parse(src);
+    let options = SemanticOptions {
+        module_has_name,
+        ..SemanticOptions::default()
+    };
+    f(&SemanticModel::build(&parsed.module, &options));
+}

@@ -103,7 +103,16 @@ Safe only when all of these hold:
   scope or a scope nested in it (`print len(x)` before `import math as
   len` in a function raises `UnboundLocalError`; without the import it
   calls the builtin);
-* the import does not come before a `from __future__` import.
+* the import does not come before a `from __future__` import;
+* when the whole statement goes from a library module, nothing may read
+  `__package__`: there every import that runs binds it (to `None`, in
+  Ignition 8.3), so removing the only one turns a read into a
+  `NameError`. A read or binding of `__package__` or
+  `__warningregistry__` in the module, a binding of `__name__`, code that
+  reads the module's globals by name, or another resource that reads
+  them, reads the module's `__dict__` or uses the module as a value makes
+  the fix unsafe. (Event scripts run without `__name__`: their imports
+  bind nothing.)
 
 Unsafe otherwise: importing a project library module runs its top level,
 other Java classes run static initializers, some standard modules start
@@ -442,7 +451,7 @@ impl ScriptRule for UnusedImport {
             let plain = unused.iter().all(|id| removal_is_pure(cx, model, *id))
                 && !unused.iter().any(|id| still_referenced(model, *id))
                 && !before_future_import(&unit.parsed.module.body, stmt);
-            let reason = if plain {
+            let mut reason = if plain {
                 frames
                     .get_or_insert_with(|| {
                         let body = &unit.parsed.module.body;
@@ -509,6 +518,20 @@ impl ScriptRule for UnusedImport {
                     continue;
                 }
             }
+            // Removing the whole statement removes the `__package__` it
+            // binds when it runs.
+            if applicability == Applicability::Safe
+                && removes_statement(stmt, &unused)
+                && binds_package(model, stmt)
+                && let Some(message) = implicit_name_observed(cx, model, library)
+            {
+                applicability = Applicability::Unsafe;
+                reason = Some(UnsafeReason {
+                    message,
+                    site: None,
+                    workspace: false,
+                });
+            }
             let names: Vec<&str> = unused
                 .iter()
                 .filter_map(|id| model.binding(*id).alias.map(|a| a.range().slice(text)))
@@ -544,6 +567,74 @@ impl ScriptRule for UnusedImport {
             }
         }
     }
+}
+
+/// Whether `unused` holds every alias of the import statement `stmt`.
+fn removes_statement(stmt: &Stmt, unused: &[BindingId]) -> bool {
+    let aliases = match stmt {
+        Stmt::Import(StmtImport { names, .. }) => names.len(),
+        Stmt::ImportFrom(StmtImportFrom { names, .. }) => names.len(),
+        _ => return false,
+    };
+    unused.len() >= aliases
+}
+
+/// Whether the import statement `stmt` binds `__package__` when it runs
+/// (see [`BindingKind::ImportPackage`]).
+fn binds_package(model: &SemanticModel<'_>, stmt: &Stmt) -> bool {
+    model.bindings().any(|(_, b)| {
+        b.kind == BindingKind::ImportPackage && b.stmt.is_some_and(|s| std::ptr::eq(s, stmt))
+    })
+}
+
+/// The names an import creates in the module's globals without naming
+/// them: `__package__` always (measured, see `BindingKind::ImportPackage`),
+/// `__warningregistry__` when the import warns (a relative import in an
+/// event script, any import once the code set a dotted `__name__` or
+/// `__package__`).
+const IMPLICIT_IMPORT_NAMES: &[&str] = &["__package__", "__warningregistry__"];
+
+/// Why code may observe a name an import creates implicitly, if it may:
+/// the module reads it (any scope), binds it or `__name__` (which decides
+/// what an import binds), reads its globals by name, or (for a library
+/// module) another resource may read it as a module attribute, through
+/// `__dict__`, or with the module as a value. Fails closed: an unknown
+/// project counts as a reader.
+fn implicit_name_observed(
+    cx: &Checker<'_, '_>,
+    model: &SemanticModel<'_>,
+    library: bool,
+) -> Option<String> {
+    let read = |name: &str| format!("the import binds `{name}`, which code may read");
+    let bound = |name: &str| {
+        model
+            .bindings()
+            .any(|(_, b)| b.name == name && b.kind != BindingKind::ImportPackage)
+    };
+    for name in IMPLICIT_IMPORT_NAMES {
+        if model.references().any(|(_, r)| r.name == *name) || bound(name) {
+            return Some(read(name));
+        }
+    }
+    if bound("__name__") {
+        return Some("the script binds `__name__`, which decides what an import binds".to_owned());
+    }
+    if reads_globals_dynamically(model) {
+        return Some(read("__package__"));
+    }
+    if library {
+        for name in ["__package__", "__warningregistry__", "__dict__"] {
+            if external_use(cx, name) != ExternalUse::Unused {
+                let name = if name == "__dict__" {
+                    "__package__"
+                } else {
+                    name
+                };
+                return Some(read(name));
+            }
+        }
+    }
+    None
 }
 
 /// Whether removing the import binding `id` may change what another
@@ -1499,5 +1590,81 @@ mod tests {
         );
         assert!(!fixed.contains("import os"), "{fixed}");
         assert!(!fixed.contains("import sys"), "{fixed}");
+    }
+
+    /// Every import that runs in a library module binds `__package__`
+    /// (`None`) in the module's globals; removing the only one changes a
+    /// read of it (Ignition 8.3.3: `None` before, `'ABSENT'` after, see
+    /// `iglint_python_semantic/tests/oracle/implicit_names.cases`,
+    /// `k1-repro-*`). The fix is unsafe when anything may observe it
+    /// (reviewer round 12, K1).
+    #[test]
+    fn removing_the_import_that_binds_package_is_unsafe_when_observed() {
+        use crate::diagnostic::Applicability::{Safe, Unsafe};
+        let repro = "import math\n\ndef get_package():\n    try:\n        return __package__\n    except NameError:\n        return 'ABSENT'\n";
+        let f = library("m", repro);
+        let d = f.lint(&["SCR102"]);
+        assert_eq!(applicability(&d), [Some(Unsafe)], "{d:?}");
+        let reason = d[0].fix.as_ref().unwrap().unsafe_reason.clone().unwrap();
+        assert!(reason.message.contains("`__package__`"), "{reason:?}");
+        assert!(!safe_fix_applies(&f, "SCR102", "m"));
+        // A function-local import binds the module's `__package__` too.
+        let local = "def g():\n    import math\ng()\nprint __package__\n";
+        assert_eq!(
+            applicability(&library("m", local).lint(&["SCR102"])),
+            [Some(Unsafe)]
+        );
+        // Code that binds `__name__` or reads `__warningregistry__`, or
+        // reads the globals by name.
+        for code in [
+            "__name__ = 'a.b'\ndef g():\n    import math\n",
+            "def g():\n    import math\n    return __warningregistry__\n",
+            "def g():\n    import math\ndef h():\n    return globals()\n",
+        ] {
+            assert_eq!(
+                applicability(&library("m", code).lint(&["SCR102"])),
+                [Some(Unsafe)],
+                "{code}"
+            );
+        }
+        // Another resource reads it as a module attribute, through the
+        // module's `__dict__` or with the module as a value.
+        for user in [
+            "def f():\n    return sem.m.__package__\n",
+            "def f():\n    return getattr(sem.m, '__package__')\n",
+            "def f():\n    return sem.m.__dict__\n",
+            "def f():\n    return vars(sem.m)\n",
+        ] {
+            let f = with_library(
+                library("sem/m", "def g():\n    import math\n"),
+                "sem/user",
+                user,
+            );
+            let d = f.lint(&["SCR102"]);
+            assert_eq!(applicability(&d), [Some(Unsafe)], "{user}: {d:?}");
+        }
+        // Fails closed: another import still binds it, but the read keeps
+        // the fix unsafe.
+        let kept = "import math\nimport os\nprint os.sep\ndef get():\n    return __package__\n";
+        let d = library("m", kept).lint(&["SCR102"]);
+        assert_eq!(applicability(&d), [Some(Unsafe)]);
+        // Controls: the statement stays, or nothing reads it.
+        let partial = "import os, math\nprint os.sep\nprint __package__\n";
+        assert_eq!(
+            applicability(&library("m", partial).lint(&["SCR102"])),
+            [Some(Safe)]
+        );
+        let unread = "def g():\n    import math\n";
+        assert_eq!(
+            applicability(&library("m", unread).lint(&["SCR102"])),
+            [Some(Safe)]
+        );
+        // Event scripts run without `__name__`: their imports bind no
+        // `__package__` (measured), so a read does not matter.
+        let f = view(
+            ViewScript::Action,
+            "\timport math\n\ttry:\n\t\tprint __package__\n\texcept NameError:\n\t\tpass\n",
+        );
+        assert_eq!(applicability(&f.lint(&["SCR102"])), [Some(Safe)]);
     }
 }

@@ -85,6 +85,7 @@ pub fn semantic<'u, 's>(
         let options = SemanticOptions {
             injected,
             unknown_globals,
+            module_has_name: unit.script.has_module_name(),
         };
         SemanticModel::build(&unit.parsed.module, &options)
     }))
@@ -113,11 +114,11 @@ pub fn injected_names<'n>(
         None => true,
     };
     if cx.resource().is_none() {
-        // A file outside any project is a plain module run from disk.
+        // A file outside any project is a plain module run from disk: its
+        // loader sets `__file__` and `__package__`. (In a library module,
+        // `__package__` appears once an import runs: the semantic model
+        // binds it there.)
         injected.push("__file__");
-    }
-    if script.kind == iglint_project::ScriptKind::LibraryModule {
-        // `__package__` appears once the module runs an import.
         injected.push("__package__");
     }
     (injected, unknown_globals)

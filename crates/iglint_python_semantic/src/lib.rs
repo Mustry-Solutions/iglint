@@ -32,6 +32,9 @@
 //!   ([`dynamic::frame_escape`]: `e = eval`, `from __builtin__ import
 //!   locals as l`, `sys._getframe`, ...) makes every scope of the module
 //!   read its locals and write the module's globals by name.
+//! * An import statement that runs binds `__package__` in the module's
+//!   globals when they hold `__name__` ([`SemanticOptions::module_has_name`],
+//!   [`BindingKind::ImportPackage`]), wherever the statement is.
 //! * Names fall back to the module, then to the caller's injected names
 //!   ([`SemanticOptions::injected`], Ignition's implicit globals), then to
 //!   Jython's `__builtin__` module ([`iglint_stubs::jython_builtins`]).
@@ -88,13 +91,19 @@ pub struct SemanticOptions<'o> {
     /// nowhere resolve to [`Resolution::Dynamic`] instead of
     /// [`Resolution::Unresolved`].
     pub unknown_globals: bool,
+    /// The module runs with `__name__` in its globals (an Ignition project
+    /// library module, or a plain module): every absolute import statement
+    /// that runs binds `__package__` there ([`BindingKind::ImportPackage`]).
+    /// Event scripts run without `__name__`, and their imports bind it only
+    /// when the code binds `__name__` itself.
+    pub module_has_name: bool,
 }
 
 impl<'a> SemanticModel<'a> {
     /// Analyses `module`.
     pub fn build(module: &'a Module, options: &SemanticOptions<'_>) -> SemanticModel<'a> {
         let injected: FxHashSet<&str> = options.injected.iter().copied().collect();
-        let table = symbols::build(module);
+        let table = symbols::build(module, options.module_has_name);
         let mut out = flow::Flow::new(module, table, &injected, options.unknown_globals).run();
         if dynamic::frame_escape(&module.body).is_some() {
             // A frame builtin, a frame or the builtins module escapes: any

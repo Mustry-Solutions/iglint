@@ -836,6 +836,87 @@ fn moves_and_appends_of_workspace_files_make_fixes_unsafe() {
     }
 }
 
+/// Reviewer round 12, K1, through the binary: in a library module every
+/// import that runs binds `__package__`, so `--fix` keeps the only import
+/// of a module that reads it (Ignition 8.3.3: `None` with the import,
+/// `'ABSENT'` without), the JSON output says why, and `--fix
+/// --unsafe-fixes` removes it. A module that does not read it still loses
+/// its import with `--fix`.
+#[test]
+fn imports_that_bind_a_read_package_are_kept() {
+    let repro = "import math\n\ndef get_package():\n    try:\n        return __package__\n    except NameError:\n        return 'ABSENT'\n";
+    let control = "def g():\n    import math\n    return 1\n";
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        "p/project.json",
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    );
+    for (name, text) in [("m", repro), ("n", control)] {
+        write(
+            &format!("p/ignition/script-python/{name}/resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        );
+        write(&format!("p/ignition/script-python/{name}/code.py"), text);
+    }
+    let out = iglint(dir.path())
+        .args([
+            "--no-cache",
+            "--output-format",
+            "json",
+            "--select",
+            "SCR102",
+        ])
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let found = v.as_array().unwrap();
+    assert_eq!(found.len(), 2, "{v}");
+    let of = |module: &str| {
+        found
+            .iter()
+            .find(|d| {
+                d["filename"]
+                    .as_str()
+                    .is_some_and(|f| f.ends_with(&format!("{module}/code.py")))
+            })
+            .unwrap_or_else(|| panic!("{module}: {v}"))
+    };
+    assert_eq!(of("m")["fix"]["applicability"], "unsafe", "{v}");
+    let message = of("m")["fix"]["unsafe_reason"]["message"].as_str().unwrap();
+    assert!(message.contains("`__package__`"), "{message}");
+    assert_eq!(of("n")["fix"]["applicability"], "safe", "{v}");
+    let m = dir.path().join("p/ignition/script-python/m/code.py");
+    let n = dir.path().join("p/ignition/script-python/n/code.py");
+    iglint(dir.path())
+        .args(["--no-cache", "--fix", "--select", "SCR102"])
+        .output()
+        .unwrap();
+    assert_eq!(std::fs::read_to_string(&m).unwrap(), repro);
+    assert_eq!(
+        std::fs::read_to_string(&n).unwrap(),
+        "def g():\n\n    return 1\n"
+    );
+    iglint(dir.path())
+        .args([
+            "--no-cache",
+            "--fix",
+            "--unsafe-fixes",
+            "--select",
+            "SCR102",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        !std::fs::read_to_string(&m).unwrap().contains("import math"),
+        "the unsafe fix applies"
+    );
+}
+
 /// Reviewer round 10, O1 and O2, through the binary: `--fix` must not
 /// rename a component referenced from a tag history date range or an HTTP
 /// header value (fields iglint did not model), nor one whose name a script

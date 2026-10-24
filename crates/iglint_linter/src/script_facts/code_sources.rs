@@ -123,6 +123,7 @@ pub fn run_script_code(
                 &iglint_python_semantic::SemanticOptions {
                     injected: IMPLICIT_GLOBALS.to_vec(),
                     unknown_globals: false,
+                    ..Default::default()
                 },
             );
             let mut inner = References::default();

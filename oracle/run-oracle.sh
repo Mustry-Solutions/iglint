@@ -3,9 +3,11 @@
 # ast.dump output or the SyntaxError (default), or the token stream that the
 # parser sees (--tokens), or whether full compilation succeeds (--compile:
 # compile-time errors such as 'return' outside function), or the
-# SyntaxWarnings full compilation issues (--warnings).
+# SyntaxWarnings full compilation issues (--warnings), or the names that
+# running each source creates implicitly in Ignition's script contexts
+# (--implicit, see jython_implicit_names_oracle.py).
 #
-# usage: oracle/run-oracle.sh [--tokens | --compile | --warnings] ROOT LIST OUT
+# usage: oracle/run-oracle.sh [--tokens | --compile | --warnings | --implicit] ROOT LIST OUT
 #
 #   ROOT  directory that contains the inputs
 #   LIST  file with one path per line, relative to ROOT; ".cases" files hold
@@ -24,6 +26,9 @@ elif [[ "${1:-}" == "--compile" ]]; then
   shift
 elif [[ "${1:-}" == "--warnings" ]]; then
   script=jython_warning_oracle.py
+  shift
+elif [[ "${1:-}" == "--implicit" ]]; then
+  script=jython_implicit_names_oracle.py
   shift
 fi
 image="${IGLINT_ORACLE_IMAGE:-inductiveautomation/ignition:8.3.3}"

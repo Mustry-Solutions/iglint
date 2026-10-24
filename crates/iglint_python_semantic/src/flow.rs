@@ -13,11 +13,11 @@
 use std::collections::VecDeque;
 
 use iglint_python::ast::*;
-use iglint_text::TextRange;
+use iglint_text::{Ranged, TextRange};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::model::*;
-use crate::symbols::{SymbolTable, catches, import_binding};
+use crate::symbols::{PACKAGE, PackageImports, SymbolTable, catches, import_binding};
 
 const UNBOUND: u32 = u32::MAX;
 
@@ -135,6 +135,8 @@ pub(crate) struct Flow<'a, 'o> {
     import_guard: u32,
     dunder_all: Vec<String>,
     dunder_all_dynamic: bool,
+    package: PackageImports,
+    package_bound_elsewhere: bool,
 }
 
 impl<'a, 'o> Flow<'a, 'o> {
@@ -168,6 +170,8 @@ impl<'a, 'o> Flow<'a, 'o> {
             import_guard: 0,
             dunder_all: table.dunder_all,
             dunder_all_dynamic: table.dunder_all_dynamic,
+            package: table.package,
+            package_bound_elsewhere: table.package_bound_elsewhere,
         }
     }
 
@@ -364,6 +368,59 @@ impl<'a, 'o> Flow<'a, 'o> {
         id
     }
 
+    /// The `__package__` binding an import statement makes in the module
+    /// namespace when it runs (before it looks the module up, so a failing
+    /// import makes it too).
+    fn bind_package(&mut self, stmt: &'a Stmt, st: &mut State) {
+        if !self.package.binds(stmt) {
+            return;
+        }
+        let start = stmt.range().start();
+        let keyword = if matches!(stmt, Stmt::Import(_)) {
+            "import"
+        } else {
+            "from"
+        };
+        let range = TextRange::at(start, iglint_text::TextSize::of(keyword));
+        if self.scope == ScopeId::MODULE {
+            self.bind(
+                PACKAGE,
+                range,
+                BindingKind::ImportPackage,
+                Some(stmt),
+                None,
+                false,
+                None,
+                st,
+            );
+            return;
+        }
+        // Elsewhere the import writes the module's globals, whatever the
+        // scope binds under the same name.
+        if self.binding_at.contains_key(&start.to_u32()) {
+            return;
+        }
+        let id = BindingId(self.bindings.len() as u32);
+        self.bindings.push(Binding {
+            name: PACKAGE,
+            kind: BindingKind::ImportPackage,
+            range,
+            scope: ScopeId::MODULE,
+            site: self.scope,
+            stmt: Some(stmt),
+            alias: None,
+            value: None,
+            qualified: None,
+            unpacked: false,
+            import_guarded: false,
+            try_parts: self.try_parts.clone(),
+            shadowed: Vec::new(),
+            references: Vec::new(),
+        });
+        self.binding_at.insert(start.to_u32(), id);
+        self.scopes[0].bindings.entry(PACKAGE).or_default().push(id);
+    }
+
     fn qualified_import(&self, stmt: Option<&'a Stmt>, alias: &Alias) -> String {
         match stmt {
             Some(Stmt::ImportFrom(s)) => {
@@ -409,7 +466,9 @@ impl<'a, 'o> Flow<'a, 'o> {
                     if let Some(id) = self.implicit_binding(name) {
                         bindings.push(id);
                         unbound = false;
-                    } else if self.has_external_global_binding(name) {
+                    } else if self.has_external_global_binding(name)
+                        || (name == PACKAGE && self.package_bound_elsewhere)
+                    {
                         unbound = false;
                     }
                 } else if scope_kind == ScopeKind::Class && maybe_unbound {
@@ -759,6 +818,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                 }
             }
             Stmt::Import(s) => {
+                self.bind_package(stmt, st);
                 for alias in &s.names {
                     let (name, range) = import_binding(alias);
                     self.bind(
@@ -774,6 +834,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                 }
             }
             Stmt::ImportFrom(s) => {
+                self.bind_package(stmt, st);
                 let future =
                     s.level == 0 && s.module.as_ref().is_some_and(|m| &*m.id == "__future__");
                 for alias in &s.names {
