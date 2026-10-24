@@ -92,6 +92,15 @@ from 0.1.0 on.
 
 ### Fixed
 
+- Large views took superlinear time (review round 14): 80,000 components
+  took 11.5 s, 46 times as long as 10,000. The view model looked up the
+  `propConfig` entries, properties and events of each component by
+  scanning the whole view, `NAME001` collected the names of every sibling,
+  looked up references and searched every string of the view once per
+  renamed component, and `VIEW018` grouped expressions with a linear
+  search. Lookups are now indexed: 80,000 components take 1.1 s (all
+  rules: 1.3 s), 160,000 take 2.3 s. A release-only stress test checks
+  that time grows linearly for views and modules.
 - The scope oracle compares Python 2 tuple parameters too (review round
   14): the dump has the argument Jython loads (`load fast (b, (c, d))`)
   and the names its prologue stores, and the generator makes tuple

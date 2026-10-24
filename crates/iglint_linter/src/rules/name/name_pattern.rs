@@ -679,8 +679,12 @@ fn check_components<'v>(
     rules: &TypeRules,
     options: &Options,
 ) {
-    let mut references: Option<References> = None;
+    let mut rename: Option<RenameContext> = None;
     let mut guards: Option<Guards<'v>> = None;
+    // The names of the children of each parent, with how often each
+    // occurs, computed once per parent.
+    let mut sibling_names: rustc_hash::FxHashMap<u32, rustc_hash::FxHashMap<&str, u32>> =
+        rustc_hash::FxHashMap::default();
     // Names claimed by earlier renames, per parent.
     let mut claimed: FxHashSet<(Option<u32>, String)> = FxHashSet::default();
     for c in &view.components {
@@ -698,23 +702,28 @@ fn check_components<'v>(
         };
         let mut text = message(NodeType::Component, &node, &failure, rules);
         let suggestion = suggestion_for(c.name, rules, options);
-        let siblings: Vec<&str> = match c.parent {
-            Some(p) => view
-                .children(p)
-                .filter(|s| s.id != c.id)
-                .map(|s| s.name)
-                .collect(),
-            None => Vec::new(),
+        let names = c.parent.map(|p| {
+            &*sibling_names.entry(p.0).or_insert_with(|| {
+                let mut names = rustc_hash::FxHashMap::default();
+                for child in view.children(p) {
+                    *names.entry(child.name).or_insert(0u32) += 1;
+                }
+                names
+            })
+        });
+        // Whether another child of the parent has the name `s`.
+        let sibling_named = |s: &str| {
+            names.is_some_and(|n| n.get(s).copied().unwrap_or(0) > u32::from(s == c.name))
         };
         let usable = suggestion.as_deref().filter(|s| {
             matches!(rules.suggestion, Suggestion::In(_))
-                && !siblings.contains(s)
+                && !sibling_named(s)
                 && check_name(s, rules, &options.abbreviations).is_none()
         });
         if let Some(s) = &suggestion
             && matches!(failure, Failure::Pattern)
         {
-            if siblings.contains(&s.as_str()) {
+            if sibling_named(s) {
                 text.push_str(&format!(
                     " (suggestion '{s}' already in use by a sibling; rename manually)"
                 ));
@@ -727,13 +736,50 @@ fn check_components<'v>(
             if claimed.contains(&key) {
                 return None;
             }
-            let refs =
-                references.get_or_insert_with(|| References::collect(view, cx.parsed_scripts()));
-            let fix = rename_fix(cx, view, c, file, new, refs, &mut guards)?;
+            let rename = rename.get_or_insert_with(|| RenameContext::new(cx, view));
+            let fix = rename_fix(cx, view, c, file, new, rename, &mut guards)?;
             claimed.insert(key);
             Some(fix)
         });
         emit(cx, &node, text, rules, fix);
+    }
+}
+
+/// What every rename of one view needs, computed once per view.
+struct RenameContext {
+    refs: References,
+    /// The ranges of `refs.sites` of each component, in order.
+    sites: rustc_hash::FxHashMap<iglint_project::ComponentId, Vec<TextRange>>,
+    /// The first `refs.fragile` reference of each component.
+    fragile: rustc_hash::FxHashMap<iglint_project::ComponentId, TextRange>,
+    /// Why code that is not vetted keeps renames from being safe.
+    vetting: Option<UnsafeReason>,
+    /// A component of the view may be handed to code outside it.
+    escape: bool,
+}
+
+impl RenameContext {
+    fn new(cx: &Checker<'_, '_>, view: &View<'_>) -> RenameContext {
+        let refs = References::collect(view, cx.parsed_scripts());
+        let mut sites: rustc_hash::FxHashMap<_, Vec<TextRange>> = Default::default();
+        for site in &refs.sites {
+            sites.entry(site.component).or_default().push(site.range);
+        }
+        let mut fragile = rustc_hash::FxHashMap::default();
+        for (id, range) in &refs.fragile {
+            fragile.entry(*id).or_insert(*range);
+        }
+        // Code that is not vetted may look the component up in ways
+        // iglint does not know (`cPickle.loads` of an `eval` opcode).
+        // Closed world: such code anywhere in the shared runtime counts.
+        let vetting = crate::rules::vetting::unit_reason(cx);
+        RenameContext {
+            sites,
+            fragile,
+            vetting,
+            escape: components_may_escape(cx, view),
+            refs,
+        }
     }
 }
 
@@ -743,9 +789,10 @@ fn rename_fix<'v>(
     c: &Component<'_>,
     file: FileId,
     new: &str,
-    refs: &References,
+    rename: &RenameContext,
     guards: &mut Option<Guards<'v>>,
 ) -> Option<Fix> {
+    let refs = &rename.refs;
     if refs.blocked.contains(c.name) {
         return None;
     }
@@ -755,23 +802,20 @@ fn rename_fix<'v>(
     let mut edits = vec![editor.replace_with_string(name_value, new)];
     let mut count = 0;
     let mut sites = FxHashSet::default();
-    for site in refs.sites.iter().filter(|s| s.component == c.id) {
-        edits.push(TextEdit::replace(site.range, escaped(new, style)));
-        sites.insert(site.range);
+    for &range in rename.sites.get(&c.id).map_or(&[][..], Vec::as_slice) {
+        edits.push(TextEdit::replace(range, escaped(new, style)));
+        sites.insert(range);
         count += 1;
     }
-    // Code that is not vetted may look the component up in ways iglint
-    // does not know (`cPickle.loads` of an `eval` opcode). Closed world:
-    // such code anywhere in the shared runtime counts.
-    let vetting = crate::rules::vetting::unit_reason(cx);
+    let vetting = rename.vetting.clone();
     let guards = guards.get_or_insert_with(|| Guards::collect(cx, view));
-    let observed = guards.observed(cx, file, c, refs, &sites);
+    let observed = guards.observed(cx, file, c, rename, &sites);
     let risk = if count > 0 {
         Some(
             "the rename also rewrites references to the component in scripts and bindings, \
              which code iglint does not see may name too",
         )
-    } else if components_may_escape(cx, view) {
+    } else if rename.escape {
         Some("a component of the view is handed to code outside it, which may look it up by name")
     } else if refs.meta_name_read.contains(&c.id) || refs.dynamic_meta_name {
         Some("a script reads the component's `meta.name`")
@@ -808,12 +852,20 @@ struct Guards<'v> {
     /// a modelled expression nor a property binding path: Perspective may
     /// read it as a reference iglint does not resolve.
     token: Option<(TextRange, String)>,
+    /// Position in `name_reads` of the first read of any component.
+    first_any_read: Option<usize>,
+    /// Position in `name_reads` of the first read of each component.
+    first_read: rustc_hash::FxHashMap<iglint_project::ComponentId, usize>,
+    /// Every identifier of `strings` (maximal runs of letters, digits and
+    /// `_`) with the string and offset of each occurrence, in order: the
+    /// occurrences of a name made of such characters, built on first use.
+    words: std::cell::OnceCell<rustc_hash::FxHashMap<&'v str, Vec<(u32, u32)>>>,
 }
 
 impl<'v> Guards<'v> {
     fn collect(cx: &Checker<'_, '_>, view: &'v View<'v>) -> Guards<'v> {
         let (accesses, _) = cx.script_property_accesses();
-        let name_reads = accesses
+        let name_reads: Vec<(AccessTarget, TextRange)> = accesses
             .iter()
             .filter(|a| {
                 a.category == PropCategory::Meta
@@ -851,11 +903,56 @@ impl<'v> Guards<'v> {
             .find_map(|s| {
                 reference_like_token(s.value()).map(|r| (s.raw_range(r), s.value().to_owned()))
             });
+        let mut first_any_read = None;
+        let mut first_read = rustc_hash::FxHashMap::default();
+        for (i, (target, _)) in name_reads.iter().enumerate() {
+            match *target {
+                AccessTarget::AnyComponent => {
+                    first_any_read.get_or_insert(i);
+                }
+                AccessTarget::Component(id) => {
+                    first_read.entry(id).or_insert(i);
+                }
+                _ => {}
+            }
+        }
         Guards {
             name_reads,
             strings,
             token,
+            first_any_read,
+            first_read,
+            words: std::cell::OnceCell::new(),
         }
+    }
+
+    /// [`Guards::words`].
+    fn words(&self) -> &rustc_hash::FxHashMap<&'v str, Vec<(u32, u32)>> {
+        self.words.get_or_init(|| {
+            let mut words: rustc_hash::FxHashMap<&'v str, Vec<(u32, u32)>> = Default::default();
+            for (i, s) in self.strings.iter().enumerate() {
+                let text: &'v str = s.value();
+                let mut start = None;
+                for (at, ch) in text
+                    .char_indices()
+                    .chain(std::iter::once((text.len(), ' ')))
+                {
+                    let ident = at < text.len() && (ch.is_alphanumeric() || ch == '_');
+                    match (ident, start) {
+                        (true, None) => start = Some(at),
+                        (false, Some(from)) => {
+                            words
+                                .entry(&text[from..at])
+                                .or_default()
+                                .push((i as u32, from as u32));
+                            start = None;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            words
+        })
     }
 
     /// Why renaming `c` may change what the view does although the edits
@@ -868,13 +965,14 @@ impl<'v> Guards<'v> {
         cx: &Checker<'_, '_>,
         file: FileId,
         c: &Component<'_>,
-        refs: &References,
+        rename: &RenameContext,
         sites: &FxHashSet<TextRange>,
     ) -> Option<UnsafeReason> {
-        if let Some((_, range)) = self.name_reads.iter().find(|(t, _)| {
-            matches!(t, AccessTarget::AnyComponent)
-                || matches!(t, AccessTarget::Component(id) if *id == c.id)
-        }) {
+        let first = [self.first_any_read, self.first_read.get(&c.id).copied()]
+            .into_iter()
+            .flatten()
+            .min();
+        if let Some((_, range)) = first.map(|i| &self.name_reads[i]) {
             return Some(reason_at(
                 cx,
                 file,
@@ -882,7 +980,7 @@ impl<'v> Guards<'v> {
                 "a script reads the component's name, which the rename changes",
             ));
         }
-        if let Some((_, range)) = refs.fragile.iter().find(|(id, _)| *id == c.id) {
+        if let Some(range) = rename.fragile.get(&c.id) {
             return Some(reason_at(
                 cx,
                 file,
@@ -898,6 +996,24 @@ impl<'v> Guards<'v> {
                 *range,
                 "a string iglint does not read as an expression holds a `{...}` reference",
             ));
+        }
+        // A name made of identifier characters occurs as a word only as a
+        // whole identifier: look it up instead of searching every string.
+        if !c.name.is_empty() && c.name.chars().all(|ch| ch.is_alphanumeric() || ch == '_') {
+            for &(i, at) in self.words().get(c.name).map_or(&[][..], Vec::as_slice) {
+                let s = self.strings[i as usize];
+                let range = s.raw_range(TextRange::at(TextSize::from(at), TextSize::of(c.name)));
+                if !sites.contains(&range) {
+                    return Some(reason_at(
+                        cx,
+                        file,
+                        range,
+                        "a string of the view holds the component's name where the rename \
+                         does not update it",
+                    ));
+                }
+            }
+            return None;
         }
         for s in &self.strings {
             for (i, _) in s.value().match_indices(c.name) {

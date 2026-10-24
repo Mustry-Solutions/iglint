@@ -62,9 +62,8 @@ impl ViewRule for ParamWithoutDirection {
             }
             // Object parameters may carry their directions on nested
             // entries (`params.door.open`); the parameter then has one.
-            let nested = view.prop_configs.iter().any(|c| {
-                c.owner == param.owner
-                    && c.param_direction.is_some()
+            let nested = view.prop_configs_of(param.owner).any(|c| {
+                c.param_direction.is_some()
                     && c.path.category == "params"
                     && c.path.name == param.name
                     && c.key.value().len() > "params.".len() + param.name.len()

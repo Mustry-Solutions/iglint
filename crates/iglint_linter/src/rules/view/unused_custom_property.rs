@@ -383,11 +383,7 @@ pub(crate) fn usage(view: &View<'_>, accesses: &[PropertyAccess]) -> Usage {
             _ => None,
         } {
             let name = name.split(['.', '[']).next().unwrap_or("");
-            if let Some(i) = view
-                .properties
-                .iter()
-                .position(|p| p.owner == b.owner && p.category == cat && p.name == name)
-            {
+            if let Some(i) = view.property_position(b.owner, cat, name) {
                 usage.written[i] = true;
             }
         }
@@ -412,11 +408,7 @@ pub(crate) fn usage(view: &View<'_>, accesses: &[PropertyAccess]) -> Usage {
         };
         match &a.name {
             Some(name) => {
-                if let Some(i) = view
-                    .properties
-                    .iter()
-                    .position(|p| p.owner == owner && p.category == a.category && p.name == name)
-                {
+                if let Some(i) = view.property_position(owner, a.category, name) {
                     if a.read {
                         usage.read[i] = true;
                     }
@@ -440,9 +432,8 @@ pub(crate) fn usage(view: &View<'_>, accesses: &[PropertyAccess]) -> Usage {
 
 /// Whether a property has a binding or a change script in `propConfig`.
 fn is_active(view: &View<'_>, def: &PropertyDef<'_>) -> bool {
-    view.prop_configs.iter().any(|c| {
-        c.owner == def.owner
-            && c.path.category == def.category.name()
+    view.prop_configs_of(def.owner).any(|c| {
+        c.path.category == def.category.name()
             && c.path.name == def.name
             && (c.binding.is_some() || c.on_change.is_some())
     })

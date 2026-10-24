@@ -84,9 +84,90 @@ pub struct View<'a> {
     /// Literal style class references.
     pub style_refs: Vec<StyleClassRef<'a>>,
     pub problems: Vec<ModelProblem>,
+    /// The entries of each owner, so that lookups per component stay
+    /// linear in the size of the view.
+    pub(crate) index: OwnerIndex<'a>,
+}
+
+/// Positions of the entries of each owner in a [`View`].
+#[derive(Debug, Default)]
+pub(crate) struct OwnerIndex<'a> {
+    prop_configs: rustc_hash::FxHashMap<Owner, Vec<usize>>,
+    /// The last `propConfig` entry of each owner and key.
+    prop_config_by_key: rustc_hash::FxHashMap<(Owner, &'a str), usize>,
+    properties: rustc_hash::FxHashMap<Owner, Vec<usize>>,
+    /// The first property of each owner, category and name.
+    property_by_name: rustc_hash::FxHashMap<(Owner, PropCategory, &'a str), usize>,
+    events: rustc_hash::FxHashMap<Owner, Vec<usize>>,
+}
+
+impl<'a> OwnerIndex<'a> {
+    pub(crate) fn build(view: &View<'a>) -> OwnerIndex<'a> {
+        let mut index = OwnerIndex::default();
+        for (i, c) in view.prop_configs.iter().enumerate() {
+            index.prop_configs.entry(c.owner).or_default().push(i);
+            index.prop_config_by_key.insert((c.owner, c.key.value()), i);
+        }
+        for (i, p) in view.properties.iter().enumerate() {
+            index.properties.entry(p.owner).or_default().push(i);
+            index
+                .property_by_name
+                .entry((p.owner, p.category, p.name))
+                .or_insert(i);
+        }
+        for (i, e) in view.events.iter().enumerate() {
+            index.events.entry(e.owner).or_default().push(i);
+        }
+        index
+    }
+}
+
+fn positions<'i, K: std::hash::Hash + Eq>(
+    map: &'i rustc_hash::FxHashMap<K, Vec<usize>>,
+    key: &K,
+) -> &'i [usize] {
+    map.get(key).map_or(&[][..], Vec::as_slice)
 }
 
 impl<'a> View<'a> {
+    /// The `propConfig` entries of `owner`, in document order.
+    pub fn prop_configs_of(
+        &self,
+        owner: Owner,
+    ) -> impl DoubleEndedIterator<Item = &PropConfig<'a>> {
+        positions(&self.index.prop_configs, &owner)
+            .iter()
+            .map(|&i| &self.prop_configs[i])
+    }
+
+    /// The custom properties and parameters of `owner`, in order.
+    pub fn properties_of(&self, owner: Owner) -> impl DoubleEndedIterator<Item = &PropertyDef<'a>> {
+        positions(&self.index.properties, &owner)
+            .iter()
+            .map(|&i| &self.properties[i])
+    }
+
+    /// The position in `properties` of the custom property or parameter
+    /// `name` of `owner` (the first one).
+    pub fn property_position(
+        &self,
+        owner: Owner,
+        category: PropCategory,
+        name: &str,
+    ) -> Option<usize> {
+        self.index
+            .property_by_name
+            .get(&(owner, category, name))
+            .copied()
+    }
+
+    /// The event handlers of `owner`, in order.
+    pub fn events_of(&self, owner: Owner) -> impl DoubleEndedIterator<Item = &EventHandler<'a>> {
+        positions(&self.index.events, &owner)
+            .iter()
+            .map(|&i| &self.events[i])
+    }
+
     /// A component by id.
     pub fn component(&self, id: ComponentId) -> &Component<'a> {
         &self.components[id.index()]
@@ -119,9 +200,8 @@ impl<'a> View<'a> {
 
     /// View parameters (names in `params` and `propConfig.params.*`).
     pub fn params(&self) -> impl Iterator<Item = &PropertyDef<'a>> {
-        self.properties
-            .iter()
-            .filter(|p| p.owner == Owner::View && p.category == PropCategory::Params)
+        self.properties_of(Owner::View)
+            .filter(|p| p.category == PropCategory::Params)
     }
 
     /// A custom property or parameter definition.
@@ -131,32 +211,31 @@ impl<'a> View<'a> {
         category: PropCategory,
         name: &str,
     ) -> Option<&PropertyDef<'a>> {
-        self.properties
-            .iter()
-            .find(|p| p.owner == owner && p.category == category && p.name == name)
+        self.index
+            .property_by_name
+            .get(&(owner, category, name))
+            .map(|&i| &self.properties[i])
     }
 
     /// The `propConfig` entry of `owner` for exactly `path` (e.g. `props.text`).
     pub fn prop_config_for(&self, owner: Owner, path: &str) -> Option<&PropConfig<'a>> {
-        self.prop_configs
-            .iter()
-            .rev()
-            .find(|c| c.owner == owner && c.key.value() == path)
+        self.index
+            .prop_config_by_key
+            .get(&(owner, path))
+            .map(|&i| &self.prop_configs[i])
     }
 
     /// True when `path` of `owner`, or a property containing it, is bound:
     /// the literal value in the file is only the Designer's cached result.
     pub fn is_bound(&self, owner: Owner, path: &str) -> bool {
-        self.prop_configs
-            .iter()
-            .any(|c| c.owner == owner && c.binding.is_some() && path_covers(c.key.value(), path))
+        self.prop_configs_of(owner)
+            .any(|c| c.binding.is_some() && path_covers(c.key.value(), path))
     }
 
     /// True when some property inside `path` of `owner` is bound.
     pub fn has_binding_within(&self, owner: Owner, path: &str) -> bool {
-        self.prop_configs.iter().any(|c| {
-            c.owner == owner
-                && c.binding.is_some()
+        self.prop_configs_of(owner).any(|c| {
+            c.binding.is_some()
                 && (path_covers(c.key.value(), path) || path_covers(path, c.key.value()))
         })
     }

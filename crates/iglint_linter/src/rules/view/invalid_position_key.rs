@@ -93,7 +93,7 @@ impl ComponentRule for InvalidPositionKey {
             }
         }
         let owner = Owner::Component(component.id);
-        for config in view.prop_configs.iter().filter(|c| c.owner == owner) {
+        for config in view.prop_configs_of(owner) {
             let name = config.path.name;
             if config.path.category != "position" || name.is_empty() || seen.contains(&name) {
                 continue;

@@ -87,7 +87,7 @@ impl ComponentRule for UnknownComponentProp {
             }
         }
         let owner = Owner::Component(component.id);
-        for config in view.prop_configs.iter().filter(|c| c.owner == owner) {
+        for config in view.prop_configs_of(owner) {
             if config.path.category != "props" || config.path.name.is_empty() {
                 continue;
             }

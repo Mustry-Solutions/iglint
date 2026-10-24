@@ -147,11 +147,7 @@ impl ViewRule for PropertyAccess {
             }) {
                 continue;
             }
-            let entry = view
-                .prop_configs
-                .iter()
-                .rev()
-                .find(|c| c.owner == def.owner && c.key.value() == key);
+            let entry = view.prop_config_for(def.owner, &key);
             let actual = entry
                 .and_then(|c| c.access)
                 .map_or_else(|| "PUBLIC".to_owned(), str::to_ascii_uppercase);

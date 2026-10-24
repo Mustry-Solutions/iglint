@@ -340,6 +340,8 @@ impl ViewRule for FragileReference {
         // Expressions, grouped by their ign-lint node (a struct binding is
         // one node).
         let mut groups: Vec<ExpressionGroup> = Vec::new();
+        // Position of each node's group.
+        let mut group_of: rustc_hash::FxHashMap<String, usize> = Default::default();
         for e in &view.expressions {
             if !matches!(
                 e.kind,
@@ -362,19 +364,23 @@ impl ViewRule for FragileReference {
                     .unwrap_or_else(|| e.node_path.clone()),
                 _ => e.node_path.clone(),
             };
-            match groups.iter_mut().find(|g| g.0 == node) {
-                Some(g) => {
+            match group_of.get(&node) {
+                Some(&i) => {
+                    let g = &mut groups[i];
                     g.2.extend(hits);
                     g.3.push('\n');
                     g.3.push_str(e.text());
                 }
-                None => groups.push((
-                    node,
-                    e.ign_lint_path.clone(),
-                    hits,
-                    e.text().to_owned(),
-                    e.source.range(),
-                )),
+                None => {
+                    group_of.insert(node.clone(), groups.len());
+                    groups.push((
+                        node,
+                        e.ign_lint_path.clone(),
+                        hits,
+                        e.text().to_owned(),
+                        e.source.range(),
+                    ));
+                }
             }
         }
         for (node, ign, hits, text, anchor) in groups {

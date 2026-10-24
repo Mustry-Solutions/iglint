@@ -231,10 +231,7 @@ impl<'a> View<'a> {
         };
         let mut definition = None;
         if let (Some(cat), Some(n)) = (checked, name.as_deref()) {
-            definition = self
-                .properties
-                .iter()
-                .position(|p| p.owner == owner && p.category == cat && p.name == n);
+            definition = self.property_position(owner, cat, n);
             if definition.is_none() {
                 return RefResolution::Unresolved(Unresolved::MissingProperty {
                     category: cat.name().to_owned(),

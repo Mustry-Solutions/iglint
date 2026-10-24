@@ -74,9 +74,8 @@ impl ComponentRule for IconButtonWithoutText {
         };
         let owner = Owner::Component(component.id);
         let clickable = view
-            .events
-            .iter()
-            .any(|e| e.owner == owner && e.actions.iter().any(|a| a.enabled != Some(false)));
+            .events_of(owner)
+            .any(|e| e.actions.iter().any(|a| a.enabled != Some(false)));
         if !clickable {
             return;
         }

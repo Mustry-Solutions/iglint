@@ -38,6 +38,7 @@ pub fn build_view<'a>(root: &'a Value<'a>) -> View<'a> {
         view_refs: Vec::new(),
         style_refs: Vec::new(),
         problems: Vec::new(),
+        index: Default::default(),
     };
     if root.as_object().is_none() {
         b.skipped(root, "view.json is not a JSON object", "view");
@@ -88,6 +89,7 @@ pub fn build_view<'a>(root: &'a Value<'a>) -> View<'a> {
     view.view_refs = b.view_refs;
     view.style_refs = b.style_refs;
     view.problems = b.problems;
+    view.index = super::OwnerIndex::build(&view);
     view
 }
 
@@ -132,6 +134,9 @@ struct Builder<'a> {
     components: Vec<Component<'a>>,
     properties: Vec<PropertyDef<'a>>,
     prop_configs: Vec<PropConfig<'a>>,
+    /// Indices into `prop_configs` by owner, in order: the lookups per
+    /// component stay linear in the size of the view.
+    prop_configs_by_owner: rustc_hash::FxHashMap<Owner, Vec<usize>>,
     bindings: Vec<Binding<'a>>,
     events: Vec<EventHandler<'a>>,
     message_handlers: Vec<MessageHandler<'a>>,
@@ -404,8 +409,24 @@ impl<'a> Builder<'a> {
                     self.skipped(on_change, "`onChange` is not an object", &node_path);
                 }
             }
+            self.prop_configs_by_owner
+                .entry(owner)
+                .or_default()
+                .push(self.prop_configs.len());
             self.prop_configs.push(pc);
         }
+    }
+
+    /// The `propConfig` entries of `owner`, in order.
+    fn prop_configs_of_owner(
+        &self,
+        owner: Owner,
+    ) -> impl DoubleEndedIterator<Item = &PropConfig<'a>> {
+        self.prop_configs_by_owner
+            .get(&owner)
+            .map_or(&[][..], Vec::as_slice)
+            .iter()
+            .map(|&i| &self.prop_configs[i])
     }
 
     fn binding(
@@ -990,41 +1011,45 @@ impl<'a> Builder<'a> {
         let cat = category.name();
         let mut names: Vec<(&'a str, Option<&'a JsonString<'a>>, Option<&'a Value<'a>>)> =
             Vec::new();
+        // Position of each name in `names`.
+        let mut seen: rustc_hash::FxHashMap<&'a str, usize> = Default::default();
         if let Some(o) = object.and_then(Value::as_object) {
             for m in o.iter() {
                 let name = key_str(m);
                 // Duplicate keys: the last one wins, as in Gson.
-                if let Some(existing) = names.iter_mut().find(|(n, _, _)| *n == name) {
-                    *existing = (name, Some(&m.key), Some(&m.value));
-                } else {
-                    names.push((name, Some(&m.key), Some(&m.value)));
+                match seen.get(name) {
+                    Some(&i) => names[i] = (name, Some(&m.key), Some(&m.value)),
+                    None => {
+                        seen.insert(name, names.len());
+                        names.push((name, Some(&m.key), Some(&m.value)));
+                    }
                 }
             }
         }
-        for pc in self
-            .prop_configs
-            .iter()
-            .filter(|p| p.owner == owner && p.path.category == cat)
-        {
-            if !pc.path.name.is_empty() && !names.iter().any(|(n, _, _)| *n == pc.path.name) {
+        // The last entry of each key.
+        let mut last: rustc_hash::FxHashMap<&'a str, (PropConfigId, Option<ParamDirection>)> =
+            Default::default();
+        for pc in self.prop_configs_of_owner(owner) {
+            if pc.path.category == cat
+                && !pc.path.name.is_empty()
+                && !seen.contains_key(pc.path.name)
+            {
+                seen.insert(pc.path.name, names.len());
                 names.push((pc.path.name, None, None));
             }
+            last.insert(pc.key.value(), (pc.id, pc.param_direction));
         }
         for (name, key, value) in names {
             let exact = format!("{cat}.{name}");
-            let config = self
-                .prop_configs
-                .iter()
-                .rev()
-                .find(|p| p.owner == owner && p.key.value() == exact);
+            let config = last.get(exact.as_str()).copied();
             self.properties.push(PropertyDef {
                 owner,
                 category,
                 name,
                 key,
                 value,
-                config: config.map(|c| c.id),
-                direction: config.and_then(|c| c.param_direction),
+                config: config.map(|(id, _)| id),
+                direction: config.and_then(|(_, direction)| direction),
                 node_path: prop_path(owner_path, &exact),
                 ign_lint_path: strip_indices(&ign_key(owner_ign, &exact)),
             });
@@ -1662,15 +1687,13 @@ impl<'a> Builder<'a> {
     }
 
     fn bound(&self, owner: Owner, path: &str) -> bool {
-        self.prop_configs
-            .iter()
-            .any(|c| c.owner == owner && c.binding.is_some() && path_covers(c.key.value(), path))
+        self.prop_configs_of_owner(owner)
+            .any(|c| c.binding.is_some() && path_covers(c.key.value(), path))
     }
 
     fn bound_within(&self, owner: Owner, path: &str) -> bool {
-        self.prop_configs.iter().any(|c| {
-            c.owner == owner
-                && c.binding.is_some()
+        self.prop_configs_of_owner(owner).any(|c| {
+            c.binding.is_some()
                 && (path_covers(c.key.value(), path) || path_covers(path, c.key.value()))
         })
     }

@@ -795,3 +795,83 @@ fn language_server_survives_deep_documents() {
     }
     server.stop();
 }
+
+/// A view with `n` labels in the root container, each with a binding, an
+/// event script and a name that `NAME001` would rename.
+fn wide_view(n: usize) -> String {
+    let components: Vec<String> = (0..n)
+        .map(|i| {
+            format!(
+                r#"{{"type": "ia.display.label", "meta": {{"name": "Label_{i}"}}, "position": {{"x": {x}, "y": {y}}}, "props": {{"text": "L{i}"}}, "propConfig": {{"props.text": {{"binding": {{"type": "expr", "config": {{"expression": "{{view.custom.v{m}}} + 1"}}}}}}}}, "events": {{"dom": {{"onClick": {{"type": "script", "scope": "G", "config": {{"script": "\tself.props.text = 'x{i}'"}}}}}}}}}}"#,
+                x = i % 100,
+                y = i / 100,
+                m = i % 50
+            )
+        })
+        .collect();
+    let custom: Vec<String> = (0..50).map(|i| format!(r#""v{i}": {i}"#)).collect();
+    format!(
+        r#"{{"custom": {{{}}}, "params": {{}}, "props": {{}}, "root": {{"type": "ia.container.coord", "meta": {{"name": "root"}}, "children": [{}]}}}}"#,
+        custom.join(", "),
+        components.join(", ")
+    )
+}
+
+/// The best of two wall times of `iglint check` on `dir`.
+fn check_time(dir: &Path, args: &[&str]) -> Duration {
+    (0..2)
+        .map(|_| {
+            let start = Instant::now();
+            iglint(dir, args);
+            start.elapsed()
+        })
+        .min()
+        .unwrap()
+}
+
+/// Review round 14: a view of 80,000 components took 11.5 s, 46 times as
+/// long as one of 10,000 (`propConfig` entries looked up per component,
+/// sibling names collected per component, every string of the view
+/// searched for every renamed component). Time must grow about linearly:
+/// four times the components may take at most six times as long (a
+/// quadratic part takes sixteen), within a generous budget.
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
+)]
+fn large_views_and_modules_take_linear_time() {
+    let args = [
+        "--no-cache",
+        "--select",
+        "ALL",
+        "--ignore",
+        "SCR900",
+        "--exit-zero",
+    ];
+    let (small, large) = (view_json(&wide_view(20_000)), view_json(&wide_view(80_000)));
+    let (t_small, t_large) = (
+        check_time(small.path(), &args),
+        check_time(large.path(), &args),
+    );
+    eprintln!("views: 20,000 components {t_small:?}, 80,000 {t_large:?}");
+    assert!(
+        t_large < t_small * 6 + Duration::from_millis(300),
+        "20,000 components: {t_small:?}, 80,000: {t_large:?}"
+    );
+    assert!(t_large < Duration::from_secs(30), "{t_large:?}");
+    let (small, large) = (
+        module(&"x = 1\n".repeat(250_000)),
+        module(&"x = 1\n".repeat(1_000_000)),
+    );
+    let (t_small, t_large) = (
+        check_time(small.path(), &args),
+        check_time(large.path(), &args),
+    );
+    eprintln!("modules: 250,000 lines {t_small:?}, 1,000,000 {t_large:?}");
+    assert!(
+        t_large < t_small * 6 + Duration::from_millis(300),
+        "250,000 lines: {t_small:?}, 1,000,000: {t_large:?}"
+    );
+    assert!(t_large < Duration::from_secs(60), "{t_large:?}");
+}

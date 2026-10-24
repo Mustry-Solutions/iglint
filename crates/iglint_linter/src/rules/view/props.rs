@@ -50,9 +50,8 @@ pub fn def_range(view: &View<'_>, def: &PropertyDef<'_>) -> TextRange {
         return key.range();
     }
     let prefix = def.category.name();
-    view.prop_configs
-        .iter()
-        .find(|c| c.owner == def.owner && c.path.category == prefix && c.path.name == def.name)
+    view.prop_configs_of(def.owner)
+        .find(|c| c.path.category == prefix && c.path.name == def.name)
         .map_or_else(|| def.range(), |c| c.key.range())
 }
 

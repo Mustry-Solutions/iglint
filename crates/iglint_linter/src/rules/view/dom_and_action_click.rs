@@ -62,11 +62,8 @@ fn active<'v, 'a>(
     group: &str,
     name: &str,
 ) -> Option<&'v EventHandler<'a>> {
-    view.events.iter().find(|e| {
-        e.owner == owner
-            && e.group == group
-            && e.name == name
-            && e.actions.iter().any(|a| a.enabled != Some(false))
+    view.events_of(owner).find(|e| {
+        e.group == group && e.name == name && e.actions.iter().any(|a| a.enabled != Some(false))
     })
 }
 
