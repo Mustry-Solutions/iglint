@@ -80,6 +80,13 @@ from 0.1.0 on.
 
 ### Fixed
 
+- `--diff` wrote hunk headers that did not match their lines for the most
+  common `SCR102` safe fix (an emptied import line before a blank line:
+  `@@ -1,3 +2,2 @@`), which `git apply` and `patch` rejected. iglint now
+  computes the hunks itself; a property test applies random diffs (blank
+  line edits, CRLF, missing final newlines, several hunks) with both
+  tools and checks every header.
+
 - Every fix was safe although scripts read the content of the files it
   edits without naming them (review round 12). The `system.*` audit
   classified functions by their parameters only; it now classifies each

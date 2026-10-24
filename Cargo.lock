@@ -582,6 +582,7 @@ dependencies = [
  "jiff",
  "mimalloc",
  "predicates",
+ "proptest",
  "rayon",
  "regex",
  "serde",

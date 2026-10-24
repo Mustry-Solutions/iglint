@@ -917,6 +917,82 @@ fn imports_that_bind_a_read_package_are_kept() {
     );
 }
 
+/// Reviewer round 13: the most common `SCR102` safe fix (the import's
+/// line emptied before a blank line) gave a hunk header whose ranges did
+/// not match its lines (`@@ -1,3 +2,2 @@`), which `git apply` and `patch`
+/// reject. The diff now applies with both and gives the fixed file.
+#[cfg(unix)]
+#[test]
+fn diff_of_an_emptied_import_line_applies() {
+    let source = |dir: &std::path::Path| {
+        let write = |rel: &str, text: &str| {
+            let path = dir.join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        };
+        write(
+            "p/project.json",
+            r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+        );
+        write(
+            "p/ignition/script-python/m/resource.json",
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        );
+        write(
+            "p/ignition/script-python/m/code.py",
+            "import math\n\nx = 1\n",
+        );
+    };
+    let dir = tempfile::tempdir().unwrap();
+    source(dir.path());
+    let diff = iglint(dir.path())
+        .args(["--isolated", "--no-cache", "--select", "SCR102", "--diff"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8(diff.stdout).unwrap();
+    let patch = stdout.split("\nWould fix").next().unwrap().to_owned();
+    assert!(patch.contains("@@ -1,3 +1,3 @@\n"), "{patch}");
+    let tools: [(&str, &[&str]); 2] = [("patch", &["-p1", "-s", "-t"]), ("git", &["apply"])];
+    for (tool, args) in tools {
+        let target = tempfile::tempdir().unwrap();
+        source(target.path());
+        let mut child = match std::process::Command::new(tool)
+            .args(args)
+            .current_dir(target.path())
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(_) => {
+                eprintln!("{tool} not found: skipped");
+                continue;
+            }
+        };
+        use std::io::Write as _;
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(patch.as_bytes())
+            .unwrap();
+        let out = child.wait_with_output().unwrap();
+        assert!(
+            out.status.success(),
+            "{tool}: {}{}\n{patch}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(
+            std::fs::read_to_string(target.path().join("p/ignition/script-python/m/code.py"))
+                .unwrap(),
+            "\n\nx = 1\n",
+            "{tool}"
+        );
+    }
+}
+
 /// Reviewer round 10, O1 and O2, through the binary: `--fix` must not
 /// rename a component referenced from a tag history date range or an HTTP
 /// header value (fields iglint did not model), nor one whose name a script

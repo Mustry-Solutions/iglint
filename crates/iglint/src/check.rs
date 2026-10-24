@@ -161,12 +161,86 @@ fn show_settings(
     Ok(())
 }
 
+/// A unified diff (`diff -u` format, three lines of context) from `old` to
+/// `new`, empty when they are equal. Only the line changes come from
+/// `similar`; hunks and their ranges are computed here, by counting the
+/// lines: `similar` 2.7 can report a deletion at the wrong position in the
+/// new file, so its unified diff writer (and the ranges of its grouped
+/// operations) can give a header that does not match the hunk's lines
+/// (reviewer round 13: `@@ -1,3 +2,2 @@` for a hunk with three old and
+/// three new lines), which `git apply` and `patch` reject. A line without
+/// a final newline is followed by `\ No newline at end of file`.
 fn unified_diff(path: &str, old: &str, new: &str) -> String {
-    similar::TextDiff::from_lines(old, new)
-        .unified_diff()
-        .context_radius(3)
-        .header(&diff_name("a/", path), &diff_name("b/", path))
-        .to_string()
+    use similar::ChangeTag;
+    use std::fmt::Write as _;
+    const CONTEXT: usize = 3;
+    let diff = similar::TextDiff::from_lines(old, new);
+    let lines: Vec<(ChangeTag, &str)> = diff
+        .iter_all_changes()
+        .map(|c| (c.tag(), c.value()))
+        .collect();
+    let changed: Vec<usize> = (0..lines.len())
+        .filter(|i| lines[*i].0 != ChangeTag::Equal)
+        .collect();
+    if changed.is_empty() {
+        return String::new();
+    }
+    // Hunks as ranges of `lines`: the changes with their context, merged
+    // when the context of two changes touches.
+    let mut hunks: Vec<(usize, usize)> = Vec::new();
+    for &i in &changed {
+        let start = i.saturating_sub(CONTEXT);
+        let end = (i + 1 + CONTEXT).min(lines.len());
+        match hunks.last_mut() {
+            Some(last) if start <= last.1 => last.1 = end,
+            _ => hunks.push((start, end)),
+        }
+    }
+    let mut out = format!(
+        "--- {}\n+++ {}\n",
+        diff_name("a/", path),
+        diff_name("b/", path)
+    );
+    // `start,len` with a 1-based start; an empty range names the line
+    // before it.
+    let range = |before: usize, len: usize| {
+        if len == 0 {
+            format!("{before},0")
+        } else {
+            format!("{},{len}", before + 1)
+        }
+    };
+    let (mut old_line, mut new_line, mut at) = (0usize, 0usize, 0usize);
+    for (start, end) in hunks {
+        for (tag, _) in &lines[at..start] {
+            old_line += usize::from(*tag != ChangeTag::Insert);
+            new_line += usize::from(*tag != ChangeTag::Delete);
+        }
+        let hunk = &lines[start..end];
+        let old_len = hunk.iter().filter(|(t, _)| *t != ChangeTag::Insert).count();
+        let new_len = hunk.iter().filter(|(t, _)| *t != ChangeTag::Delete).count();
+        let _ = writeln!(
+            out,
+            "@@ -{} +{} @@",
+            range(old_line, old_len),
+            range(new_line, new_len)
+        );
+        for (tag, line) in hunk {
+            out.push(match tag {
+                ChangeTag::Equal => ' ',
+                ChangeTag::Delete => '-',
+                ChangeTag::Insert => '+',
+            });
+            out.push_str(line);
+            if !line.ends_with('\n') {
+                out.push_str("\n\\ No newline at end of file\n");
+            }
+        }
+        old_line += old_len;
+        new_line += new_len;
+        at = end;
+    }
+    out
 }
 
 /// A file name for a `---` / `+++` line that `patch` and `git apply` both
@@ -595,4 +669,174 @@ fn render_all(
         output::render_summary(report, fixes_applied, out)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::unified_diff;
+    use proptest::prelude::*;
+
+    /// Applies `patch` with `tool` in a directory holding `a.py` = `old`,
+    /// and returns the patched file (`None` when the tool is missing).
+    fn apply(tool: &str, old: &str, patch: &str) -> Option<Result<String, String>> {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.py"), old).unwrap();
+        let args: &[&str] = match tool {
+            "git" => &["apply", "--unidiff-zero", "-"],
+            _ => &["-p1", "-s", "-t", "--binary"],
+        };
+        let mut child = std::process::Command::new(tool)
+            .args(args)
+            .current_dir(dir.path())
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .ok()?;
+        use std::io::Write as _;
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(patch.as_bytes())
+            .unwrap();
+        let out = child.wait_with_output().unwrap();
+        if !out.status.success() {
+            return Some(Err(format!(
+                "{}{}",
+                String::from_utf8_lossy(&out.stdout),
+                String::from_utf8_lossy(&out.stderr)
+            )));
+        }
+        Some(Ok(std::fs::read_to_string(dir.path().join("a.py")).unwrap()))
+    }
+
+    /// Checks every hunk header against the files exactly (the tools
+    /// accept a hunk at an offset): the old side's lines are at its start
+    /// in `old`, the new side's at its start in `new`.
+    fn strict(old: &str, new: &str, patch: &str) -> Result<(), String> {
+        let old: Vec<&str> = old.split_inclusive('\n').collect();
+        let new: Vec<&str> = new.split_inclusive('\n').collect();
+        let mut lines = patch.split_inclusive('\n').skip(2).peekable();
+        while let Some(header) = lines.next() {
+            let parse = |part: &str| -> (usize, usize) {
+                let (start, len) = part[1..].split_once(',').unwrap();
+                (start.parse().unwrap(), len.parse().unwrap())
+            };
+            let mut parts = header.trim_end().split(' ');
+            let (os, ol) = parse(parts.nth(1).unwrap());
+            let (ns, nl) = parse(parts.next().unwrap());
+            let (mut a, mut b) = (Vec::new(), Vec::new());
+            while let Some(line) = lines.next_if(|l| !l.starts_with("@@")) {
+                let (sign, text) = line.split_at(1);
+                let text = if lines.peek().is_some_and(|l| l.starts_with('\\')) {
+                    lines.next();
+                    text.strip_suffix('\n').unwrap()
+                } else {
+                    text
+                };
+                if sign != "+" {
+                    a.push(text);
+                }
+                if sign != "-" {
+                    b.push(text);
+                }
+            }
+            let at = |start: usize, len: usize| if len == 0 { start } else { start - 1 };
+            if a.len() != ol || b.len() != nl {
+                return Err(format!("counts differ from {header}"));
+            }
+            if old.get(at(os, ol)..at(os, ol) + ol) != Some(&a[..])
+                || new.get(at(ns, nl)..at(ns, nl) + nl) != Some(&b[..])
+            {
+                return Err(format!("lines differ at {header}"));
+            }
+        }
+        Ok(())
+    }
+
+    fn check(old: &str, new: &str) -> Result<(), TestCaseError> {
+        let patch = unified_diff("a.py", old, new);
+        if old == new {
+            prop_assert!(patch.is_empty());
+            return Ok(());
+        }
+        if let Err(e) = strict(old, new, &patch) {
+            prop_assert!(false, "{}\n{}", e, patch);
+        }
+        for tool in ["git", "patch"] {
+            match apply(tool, old, &patch) {
+                None => {}
+                Some(Ok(fixed)) => prop_assert_eq!(&fixed, new, "{}:\n{}", tool, patch),
+                Some(Err(e)) => prop_assert!(false, "{} rejects:\n{}\n{}", tool, e, patch),
+            }
+        }
+        Ok(())
+    }
+
+    /// The most common `SCR102` safe fix: the import's line is emptied
+    /// before a blank line.
+    #[test]
+    fn blanked_line_before_a_blank_line() {
+        let patch = unified_diff("a.py", "import math\n\nx = 1\n", "\n\nx = 1\n");
+        assert_eq!(
+            patch,
+            "--- a/a.py\n+++ b/a.py\n@@ -1,3 +1,3 @@\n-import math\n \n+\n x = 1\n"
+        );
+        check("import math\n\nx = 1\n", "\n\nx = 1\n").unwrap();
+    }
+
+    /// A file of lines from a small alphabet, so edits produce blank-line
+    /// runs, repeated lines and hunks that merge or stay apart.
+    fn file() -> impl Strategy<Value = Vec<String>> {
+        prop::collection::vec(
+            prop::sample::select(vec![
+                "",
+                "",
+                "x = 1",
+                "y = 2",
+                "import os",
+                "pass",
+                "  ",
+                "#",
+            ]),
+            0..30,
+        )
+        .prop_map(|v| v.into_iter().map(str::to_owned).collect())
+    }
+
+    /// Lines joined with `\n` or `\r\n`, with or without a final line end.
+    fn render(lines: &[String], crlf: bool, final_newline: bool) -> String {
+        let end = if crlf { "\r\n" } else { "\n" };
+        let mut s = lines.join(end);
+        if final_newline && !lines.is_empty() {
+            s.push_str(end);
+        }
+        s
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(96))]
+
+        /// Any pair of files: the diff applies with `git apply` and GNU
+        /// `patch -p1` and reproduces the new file exactly (blank-line
+        /// edits, CRLF line ends, no final newline, edits at the start and
+        /// the end, several hunks).
+        #[test]
+        fn diffs_apply_with_git_and_patch(
+            old in file(),
+            edits in prop::collection::vec((0usize..40, 0usize..3, file()), 0..5),
+            crlf in any::<bool>(),
+            old_final in any::<bool>(),
+            new_final in any::<bool>(),
+        ) {
+            let mut new = old.clone();
+            for (at, remove, insert) in edits {
+                let at = at.min(new.len());
+                let end = (at + remove).min(new.len());
+                new.splice(at..end, insert.into_iter().take(3));
+            }
+            check(&render(&old, crlf, old_final), &render(&new, crlf, new_final))?;
+        }
+    }
 }

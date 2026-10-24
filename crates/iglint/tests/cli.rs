@@ -251,11 +251,16 @@ fn fixes() {
 #[test]
 fn diff_applies_with_patch_and_git_for_any_path() {
     let names = ["a.py", "My View/a.py", "Q\"x/b\\c.py", "é v/a.py"];
+    // Reviewer round 13: a fixed line equal to the line after it made the
+    // hunk header disagree with the hunk (`similar` placed the change one
+    // line off), and the tools rejected the patch.
+    let ambiguous = "# unused_var\n# _\n\nunusedProp\n";
     let source = |dir: &Path| {
         write(dir, "project.json", "{}\n");
         for name in names {
             write(dir, name, "# unused_var\nunusedProp\n");
         }
+        write(dir, "same/a.py", ambiguous);
     };
     let dir = tempfile::tempdir().unwrap();
     source(dir.path());
@@ -302,6 +307,11 @@ fn diff_applies_with_patch_and_git_for_any_path() {
                 "{tool}: {name}"
             );
         }
+        assert_eq!(
+            std::fs::read_to_string(target.path().join("same/a.py")).unwrap(),
+            "# _\n# _\n\nunusedProp\n",
+            "{tool}"
+        );
     }
 }
 
