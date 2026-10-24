@@ -56,7 +56,11 @@ Removes the unused codes, or the whole comment when none of its codes is
 used. A comment alone on its line leaves the line empty, so no line number
 changes. Safe, except when the whole comment would go and it holds more
 than the suppression (a reason, a `# pylint:` directive, a `coding:`
-declaration); that fix is unsafe and removes the comment's line too.
+declaration); that fix is unsafe and removes the comment's line too. The
+fix only changes a comment, so it is also unsafe when it would change a
+token of the script: a comment after a backslash that is not followed by
+a line break goes with the whitespace before it, and the backslash would
+then join the next line.
 
 Like every fix, it is unsafe while code in the workspace may read the
 files a fix edits (any file access, read, write, rename or delete, whose path
@@ -199,7 +203,7 @@ pub(crate) fn report_unused(
                 vec![e],
             )
             .map(|f| {
-                f.reason_if_unsafe(
+                f.layout_only().reason_if_unsafe(
                     "the comment holds more than the suppression (other text, a `# pylint:` \
                      directive or a coding declaration), and the fix removes all of it",
                 )
@@ -312,6 +316,45 @@ mod tests {
             fixed.contains("y = 2  # iglint: ignore[SCR103]\n"),
             "{fixed}"
         );
+    }
+
+    /// Review round 25, B1: the fix only changes a comment, so it is safe
+    /// only when every token stays as it is (`safety::same_compilation`).
+    /// Removing a comment and the whitespace before it after a stray
+    /// backslash turns the backslash into a line continuation (`x = 1 \ `
+    /// is `x = 1`; `x = 1 \` joins the next line); the fix is unsafe with
+    /// the net's reason and `--fix` keeps the comment. Text after a
+    /// backslash in a string Jython drops is not a comment at all.
+    #[test]
+    fn comments_the_lexer_reads_are_not_layout() {
+        let rules = [("SCR101", ""), ("SCR123", "")];
+        let f = library("m", "x = 1 \\ # iglint: ignore[SCR101]\ny = 2\n");
+        let d = f.lint(&["SCR101", "SCR123"]);
+        assert_eq!(messages(&d), ["Unused suppression of `SCR101`"]);
+        let fix = d[0].fix.as_ref().unwrap();
+        assert_eq!(fix.applicability, crate::Applicability::Unsafe);
+        assert_eq!(
+            fix.unsafe_reason.as_ref().unwrap().message,
+            format!(
+                "the safe fix could change what the code does ({})",
+                crate::safety::LAYOUT_CHANGES_TOKENS
+            )
+        );
+        let result = f.run(
+            &rules,
+            crate::FixMode::DiffOnly {
+                unsafe_fixes: false,
+            },
+        );
+        assert!(result.fixed.iter().all(|s| !s.changed()));
+        let f = library("m", "v = 'a\\ # iglint: ignore[SCR101]\ny #'\n");
+        let result = f.run(
+            &rules,
+            crate::FixMode::DiffOnly {
+                unsafe_fixes: false,
+            },
+        );
+        assert!(result.fixed.iter().all(|s| !s.changed()));
     }
 
     #[test]

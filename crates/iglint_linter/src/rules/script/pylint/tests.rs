@@ -755,6 +755,40 @@ fn trailing_whitespace_fix_in_strings_is_unsafe() {
     );
 }
 
+/// Review round 25, B1: whitespace after a backslash in a string Jython
+/// drops (`'x  \ ` then a line break) is part of the string: without it,
+/// the backslash continues the string on the next line. The fix is
+/// unsafe. A stray backslash before whitespace outside a string is caught
+/// by the safety net (the fix only changes layout, so it must leave every
+/// token as it is).
+#[cfg(unix)]
+#[test]
+fn trailing_whitespace_after_a_backslash_is_not_layout() {
+    for (code, line) in [
+        ("v4 = 'x  \\ \ny' # c\n", (1, 10)),
+        ("print 1, \\ \n2\n", (1, 10)),
+    ] {
+        let messages = serde_json::json!([message(
+            "trailing-whitespace",
+            "C0303",
+            "Trailing whitespace",
+            line,
+            None
+        )]);
+        let (f, command) = fake_pylint(library("m", code), &messages);
+        let d = f.lint_with(&[("SCR900", &command)]);
+        let fix = d[0].fix.as_ref().unwrap();
+        assert_eq!(
+            fix.applicability,
+            crate::diagnostic::Applicability::Unsafe,
+            "{code:?}"
+        );
+        assert!(fix.unsafe_reason.is_some(), "{code:?}");
+        let result = f.run(&[("SCR900", &command)], FixMode::Safe);
+        assert!(result.fixed.iter().all(|s| !s.changed()), "{code:?}");
+    }
+}
+
 /// A pylint message that a native rule reports on the same range (and
 /// name) is dropped; others stay.
 #[cfg(unix)]

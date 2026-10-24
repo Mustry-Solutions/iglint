@@ -174,7 +174,13 @@ pub(crate) fn health_settings() -> &'static Arc<LinterSettings> {
     &SETTINGS
 }
 
-/// The health findings of a text, as a multiset of what they say.
+/// The health findings of a text, as a multiset of what they say. A
+/// certain size error of `SCR002` counts by what it says without its
+/// numbers ([`iglint_python_semantic::size_error_key`]), as the safety
+/// net compares it: the bytes it counts move with any edit, and a fix that
+/// keeps a module failing on the same limit does not make it worse
+/// (review round 25, M1: `check` reported such a fix safe and `--fix`
+/// refused it).
 fn health(
     reanalyze: &Reanalyze<'_>,
     text: &str,
@@ -182,7 +188,12 @@ fn health(
 ) -> FxHashMap<(RuleCode, String, Option<String>), u32> {
     let mut out = FxHashMap::default();
     for d in reanalyze(text, edits, Reanalysis::Health) {
-        *out.entry((d.rule, d.message, d.node_path)).or_default() += 1;
+        let message = if d.rule.code() == crate::rules::script::compile_error::META.code {
+            iglint_python_semantic::size_error_key(&d.message).unwrap_or(d.message)
+        } else {
+            d.message
+        };
+        *out.entry((d.rule, message, d.node_path)).or_default() += 1;
     }
     out
 }
@@ -648,6 +659,18 @@ pub(crate) fn fix_file(
             let refs = Resolutions::of(path, &current);
             current_scripts = Some((found, facts, refs));
         }
+        // The edits of the layout-only safe fixes of the pass.
+        let layout_edits: FxHashSet<TextEdit> = pass_result
+            .fixes
+            .iter()
+            .zip(pass_result.safe.iter().zip(&pass_result.layout))
+            .filter(|(_, (safe, layout))| **safe && **layout)
+            .flat_map(|((_, edits), _)| edits.iter().cloned())
+            .collect();
+        let layout = safety::Layout {
+            edits: &layout_edits,
+            scripts,
+        };
         // Why the safe fixes with `safe_edits` (in `current`'s
         // coordinates) change a script, if they do.
         let safe_problem = |safe_edits: &[TextEdit]| -> Option<String> {
@@ -669,6 +692,7 @@ pub(crate) fn fix_file(
                 &sorted,
                 &after,
                 &scripts(&after),
+                Some(&layout),
             )
         };
         let safe_edits: Vec<TextEdit> = pass_result

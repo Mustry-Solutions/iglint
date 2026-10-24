@@ -104,8 +104,14 @@ Three mechanisms carry it:
    routes: findings and fixes"), or changes what any remaining name resolves
    to (local, enclosing function, global, builtin, injected, and where a
    class body's lookup continues), which kinds of bindings it may find,
-   or whether it may be unbound; the interpreter's implicit reads count
-   (see "Name resolution, measured"). Names that statements bind without naming them are
+   or whether it may be unbound, or removes a read of a name (how many
+   references of each kind a name has is compared, both ways), or changes
+   the number literals or the number of string literals; the
+   interpreter's implicit reads count (see "Name resolution, measured").
+   A layout-only fix (whitespace or a comment: `SCR123`, `SCR124`,
+   `SCR900`'s trailing-whitespace fix) must in addition leave every token
+   of every script as it is, relative to the other fixes applied with it
+   ("Layout-only fixes" under "Decisions"). Names that statements bind without naming them are
    bindings of the semantic model too: `__module__` in class bodies and
    the `__package__` that every import binds in a library module's
    globals (see "Names imports bind"), so removing the only import of a
@@ -1736,11 +1742,11 @@ longer needed for safety.
 | `SCR103` | Remove `x = value`, or only `x = ` when the value calls or binds something | Never | Unsafe: the value may be wanted under another name, and a removed attribute or subscript read, operator, comparison, `in` or `%` formatting can raise or run code (getters, special methods). The statement is removed only when the value calls nothing (no call, no backticks, which call `repr`, no `yield`) and binds nothing (no list comprehension, whose variables Python 2 leaks), so no pointless statement (`SCR114`) is left |
 | `SCR110` | `is` to `==`, `is not` to `!=` | Never: the result changes whenever identity and equality differ (`int('1000') is 1000` is `False` in Jython), and `==` calls `__eq__` / Java `equals` | Unsafe |
 | `SCR115` | `except A, B:` to `except (A, B):` | Never: the handler then catches `B` and no longer rebinds the name | Unsafe. The finding itself requires `B` to resolve (ignoring the handler) to a class statement, a capitalized `from` import or a builtin exception, and the handler body not to read it |
-| `SCR123` | Remove unused suppression codes or the whole comment (a comment alone on its line leaves the line empty) | Only codes are removed (the rest of the comment stays), or the comment holds nothing but the suppression. Comments do not run, and no line moves; and no code in the workspace may read workspace files ("File reads") | Unsafe when the whole comment would go and it also holds a reason, a `# pylint:` directive or a `coding:` declaration; that fix removes the line |
-| `SCR124` | Remove trailing whitespace | The script parses, the whitespace is outside string literals and outside the generated header (a backslash continuation followed by spaces is a syntax error, so it is never touched); and no code in the workspace may read workspace files ("File reads") | No finding when the script does not parse; unsafe while code may read workspace files |
+| `SCR123` | Remove unused suppression codes or the whole comment (a comment alone on its line leaves the line empty) | Only codes are removed (the rest of the comment stays), or the comment holds nothing but the suppression. Comments do not run, and no line moves; the fix is layout-only, so every token of the script must stay as it is ("Layout-only fixes" under "Decisions"); and no code in the workspace may read workspace files ("File reads") | Unsafe when the whole comment would go and it also holds a reason, a `# pylint:` directive or a `coding:` declaration; that fix removes the line. Unsafe, with the net's reason, when removing the comment and the whitespace before it changes a token (after a stray backslash, which then joins the next line) |
+| `SCR124` | Remove trailing whitespace | The script parses, the whitespace is outside string literals (also outside a string Jython drops, after a backslash: that whitespace is part of the string and not reported) and outside the generated header; the fix is layout-only, so every token of the script must stay as it is ("Layout-only fixes" under "Decisions"); and no code in the workspace may read workspace files ("File reads") | No finding when the script does not parse; unsafe, with the net's reason, when the whitespace follows a stray backslash (Jython drops the backslash with the next character; without the whitespace it joins the next line); unsafe while code may read workspace files |
 | `SCR206` | Remove a `shared.` / `project.` prefix | Never: in Ignition 7 the two prefixes named different libraries | Unsafe |
 | `SCR301` | Rewrite or insert the event script header | Never: code may rely on the written parameters or defaults | Unsafe |
-| `SCR900` | ign-lint's trailing-whitespace fix (every line `rstrip()`ed) | The script parses and no removed whitespace is inside a string literal (multi-line strings); and no code in the workspace may read workspace files ("File reads") | Unsafe |
+| `SCR900` | ign-lint's trailing-whitespace fix (every line `rstrip()`ed) | The script parses and no removed whitespace is inside a string literal (multi-line strings, or after a backslash in a string Jython drops); the fix is layout-only, so every token must stay as it is ("Layout-only fixes" under "Decisions"); and no code in the workspace may read workspace files ("File reads") | Unsafe |
 
 Every row above also needs the condition of "File reads": while code in
 the workspace may read workspace files, every fix is unsafe, whatever the
@@ -1814,7 +1820,7 @@ fix). Each rule has a regression test with the patterns.
 | `VIEW015` | read or write any property | Default-deny accesses, frame routes, callee checks, rebinding through exposure and `func_globals`; inter-procedural findings unsafe; code that is not vetted makes the fix unsafe (`dynamic_patterns_read_everything`, `unvetted_code_makes_fixes_unsafe`) |
 | `SCR102` | read the import by name (`lib.util.ev('os')`, `capture()['os']`, `getattr(me, n)` on the module itself) | Scopes with escape routes that observe names, or frame builtins, are dynamic (no finding); any other escape route makes the fix unsafe ("Frame routes: findings and fixes"); a computed `getattr` on a module object keeps module imports; a library name that may be a frame builtin, or code that is not vetted, makes the fix unsafe (`library_frame_builtins_and_computed_getattr`, `frame_builtins_under_other_names_keep_imports`, `review_round_six_repros`, `frame_access_keeps_imports`) |
 | `SCR123` | read the script's file (`open(path).read()`); through the running code nothing: comments do not run, and the safe fix keeps every line, so line numbers (`f_lineno`, tracebacks, `warnings`, Java stack traces) do not move | "File reads": dynamic code may call `open` under another name, so it makes the fix unsafe unless the project declares that no script reads workspace files (`safe_removal_keeps_lines`) |
-| `SCR124`, `SCR900` | read the script's file; through the running code nothing: trailing whitespace outside string literals is not in any value, line numbers do not move, and Jython has no source for scripts compiled from strings (`inspect.getsource` raises `IOError`, tracebacks show no source lines; verified on Ignition 8.3's Jython) | "File reads" (`dynamic_code_makes_the_fix_unsafe_unless_declared`, `file_reads_make_the_fix_unsafe`) |
+| `SCR124`, `SCR900` | read the script's file; through the running code nothing: trailing whitespace that the lexer skips is not in any value, line numbers do not move, and Jython has no source for scripts compiled from strings (`inspect.getsource` raises `IOError`, tracebacks show no source lines; verified on Ignition 8.3's Jython) | "File reads" (`dynamic_code_makes_the_fix_unsafe_unless_declared`, `file_reads_make_the_fix_unsafe`); whitespace the lexer reads: "Layout-only fixes" |
 
 Values that do not come from a name: calling the result of a call or an
 item of a container (`factory()()`, `getattr(o, name)()`, `handlers[k]()`,
@@ -1898,9 +1904,13 @@ remaining documented assumption.
      this also holds when the mirror stops early. The net compares which
      limit a certain size error is for, not its numbers, which move with
      any edit: a fix that keeps the script failing keeps its status, and
-     the other checks still apply. (The engine's health check still
-     compares `SCR002`'s messages, so a fix that changes them is not
-     applied.)
+     the other checks still apply. The engine's health check compares
+     `SCR002`'s size errors the same way since review round 25 (M1):
+     before, it took a size error whose byte count moved for a new error
+     and refused a fix that `check` reported safe
+     (`iglint_python_semantic::size_error_key`, the message without its
+     numbers, used by both; the kind of code, module, class body or
+     function, and the limit are kept).
   3. The safe fixes that fail together are halved into groups until a
      group passes or holds one fix, in `safety::mark_rejected_safe_fixes`
      and in `engine::fix_file` (which keeps the order and the rule that
@@ -2131,6 +2141,64 @@ remaining documented assumption.
   the change: 38 bounds below Jython's size). Smallest margins: methods
   of 200 bytes or more 1.070 (22 bytes), `<init>` 1.083 (11 bytes),
   constant pools 3.3.
+* **Layout-only fixes (review round 25, B1).** `SCR123`, `SCR124` and
+  `SCR900`'s trailing-whitespace fix remove whitespace or comment text.
+  They were safe on the argument that the lexer skips that text, which
+  does not hold everywhere. Jython's lexer silently drops a single-quoted
+  string that a line break ends before its closing quote, together with
+  the line break, and lexes on; a backslash in it escapes the whitespace
+  after it, so `v4 = 'x  \ ` followed by `y' # c` is `v4 = y` (and
+  `y = 5`, `v4 = 'ab\ `, `y + 1` gives `v4 == 6`). Without that
+  whitespace the backslash continues the string on the next line:
+  `v4 = 'x  y'`. A backslash outside a string that is not followed by a
+  line break is dropped with the next character, so `print 1, \ ` then
+  `2` prints `1` and evaluates `2`, and without the space prints `1 2`;
+  removing a comment after `x = 1 \ ` takes the whitespace before it and
+  joins the lines. All measured on Ignition 8.3.3's Jython
+  (`oracle/run-oracle.sh --run`). iglint lexed these right (no `SCR001`,
+  `SCR101` for `y`), but `SCR124` treated the whitespace as trailing
+  whitespace, and the net did not see the change: it compared compile
+  status, scopes and the references that remain, and the fix only removed
+  the read of `y` and added a string. Three changes:
+
+  1. Layout-only fixes say so (`Fix::layout`), and the net requires that
+     the scripts of the text with only the other safe fixes applied and
+     of the text with all of them compile to the same code, proven by
+     lexing (`safety::same_compilation`: the same tokens, kinds, texts,
+     indentation, lines and columns, line ends and dedents by line only).
+     Otherwise the fix is reported unsafe with the net's reason ("it
+     removes whitespace or comment text that Jython's lexer reads") and
+     `--fix` does not apply it. This is the fact such a fix claims, so it
+     is checked directly, in every storage format, and whatever else the
+     net finds.
+  2. `SCR124` and `SCR900` treat whitespace after an escaping backslash in
+     a string Jython drops as part of the string: `SCR124` does not
+     report it, and `SCR900`'s fix is unsafe.
+  3. The facts the net compares for every safe fix are stronger: a read
+     that goes (or one of several reads of a name) and a change of the
+     number literals or of how many string literals a script has are
+     changes, so a fix of another kind that turns code into a string or
+     back no longer passes on the names that remain. The text of string
+     literals is not compared: `NAME001` renames inside them, and the
+     view's resolution map checks those.
+
+  A comparison of whole token streams outside the edited ranges was
+  considered for every safe fix; it is not needed for the fixes that
+  change tokens by design (`SCR102` deletes an import statement, `NAME001`
+  edits string literals), whose effects are what the other facts
+  describe, and for layout-only fixes the stronger token identity above
+  applies. The differential test
+  `rules::script::layout_oracle` (module documentation for the commands)
+  generates library modules full of dropped strings, stray backslashes,
+  form feeds, carriage returns, comments and suppressions after them,
+  continuations, brackets and blocks, fixes them with the safe fixes of
+  `SCR101`, `SCR123` and `SCR124`, and has Jython run both versions,
+  recording the output, the exception with its line and every global:
+  6,000 programs (seeds 25 to 27), 5,455 changed by the fixes, no
+  difference. With changes 1 to 3 switched off, the same run of seed 25
+  found 714 programs whose behaviour the fixes changed. A sample of 303
+  pairs is replayed without Docker (`replayed_sample_is_unchanged`).
+
 * **Import side effects.** Removing an import is safe only with positive
   evidence that the import succeeds and has no effect: a Java class
   measured to exist in the image (a public top-level class of a vetted

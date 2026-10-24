@@ -9,9 +9,11 @@
 # each source looks up in its module's globals, the interpreter's implicit
 # reads included (--reads, see jython_implicit_reads_oracle.py), or the
 # bytecode size of every code unit and whether full compilation succeeds
-# (--method-size, see jython_method_size_oracle.py).
+# (--method-size, see jython_method_size_oracle.py), or what running each
+# source as a library module does: its output, exception and globals
+# (--run, see jython_run_oracle.py).
 #
-# usage: oracle/run-oracle.sh [--tokens | --compile | --warnings | --implicit | --reads | --method-size] ROOT LIST OUT
+# usage: oracle/run-oracle.sh [--tokens | --compile | --warnings | --implicit | --reads | --method-size | --run] ROOT LIST OUT
 #
 #   ROOT  directory that contains the inputs
 #   LIST  file with one path per line, relative to ROOT; ".cases" files hold
@@ -39,6 +41,9 @@ elif [[ "${1:-}" == "--reads" ]]; then
   shift
 elif [[ "${1:-}" == "--method-size" ]]; then
   script=jython_method_size_oracle.py
+  shift
+elif [[ "${1:-}" == "--run" ]]; then
+  script=jython_run_oracle.py
   shift
 fi
 image="${IGLINT_ORACLE_IMAGE:-inductiveautomation/ignition:8.3.3}"

@@ -176,6 +176,13 @@ pub struct Fix {
     /// it that keeps it from being safe (code that is not vetted, or that
     /// reads a frame), or what the fix itself may change.
     pub unsafe_reason: Option<UnsafeReason>,
+    /// The fix changes only layout: whitespace or the text of comments.
+    /// Such a fix is safe only when every script of the file lexes to the
+    /// same tokens after it (`safety::same_compilation`), which the safety
+    /// net checks: whitespace the lexer reads as part of a token (after a
+    /// backslash in a string Jython drops, after a stray backslash) is not
+    /// layout.
+    pub layout: bool,
 }
 
 /// Why a fix that would otherwise be safe is unsafe.
@@ -258,6 +265,13 @@ impl Fix {
         self
     }
 
+    /// Marks the fix as changing only whitespace or comments (see
+    /// [`Fix::layout`]).
+    pub fn layout_only(mut self) -> Self {
+        self.layout = true;
+        self
+    }
+
     /// Marks the fix as deleting a statement of the suite `guard`.
     pub fn deleting_from(mut self, guard: SuiteGuard) -> Self {
         self.suite = Some(guard);
@@ -271,6 +285,7 @@ impl Fix {
             edits,
             suite: None,
             unsafe_reason: None,
+            layout: false,
         }
     }
 
@@ -286,6 +301,7 @@ impl Fix {
             edits,
             suite: None,
             unsafe_reason: Some(UnsafeReason::new(reason)),
+            layout: false,
         }
     }
 
@@ -296,6 +312,7 @@ impl Fix {
             edits,
             suite: None,
             unsafe_reason: None,
+            layout: false,
         }
     }
 }

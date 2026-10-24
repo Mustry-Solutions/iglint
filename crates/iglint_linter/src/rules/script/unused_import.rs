@@ -2098,4 +2098,30 @@ mod tests {
             "import math as _D__m\n\nclass D(object):\n    def f(self):\n        return __m\n";
         assert_eq!(flagged(&library("m", code).lint(&["SCR102"])), ["_D__m"]);
     }
+
+    /// Review round 25 (M1, both reviewers): in a module that fails to
+    /// compile on its size before and after the fix, the net keeps the fix
+    /// safe (the status stays "fails"), but `--fix`'s health check took
+    /// `SCR002`'s message with another byte count for a new error and
+    /// refused the fix as making the file worse. Both now compare size
+    /// errors without their numbers (`size_error_key`): `check` reports the
+    /// fix safe and `--fix` applies it (the Fixture checks that for every
+    /// safe fix it reports).
+    #[test]
+    fn safe_fixes_in_modules_too_large_either_way_apply() {
+        let code: String = (0..9000)
+            .map(|i| format!("x{i} = 1   \n"))
+            .collect::<String>()
+            + "import math\n";
+        let f = library("m", &code);
+        for rules in [&["SCR102"][..], &["SCR002", "SCR102"]] {
+            let d = f.lint(rules);
+            let fixes: Vec<_> = d
+                .iter()
+                .filter_map(|d| d.fix.as_ref().map(|f| f.applicability))
+                .collect();
+            assert_eq!(fixes, [crate::Applicability::Safe], "{rules:?}");
+        }
+        assert!(safe_fix_applies(&f, "SCR102", "m"));
+    }
 }

@@ -493,3 +493,35 @@ fn names_too_long_for_a_java_method() {
         );
     }
 }
+
+/// Every certain size error has a key without its counts, the same for
+/// two sizes of the same failure; other messages have none.
+#[test]
+fn size_errors_have_keys_without_counts() {
+    let module = |n: usize, extra: &str| {
+        let mut s: String = (0..n).map(|i| format!("x{i} = {i}\n")).collect();
+        s.push_str(extra);
+        s
+    };
+    let strings: String = (0..40_000).map(|i| format!("s = 's{i}'\n")).collect();
+    let keys = |source: &str| -> Vec<String> {
+        let parsed = iglint_python::parse_module(source);
+        size_errors(&parsed.module, source)
+            .into_iter()
+            .map(|e| {
+                let key = size_error_key(&e.message).expect("size errors have keys");
+                assert!(!key.chars().any(|c| c.is_ascii_digit()), "{key}");
+                key
+            })
+            .collect()
+    };
+    let a = keys(&module(9000, "import math\n"));
+    assert!(!a.is_empty());
+    assert_eq!(a, keys(&module(9500, "")));
+    assert!(
+        keys(&strings)
+            .iter()
+            .any(|k| k.ends_with("(Class too large)"))
+    );
+    assert_eq!(size_error_key("'return' outside function"), None);
+}

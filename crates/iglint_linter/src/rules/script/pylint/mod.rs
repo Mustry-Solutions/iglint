@@ -27,7 +27,8 @@ use crate::options::OptionReader;
 use crate::registry::{Category, FixAvailability, OptionMeta, OptionType, RuleMeta};
 use crate::rule::{Hook, ParsedOptions, Phase, RuleImpl, ScriptRule, ScriptUnit};
 use crate::rules::script::{
-    file_line, fix, in_header, injected_names, is_python_space, string_ranges, trailing_whitespace,
+    escaped_in_dropped_string, file_line, fix, in_header, injected_names, is_python_space,
+    string_ranges, trailing_whitespace,
 };
 
 pub(crate) mod run;
@@ -143,8 +144,10 @@ Comparison 'self.props.text == None' should be 'self.props.text is None' (single
 When pylint reports `trailing-whitespace` (C0303, disabled by the bundled
 configuration), the script's first such finding carries ign-lint's fix:
 every line of the script is `rstrip()`ed. Safe, except when whitespace
-inside a multi-line string literal would be removed or the script does
-not parse: then unsafe. `SCR124` is the native equivalent.
+inside a multi-line string literal (or after a backslash in a string
+Jython drops) would be removed, the script does not parse, or the edit
+changes a token of the script (whitespace after a stray backslash, which
+Jython's lexer reads): then unsafe. `SCR124` is the native equivalent.
 Like every fix, it is unsafe while code in the workspace may read the
 files a fix edits (any file access, read, write, rename or delete, whose path
 is not a literal outside the
@@ -575,6 +578,7 @@ fn strip_trailing_whitespace(cx: &Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) ->
         strings
             .iter()
             .any(|s| s.start() < r.start() && r.start() < s.end())
+            || escaped_in_dropped_string(unit.parsed, source, *r)
     };
     let applicability = if !unit.parsed.errors.is_empty() || ranges.iter().any(in_string) {
         Applicability::Unsafe
@@ -590,9 +594,9 @@ fn strip_trailing_whitespace(cx: &Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) ->
         ranges.into_iter().map(|r| (r, String::new())).collect(),
     )
     .map(|f| {
-        f.reason_if_unsafe(
-            "the script does not parse, or some of the whitespace is inside a string literal, \
-             where removing it changes the string",
+        f.layout_only().reason_if_unsafe(
+            "the script does not parse, or some of the whitespace is inside a string literal \
+             (also one Jython drops, after a backslash), where removing it changes the string",
         )
     })
 }

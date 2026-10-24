@@ -96,7 +96,7 @@ pub use compile_warnings::{CompileWarning, compile_warnings};
 pub use dump::scope_dump;
 pub use limits::{
     CodeUnit, IDENTIFIER_LIMIT, MARK_LIMIT, code_units, init_lower, longest_identifier,
-    mark_limit_error, size_errors, size_unknown, upper,
+    mark_limit_error, size_error_key, size_errors, size_unknown, upper,
 };
 pub use model::*;
 pub use resolve::UnboundNames;

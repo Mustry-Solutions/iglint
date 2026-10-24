@@ -159,6 +159,37 @@ fn mark_error(range: TextRange, units: usize) -> CompileError {
     }
 }
 
+/// What a certain size error of [`size_errors`] says without its counts:
+/// the bytes and constants it counts move with any edit, while the kind of
+/// code (module, class body, function) and the limit it exceeds stay.
+/// `None` for every other message. The fix safety net and the health
+/// check of `--fix` compare size errors by this key, so that a fix that
+/// keeps a module failing on the same limit keeps its status in both, and
+/// what `check` reports as safe is what `--fix` applies (review rounds 24
+/// and 25).
+pub fn size_error_key(message: &str) -> Option<String> {
+    let size = message.starts_with("Jython cannot compile this ")
+        && (message.ends_with("Module or method too large)")
+            || message.ends_with("(Class too large)"));
+    if !size {
+        return None;
+    }
+    let mut out = String::with_capacity(message.len());
+    let mut in_number = false;
+    for c in message.chars() {
+        if c.is_ascii_digit() || (in_number && c == ',') {
+            if !in_number {
+                out.push('N');
+                in_number = true;
+            }
+        } else {
+            in_number = false;
+            out.push(c);
+        }
+    }
+    Some(out)
+}
+
 /// Code units that are certainly larger than a Java method allows, and a
 /// module with certainly too many constants for one Java class. `source`
 /// is the text `module` was parsed from (with the generated header of an

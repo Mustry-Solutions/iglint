@@ -157,6 +157,12 @@ To record new outputs (needs Docker):
   `iglint_python_semantic`) writes its sources (`write_sources`) and
   checks `SCR002`'s lower bound against
   `tests/oracle/method_size.expected`.
+* `oracle/run-oracle.sh --run` records what running each source as a
+  library module does (output, exception with its line, globals); the
+  differential test of the layout-only safe fixes,
+  `rules::script::layout_oracle` in `iglint_linter`, writes its sources,
+  compares the records and replays a committed sample
+  (`tests/fixtures/layout-fix/`).
 * `oracle/format-spec.sh all OUT` records Jython's verdict on every
   generated `str.format` spec and literal argument (SCR112); the replayed
   sample in `crates/iglint_linter/tests/fixtures/format-spec/` is

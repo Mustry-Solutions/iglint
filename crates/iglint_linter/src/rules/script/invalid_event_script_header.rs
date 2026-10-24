@@ -355,6 +355,7 @@ fn make_fix(
         unsafe_reason: Some(crate::diagnostic::UnsafeReason::new(
             "the fix changes the code Ignition runs: it repairs the header the gateway replaces",
         )),
+        layout: false,
     }
 }
 

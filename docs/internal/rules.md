@@ -118,7 +118,7 @@ Jython builtins).
 | SCR121 | global-at-module-level | I | yes | - | (W0604) | `global` at module level does nothing. |
 | SCR122 | print-statement | I | no | - | | `print` in scripts that run on the gateway goes to the wrapper log; use `system.util.getLogger`. |
 | SCR123 | unused-suppression | I | yes | S/U | | `# iglint: ignore[...]` that suppresses nothing. |
-| SCR124 | trailing-whitespace | I | no | S | (C0303) | Spaces, tabs or form feeds at the end of a script line (not inside multi-line strings; scripts that do not parse are skipped). |
+| SCR124 | trailing-whitespace | I | no | S/U | (C0303) | Spaces, tabs or form feeds at the end of a script line (not inside multi-line strings or after a backslash in a string Jython drops; scripts that do not parse are skipped). |
 
 ### System API (`system.*`)
 

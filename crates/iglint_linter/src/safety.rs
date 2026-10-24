@@ -29,7 +29,14 @@
 //!   function, global, builtin, injected) or changes whether it may be
 //!   unbound. Names an import binds implicitly count too: in a library
 //!   module every import that runs binds `__package__`, so removing the
-//!   only one changes what a read of `__package__` finds.
+//!   only one changes what a read of `__package__` finds;
+//! * a read of a name goes, or the number literals or the number of
+//!   string literals change (code turned into a string or back, review
+//!   round 25, B1);
+//! * a layout-only fix ([`crate::Fix::layout`]: whitespace or a comment)
+//!   changes a token of a script, compared with the other fixes applied
+//!   ([`same_compilation`]): whitespace after a backslash that the lexer
+//!   reads is not layout.
 //!
 //! Scripts are compared in order; a safe fix that adds or removes a script
 //! is dropped as well.
@@ -45,7 +52,9 @@ mod resolution;
 
 pub(crate) use resolution::Resolutions;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+
+use rustc_hash::FxHashSet;
 use std::path::Path;
 
 use iglint_project::EmbeddedScript;
@@ -53,9 +62,7 @@ use iglint_project::script::ScriptBody;
 use iglint_python::TokenKind;
 use iglint_python::ast::{Expr, Stmt};
 use iglint_python::visitor::{Visitor, walk_stmt};
-use iglint_python_semantic::{
-    CompileErrorKind, ImplicitRead, ReferenceKind, SemanticModel, SemanticOptions,
-};
+use iglint_python_semantic::{ImplicitRead, ReferenceKind, SemanticModel, SemanticOptions};
 use iglint_text::{TextEdit, TextRange};
 
 /// One script of a file, as Ignition compiles it.
@@ -111,6 +118,12 @@ pub(crate) struct ScriptFacts {
     /// ([`SemanticModel::frame_escape`]): routes that do not make the
     /// scopes read their locals are compared here.
     frame_escape: bool,
+    /// The number literals (as written down by value) and how many string
+    /// literals the script has: a fix that keeps every read and binding
+    /// may still turn code into a string or a string into code (review
+    /// round 25, B1). The text of string literals is not compared:
+    /// `NAME001` renames inside them.
+    constants: (Vec<String>, usize),
     scopes: Vec<ScopeFacts>,
 }
 
@@ -124,8 +137,10 @@ struct ScopeFacts {
     /// Per name read in the scope (run-time spelling, implicit reads apart):
     /// how its references resolve (resolution, where a class body's lookup
     /// continues, never bound, maybe unbound, and the kinds of the bindings
-    /// they may read with the kind of scope that holds each).
-    refs: BTreeMap<String, BTreeSet<RefFacts>>,
+    /// they may read with the kind of scope that holds each), with how
+    /// many references have each: a read that a fix removes is a change
+    /// too (review round 25, B1).
+    refs: BTreeMap<String, BTreeMap<RefFacts, usize>>,
 }
 
 impl ScriptFacts {
@@ -141,21 +156,22 @@ impl ScriptFacts {
             docstrings: docstrings(&parsed.module.body),
             futures: futures(&parsed.module.body),
             frame_escape: false,
+            constants: constants(&parsed.module.body),
             scopes: Vec::new(),
         };
         if parsed.errors.is_empty() {
             facts.size_open = iglint_python_semantic::size_unknown(&parsed.module, &script.source);
             // A size error is certain (a lower bound above a limit): the
             // script fails to compile. Its numbers move with any edit, so
-            // only which limit fails is compared (review round 24): a fix
-            // that keeps the script failing keeps its compile status.
+            // only which code fails on which limit is compared (review
+            // round 24, `size_error_key`, which the health check of
+            // `--fix` uses as well): a fix that keeps the script failing
+            // keeps its compile status.
             errors.extend(
                 iglint_python_semantic::size_errors(&parsed.module, &script.source)
                     .into_iter()
-                    .map(|e| match e.kind {
-                        CompileErrorKind::MethodTooLarge => "Module or method too large".to_owned(),
-                        CompileErrorKind::ClassTooLarge => "Class too large".to_owned(),
-                        _ => e.message,
+                    .map(|e| {
+                        iglint_python_semantic::size_error_key(&e.message).unwrap_or(e.message)
                     }),
             );
             let options = SemanticOptions {
@@ -221,19 +237,37 @@ fn scopes(model: &SemanticModel<'_>) -> Vec<ScopeFacts> {
             ReferenceKind::Implicit(read) => format!("{} (implicit {read:?})", r.name),
             _ => r.name.to_owned(),
         };
-        out[r.scope.index()].refs.entry(key).or_default().insert((
-            format!("{:?}", r.resolution),
-            format!("{:?}", r.fallback),
-            r.unbound,
-            r.maybe_unbound,
-            bindings,
-        ));
+        *out[r.scope.index()]
+            .refs
+            .entry(key)
+            .or_default()
+            .entry((
+                format!("{:?}", r.resolution),
+                format!("{:?}", r.fallback),
+                r.unbound,
+                r.maybe_unbound,
+                bindings,
+            ))
+            .or_default() += 1;
     }
     out
 }
 
 /// See [`ScopeFacts::refs`].
 type RefFacts = (String, String, bool, bool, Vec<String>);
+
+/// See [`ScriptFacts::constants`].
+fn constants(body: &[Stmt]) -> (Vec<String>, usize) {
+    let mut numbers = Vec::new();
+    let mut strings = 0;
+    crate::rules::script::walk_exprs(body, &mut |e| match e {
+        Expr::Num(n) => numbers.push(format!("{:?}", n.n)),
+        Expr::Str(_) => strings += 1,
+        _ => {}
+    });
+    numbers.sort();
+    (numbers, strings)
+}
 
 /// The docstrings of the module and of every function and class body.
 fn docstrings(body: &[Stmt]) -> Vec<String> {
@@ -280,8 +314,18 @@ fn futures(body: &[Stmt]) -> Vec<String> {
         .collect()
 }
 
+/// The edits of layout-only safe fixes ([`crate::Fix::layout`]) among
+/// those the net checks, and how to find the scripts of a text of the
+/// file.
+pub(crate) struct Layout<'a> {
+    pub edits: &'a FxHashSet<TextEdit>,
+    pub scripts: &'a Scripts<'a>,
+}
+
 /// Why a safe fix that turns `before` into `after` with `edits` (ranges in
-/// `before`) changes a script, if it does.
+/// `before`) changes a script, if it does. `layout` names the edits that
+/// belong to layout-only fixes: they must leave every token of every
+/// script as it is, relative to the other edits ([`layout_problem`]).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn safe_fix_problem(
     path: &Path,
@@ -292,7 +336,13 @@ pub(crate) fn safe_fix_problem(
     edits: &[TextEdit],
     after: &str,
     after_scripts: &[ScriptText],
+    layout: Option<&Layout<'_>>,
 ) -> Option<String> {
+    if let Some(layout) = layout
+        && let Some(problem) = layout_problem(before, before_scripts, edits, after_scripts, layout)
+    {
+        return Some(problem);
+    }
     if let Some(problem) = scripts_problem(
         path,
         before,
@@ -309,6 +359,53 @@ pub(crate) fn safe_fix_problem(
         None => Some("it would make the view unreadable".to_owned()),
     }
 }
+
+/// Why the edits of layout-only fixes among `edits` change a token of a
+/// script, if they do (review round 25, B1). A fix that only removes
+/// whitespace or edits a comment is safe because the lexer skips that
+/// text; where the lexer reads it (whitespace after a backslash in a
+/// string Jython drops, or after a stray backslash), removing it turns the
+/// backslash into a line continuation, and the code changes although
+/// every check of facts may pass. So the scripts of the text with only the
+/// other edits applied and of the text with all of them must compile to
+/// the same code ([`same_compilation`]), whatever else the net finds.
+fn layout_problem(
+    before: &str,
+    before_scripts: &[ScriptText],
+    edits: &[TextEdit],
+    after_scripts: &[ScriptText],
+    layout: &Layout<'_>,
+) -> Option<String> {
+    if !edits.iter().any(|e| layout.edits.contains(e)) {
+        return None;
+    }
+    let rest: Vec<TextEdit> = edits
+        .iter()
+        .filter(|e| !layout.edits.contains(*e))
+        .cloned()
+        .collect();
+    let found;
+    let base: &[ScriptText] = if rest.is_empty() {
+        before_scripts
+    } else {
+        let Ok(text) = iglint_text::apply_edits(before, &rest) else {
+            return Some("its edits overlap".to_owned());
+        };
+        found = (layout.scripts)(&text);
+        &found
+    };
+    let changed = base.len() != after_scripts.len()
+        || base
+            .iter()
+            .zip(after_scripts)
+            .any(|(b, a)| b.source != a.source && !same_compilation(&b.source, &a.source));
+    changed.then(|| LAYOUT_CHANGES_TOKENS.to_owned())
+}
+
+/// The net's reason for a layout-only fix that changes a token.
+pub(crate) const LAYOUT_CHANGES_TOKENS: &str = "it removes whitespace or comment text that \
+     Jython's lexer reads: after a backslash, the line break would continue the line or the \
+     string, and the script would compile to different code";
 
 /// [`safe_fix_problem`] for the scripts of the file.
 fn scripts_problem(
@@ -394,6 +491,15 @@ pub(crate) fn mark_rejected_safe_fixes(
         return;
     }
     let facts: Vec<ScriptFacts> = before.iter().map(ScriptFacts::of).collect();
+    let layout_edits: FxHashSet<TextEdit> = fixes
+        .iter()
+        .filter(|(i, _)| diagnostics[*i].fix.as_ref().is_some_and(|f| f.layout))
+        .flat_map(|(_, edits)| edits.iter().cloned())
+        .collect();
+    let layout = Layout {
+        edits: &layout_edits,
+        scripts,
+    };
     let problem = |edits: &[TextEdit]| -> Option<String> {
         let Ok(after) = iglint_text::apply_edits(text, edits) else {
             return None;
@@ -407,6 +513,7 @@ pub(crate) fn mark_rejected_safe_fixes(
             edits,
             &after,
             &scripts(&after),
+            Some(&layout),
         )
     };
     // Groups of fixes, halved until they pass (review round 24): a group
@@ -501,11 +608,16 @@ pub(crate) fn same_compilation(before: &str, after: &str) -> bool {
     // and its text holds the blank lines after it: Jython's code records
     // lines, not columns, no node takes its position from it, and a change
     // of the lines it spans moves the next token, so only its line is
-    // compared.
+    // compared. The same holds for the dedents at the end of a script whose
+    // last line has no line break (a script in a JSON string): they stand
+    // at the end of the text, after the trailing whitespace.
     let line_end = |k: TokenKind| {
         matches!(
             k,
-            TokenKind::Newline | TokenKind::RecoveryNewline | TokenKind::EndOfFile
+            TokenKind::Newline
+                | TokenKind::RecoveryNewline
+                | TokenKind::EndOfFile
+                | TokenKind::Dedent
         )
     };
     let place_b = |k: TokenKind, o: TextSize| {
@@ -654,6 +766,14 @@ fn compare(before: &ScriptFacts, after: &ScriptFacts) -> Option<String> {
                 return Some(format!("it would change what `{name}` refers to"));
             }
         }
+        // A read the fix removes (or every read of a name) is a change of
+        // what the code does as well (review round 25, B1).
+        if let Some(name) = b.refs.keys().find(|n| !a.refs.contains_key(*n)) {
+            return Some(format!("it would remove the reads of `{name}`"));
+        }
+    }
+    if before.constants != after.constants {
+        return Some("it would change the literals of a script".to_owned());
     }
     None
 }
@@ -1054,6 +1174,7 @@ mod tests {
                     &text_edits,
                     &after,
                     &scripts(&after),
+                    None,
                 );
                 match expected {
                     None => assert_eq!(problem, None, "{}: {edits:?}", kind.name),
@@ -1088,6 +1209,7 @@ mod tests {
             &edits,
             &after,
             &scripts(&after),
+            None,
         );
         assert!(problem.is_some_and(|p| p.contains("compiles")));
     }
@@ -1159,7 +1281,10 @@ mod tests {
         let (b, a) = (big(9000, "import math\n"), big(9000, "\n"));
         let (fb, fa) = (ScriptFacts::of(&script(&b)), ScriptFacts::of(&script(&a)));
         assert!(
-            fb.errors.iter().any(|e| e == "Module or method too large"),
+            fb.errors.iter().any(|e| e
+                == "Jython cannot compile this module: its statements need at least N bytes \
+                    of Java bytecode, more than one Java method can hold (N bytes, Module or \
+                    method too large)"),
             "{:?}",
             fb.errors
         );
@@ -1250,6 +1375,7 @@ mod tests {
                 &edits,
                 &after,
                 &scripts(&after),
+                None,
             )
         };
         let f = library("m", repro);
@@ -1276,6 +1402,81 @@ mod tests {
             "\timport math\n\tdef get():\n\t\treturn __package__\n",
         );
         assert_eq!(problem(&f, &view_path(&f), "import math"), None);
+    }
+
+    /// Review round 25 (Opus, B1): removing the space in `v4 = 'x  \ `
+    /// (a string Jython drops with its line break) made the backslash
+    /// continue the string: the read of `y` went and a string literal came.
+    /// Facts compared only the names that remain; the net now compares the
+    /// reads that go and the literals as well, and a layout-only fix must
+    /// keep every token whatever the facts say.
+    #[test]
+    fn the_net_sees_removed_reads_and_literals() {
+        use crate::rules::script::testing::*;
+        use std::sync::Arc;
+        let problem = |code: &str, old: &str, new: &str, layout: bool| {
+            let f = library("m", code);
+            let path = library_path(&f, "m");
+            let text = std::fs::read_to_string(&path).unwrap();
+            let ws = iglint_project::Workspace::discover(&[f.root()]);
+            let file = ws.file_by_path(&path).expect("file").id;
+            let scripts = |t: &str| {
+                crate::analyze::resource_scripts(&ws, &Default::default(), file, Arc::from(t))
+            };
+            let before = scripts(&text);
+            let facts: Vec<ScriptFacts> = before.iter().map(ScriptFacts::of).collect();
+            let at = text.find(old).unwrap();
+            let edits = [TextEdit::replace(
+                TextRange::new(
+                    iglint_text::TextSize::from(at),
+                    iglint_text::TextSize::from(at + old.len()),
+                ),
+                new.to_owned(),
+            )];
+            let after = iglint_text::apply_edits(&text, &edits).unwrap();
+            let layout_edits: FxHashSet<TextEdit> = if layout {
+                edits.iter().cloned().collect()
+            } else {
+                FxHashSet::default()
+            };
+            let layout = Layout {
+                edits: &layout_edits,
+                scripts: &scripts,
+            };
+            safe_fix_problem(
+                &path,
+                &text,
+                &before,
+                &facts,
+                None,
+                &edits,
+                &after,
+                &scripts(&after),
+                Some(&layout),
+            )
+        };
+        let repro = "v4 = 'x  \\ \ny' # c\n";
+        assert_eq!(
+            problem(repro, "\\ ", "\\", false).as_deref(),
+            Some("it would remove the reads of `y`")
+        );
+        assert_eq!(
+            problem(repro, "\\ ", "\\", true).as_deref(),
+            Some(LAYOUT_CHANGES_TOKENS)
+        );
+        // A second read of a name that stays read.
+        assert_eq!(
+            problem("y = 1\nv = y\nw = 'a\\ \ny #'\n", "\\ ", "\\", false).as_deref(),
+            Some("it would change what `y` refers to")
+        );
+        // Code that becomes a string without changing a read.
+        assert_eq!(
+            problem("v = 1 + 'a\\ \n2 #'\n", "\\ ", "\\", false).as_deref(),
+            Some("it would change the literals of a script")
+        );
+        // Whitespace the lexer skips, and a removed import (no read goes).
+        assert_eq!(problem("v = 1  \n", "  ", "", true), None);
+        assert_eq!(problem("import os\nv = 1\n", "import os", "", false), None);
     }
 
     /// Every path that applies or offers a fix goes through

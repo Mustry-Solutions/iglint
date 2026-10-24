@@ -116,6 +116,29 @@ from 0.1.0 on.
 
 ### Fixed
 
+- SCR124's safe fix changed what a script does after a string Jython
+  drops (review round 25, B1): Jython's lexer drops a single-quoted
+  string that a line break ends, with the line break, and a backslash in
+  it escapes the whitespace after it, so `v4 = 'x  \ ` then `y' # c` is
+  `v4 = y`; without the whitespace the backslash continues the string and
+  `v4` is `'x  y'` (measured on 8.3.3's Jython). Such whitespace is now
+  part of the string: SCR124 does not report it and SCR900's fix is
+  unsafe. Every layout-only fix (SCR123, SCR124 and SCR900's
+  trailing-whitespace fix) is safe only when every token of every script
+  stays as it is, proven by lexing; otherwise it is unsafe with the
+  reason (whitespace after a stray backslash, `print 1, \ `, or a comment
+  removed after one). The safety net also compares the reads that a fix
+  removes and the literals of each script. A differential test
+  (`layout_oracle`, `oracle/run-oracle.sh --run`) ran 6,000 generated
+  programs through these fixes and Jython: no behaviour change (714 with
+  the old code). SCR124's fix safety is now "depends". On the private
+  corpus no finding or fix changed.
+- A safe fix in a module that fails to compile on its size either way
+  was reported safe by `check` and refused by `--fix` as making the file
+  worse (review round 25, M1): the health check took SCR002's message
+  with another byte count for a new error. Both now compare size errors
+  without their numbers. The rule tests check that every fix they see
+  reported safe is applied by `--fix`.
 - A reflection or introspection route that is only a first hop no
   longer silences findings: any of the 145 measured reflective Java
   member names (`.type`, `.base`, `.fields`, `.module`, `getType()`,

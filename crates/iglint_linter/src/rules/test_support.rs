@@ -161,6 +161,9 @@ impl Fixture {
         let result = check(&settings, &[self.root().to_path_buf()], &options);
         assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
         assert_unsafe_fixes_have_reasons(&result.diagnostics);
+        if fix_mode == FixMode::None {
+            assert_safe_fixes_apply(&settings, self.root(), &result.diagnostics);
+        }
         result
     }
 
@@ -237,6 +240,48 @@ pub fn assert_unsafe_fixes_have_reasons(diagnostics: &[Diagnostic]) {
                 d.rule.code(),
                 fix.message,
                 d.message
+            );
+        }
+    }
+}
+
+/// Every fix that `check` reports as safe is applied by `--fix` (review
+/// round 18, N1; round 25, M1: a fix in a module that fails to compile
+/// on its size either way was reported safe and refused as "making the
+/// file worse"). The rule tests lint thousands of fixtures through
+/// [`Fixture`], so this checks every safe fix those fixtures report: fixed
+/// with safe fixes only, no fix may be dropped as harmful (by the health
+/// check or the safety net).
+fn assert_safe_fixes_apply(settings: &ProjectSettings, root: &Path, diagnostics: &[Diagnostic]) {
+    let safe = |d: &&Diagnostic| {
+        d.fix
+            .as_ref()
+            .is_some_and(|f| f.applicability == crate::diagnostic::Applicability::Safe)
+    };
+    if !diagnostics.iter().any(|d| safe(&d)) {
+        return;
+    }
+    let options = CheckOptions {
+        fix_mode: FixMode::DiffOnly {
+            unsafe_fixes: false,
+        },
+        ..CheckOptions::default()
+    };
+    let result = check(settings, &[root.to_path_buf()], &options);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    for summary in &result.fixed {
+        for skipped in summary.skipped.iter().filter(|s| s.harmful) {
+            let reported: Vec<&Diagnostic> = diagnostics
+                .iter()
+                .filter(safe)
+                .filter(|d| d.rule == skipped.rule)
+                .collect();
+            assert!(
+                reported.is_empty(),
+                "{} fix reported safe but not applied by --fix: {} ({})",
+                skipped.rule.code(),
+                skipped.message,
+                skipped.reason
             );
         }
     }

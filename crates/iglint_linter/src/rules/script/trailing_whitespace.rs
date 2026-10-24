@@ -6,7 +6,9 @@ use crate::checker::Checker;
 use crate::diagnostic::{Applicability, Severity};
 use crate::registry::{Category, FixAvailability, RuleMeta};
 use crate::rule::{Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
-use crate::rules::script::{fix, in_header, report, string_ranges, trailing_whitespace};
+use crate::rules::script::{
+    escaped_in_dropped_string, fix, in_header, report, string_ranges, trailing_whitespace,
+};
 
 pub static META: RuleMeta = RuleMeta {
     code: "SCR124",
@@ -15,7 +17,7 @@ pub static META: RuleMeta = RuleMeta {
     default_severity: Severity::Info,
     default_enabled: false,
     fix: FixAvailability::Always,
-    fix_safety: crate::registry::FixSafety::Safe,
+    fix_safety: crate::registry::FixSafety::Depends,
     summary: "Spaces or tabs at the end of a script line",
     explanation: r#"## What it does
 
@@ -24,8 +26,11 @@ lines that hold nothing else, in library modules, event files and every
 script embedded in a view or another resource.
 
 Whitespace inside a multi-line string literal is part of the string's
-value and is not reported. Scripts that do not parse are not checked
-(`SCR001` reports them).
+value and is not reported, and so is whitespace after a backslash in a
+single-quoted string that a line break ends: Jython drops such a string
+with the line break and lexes on, and without the whitespace the
+backslash would continue the string on the next line. Scripts that do
+not parse are not checked (`SCR001` reports them).
 
 ## Why is this bad?
 
@@ -52,7 +57,11 @@ def runAction(self, event):
 ## Fix
 
 Removes the whitespace. Safe: the whitespace is in no value and no line
-moves. Like every fix, it is unsafe while code in the workspace may read the
+moves. The fix only changes layout, so it is safe only when every token of
+the script stays as it is (checked by lexing the script before and
+after); whitespace that Jython's lexer reads, such as the whitespace
+after a backslash that is not followed by a line break, makes it unsafe.
+Like every fix, it is unsafe while code in the workspace may read the
 files a fix edits (any file access, read, write, rename or delete, whose path
 is not a literal outside the
 workspace, or code that is not vetted); the project setting `[fix]
@@ -87,6 +96,7 @@ impl ScriptRule for TrailingWhitespace {
             strings
                 .iter()
                 .any(|s| s.start() < r.start() && r.start() < s.end())
+                || escaped_in_dropped_string(unit.parsed, source, r)
         };
         let found: Vec<TextRange> =
             trailing_whitespace(source, script.source_map.body_start(), true, |c| {
@@ -102,7 +112,8 @@ impl ScriptRule for TrailingWhitespace {
                 "Remove trailing whitespace",
                 Applicability::Safe,
                 vec![(range, String::new())],
-            );
+            )
+            .map(crate::Fix::layout_only);
             let _ = report(cx, unit, range, "Trailing whitespace").fix_opt(edit);
         }
     }
@@ -294,6 +305,94 @@ mod tests {
                 crate::Applicability::Safe,
                 "{outside}"
             );
+        }
+    }
+
+    /// Review round 25 (Opus, B1): Jython drops a single-quoted string
+    /// that a line break ends, together with the line break, and lexes on
+    /// (`y = 5`, `v4 = 'ab\ ` then `y + 1` gives `v4 == 6`). A backslash
+    /// in it escapes the whitespace after it; without the whitespace the
+    /// backslash continues the string on the next line (`v4 = 'x  \ ` then
+    /// `y' # c` raised `NameError` before the fix and gave `'x  y'`
+    /// after it, measured on Ignition 8.3.3's Jython). That whitespace is
+    /// part of the string: not reported. Whitespace in such a string that
+    /// no backslash escapes leaves every token as it is: reported, safe.
+    #[test]
+    fn whitespace_after_a_backslash_in_a_dropped_string_is_string() {
+        for code in [
+            "v4 = 'x  \\ \ny' # c\n",
+            "y = 5\nv4 = 'ab\\ \ny + 1\n",
+            "v = \"a\\\t \nb\" #\"\n",
+            "v = 'a\\\\\\ \nb' #'\n",
+        ] {
+            assert!(lint_module("SCR124", code).is_empty(), "{code:?}");
+        }
+        // An even number of backslashes escape each other: the whitespace
+        // is not escaped, and removing it keeps the string dropped.
+        let code = "v = 'a\\\\ \nb = 1\n";
+        let f = library("m", code);
+        let d = f.lint(&["SCR124"]);
+        assert_eq!(d.len(), 1);
+        assert_eq!(
+            d[0].fix.as_ref().unwrap().applicability,
+            crate::Applicability::Safe
+        );
+        assert_eq!(
+            f.fixed(&[("SCR124", "")], false, &library_path(&f, "m")),
+            "v = 'a\\\\\nb = 1\n"
+        );
+        let f = library("m", "v = 'ab  \nw = 3  \n");
+        assert_eq!(
+            f.fixed(&[("SCR124", "")], false, &library_path(&f, "m")),
+            "v = 'ab\nw = 3\n"
+        );
+    }
+
+    /// Review round 25, B1 (a): a fix that only removes whitespace is safe
+    /// only when every token stays as it is, which the safety net proves by
+    /// lexing (`safety::same_compilation`). Whitespace after a stray
+    /// backslash is dropped with it; without the whitespace the backslash
+    /// joins the lines (`print 1, \ ` then `2` prints `1` and evaluates
+    /// `2`; joined, it prints `1 2`). The fix is reported unsafe with the
+    /// net's reason and `--fix` does not apply it; the other line's fix
+    /// stays safe.
+    #[test]
+    fn whitespace_the_lexer_reads_is_not_layout() {
+        for code in [
+            "print 1, \\ \n2\nw = 3  \n",
+            "x = [1, \\\t\n2]\nw = 3  \n",
+            "x = 1 \\ \ny = 2\nw = 3  \n",
+        ] {
+            let f = library("m", code);
+            let d = f.lint(&["SCR124"]);
+            assert_eq!(d.len(), 2, "{code:?}");
+            let fix = d[0].fix.as_ref().unwrap();
+            // In brackets the line break is no token either way.
+            if code.starts_with("x = [") {
+                assert_eq!(fix.applicability, crate::Applicability::Safe, "{code:?}");
+                continue;
+            }
+            assert_eq!(fix.applicability, crate::Applicability::Unsafe, "{code:?}");
+            assert_eq!(
+                fix.unsafe_reason.as_ref().unwrap().message,
+                format!(
+                    "the safe fix could change what the code does ({})",
+                    crate::safety::LAYOUT_CHANGES_TOKENS
+                )
+            );
+            assert_eq!(
+                d[1].fix.as_ref().unwrap().applicability,
+                crate::Applicability::Safe
+            );
+            let result = f.run(
+                &[("SCR124", "")],
+                crate::FixMode::DiffOnly {
+                    unsafe_fixes: false,
+                },
+            );
+            let fixed = &result.fixed[0].fixed;
+            assert!(fixed.ends_with("\nw = 3\n"), "{fixed:?}");
+            assert!(fixed.contains("\\ \n"), "{fixed:?}");
         }
     }
 

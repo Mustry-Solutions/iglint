@@ -1,0 +1,1836 @@
+### 25 0 7a80fc46443a31d9 59b07fe61684ec88
+ok
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+g v1 'a \\nb'
+g v2 'a\\\\ b\\\\\\t'
+g v3 'q\\n'
+g v4 u'u'
+g v6 u'u'
+g v7 'a \\t\\nb'
+### 25 6 4d2e87a43f2e18c5 3b34779a398bdbd8
+raised NameError 8 name 'v3' is not defined
+out 
+g __name__ 'm'
+g v0 list('#', 9)
+g v1 63
+g v2 36
+### 25 12 3c15b5232cc1bdf9 e006b0bc06148c5c
+raised TypeError 10 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 list(u'u', u'u')
+g v1 u'#c'
+g v2 'a\\t\\nb'
+g v3 62
+g v4 u'u'
+### 25 18 4785d1bdc4a3e890 64bab8dfc6c88173
+ok
+out 67
+g __name__ 'm'
+g v0 67
+g v2 67
+### 25 24 74ed82126eccd179 f3c4872c621e5a6d
+compile-error 4 no viable alternative at character '\\n'
+### 25 30 d547edb5a22d1010 8bf7402da7154e9c
+ok
+out 86
+g __name__ 'm'
+g v0 10
+g v1 u'u'
+### 25 36 90eaafb19bafc313 285bc1d9c9d5bf85
+raised NameError 4 name 'undefined_3' is not defined
+out 
+g __name__ 'm'
+g v0 49
+g v1 u'#u'
+g v2 u'#u'
+### 25 42 3747f340adde7933 152dc74914f383ff
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 48 bc7054ec3786c447 489656d9fa0d1e9f
+ok
+out 
+g __name__ 'm'
+g v0 u'u'
+g v1 21
+g v2 u'u'
+g v3 list(91, 4)
+### 25 54 e112c7aeec0ed300 764a0e0775d40d4c
+raised TypeError 3 cannot concatenate 'unicode' and 'int' objects
+out 
+g __name__ 'm'
+g v0 u'#c'
+### 25 60 56195dabb943a761 5ba3e80f285db4ea
+raised TypeError 8 can only concatenate list (not "unicode") to list
+out 
+g __name__ 'm'
+g v0 u'#c'
+g v1 u'#c'
+g v2 u'#c'
+g v3 23
+g v4 list('x#y', u'#c')
+### 25 66 acad2d62c105be70 4a3c5626ef273df7
+ok
+out 
+g __name__ 'm'
+g v0 54
+g v2 list('#', 0)
+g v3 1
+### 25 72 9ed69efa460af6a4 cd90355e920a4bfd
+raised NameError 7 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 57
+g v1 'a \\nb'
+g v2 '\\\\'
+### 25 78 858292054b382dad 2e085032617912c4
+raised NameError 1 name 'y' is not defined
+out 
+g __name__ 'm'
+### 25 84 76d8b276bfd3767b 88d89092d4b439a3
+raised NameError 4 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 88
+g v1 12
+### 25 90 349b9577e41194db 6e484da4bce52d20
+raised NameError 1 name 'y' is not defined
+out 
+g __name__ 'm'
+### 25 96 8628b03d04d07fd2 d27a767b83aa195e
+raised NameError 8 name 'undefined_4' is not defined
+out [45, 0]
+g __name__ 'm'
+g v0 list(45, 0)
+g v1 'x#y'
+g v2 'x#y'
+### 25 102 6a8cda56062e1aa9 a60166137479172a
+raised TypeError 5 cannot concatenate 'unicode' and 'list' objects
+out 
+g __name__ 'm'
+g v0 u'#c'
+g v1 list(u'#c', 's')
+### 25 108 ac8f77ef93a709ea bce3f8974c4bea03
+raised TypeError 5 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'a b'
+g v1 u'u'
+g v2 list(u'u', 'a b')
+### 25 114 dd1721bed2c28967 3ab9089f38f05f4f
+compile-error 9 no viable alternative at character '\\n'
+### 25 120 42be716f7fd53b7d e302f49636f4cf56
+raised TypeError 16 can only concatenate list (not "int") to list
+out 
+g __name__ 'm'
+g v0 25
+g v1 u'u'
+g v2 list(25, 'x#y')
+g v3 u'#c'
+g v4 'a   b'
+g v5 list(u'#c', 7)
+g v6 'a b'
+### 25 126 f76541cd4aac5ca7 32ca9b07d900e16d
+compile-error 3 no viable alternative at input 'v1'
+### 25 132 5701b374fd825a0e b8b366f1e4c0611b
+raised TypeError 4 can only concatenate list (not "unicode") to list
+out 
+g __name__ 'm'
+g v0 list(50, 6)
+g v1 u'#c#'
+### 25 150 ce701b04f3d6d2f7 634a847b94294699
+ok
+out a b
+g __name__ 'm'
+g v0 'x#y'
+g v1 'x#y'
+g v2 'x#y'
+g v3 'x#y'
+### 25 156 0833835b81451ec3 79bc58366ad4120b
+ok
+out 
+g __name__ 'm'
+g v0 70
+g v1 48
+g v2 123
+g v3 61
+g v5 u'u'
+### 25 162 5a18d78a66c2acfe aed4788f9ee6e853
+raised TypeError 3 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+g v1 'a\\\\ b\\\\\\t'
+### 25 168 2c88ff580fbc047e 064a64b3f49427a6
+compile-error 8 no viable alternative at character '\\n'
+### 25 174 da8cfa63e236cc23 d2b8076b62f58f9b
+raised NameError 3 name 'v0' is not defined
+out 2
+g __name__ 'm'
+### 25 180 7d981cb78dd50a0c 0e723b0c082f1759
+raised TypeError 19 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'a\\x0c\\nb'
+g v1 u'u'
+g v2 list(97, u'u')
+g v3 u'u'
+g v4 u'a\\x0c\\nbu'
+g v5 'a\\x0c\\nb'
+g v6 43
+g v7 14
+g v8 'a\\x0c\\nb'
+### 25 186 ce27fa05ca7e9f23 8ffd0eec0a156c45
+ok
+out 
+g __name__ 'm'
+g v0 84
+g v1 'a\\\\ b\\\\\\t'
+g v2 84
+g v3 'a\\\\ b\\\\\\t'
+g v5 list(u'#c', u'#c')
+### 25 192 479d641125e78bae c74bb1cf4bec7e8c
+raised TypeError 2 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+### 25 198 8f6140e08591ed1f 35953f411ea7a4bb
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 204 535c6db9539132d6 00312b986b0e0b73
+raised NameError 12 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+g v1 list(25, 7)
+g v2 24
+g v3 list(25, 7)
+g v4 u'#c'
+g v5 u'#c'
+g v6 'a\\t \\nb'
+### 25 210 18886b652df3c3d3 021f10687106852f
+compile-error 6 no viable alternative at input 'v3'
+### 25 216 bf42f01a75ce47a4 9e8f16f9159ec8bb
+compile-error 21 no viable alternative at input 'v10'
+### 25 222 ec483e0dd35a43df 36a22867145dbb70
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 228 ac78db7fde325006 6e859b8f8ffaf6db
+raised NameError 3 name 'v0' is not defined
+out 
+g __name__ 'm'
+### 25 234 32076bb38931b5d9 adae0f98dd4941e2
+raised NameError 9 name 'v2' is not defined
+out 
+g __name__ 'm'
+g v0 128
+g v1 '#\\\\'
+### 25 240 8d154b5f6a7bd7d7 e59a2de0648938be
+ok
+out 
+g __name__ 'm'
+g v0 73
+g v1 'a \\nb'
+g v2 'a \\nb'
+g v3 's'
+g v4 'a \\nb'
+### 25 246 0b22eb41ea1eef06 2fa966ef793d6d11
+ok
+out 11
+g __name__ 'm'
+g v0 11
+g v1 'q\\n'
+g v2 u'##c'
+g v4 'a b'
+g v5 'a b'
+g v6 u'#c'
+g v7 'a   \\r\\nb'
+### 25 252 b2cbe1897ef51578 4ba56763734fc762
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 258 a211819b76b8139c a2d5fa1d531db62c
+ok
+out 
+g __name__ 'm'
+g v0 u'#c'
+g v1 list(u'#c', u'#c')
+g v2 u'#c'
+g v3 'a\\\\ b\\\\\\t'
+### 25 270 4c72c06d487b61fb 30ecaf089150faf8
+raised NameError 5 name 'undefined_2' is not defined
+out 74
+g __name__ 'm'
+g v0 74
+### 25 276 dec229fb9bb6e81b 9b34f8a31e572222
+raised NameError 4 name 'undefined_2' is not defined
+out 
+g __name__ 'm'
+g v0 132
+g v1 132
+### 25 282 593e91ba0c95cb19 f5904d85068e00fd
+raised NameError 3 name 'v0' is not defined
+out u#c
+g __name__ 'm'
+### 25 288 3e1b1c808cc737cd b448a317a3b1aac9
+compile-error 7 no viable alternative at character '\\n'
+### 25 300 e669b5b7de405216 da20e3d237cbf3c6
+compile-error 3 no viable alternative at input 'v1'
+### 25 306 a54e20350e9cb36a feac17b1a49e667c
+raised NameError 3 name 'v0' is not defined
+out 45
+g __name__ 'm'
+### 25 312 eddecfc3e2776fb1 171a15a637c78116
+compile-error 15 no viable alternative at input 'v7'
+### 25 318 6d643a89c049080d ab05a93b511c79f7
+raised NameError 4 name 'undefined_2' is not defined
+out 
+g __name__ 'm'
+g v0 72
+g v1 list(72, 2)
+### 25 324 eb7b5de3a6cb43f2 521d62fb1938aa03
+compile-error 6 unindent does not match any outer indentation level
+### 25 330 c16b961e9e285c73 4bfeeeb74739977b
+compile-error 3 no viable alternative at character '\\n'
+### 25 336 714b0c1a788ab1f0 e751895ed0deb947
+ok
+out 
+g __name__ 'm'
+g v0 'a b'
+g v1 67
+g v2 list(67, 7)
+### 25 342 c4e86c97b7cf0446 1128d94e0a9a65a9
+ok
+out 
+g __name__ 'm'
+g v0 list('a b', 20)
+g v1 list(list('a b', 20), u'#c')
+g v2 list(u'u', list(list('a b', 20), u'#c'))
+g v3 77
+g v4 list('a b', 20)
+g v5 list(77, 7)
+### 25 348 ce997dc20bcbe2c0 cb812a2cd45b325e
+raised TypeError 5 can only concatenate list (not "int") to list
+out u
+g __name__ 'm'
+g v1 list(u'#cu', 3)
+### 25 354 c06b26c6f8aa9c62 de92edb56b352e7a
+raised NameError 2 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 35
+### 25 366 69f887b4612d368d b1dfdce9dafa9078
+raised TypeError 1 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+### 25 372 d513eb8d8299989d bb351ddeffb8fdfb
+compile-error 10 mismatched input 'if' expecting NEWLINE
+### 25 378 47b43ed8594e7bd7 5b54ed2eb09a20ec
+compile-error 3 no viable alternative at character '\\n'
+### 25 384 cb08f577a9298315 db77932a34278fbb
+ok
+out 192
+g __name__ 'm'
+g v0 96
+g v1 192
+g v2 192
+g v3 u'u'
+g v6 'a\\\\ b\\\\\\t'
+### 25 390 fc0dbdb3f1b43364 25d3862357323787
+raised TypeError 8 cannot concatenate 'unicode' and 'int' objects
+out #
+g __name__ 'm'
+g v0 list('s', 89)
+g v2 u'u'
+### 25 396 70c20c41a7a6d62e e570dd5e065f2c55
+compile-error 10 no viable alternative at input 'print'
+### 25 402 8173249a25ff6066 b8634201462e9331
+raised NameError 5 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 34
+g v1 'a\\\\ b\\\\\\t'
+g v2 list(13, u'#c')
+### 25 408 dad99c7708219443 eeb60631ce87a1fb
+raised NameError 7 name 'undefined_3' is not defined
+out 
+g __name__ 'm'
+g v0 list(42, 13)
+g v1 list(list(42, 13), 2)
+g v2 18
+### 25 414 37d3ec4a6b0114de e13b205b04c8c2f9
+raised TypeError 7 unsupported operand type(s) for +: 'int' and 'str'
+out 
+g __name__ 'm'
+g v0 12
+g v1 98
+g v2 'x#y'
+### 25 420 2ea4054f1326335b 6492e498ad3dc6c4
+ok
+out 
+g __name__ 'm'
+g v0 179
+g v1 '\\\\'
+g v2 'a\\\\ b\\\\\\t'
+g v3 list('a\\\\ b\\\\\\t', 0)
+g v4 list(55, 8)
+### 25 426 4b2174df713510ef 5a292e8b03a73995
+raised NameError 2 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 12
+### 25 432 5ad4224067415092 27fac66eae828571
+raised TypeError 6 unsupported operand type(s) for +: 'int' and 'list'
+out 
+g __name__ 'm'
+g v0 56
+g v1 list(u'u', 46)
+g v2 list(u'u', 46)
+### 25 438 c858bacbea18c62c 2dd0ad682aaf3b16
+raised TypeError 9 can only concatenate list (not "int") to list
+out 
+g __name__ 'm'
+g v0 42
+g v1 list(42, 3)
+g v2 6
+### 25 444 a02ff4277af37528 9fc0fb7094b9d92f
+raised NameError 3 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 11
+### 25 450 6711b977147fb169 86ded6d87e8d9e7e
+raised NameError 6 name 'v0' is not defined
+out \\
+g __name__ 'm'
+g v1 'a\\\\ b\\\\\\t'
+g v3 'a\\\\ b\\\\\\t'
+### 25 456 5adadc6043c245fd 33deda8931038c3d
+compile-error 5 no viable alternative at input 'v2'
+### 25 462 786df9c145ed899a 2ba7776c3cff14f8
+ok
+out \\
+g __name__ 'm'
+g v0 '#'
+g v2 178
+g v3 56
+### 25 468 dfdd40e750ef87cb 40113dc8fe2d56bb
+raised NameError 4 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 'q\\n'
+g v1 'a\\x0c\\nb'
+### 25 474 e120c9dc8e7e59ae 2484ebf37574530e
+ok
+out 
+g __name__ 'm'
+g v0 37
+g v1 'a\\x0c\\r\\nb'
+g v2 '\\\\'
+g v3 u'#c'
+### 25 480 b671fe7045af8b72 ab01f860bb1e566c
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 486 aec58e2ea821809a 32dcc4e2057075ee
+compile-error 7 no viable alternative at input 'v3'
+### 25 492 fed421a313fcbeb0 1f74fc04acca4c3d
+raised TypeError 10 unsupported operand type(s) for +: 'int' and 'unicode'
+out 
+g __name__ 'm'
+g v0 list(51, 9)
+g v1 u'#c'
+g v2 u'#c'
+g v3 87
+### 25 498 d95b65c0e71a9cb3 ba7c1555c058c6ea
+raised NameError 6 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 33
+g v1 '\\\\'
+g v2 'a \\t\\nb'
+### 25 504 642d7a7123642f26 968f9c6bff9f26cd
+raised NameError 7 name 'v0' is not defined
+out 
+g __name__ 'm'
+g v1 list(95, 5)
+g v2 14
+### 25 510 203e0d23e37f107e 07bdd822fb7c61d6
+ok
+out 
+g __name__ 'm'
+g v0 54
+g v1 'a\\\\ b\\\\\\t'
+g v2 'a\\\\ b\\\\\\t'
+### 25 516 6da02b6212236a7c b170a095d9d721aa
+raised NameError 8 name 'undefined_4' is not defined
+out 
+g __name__ 'm'
+g v0 28
+g v1 u'#c'
+g v2 u'u'
+g v3 6
+### 25 522 279984cb4933410f db3d30e226ba8753
+raised TypeError 17 unsupported operand type(s) for +: 'int' and 'unicode'
+out u
+g __name__ 'm'
+g v0 99
+g v1 list(99, 3)
+g v2 'a \\t\\r\\nb'
+g v4 'a\\\\ b\\\\\\t'
+g v5 u'#c'
+g v6 u'u'
+g v7 'a\\\\ b\\\\\\t'
+g v8 '#'
+### 25 528 cc7240855da6590e c4f7804fb2f647f3
+raised NameError 2 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 6
+### 25 540 fe89b5ec659ecb20 818547d99e3aef2f
+raised NameError 3 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 list(75, 8)
+### 25 546 5b4a9e6eb79e49a2 dde33750e2228fbf
+raised NameError 6 name 'undefined_3' is not defined
+out 
+g __name__ 'm'
+g v0 list(u'#c', 9)
+g v1 list(list(u'#c', 9), 6)
+g v2 list(u'#c', 9)
+### 25 552 85873c771b80b7a9 b16540d056960b70
+ok
+out 
+g __name__ 'm'
+g v0 101
+g v1 101
+g v2 101
+g v3 202
+g v4 202
+g v5 202
+g v6 101
+g v7 list(202, 0)
+g v8 'x#y'
+### 25 558 9a9078e82e24a7a9 8b7e3e03ded85884
+compile-error 24 no viable alternative at input 'v10'
+### 25 564 373f44b3c61d87f1 59f4673996ef67c6
+ok
+out 
+g __name__ 'm'
+g v0 list(18, 7)
+g v1 list(u'su', list(18, 7))
+g v2 69
+g v3 's'
+### 25 570 0bbee346ec778f7e f1f3dd4c45c9dd25
+ok
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+g v1 'a\\x0cb'
+g v2 74
+g v3 41
+### 25 576 a0441d023c4d3eeb a0355cded0d93568
+compile-error 6 no viable alternative at input 'v3'
+### 25 582 b811b024bddf029d 54c913d98dca8911
+compile-error 14 no viable alternative at character '\\n'
+### 25 588 18a0609394edc763 dc1c7ea6d4942f77
+raised NameError 13 name 'v4' is not defined
+out u
+g __name__ 'm'
+g v0 '\\\\'
+g v1 u'u'
+g v2 157
+g v3 157
+g v5 'a\\\\ b\\\\\\t'
+### 25 594 71f865625dc829b6 3b5aea3ea7ee4aae
+ok
+out 
+g __name__ 'm'
+g v0 u'uu'
+g v1 u'#c'
+g v2 u'#c'
+g v3 list(u'u', u'u')
+g v4 list(u'u', u'u')
+g v5 list(u'u', u'u')
+### 25 600 6b8c3203af6d4f05 7fd05957ad58690d
+raised NameError 1 name 'y' is not defined
+out 
+g __name__ 'm'
+### 25 612 6448354b45520fca ec8740a964c6e632
+compile-error 5 no viable alternative at character '\\n'
+### 25 618 5e9f76f5f2dfc787 9c19c54a2c5d5589
+raised TypeError 7 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'a b'
+g v1 u'q\\nu'
+g v2 'a b'
+### 25 624 3973ba60e64d48ec 7583311bc6d40d4e
+raised NameError 9 name 'v3' is not defined
+out #
+g __name__ 'm'
+g v0 u'u'
+g v1 u'u'
+g v2 list(u'u', 'x#y')
+### 25 630 a8db2fdcb39143da 247e5b9673b1d910
+raised NameError 5 name 'undefined_3' is not defined
+out 
+g __name__ 'm'
+g v0 43
+g v1 38
+g v2 '\\\\#'
+### 25 636 0a965f8a6c982e57 2dde8f61b9662d63
+raised NameError 3 name 'v0' is not defined
+out 
+g __name__ 'm'
+g v1 u'u'
+### 25 642 9a2ff007f06df3df 22075d1d9bee169e
+raised TypeError 9 cannot concatenate 'unicode' and 'int' objects
+out 
+g __name__ 'm'
+g v0 u'#c'
+g v1 u'#c'
+g v2 u'#c#c'
+g v3 'a\\\\ b\\\\\\t'
+g v4 '#'
+g v5 u'#c'
+### 25 654 0cdc283be471e1ce eb6c71aa217a2025
+raised NameError 7 name 'v3' is not defined
+out u
+g __name__ 'm'
+g v1 'a\\\\ b\\\\\\t'
+g v2 28
+### 25 666 557b40101b786b0a cb427d8a8bbd5c34
+raised TypeError 5 unsupported operand type(s) for +: 'int' and 'str'
+out 
+g __name__ 'm'
+g v0 64
+g v1 'a\\\\ b\\\\\\t'
+g v2 's'
+### 25 672 aa3564dffaec790e fe6385f2985cb974
+compile-error 6 no viable alternative at character '\\n'
+### 25 678 f1fe0c11deda5356 dc99cf2957c9b183
+ok
+out 
+g __name__ 'm'
+g v0 106
+g v1 106
+g v2 115
+g v3 's'
+g v4 'a\\\\ b\\\\\\t'
+g v5 'q\\n'
+g v6 106
+### 25 684 a90012dbc342675f 600d59f39f13996f
+compile-error 3 unindent does not match any outer indentation level
+### 25 696 57cd5420d61e4c4e 240e4284792111a0
+compile-error 6 unindent does not match any outer indentation level
+### 25 702 c577d30c02dbf7c9 b74b72e4788ed4c5
+raised TypeError 5 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'a b'
+### 25 708 f5c9bd670bb7fb3a be13d41637adcf3d
+raised TypeError 14 unsupported operand type(s) for +: 'int' and 'unicode'
+out 
+g __name__ 'm'
+g v0 list(57, u'u#c')
+g v1 u'uq\\n'
+g v2 u'u#c'
+g v3 'q\\n'
+g v4 '\\\\'
+g v5 u'uq\\n'
+g v6 u'#c'
+g v7 list(u'u', 4)
+### 25 714 bc25cafa589f8019 998d7bed1b4ec37a
+raised TypeError 7 cannot concatenate 'unicode' and 'int' objects
+out 
+g __name__ 'm'
+g v0 33
+g v1 's'
+g v2 98
+g v3 's'
+### 25 720 0ef6bdfb6d5e2bde d00606783ed2b535
+raised NameError 1 name 'y' is not defined
+out 
+g __name__ 'm'
+### 25 726 bd8f90e64f15f72d 4efbf3b3a5419854
+raised NameError 9 name 'undefined_4' is not defined
+out 
+g __name__ 'm'
+g v0 list(u'u', 7)
+g v1 u'#c'
+g v2 list(u'u', 7)
+g v3 list(list(u'u', 7), list(u'u', 7))
+### 25 738 eb2c1bba2fe030eb 511ec3861d3134d6
+compile-error 3 mismatched input 'if' expecting NEWLINE
+### 25 744 541e07bbc326d2de 7849ca4edd583faf
+compile-error 3 no viable alternative at input 'v1'
+### 25 750 b2479b24cbbc6b58 426f2b93cf11ff85
+raised NameError 3 name 'v0' is not defined
+out a b
+g __name__ 'm'
+### 25 756 f86c55699abbab0a dddd5e8fc33c538f
+ok
+out 
+g __name__ 'm'
+g v0 63
+g v1 'a   \\r\\nb'
+g v2 'a   \\r\\nb'
+g v3 list('q\\n', 56)
+g v4 'x#y'
+g v5 list('a   \\r\\nb', 0)
+g v6 list(u'#c', 5)
+### 25 762 a73dc6735039b407 6ecfd4a6cb2b3ef8
+raised TypeError 3 cannot concatenate 'unicode' and 'int' objects
+out 
+g __name__ 'm'
+### 25 768 3882bf2372aea26d faaeefe2eca958b3
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 774 738a498fdf0bcd1d cb9f3c6f68f5fc62
+raised NameError 3 name 'v0' is not defined
+out 22
+g __name__ 'm'
+### 25 780 ee03bc98840a1a5e 8fa6bd4ec4d9588e
+raised NameError 2 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 79
+### 25 786 9b2cfabaabe569e2 ce954383e57df81e
+ok
+out 
+g __name__ 'm'
+g v0 98
+g v1 list(98, u'#c#c')
+g v2 78
+### 25 792 a2c5ffd5abdfc914 c2078661f0bbcef4
+raised NameError 8 name 'v3' is not defined
+out 
+g __name__ 'm'
+g v0 30
+g v1 93
+g v2 list(30, 3)
+### 25 798 490cd013fda92613 91ae55173fef98b7
+raised NameError 2 name 'y' is not defined
+out 
+g __name__ 'm'
+### 25 804 fd8399b08ed7bbbc f5ecef874dfe79e3
+raised TypeError 3 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 list(112, 0)
+### 25 816 9be878dfd658dcd6 06e2c623c1a785c6
+ok
+out 
+g __name__ 'm'
+g v0 51
+g v1 list('\\\\', 8)
+g v2 u'#c#c'
+g v3 58
+### 25 822 2f110222b7d2eb92 4ac9fb2857a91435
+raised NameError 2 name 'v0' is not defined
+out 
+g __name__ 'm'
+### 25 828 7560806a10218c3a bd55ab93db001bed
+raised TypeError 4 unsupported operand type(s) for +: 'int' and 'str'
+out 
+g __name__ 'm'
+g v0 'a \\x0cb'
+g v1 'a \\x0cb'
+### 25 834 d214ca575ce1f314 bc31f8a65937a3f4
+compile-error 10 no viable alternative at input 'v5'
+### 25 840 99012823f4e3aac4 2b007eaea150c0f0
+raised TypeError 2 unsupported operand type(s) for +: 'int' and 'str'
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+### 25 846 e3d3b4618a277907 eca31f44d2615afd
+compile-error 19 unindent does not match any outer indentation level
+### 25 858 2f508f574901fcc7 afd225ec92708b97
+compile-error 5 no viable alternative at input 'v2'
+### 25 870 fc8a1129b9654f5d 5135ce864525b53c
+raised TypeError 3 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+### 25 876 7d6c7cb6a283f5e1 19e0b76aed08f32a
+raised NameError 9 name 'y' is not defined
+out a   \r\nb
+g __name__ 'm'
+g v0 118
+g v2 'a   \\r\\nb'
+g v3 33
+### 25 882 3dcb5694418ba31d d2778561836d84f4
+raised TypeError 5 unsupported operand type(s) for +: 'int' and 'str'
+out 
+g __name__ 'm'
+g v2 'q\\n'
+### 25 888 9ce1c69175f8690c 242739ee629c488f
+raised NameError 8 name 'undefined_5' is not defined
+out 
+g __name__ 'm'
+g v0 'q\\n'
+g v1 'a\\\\ b\\\\\\t'
+g v2 76
+g v3 'a \\t\\nb'
+g v4 'a \\t\\nb'
+### 25 894 fd60140d17f47e42 d4433a470d00e673
+raised TypeError 3 can only concatenate list (not "int") to list
+out 
+g __name__ 'm'
+g v0 list(u'#c', 6)
+### 25 906 abacd0aac8763652 544d21979cd9dadb
+raised NameError 3 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 's#'
+### 25 912 bde6193678f6bf32 028e2621fddec070
+raised NameError 9 name 'v3' is not defined
+out 33
+g __name__ 'm'
+g v0 5
+g v1 list('x#y', 1)
+g v2 list(10, list('x#y', 1))
+### 25 918 fa47c0c3a06cfe69 15a814c014f2179c
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 924 5b3868db32382133 7608bf6fccd6b6fa
+ok
+out 
+g __name__ 'm'
+g v0 15
+g v1 15
+g v2 98
+g v3 98
+g v4 u'u'
+g v5 'a b'
+g v6 15
+g v7 'a\\t \\r\\nb'
+### 25 936 5fbf1d70cd9a66da 6677dd9e597314ec
+raised NameError 3 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 95
+### 25 942 98887bd45fe66a83 57517e88e515eb91
+raised TypeError 2 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'x#y'
+### 25 948 2d271e4c7ab12325 79e999d74a76ec80
+raised TypeError 4 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+g v1 u'u'
+### 25 954 8f0758dede508a76 f0199ed9af0753d5
+raised NameError 6 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 53
+g v1 145
+g v2 53
+### 25 960 6f7b8572c9feca20 7eb0a0c7f6c48279
+raised NameError 2 name 'v0' is not defined
+out 
+g __name__ 'm'
+### 25 966 7a8509bdd74e5c62 9cf1e703a3030baa
+raised TypeError 7 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'q\\n'
+g v1 'q\\nq\\n'
+g v2 u'u'
+g v3 u'u'
+g v4 'a\\\\ b\\\\\\t'
+g v5 'q\\nq\\n'
+### 25 972 604f776172ca853e 74519762db1868e7
+raised TypeError 3 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 88
+### 25 978 fb66d902a8af7e6c 240e525a052fb898
+compile-error 14 no viable alternative at input 'v6'
+### 25 990 70cdaec0f80e7d65 d0fe2e357f6fc65b
+ok
+out 
+g __name__ 'm'
+g v0 67
+g v1 134
+g v2 'a  \\r\\nb'
+g v3 'a\\\\ b\\\\\\t'
+### 25 996 ae85ae643421fdd4 0135a97dd5972cfe
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 1002 33634dcf789a1925 3bf97837ab3a7900
+raised NameError 5 name 'undefined_2' is not defined
+out 
+g __name__ 'm'
+g v0 47
+g v1 'q\\n'
+### 25 1008 5858219ade488cd4 dbe6845f10f6f0ce
+raised NameError 4 name 'undefined_2' is not defined
+out 
+g __name__ 'm'
+g v0 51
+g v1 list('#', 6)
+### 25 1014 8531ac28b295134a d1ba78c023ddb6b3
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 1026 f5ddaa2ca5487e78 5c77e2a6b487134a
+raised NameError 8 name 'v2' is not defined
+out u
+g __name__ 'm'
+g v0 u'u'
+g v1 '\\\\'
+g v3 list(u'#c', 127)
+### 25 1032 87917dae001c84f0 d85c0c85f6e59877
+raised TypeError 19 unsupported operand type(s) for +: 'int' and 'list'
+out 
+g __name__ 'm'
+g v0 list(u'#c', 1)
+g v1 u'#c'
+g v2 list(u'#c', 1)
+g v3 list(u'#c', 1)
+g v4 list(u'#c', 1)
+g v5 list(u'#c', 1)
+g v6 list(u'#c#c', 8)
+g v7 list(list(u'#c#c', 8), 3)
+g v8 list(u'#c#c', 8)
+### 25 1038 f5ee4aa22b16a637 ac33b4fe9cb239ff
+raised NameError 8 name 'undefined_4' is not defined
+out 
+g __name__ 'm'
+g v0 'a b'
+g v1 'a\\\\ b\\\\\\t'
+g v2 88
+g v3 list('a b', 0)
+### 25 1050 a5570a04792ba367 25665dc6a4e5145c
+raised NameError 8 name 'undefined_5' is not defined
+out 
+g __name__ 'm'
+g v0 1
+g v1 'a\\\\ b\\\\\\t'
+g v2 'a\\\\ b\\\\\\t'
+g v3 'q\\n'
+g v4 'q\\n'
+### 25 1056 ed46d21e980a52e4 e3f22e8106497705
+raised NameError 8 name 'v2' is not defined
+out 
+g __name__ 'm'
+g v0 55
+g v1 55
+g v3 'a   \\r\\nb'
+### 25 1062 30d7abe471f67f19 687a67a64f59719e
+ok
+out 
+g __name__ 'm'
+g v0 79
+g v1 44
+g v2 list(87, 82)
+g v3 list(87, 82)
+g v4 44
+### 25 1068 74a614bf82e3e914 b95d36dfe5294f7c
+compile-error 7 no viable alternative at character '\\n'
+### 25 1074 18fac7b586f58a14 b483248e654282d3
+raised NameError 11 name 'v4' is not defined
+out 
+g __name__ 'm'
+g v0 'a\\x0c\\nb'
+g v1 'a\\x0c\\nb'
+g v3 '\\\\'
+g v5 36
+g v6 48
+### 25 1080 be26857872672884 afd4880c685db27e
+raised TypeError 3 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v1 'a\\\\ b\\\\\\t'
+### 25 1086 1fd2ef0f435005d1 5adbc9332a9d1002
+raised TypeError 7 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'a b'
+g v1 u'u'
+g v2 'a\\x0c\\nb'
+g v3 u'u'
+### 25 1092 890a15b77ab5cb09 e6cc9037bd23b3a2
+raised NameError 13 name 'v5' is not defined
+out u
+g __name__ 'm'
+g v0 'a\\tb'
+g v1 'a\\tb'
+g v2 u'u'
+g v3 u'u'
+g v4 list(u'u#c', '#')
+g v6 8
+g v7 'a\\tb'
+g v8 u'u'
+### 25 1098 04d0c63e879e1ac8 960afeaf2257666b
+raised TypeError 5 cannot concatenate 'unicode' and 'int' objects
+out 
+g __name__ 'm'
+g v0 117
+g v1 117
+### 25 1104 c70e20598af08ab6 bdeced06b782a3e3
+ok
+out 
+g __name__ 'm'
+g v0 u'u'
+g v1 u'u'
+g v2 u'u'
+g v3 '\\\\'
+g v4 list(u'u', 1)
+g v5 list(u'u', 1)
+g v6 u'u'
+g v7 list('#', 9)
+g v8 list(u'u', 's')
+### 25 1110 a097229fa1e6bafd 9095294be082f1e8
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 1116 b98cb2262f6ec642 ec6c426a07bb1e8b
+raised TypeError 3 cannot concatenate 'unicode' and 'int' objects
+out 
+g __name__ 'm'
+g v0 's'
+### 25 1122 52056c23736a58d5 189b6dba997877fe
+raised NameError 3 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 list(u'#c', 0)
+### 25 1128 57491ea5f75665b7 9c23f0281131978b
+raised NameError 4 name 'undefined_2' is not defined
+out #c
+g __name__ 'm'
+g v1 u'#c'
+### 25 1134 400b64b88729706e 4ed4196538dcab62
+raised NameError 9 name 'y' is not defined
+out u
+g __name__ 'm'
+g v0 'q\\n'
+g v2 'q\\n'
+g v3 'a   \\r\\nb'
+### 25 1146 3caa6fb89a3fcef8 7c17b9a29b173859
+raised NameError 7 name 'undefined_3' is not defined
+out 
+g __name__ 'm'
+g v0 list(85, 9)
+g v1 list(list(85, 9), list(85, 9))
+g v2 'a   \\r\\nb'
+### 25 1152 53c5c3281702943f d454f3bb1b3aab43
+raised NameError 18 name 'v9' is not defined
+out 
+g __name__ 'm'
+g v0 60
+g v1 60
+g v10 list(69, 5)
+g v11 u'#c'
+g v2 'q\\n'
+g v3 9
+g v4 60
+g v5 u'u\\\\'
+g v6 u'#c'
+g v7 'q\\n'
+g v8 60
+### 25 1158 181ec7ee5fcffd56 658468295e4054f0
+raised NameError 4 name 'v0' is not defined
+out 
+g __name__ 'm'
+g v1 66
+### 25 1164 635a762f57a6483a af33aa43de84eeea
+raised TypeError 5 unsupported operand type(s) for +: 'int' and 'unicode'
+out 
+g __name__ 'm'
+g v0 u'#c'
+g v1 '\\\\'
+g v2 32
+### 25 1176 8d40d6cfc1c7124f a164f4b8dede39ca
+raised TypeError 4 unsupported operand type(s) for +: 'int' and 'str'
+out 
+g __name__ 'm'
+g v0 'a b'
+g v1 'a b'
+### 25 1182 4eb5af7911cc5b08 e2310f99a57d8858
+compile-error 16 no viable alternative at input 'v9'
+### 25 1188 814ec3938d72d54a ab4e9be75e9b5017
+ok
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+g v1 'a\\\\ b\\\\\\t'
+g v2 'a\\\\ b\\\\\\t'
+g v3 'a\\\\ b\\\\\\ta\\\\ b\\\\\\t'
+### 25 1194 50d7c143682134a2 9fe607119c6da272
+compile-error 12 no viable alternative at input 'v5'
+### 25 1200 e7f7f5a88bd56321 a4cc88040d2c6200
+raised NameError 1 name 'y' is not defined
+out 
+g __name__ 'm'
+### 25 1206 97b6f70c6d937214 682831e96a7a1099
+raised TypeError 3 cannot concatenate 'unicode' and 'int' objects
+out 
+g __name__ 'm'
+g v0 u'u'
+### 25 1212 33cf66db41c30460 eb513c035e0df860
+raised NameError 5 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 47
+g v1 87
+### 25 1218 854049ee90559ef5 9d4539e3a994e485
+compile-error 8 mismatched input '' expecting EOF
+### 25 1224 986efe03021263ce dcf1e9f5f683b7b1
+compile-error 19 no viable alternative at character '\\n'
+### 25 1236 2f124b2ab7d68100 2a4d13eedc16d823
+raised NameError 2 name 'v0' is not defined
+out 
+g __name__ 'm'
+### 25 1242 d17a19493ca4865a c21ca75487bc97dc
+raised NameError 7 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 'x#y'
+g v1 'a\\t \\r\\nb'
+g v2 'x#y'
+### 25 1248 6cf583ccbb49eaba 19c1e5df94b26540
+raised TypeError 6 cannot concatenate 'unicode' and 'int' objects
+out 
+g __name__ 'm'
+g v0 u'#u'
+g v1 '\\\\s'
+g v2 u'#c'
+### 25 1254 52a34a95f7718b0f 34c3aff2f7d104c0
+raised NameError 3 name 'undefined_1' is not defined
+out #
+g __name__ 'm'
+### 25 1260 9057543da38e3f40 9e57dd73c0978f25
+ok
+out 
+g __name__ 'm'
+g v0 's'
+g v2 'q\\n'
+g v3 list('a b', 2)
+### 25 1266 223196a2d52cd92a b7bdb67277b6a543
+raised NameError 8 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 list(94, 77)
+g v1 list(36, u'#c')
+g v2 '#'
+g v3 u'a b#c'
+### 25 1272 2592569803f51702 70b21fb828d12127
+raised NameError 11 name 'undefined_4' is not defined
+out 
+g __name__ 'm'
+g v0 'a b'
+g v1 '\\\\'
+g v2 8
+g v3 8
+### 25 1278 0679ae12a8af00b3 6946e056d4291b13
+ok
+out 
+g __name__ 'm'
+g v0 u'u'
+g v1 u'u'
+g v2 'a\\\\ b\\\\\\t'
+g v3 96
+g v4 u'uu'
+### 25 1284 06473799ce2fdfea 0faf6b8389ba53c2
+raised TypeError 11 cannot concatenate 'str' and 'int' objects
+out s
+g __name__ 'm'
+g v0 48
+g v1 48
+g v2 48
+g v3 'q\\n'
+g v4 '#'
+### 25 1290 f7150e0e7cb73b1c eb5d01a8e5e3ca81
+ok
+out 
+g __name__ 'm'
+g v0 list(54, 's')
+g v1 list('q\\n', 7)
+g v2 'a\\\\ b\\\\\\t'
+g v3 48
+g v4 36
+g v5 list('q\\n', 7)
+g v6 list(36, 70)
+g v7 'a\\\\ b\\\\\\t'
+### 25 1296 acc9a357e5731fc3 207cbee3c552fb1f
+compile-error 8 no viable alternative at input 'v5'
+### 25 1302 db6b421ef13ab504 38431a8ab1c6b2d6
+ok
+out 
+g __name__ 'm'
+g v0 1
+g v1 u'x#y#c'
+g v2 u'x#y#c'
+### 25 1308 5ac21c07f3e832c5 36cc3f8bdf1c3ffd
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 1314 f5a263d5ac4edd8a ef4d75361c68fee8
+raised NameError 2 name 'v0' is not defined
+out 
+g __name__ 'm'
+### 25 1320 a60f1a724e62c000 4ed426139dc3cdee
+raised TypeError 5 unsupported operand type(s) for +: 'int' and 'str'
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+g v1 29
+g v2 'a\\\\ b\\\\\\t'
+### 25 1326 f0bd34de9be8fffe 9a8931a2c695fffe
+ok
+out 
+g __name__ 'm'
+g v0 u'u'
+g v1 30
+g v2 'x#y'
+### 25 1332 35ab1c4f46a1e71a baec99af04a1ed4b
+raised NameError 2 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 7
+### 25 1338 8744268d632d38de 4ed0501026848c60
+ok
+out 
+g __name__ 'm'
+g v0 u'#c'
+g v1 u'u'
+g v2 list('#', 9)
+g v3 list('#', 9)
+g v4 'x#y'
+g v5 'a\\\\ b\\\\\\t'
+### 25 1344 5bdfbfcdbafea6ac d8e8f2c4d507e30b
+compile-error 17 no viable alternative at input 'print'
+### 25 1350 0e89a21585aad306 0baf5330a1b30742
+compile-error 11 no viable alternative at input 'v6'
+### 25 1356 6b4d10d2acf6981f ec1c5de00043fcb1
+raised NameError 6 name 'undefined_3' is not defined
+out 
+g __name__ 'm'
+g v0 'a  b'
+g v1 'a\\\\ b\\\\\\t'
+g v2 list('a  b', '#')
+### 25 1362 52ea44f33bc48c0a 87d722795c268099
+ok
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+g v1 62
+g v2 u'#c'
+g v3 'q\\n'
+### 25 1368 fc0ede22c21d5919 83df480ef19a64e8
+raised TypeError 6 unsupported operand type(s) for +: 'int' and 'unicode'
+out 
+g __name__ 'm'
+g v0 'a \\nb'
+g v1 u'u'
+g v2 u'u'
+### 25 1374 071e98cf6d350d42 d99cd4cae3ed6fa4
+ok
+out 
+g __name__ 'm'
+g v0 '#'
+g v1 '#'
+g v2 list('#', u'u')
+g v3 'a\\\\ b\\\\\\t'
+g v4 'q\\n'
+g v5 u'#c'
+g v6 '#'
+### 25 1380 b3d1c83b7f06e146 848cc28419ed35e4
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 1386 6c4e5d8be9da8b29 0aea1d898f7f1e5f
+raised TypeError 3 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'a \\x0cb'
+### 25 1392 49e624c54e6cd622 01545b465dc0a319
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 1398 b6910113e8a8825d 3ef76d1838802497
+raised NameError 3 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 list(57, 's')
+### 25 1404 0c353a999ec9251c 2198ff11cd937061
+raised NameError 6 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 59
+g v1 '#'
+g v2 'a\\x0c\\nb'
+### 25 1410 356017db5e1ae4a7 196cdad513697e00
+raised NameError 2 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+### 25 1416 01310d9928751f22 5c08119829846a92
+raised NameError 17 name 'undefined_7' is not defined
+out 
+g __name__ 'm'
+g v0 'a  \\r\\nb'
+g v1 'a  \\r\\nb'
+g v2 98
+g v3 'a\\\\ b\\\\\\t'
+g v4 51
+g v5 'a  b'
+g v6 28
+### 25 1422 ab8642ba2a85fdca 9858148491fece9a
+compile-error 8 no viable alternative at character '\\n'
+### 25 1428 6aa3e60cfe574638 a0a8a9ec6e848018
+ok
+out 3
+g __name__ 'm'
+g v0 73
+g v1 'a\\t b'
+g v2 'a b'
+g v3 'a b'
+g v4 'a\\t b'
+g v5 u'u'
+g v6 'a b'
+g v7 84
+g v9 u'u'
+### 25 1434 492434aa5efdbe30 f2cf8d881a6d128b
+raised NameError 4 name 'v1' is not defined
+out 58
+g __name__ 'm'
+g v0 27
+### 25 1440 6632ff87ab122d81 20bc96a2ed688759
+compile-error 9 no viable alternative at input 'v4'
+### 25 1446 5abf9130ccc31464 ea81674a35967934
+raised TypeError 13 can only concatenate list (not "str") to list
+out 
+g __name__ 'm'
+g v0 list('s', 84)
+g v1 'a\\\\ b\\\\\\t'
+g v2 'a\\\\ b\\\\\\t'
+g v3 list('s', 84)
+g v5 'a\\\\ b\\\\\\t'
+g v6 u'#c#'
+### 25 1452 3eb2988e6800b631 23720ab76fb8b165
+compile-error 8 no viable alternative at input 'v3'
+### 25 1458 fcee784a6c45482e f7bfa73ad31dd73a
+compile-error 5 no viable alternative at input 'v2'
+### 25 1464 587799b5777e3581 15931398d69a6758
+raised NameError 11 name 'y' is not defined
+out 49
+g __name__ 'm'
+g v0 '\\\\'
+g v1 u'#c#c'
+g v2 u'#c#c'
+g v3 u'u'
+g v5 u'#c'
+### 25 1470 997aa2320ba9f38f f1f002102ddf4470
+raised NameError 3 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 list(u'u', 3)
+### 25 1476 574e705bda8b7928 0b8bacb20f5e8e8c
+compile-error 2 no viable alternative at character '\\n'
+### 25 1482 9a43c6389d42e3e5 eb19b3348460ba8f
+ok
+out 
+g __name__ 'm'
+g v0 62
+g v2 38
+g v3 97
+g v4 62
+### 25 1488 2695444e811ac938 2642a6674044554f
+ok
+out 
+g __name__ 'm'
+g v0 27
+g v1 'a b'
+g v2 'a b'
+### 25 1494 79738f2a5e8cfbd4 52b3e93c57e1cda2
+ok
+out q\n
+g __name__ 'm'
+g v1 list(27, 3)
+g v2 70
+### 25 1500 9a6dcfc87831344c 5e9c67a294c3142c
+compile-error 13 no viable alternative at input 'v6'
+### 25 1512 8ee147b2e2bf2b05 9f8468da7f8009f7
+raised NameError 4 name 'v1' is not defined
+out 
+g __name__ 'm'
+g v0 'q\\n'
+### 25 1518 50d0e6fd1d332024 a5f10b3d9be98904
+raised NameError 1 name 'y' is not defined
+out 
+g __name__ 'm'
+### 25 1524 625618f5ebd38d6e 2d5d1d1fe2597374
+raised TypeError 9 unsupported operand type(s) for +: 'int' and 'str'
+out 
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+g v1 'a\\\\ b\\\\\\t'
+g v2 'a\\\\ b\\\\\\t'
+g v3 'a\\\\ b\\\\\\t'
+g v4 'a\\\\ b\\\\\\t'
+g v5 u'u'
+g v6 'a\\\\ b\\\\\\t'
+### 25 1530 018fe374c3e17573 eeb34977d47ed2cd
+raised TypeError 16 can only concatenate list (not "int") to list
+out s
+g __name__ 'm'
+g v0 list('q\\n', 1)
+g v1 list('q\\n', 1)
+g v3 'a \\t\\r\\nb'
+g v4 u'#c'
+g v5 list(u'#c', list('q\\n', 1, 'q\\n', 1))
+g v6 '#'
+g v7 list('q\\n', 1)
+g v8 u'#c'
+### 25 1536 5f47090ee8be684c 208e1e2298141be8
+compile-error 2 no viable alternative at character '\\n'
+### 25 1542 7110174966a73bf8 c179877771728acd
+raised TypeError 8 can only concatenate list (not "int") to list
+out 
+g __name__ 'm'
+g v0 85
+g v1 85
+g v2 list('a b', 8)
+g v3 list(50, 4)
+### 25 1548 70d996796248a7ab 9fcc06b41e052d05
+ok
+out 
+g __name__ 'm'
+g v0 u'#c'
+g v1 70
+g v2 'a \\r\\nb'
+g v3 'x#y'
+g v4 u'#c'
+g v5 'a b'
+g v6 'a\\\\ b\\\\\\t'
+g v7 'a\\\\ b\\\\\\t'
+g v8 u'#c'
+g v9 70
+### 25 1554 f0bd6c4e4c0e9734 5fe4e4733be5f86e
+ok
+out 83
+g __name__ 'm'
+g v1 148
+g v10 list(87, u'#c')
+g v2 u'#c'
+g v3 list(148, 6)
+g v4 list(u'u', u'#c')
+g v5 97
+g v6 'a \\x0cb'
+g v7 91
+g v8 148
+g v9 list('#', 0)
+### 25 1560 875562972cadd123 2b590026ee8615fd
+raised TypeError 1 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+### 25 1572 ba93225b0f3dabb2 23d79e3af0ee2997
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 1578 a8fd3d4bc926ff0f 13be26511bf46eb6
+raised NameError 10 name 'v2' is not defined
+out #c
+g __name__ 'm'
+g v0 'a\\\\ b\\\\\\t'
+g v1 'q\\n'
+g v3 'q\\n'
+### 25 1584 9290f3c3223fa028 36ae00319df3c1d5
+compile-error 2 no viable alternative at character '\\n'
+### 25 1590 1d6da9ce2805398a 6d74b7e38d12a0e3
+raised NameError 5 name 'v1' is not defined
+out #
+g __name__ 'm'
+g v0 '#'
+### 25 1596 5a5925694b693a96 acd258fd26dd881e
+ok
+out 40
+g __name__ 'm'
+g v1 u'#c'
+g v3 u'u'
+g v4 'a\\\\ b\\\\\\t'
+### 25 1602 2840b3360a0125b5 3e37bff38f65be00
+raised TypeError 10 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 '#'
+g v1 '#'
+g v2 u'#c\\\\'
+g v3 '#'
+g v4 'q\\n'
+### 25 1608 a8e6c1a7fec5b22c 94a3e76f3c4a8070
+raised TypeError 8 cannot concatenate 'unicode' and 'int' objects
+out 
+g __name__ 'm'
+g v0 87
+g v1 u'#c#'
+g v2 'a\\\\ b\\\\\\t'
+g v3 list(u'#c#', 2)
+g v4 87
+g v5 'a\\\\ b\\\\\\t'
+### 25 1614 cb087e719c120ca2 8ad48fa0abc6aa8b
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 1620 ad68f1f615b610ed 33fe165e4fe3e53d
+raised NameError 10 name 'v3' is not defined
+out 
+g __name__ 'm'
+g v0 'a  \\r\\nb'
+g v1 '#'
+g v2 list('a  \\r\\nb', 5)
+### 25 1626 42875bf34ba6cf30 5d292573607e205d
+ok
+out 
+g __name__ 'm'
+g v0 u'#c'
+### 25 1632 b80d6f62515eccd5 e9a7f06d98c95d44
+raised NameError 9 name 'undefined_5' is not defined
+out 
+g __name__ 'm'
+g v0 u'ux#y'
+g v1 u'ux#y'
+g v2 u'ux#y'
+g v3 u'ux#y'
+g v4 'a\\x0cb'
+### 25 1638 69886eec027b1f5e 6b00c4e94a4402e6
+raised TypeError 10 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 u'#c'
+g v1 'a\\\\ b\\\\\\t'
+g v2 u'#c'
+g v3 u'#c'
+g v4 u'u'
+### 25 1644 f53eb1ce4d3f770b 2460a15c2ffbcb42
+raised NameError 1 name 'y' is not defined
+out 
+g __name__ 'm'
+### 25 1650 62df8dd4e7622b76 13101a32a65704e1
+raised NameError 5 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 17
+### 25 1656 70976c087cbaaa67 3f531694ecfd1e92
+raised TypeError 3 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 's'
+g v1 's'
+### 25 1668 d81b155cea3873d9 9086423ee5d1aaff
+raised NameError 2 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 53
+### 25 1674 387df79b91c13877 c3373966d1ea89cf
+compile-error 5 no viable alternative at input 'v2'
+### 25 1680 543f82e76909b368 c757b8d4ec7d3a33
+raised TypeError 14 unsupported operand type(s) for +: 'int' and 'str'
+out 
+g __name__ 'm'
+g v0 27
+g v1 'a\\\\ b\\\\\\t'
+g v2 67
+g v3 'a b'
+g v4 66
+g v5 'a b'
+g v6 u'u'
+### 25 1692 862af92a636cd341 7e20dcaf8472493f
+raised NameError 2 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 17
+### 25 1698 f6f2564bd2d356ce e766cc6b1ed8fac0
+ok
+out 
+g __name__ 'm'
+g v0 107
+g v1 'a\\t b'
+g v2 u'#c'
+g v3 u'#c'
+### 25 1704 070e3dd9b3d2cd6a 5efd50087b48b5c0
+raised TypeError 7 can only concatenate list (not "int") to list
+out 
+g __name__ 'm'
+g v0 list(72, 94)
+g v1 75
+g v2 'a\\\\ b\\\\\\t'
+g v3 u'#c'
+### 25 1710 32e54a5ad9c3bb44 ab63571a91ee45a7
+raised NameError 3 name 'v1' is not defined
+out 
+g __name__ 'm'
+g v0 'a b'
+### 25 1716 256b14c847478f80 0035d894df04a420
+compile-error 9 unindent does not match any outer indentation level
+### 25 1722 1dd83cafcd13f978 b1a3fbd84f9c0fd6
+ok
+out 
+g __name__ 'm'
+g v0 66
+g v1 u'#c'
+g v2 list(66, 0)
+g v3 u'#c'
+### 25 1728 2b46f0c81eb7b635 b06f61eb4e7d4da7
+raised NameError 2 name 'v0' is not defined
+out 
+g __name__ 'm'
+### 25 1734 c808c8b9029cfe37 a75ba30e0ac8cf9c
+raised NameError 12 name 'undefined_6' is not defined
+out 
+g __name__ 'm'
+g v0 u'u'
+g v1 60
+g v2 u'u'
+g v3 '\\\\'
+g v4 list('\\\\', 8)
+g v5 'a \\x0c\\r\\nb'
+### 25 1740 547c6cb053c3acf9 202e49fd36a37585
+raised TypeError 3 cannot concatenate 'unicode' and 'int' objects
+out 
+g __name__ 'm'
+g v0 u'#c'
+### 25 1746 7be6ff383923d109 315f2d23e0056c30
+compile-error 4 no viable alternative at character '\\n'
+### 25 1758 eb3cc02def59741c 27f44424b8c8a8a8
+raised NameError 6 name 'v1' is not defined
+out 
+g __name__ 'm'
+g v0 79
+### 25 1764 d5a857a2637950e7 4df1c6fc26eaaaf3
+raised NameError 3 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 33
+### 25 1776 c9a23ade9bdc2e89 0cae46d19ade1cd7
+raised NameError 11 name 'undefined_5' is not defined
+out 80
+g __name__ 'm'
+g v0 48
+g v1 u'u'
+g v2 80
+g v4 54
+### 25 1782 d85d0b3178deb155 536dd39159507a3b
+raised NameError 2 name 'v0' is not defined
+out 
+g __name__ 'm'
+### 25 1788 d91201b8285753ad 99d4ab8d9f31d7cb
+raised TypeError 10 cannot concatenate 'unicode' and 'int' objects
+out 
+g __name__ 'm'
+g v0 u'#c'
+g v1 list(u'#c', 5)
+g v2 'a b'
+g v4 'a\\\\ b\\\\\\t'
+g v5 4
+### 25 1794 4295ffb24d724e21 566f6e5b29888969
+compile-error 9 no viable alternative at input 'v6'
+### 25 1800 e8d70b2a9be3040e 1cd33e95b9e96ae5
+ok
+out 51 \\
+g __name__ 'm'
+g v0 169
+g v2 list('#', 31)
+g v3 u'uu'
+g v4 18
+g v6 u'uu'
+### 25 1806 8ed6dc82ba0f5c3b 157ee75bf4df7d8b
+compile-error 15 no viable alternative at input 'v9'
+### 25 1812 1d2d2f56fa93ed8f 60696cbca84280b8
+ok
+out 
+g __name__ 'm'
+g v0 108
+g v1 '\\\\x#y'
+g v2 '\\\\x#y'
+g v3 list('\\\\x#y', 1)
+g v4 u'#c'
+g v5 list('\\\\x#y', 1)
+g v6 'a\\\\ b\\\\\\t'
+g v7 'a\\\\ b\\\\\\t'
+g v8 list(39, 22)
+g v9 108
+### 25 1818 fbf06d9c4d8f2fa2 fac8595a9b37ba8d
+ok
+out \\
+g __name__ 'm'
+g v1 39
+g v2 53
+g v3 list('#\\\\', '\\\\')
+### 25 1836 0b3dad615cfc32f0 bf3f0006509e5b52
+raised NameError 9 name 'v4' is not defined
+out uu
+g __name__ 'm'
+g v0 81
+g v1 u'u'
+g v2 81
+g v3 u'#c'
+### 25 1842 40123f99661b9d9f 12fb6ba8d95c9c55
+raised TypeError 8 can only concatenate list (not "int") to list
+out 
+g __name__ 'm'
+g v0 list('#', 2)
+g v1 u'x#y#c'
+g v2 u'u'
+g v3 list('#', 2)
+### 25 1848 084be0fad16facfd 37d012bd80c956a4
+raised TypeError 15 cannot concatenate 'str' and 'int' objects
+out 30
+g __name__ 'm'
+g v0 30
+g v1 list(30, 30)
+g v2 'a   \\r\\nb'
+g v3 'a\\\\ b\\\\\\t'
+g v5 'a   \\r\\nb'
+g v6 u'u'
+### 25 1854 a81c1bd3cc833023 3904d2270966bb55
+ok
+out 
+g __name__ 'm'
+g v0 72
+g v1 72
+g v2 72
+g v3 list(u'#c', u'#c')
+g v4 list(72, 5)
+g v5 list('s', list(72, 5))
+### 25 1860 636120e4debf2073 5194f2d20f277af8
+raised NameError 2 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 u'#c'
+### 25 1866 98ac3c499257edb0 fa512bf03596a467
+raised NameError 2 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 u'u'
+### 25 1878 762900379580b863 26815218715aa524
+raised TypeError 3 cannot concatenate 'unicode' and 'int' objects
+out 
+g __name__ 'm'
+g v0 u'#c#'
+### 25 1884 d132293cf722ab5f b0a065e189b09e49
+raised NameError 2 name 'v0' is not defined
+out 
+g __name__ 'm'
+### 25 1890 c0864c2e57d8b8d8 1dfead1cd5377651
+ok
+out 
+g __name__ 'm'
+g v0 88
+g v1 's'
+g v2 u'#c'
+g v3 u'u'
+### 25 1896 dc3891a09692a047 6ef0decb281620b1
+raised NameError 2 name 'undefined_1' is not defined
+out 
+g __name__ 'm'
+g v0 95
+### 25 1902 8cb6a3908c5a0c4b 2f7fc49964dd6e86
+raised NameError 4 name 'undefined_2' is not defined
+out 
+g __name__ 'm'
+g v0 'q\\n'
+g v1 list(u'uq\\n', 1)
+### 25 1908 75ee4db0f58f5518 ede084dfe0e230a9
+ok
+out 
+g __name__ 'm'
+g v0 47
+g v1 'a\\\\ b\\\\\\t'
+g v2 '#'
+g v3 u'#c'
+g v4 'a\\x0c\\nb'
+g v6 53
+### 25 1914 0053781f5178bc52 4d7aefefa1d9d46c
+raised NameError 5 name 'undefined_3' is not defined
+out 
+g __name__ 'm'
+g v0 39
+g v1 39
+g v2 list(18, 8)
+### 25 1920 05c9f99dd26d74ac 43d7981d20215507
+raised NameError 3 name 'y' is not defined
+out 
+g __name__ 'm'
+g v0 11
+### 25 1926 c4a7e2a8beb30f42 31069183652f8f3d
+raised TypeError 3 cannot concatenate 'str' and 'int' objects
+out 
+g __name__ 'm'
+g v0 'a\\x0cb'
+### 25 1932 d2161153bdaadd2f 8919c11a9a32f6d7
+compile-error 13 no viable alternative at character '\\n'
+### 25 1938 cab28cf851ecd1c8 f3a5b9ce978267b6
+raised TypeError 6 unsupported operand type(s) for +: 'int' and 'list'
+out 
+g __name__ 'm'
+g v0 u'#c'
+g v1 list(u'#c', 0)
+g v2 'a\\\\ b\\\\\\t'
+### 25 1944 8667a1fe9e9eb2fa c8f7dee873361b51
+raised NameError 3 name 'v0' is not defined
+out 11
+g __name__ 'm'
+### 25 1950 3855f174cc4de1d3 4aa963df8ece98ff
+compile-error 14 unindent does not match any outer indentation level
+### 25 1956 430dcdaf7a0890b2 22e8b40638eeb2c9
+raised NameError 1 name 'undefined_0' is not defined
+out 
+g __name__ 'm'
+### 25 1962 abc922e0778cb8d2 0fdf482d7686d6a4
+raised TypeError 17 unsupported operand type(s) for +: 'int' and 'list'
+out 
+g __name__ 'm'
+g v0 0
+g v1 list('q\\n', 9)
+g v2 0
+g v3 1
+g v4 u'u'
+g v5 2
+g v6 2
+g v7 70
+### 25 1968 f3e52ef60495335d 872acf87aafb7c7f
+raised NameError 14 name 'v4' is not defined
+out 
+g __name__ 'm'
+g v0 73
+g v1 u'#c'
+g v2 'a b'
+g v3 list(u'#c', u'#c')
+g v5 'a\\\\ b\\\\\\t'
+g v6 list(u'u', 'a b')
+### 25 1974 ed66060bf3c48c8f 5fb6f5c1929c30bd
+compile-error 7 no viable alternative at character '\\n'
+### 25 1980 dfa954383c07290b c2da8b2a4f1e2c4e
+ok
+out 
+g __name__ 'm'
+g v0 u'#c'
+g v1 'a b'
+g v2 23
+g v3 u'#c'
+g v4 92
+### 25 1986 19f840795262ed9f ae705393a87e6982
+raised NameError 4 name 'undefined_2' is not defined
+out 
+g __name__ 'm'
+g v0 list(34, 7)
+g v1 list(34, 7, 34, 7)
+### 25 1992 ad52d1f9a03178cb 5ce479b885c1429b
+compile-error 7 no viable alternative at input 'v4'
+### 25 1998 e7251da55164a1af 2d160487ed4ed38f
+compile-error 12 no viable alternative at input 'v5'

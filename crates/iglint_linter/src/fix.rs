@@ -44,6 +44,9 @@ pub(crate) struct Pass {
     pub diagnostics: Vec<(crate::registry::RuleCode, String)>,
     /// For each of `fixes`: whether it is a safe fix.
     pub safe: Vec<bool>,
+    /// For each of `fixes`: whether it changes only layout
+    /// ([`crate::Fix::layout`]).
+    pub layout: Vec<bool>,
 }
 
 /// One fix pass over `text`: takes the fixes `wanted` accepts, in position
@@ -104,6 +107,7 @@ pub(crate) fn apply_pass(
     let mut fixes = Vec::new();
     let mut fixed_diagnostics = Vec::new();
     let mut safe = Vec::new();
+    let mut layout = Vec::new();
     let mut any = false;
     for (diagnostic, edits) in candidates {
         let fix = diagnostic.fix.as_ref().expect("candidate has a fix");
@@ -119,6 +123,7 @@ pub(crate) fn apply_pass(
             fixes.push((applied_fix, edits));
             fixed_diagnostics.push((diagnostic.rule, diagnostic.message.clone()));
             safe.push(fix.applicability == Applicability::Safe);
+            layout.push(fix.layout);
             continue;
         }
         // Each deletion decided alone that its suite keeps other statements;
@@ -139,6 +144,7 @@ pub(crate) fn apply_pass(
             fixes.push((applied_fix, edits));
             fixed_diagnostics.push((diagnostic.rule, diagnostic.message.clone()));
             safe.push(fix.applicability == Applicability::Safe);
+            layout.push(fix.layout);
         }
         // Overlapping fixes are retried in the next pass, after the text
         // has been re-analysed.
@@ -153,6 +159,7 @@ pub(crate) fn apply_pass(
         fixes,
         diagnostics: fixed_diagnostics,
         safe,
+        layout,
     })
 }
 

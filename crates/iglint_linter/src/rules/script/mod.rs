@@ -68,6 +68,8 @@ pub mod used_before_assignment;
 pub mod wrong_scope_system_function;
 
 #[cfg(test)]
+mod layout_oracle;
+#[cfg(test)]
 mod locations_tests;
 #[cfg(test)]
 pub(crate) mod testing;
@@ -178,6 +180,7 @@ pub fn fix(
         edits,
         suite: None,
         unsafe_reason: None,
+        layout: false,
     })
 }
 
@@ -396,6 +399,34 @@ pub fn string_ranges(parsed: &iglint_python::Parsed) -> Vec<TextRange> {
         }
     });
     out
+}
+
+/// Whether the whitespace `range` follows a backslash inside a string
+/// literal that Jython's lexer drops (a single-quoted string that a line
+/// break ends before its closing quote, [`iglint_python::DropReason`]).
+/// The backslash escapes the first whitespace character, so the line break
+/// still ends the string and the lexer drops it with the line break; without
+/// the whitespace the backslash continues the string on the next line
+/// (review round 25, B1: `v = 'x  \ ` then `y'` reads `y`, without the
+/// space it is the string `'x  y'`). Such whitespace is part of the string.
+pub fn escaped_in_dropped_string(
+    parsed: &iglint_python::Parsed,
+    source: &str,
+    range: TextRange,
+) -> bool {
+    parsed.dropped.iter().any(|d| {
+        d.reason == iglint_python::DropReason::UnterminatedString
+            && d.range.start() < range.start()
+            && range.start() < d.range.end()
+            && TextRange::new(d.range.start(), range.start())
+                .slice(source)
+                .bytes()
+                .rev()
+                .take_while(|b| *b == b'\\')
+                .count()
+                % 2
+                == 1
+    })
 }
 
 /// Whether `stmt` is a bare string-literal expression, the only statement

@@ -118,6 +118,8 @@ struct CachedFix {
     suite: Option<(u32, u32)>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     unsafe_reason: Option<CachedReason>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    layout: bool,
 }
 
 /// An [`crate::UnsafeReason`]: the site only when it is in the cached
@@ -298,6 +300,7 @@ fn store(d: &Diagnostic, file: &SourceFile) -> Option<CachedDiagnostic> {
                     })
                     .collect(),
                 suite: fix.suite.map(|g| (g.key, g.statements)),
+                layout: fix.layout,
                 unsafe_reason: fix.unsafe_reason.as_ref().map(|r| CachedReason {
                     message: r.message.clone(),
                     site: r
@@ -394,6 +397,7 @@ fn restore(
                 }),
                 workspace: r.workspace,
             }),
+            layout: fix.layout,
         });
     }
     Some(diagnostic)
