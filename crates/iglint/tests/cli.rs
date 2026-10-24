@@ -125,6 +125,137 @@ fn runs_over_some_files_keep_the_baseline_of_the_others() {
     assert!(entries(root).is_empty());
 }
 
+/// Reviewer round 16 (Codex C2): without a configuration file the
+/// settings root is the working directory, so baseline paths and
+/// fingerprints moved with it, and an explicit baseline stopped matching
+/// in a subdirectory. They are relative to the workspace root now, and a
+/// baseline written by an earlier build (relative to the directory it was
+/// written from) still matches.
+#[test]
+fn baselines_match_from_every_directory_without_a_configuration_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    write(root, "projects/p/project.json", "{}\n");
+    write(
+        root,
+        "projects/p/ignition/script-python/lib/code.py",
+        "def f():\n    unused_var = undefined_thing\n",
+    );
+    write(
+        root,
+        "projects/p/ignition/script-python/lib/resource.json",
+        "{}\n",
+    );
+    let paths = |file: &Path| -> Vec<String> {
+        let baseline: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(file).unwrap()).unwrap();
+        baseline["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["path"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    let written = run(root, &["baseline", "--no-cache", "--baseline", "b.json"]);
+    assert_eq!(written.status, ExitStatus::Success, "{}", written.stderr);
+    let entries = paths(&root.join("b.json"));
+    assert!(!entries.is_empty());
+    assert!(
+        entries.iter().all(|p| p.starts_with("projects/p/")),
+        "{entries:?}"
+    );
+    for (cwd, baseline) in [
+        (root.to_path_buf(), "b.json"),
+        (root.join("projects/p"), "../../b.json"),
+        (
+            root.join("projects/p/ignition/script-python"),
+            "../../../../b.json",
+        ),
+    ] {
+        let checked = run(&cwd, &["--no-cache", "--baseline", baseline]);
+        assert_eq!(
+            checked.status,
+            ExitStatus::Success,
+            "{}: {}{}",
+            cwd.display(),
+            checked.stdout,
+            checked.stderr
+        );
+        assert!(
+            !checked.stderr.contains("no longer match"),
+            "{}",
+            checked.stderr
+        );
+        let pruned = run(
+            &cwd,
+            &["--no-cache", "--baseline", baseline, "--prune-baseline"],
+        );
+        assert_eq!(pruned.status, ExitStatus::Success);
+        assert!(!pruned.stderr.contains("Removed"), "{}", pruned.stderr);
+        assert_eq!(paths(&root.join("b.json")), entries);
+        // The default baseline file is found from a subdirectory too.
+        let shown = run(&cwd, &["--show-settings"]);
+        assert!(
+            shown
+                .stdout
+                .contains(&format!("Baseline paths relative to: {}\n", root.display())),
+            "{}",
+            shown.stdout
+        );
+    }
+    let default = run(root, &["baseline", "--no-cache"]);
+    assert_eq!(default.status, ExitStatus::Success);
+    let below = run(&root.join("projects/p"), &["--no-cache"]);
+    assert_eq!(below.status, ExitStatus::Success, "{}", below.stdout);
+
+    // A baseline of an earlier build, written from inside a project with
+    // nothing around it (its paths relative to that directory), still
+    // matches once the workspace root is found above it.
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    write(root, "x/p/project.json", "{}\n");
+    write(
+        root,
+        "x/p/ignition/script-python/lib/code.py",
+        "def f():\n    unused_var = undefined_thing\n",
+    );
+    write(root, "x/p/ignition/script-python/lib/resource.json", "{}\n");
+    let project = root.join("x/p");
+    let written = run(
+        &project,
+        &["baseline", "--no-cache", "--baseline", "old.json"],
+    );
+    assert_eq!(written.status, ExitStatus::Success, "{}", written.stderr);
+    let old = paths(&project.join("old.json"));
+    assert!(old.iter().all(|p| p.starts_with("ignition/")), "{old:?}");
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    let checked = run(
+        &project,
+        &["--no-cache", "--baseline", "old.json", "--prune-baseline"],
+    );
+    assert_eq!(
+        checked.status,
+        ExitStatus::Success,
+        "{}{}",
+        checked.stdout,
+        checked.stderr
+    );
+    assert!(!checked.stderr.contains("Removed"), "{}", checked.stderr);
+    // Rewritten, the entries are relative to the workspace root.
+    let rewritten = run(
+        &project,
+        &["--no-cache", "--baseline", "old.json", "--update-baseline"],
+    );
+    assert_eq!(rewritten.status, ExitStatus::Success);
+    let new = paths(&project.join("old.json"));
+    assert!(
+        new.iter().all(|p| p.starts_with("x/p/ignition/")),
+        "{new:?}"
+    );
+    assert_eq!(new.len(), old.len());
+}
+
 #[test]
 fn default_command_reports_findings() {
     let dir = project();
@@ -424,7 +555,7 @@ fn show_settings_and_files() {
     );
     assert_eq!(settings.status, ExitStatus::Success);
     let expected = format!(
-        "Configuration: iglint.toml\nRoot: {0}\nWorkspace root: {0}\nSettings for: projects/p/ignition/script-python/lib/code.py\n  strict = false\n  respect-gitignore = true\n  exclude = [\"tmp\"]\n  overrides = 0\n  enabled rules (4):\n    NAME001 component-name [warning]\n    SCR101 undefined-name [error]\n    SCR102 unused-variable [warning]\n      ignore-names = [\"x\"]\n      exclude = [\"legacy/**\"]\n    VIEW001 unused-custom-property [warning]\n",
+        "Configuration: iglint.toml\nRoot: {0}\nWorkspace root: {0}\nBaseline paths relative to: {0}\nSettings for: projects/p/ignition/script-python/lib/code.py\n  strict = false\n  respect-gitignore = true\n  exclude = [\"tmp\"]\n  overrides = 0\n  enabled rules (4):\n    NAME001 component-name [warning]\n    SCR101 undefined-name [error]\n    SCR102 unused-variable [warning]\n      ignore-names = [\"x\"]\n      exclude = [\"legacy/**\"]\n    VIEW001 unused-custom-property [warning]\n",
         dir.path().display()
     );
     assert_eq!(settings.stdout, expected);

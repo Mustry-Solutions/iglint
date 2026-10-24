@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use iglint_config::{ConfigSource, LoadOptions};
 use iglint_linter::Diagnostic;
-use iglint_linter::baseline::{Baseline, DEFAULT_BASELINE_FILE};
+use iglint_linter::baseline::{Baseline, BaselineOrigin};
 use iglint_linter::live::LiveWorkspace;
 use iglint_linter::rules::REGISTRY;
 use iglint_linter::settings::ProjectSettings;
@@ -23,6 +23,9 @@ pub struct Folder {
     pub config: Option<PathBuf>,
     pub live: LiveWorkspace,
     pub baseline: Option<Baseline>,
+    /// Where the baseline's paths start (as for `iglint check` run in the
+    /// folder).
+    baseline_origin: BaselineOrigin,
     /// Messages for the user (configuration errors and notices).
     pub notices: Vec<String>,
     /// Created for a file outside every workspace folder.
@@ -62,11 +65,7 @@ impl Folder {
                     ConfigSource::Defaults => None,
                     other => other.path().map(Path::to_path_buf),
                 };
-                let baseline = c
-                    .baseline
-                    .clone()
-                    .unwrap_or_else(|| c.settings.root.join(DEFAULT_BASELINE_FILE));
-                (c.settings, config, Some(baseline))
+                (c.settings, config, Some(c.baseline.clone()))
             }
             None => (
                 ProjectSettings {
@@ -77,16 +76,17 @@ impl Folder {
                 None,
             ),
         };
-        let baseline =
-            baseline_path
-                .filter(|p| p.is_file())
-                .and_then(|p| match Baseline::load(&p) {
-                    Ok(b) => Some(b),
-                    Err(error) => {
-                        notices.push(format!("cannot read baseline {}: {error}", p.display()));
-                        None
-                    }
-                });
+        let baseline_origin = BaselineOrigin::new(&settings, &[root.to_path_buf()]);
+        let baseline = baseline_path
+            .map(|configured| configured.unwrap_or_else(|| baseline_origin.default_file()))
+            .filter(|p| p.is_file())
+            .and_then(|p| match Baseline::load(&p) {
+                Ok(b) => Some(b),
+                Err(error) => {
+                    notices.push(format!("cannot read baseline {}: {error}", p.display()));
+                    None
+                }
+            });
         let mut roots: Vec<PathBuf> = settings
             .projects
             .iter()
@@ -101,6 +101,7 @@ impl Folder {
             config,
             live: LiveWorkspace::new(settings, roots),
             baseline,
+            baseline_origin,
             notices,
             adhoc: false,
             files: None,
@@ -129,7 +130,7 @@ impl Folder {
     /// Removes findings covered by the baseline.
     pub fn filter_baseline(&self, diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
         match &self.baseline {
-            Some(b) if !diagnostics.is_empty() => b.filter(self.live.settings(), diagnostics).new,
+            Some(b) if !diagnostics.is_empty() => b.filter(&self.baseline_origin, diagnostics).new,
             _ => diagnostics,
         }
     }

@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use clap::ValueEnum;
 use iglint_config::{CliOverrides, Configuration, LoadOptions, absolutize};
-use iglint_linter::baseline::{Baseline, DEFAULT_BASELINE_FILE};
+use iglint_linter::baseline::{Baseline, BaselineOrigin};
 use iglint_linter::discovery::{self, SkipReason};
 use iglint_linter::engine::{self, CheckOptions, FixMode};
 use iglint_linter::{Diagnostic, Severity};
@@ -130,6 +130,11 @@ fn show_settings(
             shown(path)
         )?;
     }
+    writeln!(
+        out,
+        "Baseline paths relative to: {}",
+        BaselineOrigin::new(settings, &linted).root().display()
+    )?;
     let file = paths
         .first()
         .cloned()
@@ -408,12 +413,15 @@ pub fn run(
         }
     }
 
-    // Baseline.
+    // Baseline. Its paths and fingerprints are relative to an origin that
+    // does not change with the working directory (the workspace root of a
+    // run without a configuration file).
+    let origin = BaselineOrigin::new(settings, &paths);
     let explicit_baseline = args.baseline.as_ref().map(|b| absolutize(cwd, b));
     let baseline_path = explicit_baseline
         .clone()
         .or_else(|| configuration.baseline.clone())
-        .unwrap_or_else(|| settings.root.join(DEFAULT_BASELINE_FILE));
+        .unwrap_or_else(|| origin.default_file());
     let shown_baseline = output::display_path(&baseline_path, cwd);
     // Baseline entries this run can judge: files it linted, and files that
     // no longer exist. A run over some files (pre-commit, an editor) leaves
@@ -421,11 +429,13 @@ pub fn run(
     let linted: BTreeSet<String> = result
         .files
         .iter()
-        .map(|f| settings.relative_path(&f.path))
+        .flat_map(|f| {
+            std::iter::once(origin.relative_path(&f.path)).chain(origin.legacy_path(&f.path))
+        })
         .collect();
-    let in_scope = |path: &str| linted.contains(path) || !settings.root.join(path).exists();
+    let in_scope = |path: &str| linted.contains(path) || origin.is_gone(path);
     if update_baseline {
-        let mut baseline = Baseline::from_diagnostics(settings, &result.diagnostics);
+        let mut baseline = Baseline::from_diagnostics(&origin, &result.diagnostics);
         if baseline_path.is_file()
             && let Ok(previous) = Baseline::load(&baseline_path)
         {
@@ -450,7 +460,7 @@ pub fn run(
     if baseline_path.is_file() || baseline_required {
         match Baseline::load(&baseline_path) {
             Ok(baseline) => {
-                let mut matched = baseline.filter(settings, diagnostics);
+                let mut matched = baseline.filter(&origin, diagnostics);
                 matched.stale.retain(|e| in_scope(&e.path));
                 diagnostics = matched.new;
                 suppressed = matched.suppressed;

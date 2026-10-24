@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use iglint_config::compat;
 use iglint_config::{LoadOptions, absolutize};
-use iglint_linter::baseline::{Baseline, DEFAULT_BASELINE_FILE};
+use iglint_linter::baseline::{Baseline, BaselineOrigin, DEFAULT_BASELINE_FILE};
 use iglint_linter::engine::{self, CheckOptions};
 use iglint_linter::registry::{Category, FixAvailability, OptionType, RuleCode};
 
@@ -362,7 +362,10 @@ pub fn migrate(args: &MigrateArgs, environment: &Environment, io: &mut Io<'_>) -
             check_options.analyzer = Some(Arc::clone(analyzer));
         }
         let result = engine::check(&configuration.settings, &files, &check_options);
-        let baseline = Baseline::from_diagnostics(&configuration.settings, &result.diagnostics);
+        let baseline = Baseline::from_diagnostics(
+            &BaselineOrigin::new(&configuration.settings, &files),
+            &result.diagnostics,
+        );
         if let Err(error) = baseline.save(&baseline_path) {
             let _ = writeln!(
                 io.stderr,

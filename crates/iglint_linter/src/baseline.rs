@@ -15,7 +15,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -81,20 +81,121 @@ fn format_fingerprint(value: u64) -> String {
     format!("{value:016x}")
 }
 
+/// The directory that baseline paths (and the fingerprints computed from
+/// them) are relative to.
+///
+/// With a configuration file it is the configuration file's directory
+/// (the settings root). Without one, the settings root is the working
+/// directory, which would make the same finding a different entry from
+/// every directory iglint is run in; the origin is then the workspace
+/// root of the run ([`crate::discovery::workspace_roots`]), which does
+/// not depend on the working directory or on what is linted, when the
+/// run has exactly one. Baselines written by earlier builds from another
+/// directory have paths relative to the working directory of that run:
+/// an entry that does not match relative to the origin is matched
+/// relative to the settings root too ([`BaselineOrigin::legacy`]), and
+/// rewriting the baseline stores it relative to the origin.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BaselineOrigin {
+    root: PathBuf,
+    /// The settings root when it differs from `root`.
+    legacy: Option<PathBuf>,
+}
+
+impl BaselineOrigin {
+    /// The origin of a run over `paths` with `settings`.
+    pub fn new(settings: &ProjectSettings, paths: &[PathBuf]) -> BaselineOrigin {
+        let settings_root = crate::discovery::absolute(&settings.root);
+        if settings.root_is_configured || settings.root.as_os_str().is_empty() {
+            return BaselineOrigin::at(settings_root);
+        }
+        let paths: Vec<PathBuf> = if paths.is_empty() {
+            vec![settings_root.clone()]
+        } else {
+            paths.to_vec()
+        };
+        let roots = crate::discovery::workspace_roots(settings, &paths);
+        match roots.roots.as_slice() {
+            [root] if roots.unknown.is_empty() && *root != settings_root => BaselineOrigin {
+                root: root.clone(),
+                legacy: Some(settings_root),
+            },
+            _ => BaselineOrigin::at(settings_root),
+        }
+    }
+
+    /// Paths relative to `root`.
+    pub fn at(root: PathBuf) -> BaselineOrigin {
+        BaselineOrigin { root, legacy: None }
+    }
+
+    /// The directory paths are relative to.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// The settings root that baselines of earlier builds may be relative
+    /// to, when it is not [`BaselineOrigin::root`].
+    pub fn legacy(&self) -> Option<&Path> {
+        self.legacy.as_deref()
+    }
+
+    /// `file` relative to the origin, `/`-separated.
+    pub fn relative_path(&self, file: &Path) -> String {
+        relative_to(&self.root, file)
+    }
+
+    /// `file` relative to the legacy root, when there is one.
+    pub fn legacy_path(&self, file: &Path) -> Option<String> {
+        self.legacy.as_deref().map(|root| relative_to(root, file))
+    }
+
+    /// Whether the file of a baseline entry is gone: it exists neither
+    /// relative to the origin nor relative to the legacy root.
+    pub fn is_gone(&self, path: &str) -> bool {
+        !self.root.join(path).exists()
+            && self
+                .legacy
+                .as_deref()
+                .is_none_or(|root| !root.join(path).exists())
+    }
+
+    /// The baseline file used when none is configured or given:
+    /// `.iglint-baseline.json` in the origin, or in the legacy root when
+    /// only that one exists (a baseline written by an earlier build).
+    pub fn default_file(&self) -> PathBuf {
+        let at_origin = self.root.join(DEFAULT_BASELINE_FILE);
+        match &self.legacy {
+            Some(root) if !at_origin.is_file() && root.join(DEFAULT_BASELINE_FILE).is_file() => {
+                root.join(DEFAULT_BASELINE_FILE)
+            }
+            _ => at_origin,
+        }
+    }
+}
+
+fn relative_to(root: &Path, file: &Path) -> String {
+    let file = crate::discovery::absolute(file);
+    crate::discovery::slash_path(file.strip_prefix(root).unwrap_or(&file))
+}
+
+/// The `(path, rule, fingerprint)` key of a finding with `path`.
+fn entry_key(diagnostic: &Diagnostic, path: String) -> (String, String, String) {
+    let fingerprint = format_fingerprint(diagnostic.fingerprint(&path));
+    (path, diagnostic.rule.code().to_owned(), fingerprint)
+}
+
 impl Baseline {
     /// Builds a baseline from findings. Paths are made relative to the
-    /// settings root.
+    /// origin.
     pub fn from_diagnostics<'a>(
-        settings: &ProjectSettings,
+        origin: &BaselineOrigin,
         diagnostics: impl IntoIterator<Item = &'a Diagnostic>,
     ) -> Baseline {
         let mut counts: BTreeMap<(String, String, String), u32> = BTreeMap::new();
         for diagnostic in diagnostics {
-            let path = settings.relative_path(diagnostic.file.path());
-            let fingerprint = format_fingerprint(diagnostic.fingerprint(&path));
-            *counts
-                .entry((path, diagnostic.rule.code().to_owned(), fingerprint))
-                .or_default() += 1;
+            let path = origin.relative_path(diagnostic.file.path());
+            *counts.entry(entry_key(diagnostic, path)).or_default() += 1;
         }
         Baseline {
             version: BASELINE_VERSION,
@@ -157,12 +258,10 @@ impl Baseline {
     }
 
     /// Splits `diagnostics` into new findings and findings covered by the
-    /// baseline, and reports entries that matched nothing.
-    pub fn filter(
-        &self,
-        settings: &ProjectSettings,
-        diagnostics: Vec<Diagnostic>,
-    ) -> BaselineMatch {
+    /// baseline, and reports entries that matched nothing. A finding is
+    /// matched with its path relative to the origin, else (a baseline of
+    /// an earlier build) relative to the legacy root.
+    pub fn filter(&self, origin: &BaselineOrigin, diagnostics: Vec<Diagnostic>) -> BaselineMatch {
         let mut remaining: BTreeMap<(String, String, String), u32> = self
             .entries
             .iter()
@@ -175,15 +274,21 @@ impl Baseline {
             .collect();
         let mut result = BaselineMatch::default();
         for diagnostic in diagnostics {
-            let path = settings.relative_path(diagnostic.file.path());
-            let fingerprint = format_fingerprint(diagnostic.fingerprint(&path));
-            let key = (path, diagnostic.rule.code().to_owned(), fingerprint);
-            match remaining.get_mut(&key) {
-                Some(count) if *count > 0 => {
+            let keys = std::iter::once(origin.relative_path(diagnostic.file.path()))
+                .chain(origin.legacy_path(diagnostic.file.path()))
+                .map(|path| entry_key(&diagnostic, path));
+            let mut covered = false;
+            for key in keys {
+                if let Some(count) = remaining.get_mut(&key).filter(|c| **c > 0) {
                     *count -= 1;
-                    result.suppressed += 1;
+                    covered = true;
+                    break;
                 }
-                _ => result.new.push(diagnostic),
+            }
+            if covered {
+                result.suppressed += 1;
+            } else {
+                result.new.push(diagnostic);
             }
         }
         result.stale = remaining
@@ -286,11 +391,8 @@ mod tests {
         ..RuleMeta::DEFAULT
     };
 
-    fn settings() -> ProjectSettings {
-        ProjectSettings {
-            root: PathBuf::from("/repo"),
-            ..ProjectSettings::default()
-        }
+    fn settings() -> BaselineOrigin {
+        BaselineOrigin::at(PathBuf::from("/repo"))
     }
 
     fn diagnostic(file: &SourceFile, start: u32, end: u32) -> Diagnostic {
@@ -366,6 +468,41 @@ mod tests {
         let first_entry = json.find("\"fingerprint\"").unwrap();
         assert!(first_entry < json.find("\"rule\"").unwrap());
         assert_eq!(Baseline::parse(&json).unwrap(), baseline);
+    }
+
+    /// Reviewer round 16 (Codex C2): a baseline of an earlier build, with
+    /// paths relative to the directory it was written from, still matches
+    /// through the legacy root, and the gone check looks there too.
+    #[test]
+    fn entries_of_earlier_builds_match_relative_to_the_legacy_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("repo");
+        std::fs::create_dir_all(repo.join("projects/A")).unwrap();
+        std::fs::write(repo.join("projects/A/x.py"), "foo\n").unwrap();
+        let file = SourceFile::new(repo.join("projects/A/x.py"), "foo\n");
+        let old = Baseline::from_diagnostics(
+            &BaselineOrigin::at(repo.join("projects/A")),
+            &[diagnostic(&file, 0, 3)],
+        );
+        assert_eq!(old.entries[0].path, "x.py");
+        let origin = BaselineOrigin {
+            root: repo.clone(),
+            legacy: Some(repo.join("projects/A")),
+        };
+        let matched = old.filter(&origin, vec![diagnostic(&file, 0, 3)]);
+        assert_eq!(matched.suppressed, 1);
+        assert!(matched.stale.is_empty());
+        assert!(!origin.is_gone("x.py"));
+        assert!(!origin.is_gone("projects/A/x.py"));
+        assert!(origin.is_gone("projects/A/y.py"));
+        // Rewritten, the entry is relative to the origin.
+        let new = Baseline::from_diagnostics(&origin, &[diagnostic(&file, 0, 3)]);
+        assert_eq!(new.entries[0].path, "projects/A/x.py");
+        assert_eq!(
+            new.filter(&origin, vec![diagnostic(&file, 0, 3)])
+                .suppressed,
+            1
+        );
     }
 
     #[test]

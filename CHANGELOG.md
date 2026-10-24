@@ -130,6 +130,14 @@ from 0.1.0 on.
   error (review round 15, Codex).
 - The "nothing to lint" warning shows the working directory as `.`
   instead of an empty path.
+- Without a configuration file, baseline paths and fingerprints are
+  relative to the workspace root instead of the working directory, so an
+  explicit baseline matches, and is pruned, the same from every
+  subdirectory (review round 16, Codex). Entries written by earlier
+  builds from another directory still match, and are rewritten relative
+  to the workspace root by `--update-baseline`; the default
+  `.iglint-baseline.json` is looked up at the workspace root first.
+  `--show-settings` prints the directory (`Baseline paths relative to:`).
 - SCR307 no longer reports `handleTimerEvent = a == b` (or `<`, `in`,
   `is`) and backquotes as values that cannot be called: a rich comparison
   may return a function (`__eq__` returning a lambda is called by Jython).
