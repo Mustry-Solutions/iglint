@@ -106,6 +106,7 @@ rules![
     script::shadowed_library_package,
     script::unresolved_component_reference,
     script::message_handler_payload_misuse,
+    script::redefined_event_handler,
     script::pylint,
     sec::sql_string_building,
     sec::hardcoded_credential,

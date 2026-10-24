@@ -381,7 +381,22 @@ re-indentation) [jar]. Consequences, all verified on the gateway:
 * A header-less legacy file fails at run time (observed `NameError` in a
   message handler written as top-level code) [gw].
 * Extra top-level code after the body (helper `def`s at column 0) is compiled
-  as module code around the function.
+  as module code around the function. The module code runs, then Ignition
+  looks the handler up by name and calls it with the canonical arguments
+  by position, so the **last module-level binding wins** [gw, 8.3.3]: a
+  later `def handleTimerEvent(event):` makes every tick fail with
+  `TypeError: handleTimerEvent() takes exactly 1 argument (0 given)`
+  (logged once, then at debug level), `def handleMessage(p):` runs
+  (names do not matter), defaults and `*args` that fit run, a lambda or
+  a class runs, a value that is not callable or `del` gives `The function
+  'handleTimerEvent' is not defined`. Measured for timer, tag change
+  (`onTagChange()` with 5 positional arguments, an error on every
+  change), message (the caller of `sendRequest` gets the `TypeError`),
+  startup, shutdown, update (`onUpdate` with 2) and WebDev (`doGet` with
+  `request, session`, an HTTP 500). Scheduled scripts differ: the first
+  definition runs whatever is bound later, and `del` makes the script fail
+  to load (`NameError`). A `def` of the name inside the body, also after
+  `global`, does not change what is called. `SCR307` reports these.
 
 iglint therefore parses the file **as written** (that is what the user edits),
 and additionally checks that line 1 is exactly the canonical header (rule

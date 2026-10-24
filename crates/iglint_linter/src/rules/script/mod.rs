@@ -46,6 +46,7 @@ pub mod print_statement;
 pub mod pylint;
 pub mod raise_string;
 pub mod redefined_builtin;
+pub mod redefined_event_handler;
 pub mod redefined_unused;
 pub mod return_in_finally;
 pub mod self_assignment;

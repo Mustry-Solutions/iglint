@@ -2,7 +2,7 @@
 
 # Rules
 
-iglint has 109 rules. Rules with *yes* in the Default column run without configuration; enable the others with `select` or `extend-select` (see the [configuration](../../README.md#configuration)). Fix: *always* or *sometimes* means `iglint check --fix` can repair findings of the rule (unsafe fixes also need `--unsafe-fixes`).
+iglint has 110 rules. Rules with *yes* in the Default column run without configuration; enable the others with `select` or `extend-select` (see the [configuration](../../README.md#configuration)). Fix: *always* or *sometimes* means `iglint check --fix` can repair findings of the rule (unsafe fixes also need `--unsafe-fixes`).
 
 `iglint rule <CODE>` prints the same documentation in the terminal.
 
@@ -97,6 +97,7 @@ iglint has 109 rules. Rules with *yes* in the Default column run without configu
 | [SCR304](SCR304.md) | `shadowed-library-package` | Library module with its own `code.py` hides its child modules | error | yes |  |
 | [SCR305](SCR305.md) | `unresolved-component-reference` | `getSibling`/`getChild` with a literal name that matches no component | error | yes |  |
 | [SCR306](SCR306.md) | `message-handler-payload-misuse` | Message handler reads a payload key that no sender sends | warning |  |  |
+| [SCR307](SCR307.md) | `redefined-event-handler` | Event script file that rebinds its handler to something Ignition cannot call | error | yes |  |
 | [SCR900](SCR900.md) | `pylint` | Message reported by pylint | warning |  | sometimes |
 
 ## References (`REF`)

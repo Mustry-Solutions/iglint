@@ -40,6 +40,15 @@ from 0.1.0 on.
 
 ### Added
 
+- `SCR307 redefined-event-handler` (error): a gateway timer, tag change,
+  message, startup, shutdown or update file, or a WebDev handler, whose
+  last module-level binding of the handler name Ignition cannot call with
+  its canonical arguments (`def handleTimerEvent(event):` after the
+  header, a value that is not callable, `del`). Ignition runs the module
+  code and calls the last binding by position (verified on an 8.3.3
+  gateway), so such a script never runs; `SCR104` only warned about the
+  redefinition (review round 14).
+
 - `[fix] assume-scripts-do-not-read-workspace-files` (default `false`)
   in `iglint.toml`: declares that no script reads the files of the
   workspace, which lifts the file-read condition below (and only that).

@@ -141,6 +141,7 @@ Jython builtins).
 | SCR304 | shadowed-library-package | E | yes | - | Library folder with its own `code.py` hides its sub-modules (with inheritance); reported on that `code.py`. |
 | SCR305 | unresolved-component-reference | E | yes | - | `getSibling('X')`, `getChild('A/B')`, `self.view.getChild('root/...')` with literal names that match no component, following `self`, `.parent`, `.view`, `.rootContainer` and aliases. Lookups below non-containers (embedded views) and view paths not starting at the root are not checked. |
 | SCR306 | message-handler-payload-misuse | W | no | - | Strict only: handler reads `payload['k']` that no sender passes, when every send of the type is a literal dict payload. |
+| SCR307 | redefined-event-handler | E | yes | - | Gateway timer, tag change, message, startup, shutdown or update file, or WebDev handler, whose last module-level binding of the handler name is certainly not callable with the canonical positional arguments (a `def` or `lambda` of another arity, a literal, `del`); Ignition calls that last binding (verified on 8.3.3). Conditional bindings, imports, classes, decorators and dynamic namespaces are not followed. Scheduled scripts run their first definition: only `del` is reported. |
 
 ### External
 
