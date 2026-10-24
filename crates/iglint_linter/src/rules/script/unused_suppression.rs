@@ -24,6 +24,8 @@ pub static META: RuleMeta = RuleMeta {
 
 Reports `# iglint: ignore[...]` and `# iglint: ignore-file[...]` comments,
 or single codes in them, that did not suppress any finding in this run.
+Scripts that do not parse are skipped: the rules that need the syntax
+tree did not run on them.
 
 A code is only reported when every script rule it selects is enabled
 (otherwise the comment may be needed under another configuration).
@@ -148,6 +150,13 @@ pub(crate) fn report_unused(
     suppressions: &Suppressions,
     set: &RuleSet,
 ) {
+    // The rules that read the script's syntax tree did not run on a script
+    // that does not parse (only `SCR001` did): whether a suppression is
+    // needed is not known, and a fix-all on save in the middle of an edit
+    // must not delete it (review round 26, M1).
+    if !unit.parsed.errors.is_empty() {
+        return;
+    }
     let source: &str = &unit.script.source;
     let pylint_ran = cx.unit().cache.pylint.get().is_some();
     for s in &suppressions.items {
@@ -357,6 +366,44 @@ mod tests {
         assert!(result.fixed.iter().all(|s| !s.changed()));
     }
 
+    /// Review round 26 (Opus, M1): in a script that does not parse no rule
+    /// that reads the syntax tree ran, so no suppression is judged (a
+    /// fix-all on save in the middle of an edit deleted them); unknown codes
+    /// too, which may be half typed.
+    #[test]
+    fn scripts_that_do_not_parse_are_not_judged() {
+        let code = "def f():\n    x = 1  # iglint: ignore[SCR103]\n    return 2  # iglint: ignore[NOPE42]\nv = (\n";
+        let f = library("m", code);
+        let d = f.lint(&["SCR001", "SCR103", "SCR123"]);
+        assert_eq!(
+            d.iter().map(|d| d.rule.code()).collect::<Vec<_>>(),
+            ["SCR001"]
+        );
+        let result = f.run(
+            &[("SCR001", ""), ("SCR103", ""), ("SCR123", "")],
+            crate::engine::FixMode::Unsafe,
+        );
+        assert!(result.diagnostics.iter().all(|d| d.rule.code() == "SCR001"));
+        assert_eq!(
+            std::fs::read_to_string(library_path(&f, "m")).unwrap(),
+            code
+        );
+        // Once it parses, the suppression is judged again.
+        let f = library(
+            "m",
+            "def f():\n    x = 1  # iglint: ignore[SCR103]\n    return 2\n",
+        );
+        assert!(f.lint(&["SCR103", "SCR123"]).is_empty());
+        let f = library(
+            "m",
+            "def f():\n    y = 1  # iglint: ignore[SCR103]\n    return y\n",
+        );
+        assert_eq!(
+            messages(&f.lint(&["SCR103", "SCR123"])),
+            ["Unused suppression of `SCR103`"]
+        );
+    }
+
     #[test]
     fn disabled_rules_are_not_judged() {
         let f = library("m", "x = 1  # iglint: ignore[SCR101]\n");
@@ -459,7 +506,11 @@ mod tests {
             ("# iglint: ignore[SCR101]  # pylint: disable=W0611", Unsafe),
             ("# iglint: ignore[SCR101] -*- coding: latin-1 -*-", Unsafe),
         ] {
-            let f = library("m", &format!("x = 1  {comment}\n"));
+            // On the third line: a coding declaration on the first two
+            // lines makes the script fail to compile (Ignition compiles
+            // unicode text), and suppressions in scripts that do not parse
+            // are not judged.
+            let f = library("m", &format!("a = 1\nb = 2\nx = 1  {comment}\n"));
             let d = f.lint(&["SCR123", "SCR101"]);
             let found: Vec<_> = d
                 .iter()

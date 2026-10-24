@@ -31,8 +31,6 @@ out 67
 g __name__ 'm'
 g v0 67
 g v2 67
-### 25 24 74ed82126eccd179 f3c4872c621e5a6d
-compile-error 4 no viable alternative at character '\\n'
 ### 25 30 d547edb5a22d1010 8bf7402da7154e9c
 ok
 out 86
@@ -120,8 +118,6 @@ g __name__ 'm'
 g v0 'a b'
 g v1 u'u'
 g v2 list(u'u', 'a b')
-### 25 114 dd1721bed2c28967 3ab9089f38f05f4f
-compile-error 9 no viable alternative at character '\\n'
 ### 25 120 42be716f7fd53b7d e302f49636f4cf56
 raised TypeError 16 can only concatenate list (not "int") to list
 out 
@@ -133,8 +129,6 @@ g v3 u'#c'
 g v4 'a   b'
 g v5 list(u'#c', 7)
 g v6 'a b'
-### 25 126 f76541cd4aac5ca7 32ca9b07d900e16d
-compile-error 3 no viable alternative at input 'v1'
 ### 25 132 5701b374fd825a0e b8b366f1e4c0611b
 raised TypeError 4 can only concatenate list (not "unicode") to list
 out 
@@ -164,8 +158,6 @@ out
 g __name__ 'm'
 g v0 'a\\\\ b\\\\\\t'
 g v1 'a\\\\ b\\\\\\t'
-### 25 168 2c88ff580fbc047e 064a64b3f49427a6
-compile-error 8 no viable alternative at character '\\n'
 ### 25 174 da8cfa63e236cc23 d2b8076b62f58f9b
 raised NameError 3 name 'v0' is not defined
 out 2
@@ -212,10 +204,6 @@ g v3 list(25, 7)
 g v4 u'#c'
 g v5 u'#c'
 g v6 'a\\t \\nb'
-### 25 210 18886b652df3c3d3 021f10687106852f
-compile-error 6 no viable alternative at input 'v3'
-### 25 216 bf42f01a75ce47a4 9e8f16f9159ec8bb
-compile-error 21 no viable alternative at input 'v10'
 ### 25 222 ec483e0dd35a43df 36a22867145dbb70
 raised NameError 1 name 'undefined_0' is not defined
 out 
@@ -277,26 +265,16 @@ g v1 132
 raised NameError 3 name 'v0' is not defined
 out u#c
 g __name__ 'm'
-### 25 288 3e1b1c808cc737cd b448a317a3b1aac9
-compile-error 7 no viable alternative at character '\\n'
-### 25 300 e669b5b7de405216 da20e3d237cbf3c6
-compile-error 3 no viable alternative at input 'v1'
 ### 25 306 a54e20350e9cb36a feac17b1a49e667c
 raised NameError 3 name 'v0' is not defined
 out 45
 g __name__ 'm'
-### 25 312 eddecfc3e2776fb1 171a15a637c78116
-compile-error 15 no viable alternative at input 'v7'
 ### 25 318 6d643a89c049080d ab05a93b511c79f7
 raised NameError 4 name 'undefined_2' is not defined
 out 
 g __name__ 'm'
 g v0 72
 g v1 list(72, 2)
-### 25 324 eb7b5de3a6cb43f2 521d62fb1938aa03
-compile-error 6 unindent does not match any outer indentation level
-### 25 330 c16b961e9e285c73 4bfeeeb74739977b
-compile-error 3 no viable alternative at character '\\n'
 ### 25 336 714b0c1a788ab1f0 e751895ed0deb947
 ok
 out 
@@ -328,10 +306,6 @@ g v0 35
 raised TypeError 1 cannot concatenate 'str' and 'int' objects
 out 
 g __name__ 'm'
-### 25 372 d513eb8d8299989d bb351ddeffb8fdfb
-compile-error 10 mismatched input 'if' expecting NEWLINE
-### 25 378 47b43ed8594e7bd7 5b54ed2eb09a20ec
-compile-error 3 no viable alternative at character '\\n'
 ### 25 384 cb08f577a9298315 db77932a34278fbb
 ok
 out 192
@@ -347,8 +321,6 @@ out #
 g __name__ 'm'
 g v0 list('s', 89)
 g v2 u'u'
-### 25 396 70c20c41a7a6d62e e570dd5e065f2c55
-compile-error 10 no viable alternative at input 'print'
 ### 25 402 8173249a25ff6066 b8634201462e9331
 raised NameError 5 name 'y' is not defined
 out 
@@ -409,8 +381,6 @@ out \\
 g __name__ 'm'
 g v1 'a\\\\ b\\\\\\t'
 g v3 'a\\\\ b\\\\\\t'
-### 25 456 5adadc6043c245fd 33deda8931038c3d
-compile-error 5 no viable alternative at input 'v2'
 ### 25 462 786df9c145ed899a 2ba7776c3cff14f8
 ok
 out \\
@@ -436,8 +406,6 @@ g v3 u'#c'
 raised NameError 1 name 'undefined_0' is not defined
 out 
 g __name__ 'm'
-### 25 486 aec58e2ea821809a 32dcc4e2057075ee
-compile-error 7 no viable alternative at input 'v3'
 ### 25 492 fed421a313fcbeb0 1f74fc04acca4c3d
 raised TypeError 10 unsupported operand type(s) for +: 'int' and 'unicode'
 out 
@@ -516,8 +484,6 @@ g v5 202
 g v6 101
 g v7 list(202, 0)
 g v8 'x#y'
-### 25 558 9a9078e82e24a7a9 8b7e3e03ded85884
-compile-error 24 no viable alternative at input 'v10'
 ### 25 564 373f44b3c61d87f1 59f4673996ef67c6
 ok
 out 
@@ -534,10 +500,6 @@ g v0 'a\\\\ b\\\\\\t'
 g v1 'a\\x0cb'
 g v2 74
 g v3 41
-### 25 576 a0441d023c4d3eeb a0355cded0d93568
-compile-error 6 no viable alternative at input 'v3'
-### 25 582 b811b024bddf029d 54c913d98dca8911
-compile-error 14 no viable alternative at character '\\n'
 ### 25 588 18a0609394edc763 dc1c7ea6d4942f77
 raised NameError 13 name 'v4' is not defined
 out u
@@ -561,8 +523,6 @@ g v5 list(u'u', u'u')
 raised NameError 1 name 'y' is not defined
 out 
 g __name__ 'm'
-### 25 612 6448354b45520fca ec8740a964c6e632
-compile-error 5 no viable alternative at character '\\n'
 ### 25 618 5e9f76f5f2dfc787 9c19c54a2c5d5589
 raised TypeError 7 cannot concatenate 'str' and 'int' objects
 out 
@@ -612,8 +572,6 @@ g __name__ 'm'
 g v0 64
 g v1 'a\\\\ b\\\\\\t'
 g v2 's'
-### 25 672 aa3564dffaec790e fe6385f2985cb974
-compile-error 6 no viable alternative at character '\\n'
 ### 25 678 f1fe0c11deda5356 dc99cf2957c9b183
 ok
 out 
@@ -625,10 +583,6 @@ g v3 's'
 g v4 'a\\\\ b\\\\\\t'
 g v5 'q\\n'
 g v6 106
-### 25 684 a90012dbc342675f 600d59f39f13996f
-compile-error 3 unindent does not match any outer indentation level
-### 25 696 57cd5420d61e4c4e 240e4284792111a0
-compile-error 6 unindent does not match any outer indentation level
 ### 25 702 c577d30c02dbf7c9 b74b72e4788ed4c5
 raised TypeError 5 cannot concatenate 'str' and 'int' objects
 out 
@@ -666,10 +620,6 @@ g v0 list(u'u', 7)
 g v1 u'#c'
 g v2 list(u'u', 7)
 g v3 list(list(u'u', 7), list(u'u', 7))
-### 25 738 eb2c1bba2fe030eb 511ec3861d3134d6
-compile-error 3 mismatched input 'if' expecting NEWLINE
-### 25 744 541e07bbc326d2de 7849ca4edd583faf
-compile-error 3 no viable alternative at input 'v1'
 ### 25 750 b2479b24cbbc6b58 426f2b93cf11ff85
 raised NameError 3 name 'v0' is not defined
 out a b
@@ -743,17 +693,11 @@ out
 g __name__ 'm'
 g v0 'a \\x0cb'
 g v1 'a \\x0cb'
-### 25 834 d214ca575ce1f314 bc31f8a65937a3f4
-compile-error 10 no viable alternative at input 'v5'
 ### 25 840 99012823f4e3aac4 2b007eaea150c0f0
 raised TypeError 2 unsupported operand type(s) for +: 'int' and 'str'
 out 
 g __name__ 'm'
 g v0 'a\\\\ b\\\\\\t'
-### 25 846 e3d3b4618a277907 eca31f44d2615afd
-compile-error 19 unindent does not match any outer indentation level
-### 25 858 2f508f574901fcc7 afd225ec92708b97
-compile-error 5 no viable alternative at input 'v2'
 ### 25 870 fc8a1129b9654f5d 5135ce864525b53c
 raised TypeError 3 cannot concatenate 'str' and 'int' objects
 out 
@@ -855,8 +799,6 @@ raised TypeError 3 cannot concatenate 'str' and 'int' objects
 out 
 g __name__ 'm'
 g v0 88
-### 25 978 fb66d902a8af7e6c 240e525a052fb898
-compile-error 14 no viable alternative at input 'v6'
 ### 25 990 70cdaec0f80e7d65 d0fe2e357f6fc65b
 ok
 out 
@@ -938,8 +880,6 @@ g v1 44
 g v2 list(87, 82)
 g v3 list(87, 82)
 g v4 44
-### 25 1068 74a614bf82e3e914 b95d36dfe5294f7c
-compile-error 7 no viable alternative at character '\\n'
 ### 25 1074 18fac7b586f58a14 b483248e654282d3
 raised NameError 11 name 'v4' is not defined
 out 
@@ -1059,8 +999,6 @@ out
 g __name__ 'm'
 g v0 'a b'
 g v1 'a b'
-### 25 1182 4eb5af7911cc5b08 e2310f99a57d8858
-compile-error 16 no viable alternative at input 'v9'
 ### 25 1188 814ec3938d72d54a ab4e9be75e9b5017
 ok
 out 
@@ -1069,8 +1007,6 @@ g v0 'a\\\\ b\\\\\\t'
 g v1 'a\\\\ b\\\\\\t'
 g v2 'a\\\\ b\\\\\\t'
 g v3 'a\\\\ b\\\\\\ta\\\\ b\\\\\\t'
-### 25 1194 50d7c143682134a2 9fe607119c6da272
-compile-error 12 no viable alternative at input 'v5'
 ### 25 1200 e7f7f5a88bd56321 a4cc88040d2c6200
 raised NameError 1 name 'y' is not defined
 out 
@@ -1086,10 +1022,6 @@ out
 g __name__ 'm'
 g v0 47
 g v1 87
-### 25 1218 854049ee90559ef5 9d4539e3a994e485
-compile-error 8 mismatched input '' expecting EOF
-### 25 1224 986efe03021263ce dcf1e9f5f683b7b1
-compile-error 19 no viable alternative at character '\\n'
 ### 25 1236 2f124b2ab7d68100 2a4d13eedc16d823
 raised NameError 2 name 'v0' is not defined
 out 
@@ -1165,8 +1097,6 @@ g v4 36
 g v5 list('q\\n', 7)
 g v6 list(36, 70)
 g v7 'a\\\\ b\\\\\\t'
-### 25 1296 acc9a357e5731fc3 207cbee3c552fb1f
-compile-error 8 no viable alternative at input 'v5'
 ### 25 1302 db6b421ef13ab504 38431a8ab1c6b2d6
 ok
 out 
@@ -1211,10 +1141,6 @@ g v2 list('#', 9)
 g v3 list('#', 9)
 g v4 'x#y'
 g v5 'a\\\\ b\\\\\\t'
-### 25 1344 5bdfbfcdbafea6ac d8e8f2c4d507e30b
-compile-error 17 no viable alternative at input 'print'
-### 25 1350 0e89a21585aad306 0baf5330a1b30742
-compile-error 11 no viable alternative at input 'v6'
 ### 25 1356 6b4d10d2acf6981f ec1c5de00043fcb1
 raised NameError 6 name 'undefined_3' is not defined
 out 
@@ -1289,8 +1215,6 @@ g v3 'a\\\\ b\\\\\\t'
 g v4 51
 g v5 'a  b'
 g v6 28
-### 25 1422 ab8642ba2a85fdca 9858148491fece9a
-compile-error 8 no viable alternative at character '\\n'
 ### 25 1428 6aa3e60cfe574638 a0a8a9ec6e848018
 ok
 out 3
@@ -1309,8 +1233,6 @@ raised NameError 4 name 'v1' is not defined
 out 58
 g __name__ 'm'
 g v0 27
-### 25 1440 6632ff87ab122d81 20bc96a2ed688759
-compile-error 9 no viable alternative at input 'v4'
 ### 25 1446 5abf9130ccc31464 ea81674a35967934
 raised TypeError 13 can only concatenate list (not "str") to list
 out 
@@ -1321,10 +1243,6 @@ g v2 'a\\\\ b\\\\\\t'
 g v3 list('s', 84)
 g v5 'a\\\\ b\\\\\\t'
 g v6 u'#c#'
-### 25 1452 3eb2988e6800b631 23720ab76fb8b165
-compile-error 8 no viable alternative at input 'v3'
-### 25 1458 fcee784a6c45482e f7bfa73ad31dd73a
-compile-error 5 no viable alternative at input 'v2'
 ### 25 1464 587799b5777e3581 15931398d69a6758
 raised NameError 11 name 'y' is not defined
 out 49
@@ -1339,8 +1257,6 @@ raised NameError 3 name 'undefined_1' is not defined
 out 
 g __name__ 'm'
 g v0 list(u'u', 3)
-### 25 1476 574e705bda8b7928 0b8bacb20f5e8e8c
-compile-error 2 no viable alternative at character '\\n'
 ### 25 1482 9a43c6389d42e3e5 eb19b3348460ba8f
 ok
 out 
@@ -1362,8 +1278,6 @@ out q\n
 g __name__ 'm'
 g v1 list(27, 3)
 g v2 70
-### 25 1500 9a6dcfc87831344c 5e9c67a294c3142c
-compile-error 13 no viable alternative at input 'v6'
 ### 25 1512 8ee147b2e2bf2b05 9f8468da7f8009f7
 raised NameError 4 name 'v1' is not defined
 out 
@@ -1396,8 +1310,6 @@ g v5 list(u'#c', list('q\\n', 1, 'q\\n', 1))
 g v6 '#'
 g v7 list('q\\n', 1)
 g v8 u'#c'
-### 25 1536 5f47090ee8be684c 208e1e2298141be8
-compile-error 2 no viable alternative at character '\\n'
 ### 25 1542 7110174966a73bf8 c179877771728acd
 raised TypeError 8 can only concatenate list (not "int") to list
 out 
@@ -1449,8 +1361,6 @@ g __name__ 'm'
 g v0 'a\\\\ b\\\\\\t'
 g v1 'q\\n'
 g v3 'q\\n'
-### 25 1584 9290f3c3223fa028 36ae00319df3c1d5
-compile-error 2 no viable alternative at character '\\n'
 ### 25 1590 1d6da9ce2805398a 6d74b7e38d12a0e3
 raised NameError 5 name 'v1' is not defined
 out #
@@ -1536,8 +1446,6 @@ raised NameError 2 name 'y' is not defined
 out 
 g __name__ 'm'
 g v0 53
-### 25 1674 387df79b91c13877 c3373966d1ea89cf
-compile-error 5 no viable alternative at input 'v2'
 ### 25 1680 543f82e76909b368 c757b8d4ec7d3a33
 raised TypeError 14 unsupported operand type(s) for +: 'int' and 'str'
 out 
@@ -1575,8 +1483,6 @@ raised NameError 3 name 'v1' is not defined
 out 
 g __name__ 'm'
 g v0 'a b'
-### 25 1716 256b14c847478f80 0035d894df04a420
-compile-error 9 unindent does not match any outer indentation level
 ### 25 1722 1dd83cafcd13f978 b1a3fbd84f9c0fd6
 ok
 out 
@@ -1604,8 +1510,6 @@ raised TypeError 3 cannot concatenate 'unicode' and 'int' objects
 out 
 g __name__ 'm'
 g v0 u'#c'
-### 25 1746 7be6ff383923d109 315f2d23e0056c30
-compile-error 4 no viable alternative at character '\\n'
 ### 25 1758 eb3cc02def59741c 27f44424b8c8a8a8
 raised NameError 6 name 'v1' is not defined
 out 
@@ -1637,8 +1541,6 @@ g v1 list(u'#c', 5)
 g v2 'a b'
 g v4 'a\\\\ b\\\\\\t'
 g v5 4
-### 25 1794 4295ffb24d724e21 566f6e5b29888969
-compile-error 9 no viable alternative at input 'v6'
 ### 25 1800 e8d70b2a9be3040e 1cd33e95b9e96ae5
 ok
 out 51 \\
@@ -1648,8 +1550,6 @@ g v2 list('#', 31)
 g v3 u'uu'
 g v4 18
 g v6 u'uu'
-### 25 1806 8ed6dc82ba0f5c3b 157ee75bf4df7d8b
-compile-error 15 no viable alternative at input 'v9'
 ### 25 1812 1d2d2f56fa93ed8f 60696cbca84280b8
 ok
 out 
@@ -1772,8 +1672,6 @@ raised TypeError 3 cannot concatenate 'str' and 'int' objects
 out 
 g __name__ 'm'
 g v0 'a\\x0cb'
-### 25 1932 d2161153bdaadd2f 8919c11a9a32f6d7
-compile-error 13 no viable alternative at character '\\n'
 ### 25 1938 cab28cf851ecd1c8 f3a5b9ce978267b6
 raised TypeError 6 unsupported operand type(s) for +: 'int' and 'list'
 out 
@@ -1785,8 +1683,6 @@ g v2 'a\\\\ b\\\\\\t'
 raised NameError 3 name 'v0' is not defined
 out 11
 g __name__ 'm'
-### 25 1950 3855f174cc4de1d3 4aa963df8ece98ff
-compile-error 14 unindent does not match any outer indentation level
 ### 25 1956 430dcdaf7a0890b2 22e8b40638eeb2c9
 raised NameError 1 name 'undefined_0' is not defined
 out 
@@ -1813,8 +1709,6 @@ g v2 'a b'
 g v3 list(u'#c', u'#c')
 g v5 'a\\\\ b\\\\\\t'
 g v6 list(u'u', 'a b')
-### 25 1974 ed66060bf3c48c8f 5fb6f5c1929c30bd
-compile-error 7 no viable alternative at character '\\n'
 ### 25 1980 dfa954383c07290b c2da8b2a4f1e2c4e
 ok
 out 
@@ -1830,7 +1724,3 @@ out
 g __name__ 'm'
 g v0 list(34, 7)
 g v1 list(34, 7, 34, 7)
-### 25 1992 ad52d1f9a03178cb 5ce479b885c1429b
-compile-error 7 no viable alternative at input 'v4'
-### 25 1998 e7251da55164a1af 2d160487ed4ed38f
-compile-error 12 no viable alternative at input 'v5'

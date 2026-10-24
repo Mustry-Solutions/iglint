@@ -122,6 +122,26 @@ mod tests {
         assert_eq!(flagged(&f.lint(&["REF012"])), vec!["unused"]);
     }
 
+    /// Review round 26 (M1): a script that does not parse is code being
+    /// written; what it will reference is not known, so nothing it may
+    /// reach is reported unused and removing a library module's import is
+    /// unsafe.
+    #[test]
+    fn scripts_that_do_not_parse_may_reference_anything() {
+        let f = with_library(
+            library("m", "import os\ndef helper():\n    return 1\n"),
+            "n",
+            "def g(:\n    return m.helper(os)\n",
+        );
+        let found = f.lint(&["REF012", "SCR102"]);
+        assert_eq!(flagged(&found), vec!["os"]);
+        assert!(found.iter().all(|d| {
+            d.fix
+                .as_ref()
+                .is_none_or(|x| x.applicability == crate::diagnostic::Applicability::Unsafe)
+        }));
+    }
+
     #[test]
     fn escaped_modules_are_skipped() {
         // Review round 25 (Opus, N2): the namespace of a module read

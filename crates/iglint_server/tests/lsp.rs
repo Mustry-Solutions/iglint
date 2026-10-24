@@ -353,6 +353,51 @@ fn quick_fixes_go_through_the_safety_net() {
     client.shutdown();
 }
 
+/// Review round 26 (Opus, M1): while a script does not parse (in the
+/// middle of an edit) its suppressions are not judged, so fix-all on save
+/// keeps them.
+#[test]
+fn suppressions_in_scripts_that_do_not_parse_survive_fix_all() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    demo_project(&root);
+    let lib = "projects/demo/ignition/script-python/m";
+    write(
+        &root,
+        &format!("{lib}/resource.json"),
+        &MANIFEST.replace("view.json", "code.py"),
+    );
+    let text = "def f():\n    x = 1  # iglint: ignore[SCR103]\n    return 2\nv = (\n";
+    let path = write(&root, &format!("{lib}/code.py"), text);
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&path, text);
+    let published = client.diagnostics(&uri, Some(1));
+    let codes: Vec<_> = published
+        .diagnostics
+        .iter()
+        .filter_map(|d| match &d.code {
+            Some(lsp_types::NumberOrString::String(c)) => Some(c.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(codes.contains(&"SCR001"), "{codes:?}");
+    assert!(!codes.contains(&"SCR123"), "{codes:?}");
+    let actions = code_actions(
+        &mut client,
+        &uri,
+        full_range(),
+        Some(vec![CodeActionKind::SOURCE_FIX_ALL]),
+    );
+    for action in actions {
+        let resolved = client.request::<CodeActionResolveRequest>(action);
+        if let Some(edit) = resolved.edit {
+            let fixed = apply(text, &edit.changes.unwrap()[&uri]);
+            assert!(fixed.contains("# iglint: ignore[SCR103]"), "{fixed}");
+        }
+    }
+    client.shutdown();
+}
+
 #[test]
 fn fix_all_without_resolve_support_is_eager() {
     let dir = tempfile::tempdir().unwrap();

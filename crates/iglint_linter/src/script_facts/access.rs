@@ -191,7 +191,17 @@ impl ScriptFacts for AstScriptFacts {
         let library = unit.script.kind == iglint_project::ScriptKind::LibraryModule;
         if !unit.parsed.errors.is_empty() {
             // The script does not compile and never runs; a module that
-            // does not compile has unknown symbols.
+            // does not compile has unknown symbols. It is code being
+            // written, though: what it will reference once it parses is
+            // not known, so "unused" findings elsewhere (and their fixes,
+            // `SCR102` on the imports of a library module) do not rely on
+            // what it shows now (review round 26, M1).
+            let dynamic = &mut summary.references.dynamic;
+            dynamic.library.push(String::new());
+            dynamic.views.push(String::new());
+            dynamic.named_queries.push(String::new());
+            dynamic.perspective_messages.push(String::new());
+            dynamic.gateway_messages.push((None, String::new()));
             return;
         }
         let model = iglint_python_semantic::SemanticModel::build(
