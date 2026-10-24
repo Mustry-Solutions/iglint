@@ -779,6 +779,70 @@ fn quick_fix_for_an_import_whose_package_is_read_is_unsafe() {
     client.shutdown();
 }
 
+/// Review round 22 (Codex): after `del math.pi`, `from math import pi`
+/// raises `ImportError`; the quick fix that removes it is unsafe, not
+/// preferred, and fix-all keeps the import.
+#[test]
+fn quick_fix_after_a_shared_module_change_is_not_preferred() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    demo_project(&root);
+    let lib = "projects/demo/ignition/script-python/m";
+    write(
+        &root,
+        &format!("{lib}/resource.json"),
+        &MANIFEST.replace("view.json", "code.py"),
+    );
+    let text = "import math\ndel math.pi\ndef f():\n    from math import pi\n    return 7\ntry:\n    print f()\nexcept ImportError:\n    print \"missing\"\n";
+    let path = write(&root, &format!("{lib}/code.py"), text);
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&path, text);
+    let published = client.diagnostics(&uri, Some(1));
+    let range = published
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.code
+                .as_ref()
+                .is_some_and(|c| *c == lsp_types::NumberOrString::String("SCR102".to_owned()))
+        })
+        .unwrap_or_else(|| panic!("{published:#?}"))
+        .range;
+    assert_eq!(range.start, Position::new(3, 21));
+    let fixes: Vec<CodeAction> = code_actions(
+        &mut client,
+        &uri,
+        range,
+        Some(vec![CodeActionKind::QUICKFIX]),
+    )
+    .into_iter()
+    .filter(|a| a.title.starts_with("SCR102") && !a.title.contains("suppress"))
+    .collect();
+    assert!(!fixes.is_empty(), "{fixes:#?}");
+    for fix in &fixes {
+        assert!(
+            fix.title
+                .contains("(unsafe: the script uses code that is not vetted"),
+            "{fix:#?}"
+        );
+        assert_eq!(fix.is_preferred, Some(false), "{fix:#?}");
+    }
+    let actions = code_actions(
+        &mut client,
+        &uri,
+        full_range(),
+        Some(vec![CodeActionKind::SOURCE_FIX_ALL]),
+    );
+    for action in actions {
+        let resolved = client.request::<CodeActionResolveRequest>(action);
+        if let Some(edit) = resolved.edit {
+            let fixed = apply(text, &edit.changes.unwrap()[&uri]);
+            assert!(fixed.contains("    from math import pi\n"), "{fixed}");
+        }
+    }
+    client.shutdown();
+}
+
 /// Review round 13: fix-all must keep the imports a class body reads by
 /// name (mangled, or before the class binds the name) and the one the
 /// interpreter reads as `__metaclass__`; none is reported.

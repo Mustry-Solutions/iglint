@@ -116,6 +116,38 @@ from 0.1.0 on.
 
 ### Fixed
 
+- SCR102 no longer removes an import safely when code anywhere in the
+  workspace changes the shared object the import's evidence describes:
+  after `import math; del math.pi`, removing an unused `from math import
+  pi` turned an `ImportError` into success. Measured facts (a module's
+  attributes, a Java class's members, the `system` API, the builtins)
+  hold only while no code changes these objects, which every script of
+  the gateway shares. So a store, deletion or augmented assignment into a
+  module, a Java class, `system`/`fpmi`, `sys` or a function, class or
+  constant of a vetted module or the builtins (`del math.pi`,
+  `m.pi = 3` through `import math as m`, `del os.path.join`,
+  `System.out = x`, `ArrayList.size = f`, `sys.stdout = f`, `len.x = 1`),
+  `setattr`/`delattr` on one, `__setattr__`/`__delattr__`/`__dict__`
+  named on one, a Java class or member class kept or passed as a value
+  (`c = System`, `e = Map.Entry`), `type(x)` other than read (compared,
+  printed, an attribute read) and a change through a library module's
+  import or a library module handed out as a value (`del lib.math.pi`,
+  `k = lib.math`, `f(lib)` when `lib` imports `math`) are unknown code,
+  with the site named, for every fix that needs the closed world.
+  `__builtin__` and `reload` were already not vetted. The member classes
+  of the vetted Java classes are measured in the image
+  (`JAVA_MEMBER_CLASSES`).
+- BIND005 reports property references with nothing after the scope or
+  the property type (`{view}`, `{this}`, `{session}`, `{view.custom}`,
+  `{this.props}`, `{../Label.props}`, also as property binding paths):
+  they match Perspective's reference grammar, so expressions read them as
+  property references, but Ignition 8.3.3's gateway rejects them
+  ("Invalid property identifier ..., no scope specified" or "no property
+  specified") and the binding fails.
+- A tag path whose property is empty or only dots (`{..}`, `T.`) names
+  no property, as Ignition 8.3.3's `TagPathParser` reads it, so it is no
+  longer taken for a read of tag configuration (which made `{..}` withhold
+  every safe fix as a possible file read while `{this}` did not).
 - NAME001 no longer offers a safe rename to a name that broken references
   already use: renaming `my_label` to `MyLabel` made
   `self.getSibling('MyLabel')`, a binding path `../MyLabel.props.text` or

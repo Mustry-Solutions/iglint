@@ -520,14 +520,20 @@ impl<'w> ProjectIndex<'w> {
                     )
                 });
                 let unvetted_name = self.vetted.first_unvetted(refs);
-                if refs.unknown_code || unvetted.is_some() || unvetted_name.is_some() {
+                let shared = self.shared_object_site(pid, refs);
+                if refs.unknown_code
+                    || unvetted.is_some()
+                    || unvetted_name.is_some()
+                    || shared.is_some()
+                {
                     unknown_code[pid.index()] = true;
                     let sites = refs
                         .unknown_site
                         .iter()
                         .filter(|_| refs.unknown_code)
                         .chain(unvetted.map(|(_, site)| site))
-                        .chain(unvetted_name);
+                        .chain(unvetted_name)
+                        .chain(shared);
                     for site in sites {
                         let key = |s: &UnknownSite| (ws.file(s.file).path.clone(), s.range.start());
                         if site.file != UnknownSite::DETACHED
@@ -1065,9 +1071,17 @@ impl<'w> ProjectIndex<'w> {
                         )
                     })
             });
-            // A name that is not vetted may read files too.
+            // A name that is not vetted may read files too, and so may
+            // code that changes a shared object (like vetted code's).
             let unvetted_name = self.vetted.first_unvetted(refs);
-            if !refs.reads_files && unvetted.is_none() && unvetted_name.is_none() {
+            let shared = projects
+                .iter()
+                .find_map(|p| self.shared_object_site(*p, refs));
+            if !refs.reads_files
+                && unvetted.is_none()
+                && unvetted_name.is_none()
+                && shared.is_none()
+            {
                 continue;
             }
             reads = true;
@@ -1076,7 +1090,8 @@ impl<'w> ProjectIndex<'w> {
                 .iter()
                 .filter(|_| refs.reads_files)
                 .chain(unvetted.map(|(_, site)| site))
-                .chain(unvetted_name);
+                .chain(unvetted_name)
+                .chain(shared);
             for site in sites {
                 if site.file != UnknownSite::DETACHED
                     && first.as_ref().is_none_or(|f| key(site) < key(f))
@@ -1087,6 +1102,120 @@ impl<'w> ProjectIndex<'w> {
         }
         self.reads_files = reads;
         self.first_file_read = first;
+    }
+
+    /// The first change of a shared object, or the first use of one as a
+    /// value, that `refs` makes through a library name of `project`
+    /// ([`crate::summary::References::library_changes`] and
+    /// [`crate::summary::References::library_values`]): the name reaches,
+    /// through an import of a library module, something that is not a
+    /// library module (a vetted module, a Java class, `system`), or a
+    /// library module whose names cannot be known. Such code is unknown
+    /// code: the measured facts about the object hold only while no code
+    /// changes it ("Shared objects" in `docs/internal/fix-safety.md`).
+    /// Changes of library modules themselves are the library analysis'
+    /// business ([`ProjectIndex::library_name_stored`]).
+    pub fn shared_object_site<'r>(
+        &self,
+        project: ProjectId,
+        refs: &'r crate::summary::References,
+    ) -> Option<&'r UnknownSite> {
+        let changed = refs
+            .library_changes
+            .iter()
+            .find(|(object, _)| self.reaches_shared(project, object, false));
+        let value = refs
+            .library_values
+            .iter()
+            .find(|(object, _)| self.reaches_shared(project, object, true));
+        changed
+            .into_iter()
+            .chain(value)
+            .map(|(_, site)| site)
+            .min_by_key(|s| s.range.start())
+    }
+
+    /// Whether the library name `dotted` may stand for an object that is
+    /// not a library module or a name a library module defines: a name a
+    /// library module imports from elsewhere, or anything under it, or a
+    /// name in a module whose names are not known. With `whole`, a library
+    /// module or package (used as a value) counts when any of its modules
+    /// imports such a name: whoever holds the module reaches it.
+    fn reaches_shared(&self, project: ProjectId, dotted: &str, whole: bool) -> bool {
+        let mut dotted = dotted.to_owned();
+        for _ in 0..8 {
+            match self.resolve_library(project, &dotted) {
+                LibraryLookup::NotLibrary
+                | LibraryLookup::Missing { .. }
+                | LibraryLookup::HiddenByModule { .. }
+                | LibraryLookup::MissingAttribute { .. } => return false,
+                LibraryLookup::Unknown => return true,
+                LibraryLookup::Module { resource, .. } => {
+                    return whole && self.module_imports_shared(project, resource);
+                }
+                LibraryLookup::Package { dotted: package } => {
+                    if !whole {
+                        return false;
+                    }
+                    let prefix = format!("{package}.");
+                    let library = &self.projects[project.index()].library;
+                    return library.modules().any(|(m, resource)| {
+                        m.starts_with(&prefix) && self.module_imports_shared(project, resource)
+                    });
+                }
+                LibraryLookup::Symbol { symbol, rest, .. } => match &symbol.kind {
+                    SymbolKind::Import {
+                        target: Some(target),
+                    } => {
+                        // Follow the import, with the rest of the name.
+                        let tail: Vec<&str> = dotted.split('.').collect();
+                        let rest = &tail[tail.len() - rest..];
+                        let next = std::iter::once(target.as_str())
+                            .chain(rest.iter().copied())
+                            .collect::<Vec<_>>()
+                            .join(".");
+                        if matches!(
+                            self.resolve_library(project, target),
+                            LibraryLookup::NotLibrary
+                                | LibraryLookup::Missing { .. }
+                                | LibraryLookup::HiddenByModule { .. }
+                                | LibraryLookup::MissingAttribute { .. }
+                        ) {
+                            // `import math` in the library module: a change
+                            // through it changes a shared object; a value
+                            // is one when it is the module, a Java class or
+                            // anything else than a vetted value
+                            // (`lib.os.sep` is a string).
+                            return !whole
+                                || iglint_python_semantic::vetted::holds_shared_object(&next);
+                        }
+                        dotted = next;
+                    }
+                    SymbolKind::Import { target: None } => return true,
+                    _ => return false,
+                },
+            }
+        }
+        true
+    }
+
+    /// Whether the library module `module` imports a name that is not a
+    /// library name, or its names are not known.
+    fn module_imports_shared(&self, project: ProjectId, module: ResourceId) -> bool {
+        let Some(symbols) = self.module_symbols(module) else {
+            return true;
+        };
+        symbols.dynamic
+            || symbols.symbols.iter().any(|s| match &s.kind {
+                SymbolKind::Import { target: Some(t) } => !matches!(
+                    self.resolve_library(project, t),
+                    LibraryLookup::Module { .. }
+                        | LibraryLookup::Package { .. }
+                        | LibraryLookup::Symbol { .. }
+                ),
+                SymbolKind::Import { target: None } => true,
+                _ => false,
+            })
     }
 
     /// The first use (by path, then offset) of code that is not vetted, or

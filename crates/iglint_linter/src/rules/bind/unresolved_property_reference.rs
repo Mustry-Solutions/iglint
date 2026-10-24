@@ -39,6 +39,13 @@ reports those that point nowhere:
   Ignition 8.3.3's parsers);
 * `{this.custom.x}`, `{view.params.y}`, `{view.custom.z}`, `{parent.custom.w}`
   where the custom property or view parameter is not defined;
+* references with nothing after the scope or the property type (`{view}`,
+  `{this}`, `{session}`, `{view.custom}`, `{this.props}`,
+  `{../Label.props}`): they match Perspective's reference grammar, so the
+  expression reads them as property references, but Perspective's gateway
+  rejects them ("Invalid property identifier ..., no scope specified" or
+  "no property specified", checked on Ignition 8.3.3) and the binding
+  fails;
 * with `strict`, `{session.custom.x}` where the project's session
   properties do not define `x` (only when the project and its parents are
   all linted; session startup scripts often create session properties at
@@ -195,6 +202,30 @@ fn check(
     site: Site,
 ) -> Option<Finding> {
     let ign = component_segments(reference);
+    // Perspective's gateway parser (`PropertyReference`, 8.3.3) needs a
+    // property type and a property after the scope: `{view}` fails with
+    // "no scope specified" and `{view.custom}` with "no property
+    // specified", although both match `PropertyRef`, so the expression
+    // reads them as property references, not tag paths.
+    if reference.segments.len() < 2 {
+        let (after, needs, error) = if reference.segments.is_empty() {
+            (
+                "scope",
+                "a property type and a property",
+                "no scope specified",
+            )
+        } else {
+            ("property type", "a property", "no property specified")
+        };
+        return Some(Finding {
+            range: reference.range,
+            message: format!(
+                "`{path}` stops after the {after}: Perspective needs {needs} (`view.custom.x`) \
+                 and cannot bind it (\"{error}\")"
+            ),
+            ign_lint_message: None,
+        });
+    }
     match view.resolve_ref(owner, reference) {
         RefResolution::Resolved(_) | RefResolution::Dynamic => None,
         RefResolution::Scope(scope) => {
@@ -545,6 +576,54 @@ mod tests {
                 "Relative expression '{.../Left.props.text}' navigates above root component",
             ]
         );
+    }
+
+    /// Review round 22 (Opus) N1: Perspective 8.3.3's `PropertyReference`
+    /// rejects a scope alone ("no scope specified") and a property type
+    /// alone ("no property specified"); `{..}` and `{../Left}` do not match
+    /// `PropertyRef` and are tag paths, not property references.
+    #[test]
+    fn references_without_a_property() {
+        let f = tree(
+            "",
+            &expr(
+                "{view} + {this} + {session} + {page} + {parent} + {view.custom} + {this.props} + {../Left.props} + {/root.props} + {view.params}",
+            ),
+            &prop("view.custom"),
+        );
+        let d = f.lint(&["BIND005"]);
+        assert_eq!(
+            flagged(&d),
+            vec![
+                "view",
+                "this",
+                "session",
+                "page",
+                "parent",
+                "view.custom",
+                "this.props",
+                "../Left.props",
+                "/root.props",
+                "view.params",
+                "view.custom",
+            ]
+        );
+        assert_eq!(
+            d[0].message,
+            "`view` stops after the scope: Perspective needs a property type and a property \
+             (`view.custom.x`) and cannot bind it (\"no scope specified\")"
+        );
+        assert_eq!(
+            d[5].message,
+            "`view.custom` stops after the property type: Perspective needs a property \
+             (`view.custom.x`) and cannot bind it (\"no property specified\")"
+        );
+        let f = tree(
+            "",
+            &expr("{..} + {../Left} + {view.custom.c} + {this.meta.name}"),
+            "",
+        );
+        assert_eq!(messages(&f.lint(&["BIND005"])), vec![]);
     }
 
     #[test]

@@ -30,6 +30,13 @@ reports those that point nowhere:
   Ignition 8.3.3's parsers);
 * `{this.custom.x}`, `{view.params.y}`, `{view.custom.z}`, `{parent.custom.w}`
   where the custom property or view parameter is not defined;
+* references with nothing after the scope or the property type (`{view}`,
+  `{this}`, `{session}`, `{view.custom}`, `{this.props}`,
+  `{../Label.props}`): they match Perspective's reference grammar, so the
+  expression reads them as property references, but Perspective's gateway
+  rejects them ("Invalid property identifier ..., no scope specified" or
+  "no property specified", checked on Ignition 8.3.3) and the binding
+  fails;
 * with `strict`, `{session.custom.x}` where the project's session
   properties do not define `x` (only when the project and its parents are
   all linted; session startup scripts often create session properties at

@@ -138,6 +138,28 @@ mod tests {
         assert_eq!(flagged(&d), ["x"]);
     }
 
+    /// Review round 22 (Opus) N2: reads that only a `del` reaches. Each
+    /// reported case raises `UnboundLocalError` on Ignition 8.3.3's Jython
+    /// for every argument; the others return on some path.
+    #[test]
+    fn reads_after_del() {
+        for code in [
+            "def f2():\n\tv = 1\n\tdel v\n\treturn v\n",
+            "def f():\n    for i in range(2):\n        v = 1\n        del v\n    return v\n",
+            "def f(c):\n    v = 1\n    while c:\n        del v\n        v = 2\n        c = False\n    del v\n    return v\n",
+            "def f(c):\n    v = 1\n    if c:\n        del v\n    else:\n        del v\n    return v\n",
+        ] {
+            assert_eq!(flagged(&lint_module("SCR118", code)), ["v"], "{code}");
+        }
+        for code in [
+            "def f(c):\n    v = 1\n    if c:\n        del v\n    return v\n",
+            "def f():\n    v = 1\n    del v\n    v = 2\n    return v\n",
+            "def f():\n    v = 1\n    del v\n    try:\n        return v\n    except NameError:\n        return 0\n",
+        ] {
+            assert!(lint_module("SCR118", code).is_empty(), "{code}");
+        }
+    }
+
     #[test]
     fn possible_assignments_are_not_reported() {
         let cases = [

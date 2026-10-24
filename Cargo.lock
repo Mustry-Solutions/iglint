@@ -656,6 +656,7 @@ version = "0.1.0"
 dependencies = [
  "iglint_expression",
  "iglint_json",
+ "iglint_python_semantic",
  "iglint_stubs",
  "iglint_text",
  "insta",

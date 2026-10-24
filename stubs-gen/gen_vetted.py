@@ -32,6 +32,12 @@
 #   an import is known to succeed only when it names one of them (SCR102's
 #   safe removal, and vetting of Java classes, need that evidence).
 #
+#   JAVA_MEMBER_CLASSES: for every class of JAVA_PACKAGE_CLASSES, the
+#   simple names of the public member classes that Jython finds as its
+#   attributes (`Map.Entry`), declared by the class, a superclass or an
+#   interface. A member class read as a value is a class object, a shared
+#   singleton that code may change, like the class itself.
+#
 #   JAVA_FILE_MEMBERS and JAVA_FILE_CLASSES: the member names whose declared
 #   type mentions a file handle (java.io.File, java.nio.file.Path, a file
 #   channel or descriptor, a URL or URI, a zip file, Ignition's project and
@@ -1094,6 +1100,36 @@ def java_package_classes(java_classes, packages, all_classes, loader):
     return [(p, sorted(out.get(p, []))) for p in sorted(wanted)]
 
 
+def java_member_classes(package_classes, loader):
+    """For every class of `package_classes`, the simple names of the public
+    member classes of the class, its superclasses and its interfaces (the
+    attributes Jython resolves to a class object)."""
+    closure = Closure(loader)
+    out = []
+    for pkg, classes in package_classes:
+        for simple in classes:
+            c = closure.load('%s.%s' % (pkg, simple))
+            if c is None:
+                continue
+            names = set()
+            seen = set()
+            todo = [c]
+            while todo:
+                t = todo.pop()
+                if t is None or Class.getName(t) in seen:
+                    continue
+                seen.add(Class.getName(t))
+                for m in Class.getDeclaredClasses(t):
+                    if Modifier.isPublic(Class.getModifiers(m)):
+                        names.add(Class.getSimpleName(m))
+                todo.append(Class.getSuperclass(t))
+                todo.extend(Class.getInterfaces(t))
+            names.discard('')
+            if names:
+                out.append(('%s.%s' % (pkg, simple), sorted(names)))
+    return sorted(out)
+
+
 def module_attrs(modules):
     """Every attribute of every vetted module (and `os`, `sys`) that
     imports in the image: `from m import n` of anything else fails."""
@@ -1127,6 +1163,7 @@ def main():
     package_classes = java_package_classes(java_classes, packages, stats['classes'],
                                            stats['loader'])
     all_attrs = module_attrs(modules)
+    member_classes = java_member_classes(package_classes, stats['loader'])
     file_members, file_classes, file_scanned = java_file_members(
         stats['loader'], java_classes, packages, stats['classes'], system_json)
     store_members, store_types, store_scanned = java_store_members(
@@ -1239,6 +1276,17 @@ def main():
         lines.append('    (%s, &[' % rust_str(pkg))
         if classes:
             lines.append(rust_str_list(classes, 8))
+        lines.append('    ]),')
+    lines.append('];')
+    lines.append('')
+    lines.append('/// For every class of JAVA_PACKAGE_CLASSES that has any, the simple')
+    lines.append('/// names of the public member classes declared by the class, a')
+    lines.append('/// superclass or an interface: the attributes Jython resolves to a')
+    lines.append('/// class object. Sorted.')
+    lines.append('pub(crate) const JAVA_MEMBER_CLASSES: &[(&str, &[&str])] = &[')
+    for cls, names in member_classes:
+        lines.append('    (%s, &[' % rust_str(cls))
+        lines.append(rust_str_list(names, 8))
         lines.append('    ]),')
     lines.append('];')
     lines.append('')

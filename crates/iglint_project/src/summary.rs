@@ -253,6 +253,22 @@ pub struct References {
     /// `__globals__`. Every name of the module that defines it may be
     /// rebound at run time.
     pub library_exposed: Vec<String>,
+    /// Objects the script changes through a dotted name that may be a
+    /// library name, by the dotted name of the object, with where: the
+    /// object of `lib.math.pi = 1`, `del lib.math.pi`, `lib.math.pi += 1`,
+    /// `setattr(lib.math, ...)` and `lib.math.__dict__` is `lib.math`.
+    /// When the name reaches, through a library module's import, an object
+    /// that is not a library module (`import math` in `lib`), the change
+    /// is to a shared object whose measured facts no longer hold: the
+    /// index counts it as unknown code
+    /// ([`crate::ProjectIndex::shared_object_site`]).
+    pub library_changes: Vec<(String, UnknownSite)>,
+    /// Dotted names that may be library names used as values (passed,
+    /// kept, returned), with where. A value that is, or holds through a
+    /// library module's imports, an object that is not a library module
+    /// (`m = lib.math`, `f(lib)` with `import math` in `lib`) hands a
+    /// shared object to code that is not followed: unknown code.
+    pub library_values: Vec<(String, UnknownSite)>,
     /// Dotted library modules the script star-imports (`from core.util
     /// import *`): every name the module exports this way is used.
     pub library_star_imports: Vec<String>,
@@ -386,6 +402,8 @@ impl References {
         self.library_stores.extend(other.library_stores);
         self.library_exposed.extend(other.library_exposed);
         self.library_star_imports.extend(other.library_star_imports);
+        self.library_changes.extend(other.library_changes);
+        self.library_values.extend(other.library_values);
         self.messages.extend(other.messages);
         self.history_providers.extend(other.history_providers);
         self.databases.extend(other.databases);
@@ -550,7 +568,10 @@ pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
 
 /// Whether the tag path text `path` can only name a tag's value: the text
 /// after its last `/` (or `]`) has no `{...}` placeholder and names no
-/// property, or `Value`, `Quality` or `Timestamp` (case-insensitively).
+/// property, or `Value`, `Quality` or `Timestamp` (case-insensitively). A
+/// property that is empty or only dots is none: Ignition 8.3.3's
+/// `TagPathParser` reads `..`, `.`, `T.` and `a/..` without a property
+/// (`..` and `.` as an empty path).
 /// Any other property may be configuration (`Tag.eventScripts`,
 /// `Tag.expression`, `Tag.alarms`): reading it hands out the content of
 /// the files a fix edits. The same rule as the vetted `system.tag` reads
@@ -562,10 +583,13 @@ pub fn tag_path_names_value(path: &str) -> bool {
     }
     match tail.split_once('.') {
         None => true,
-        Some((_, property)) => matches!(
-            property.to_ascii_lowercase().as_str(),
-            "value" | "quality" | "timestamp"
-        ),
+        Some((_, property)) => {
+            property.chars().all(|c| c == '.')
+                || matches!(
+                    property.to_ascii_lowercase().as_str(),
+                    "value" | "quality" | "timestamp"
+                )
+        }
     }
 }
 
@@ -1165,6 +1189,12 @@ mod tests {
             "[default]{1}/Speed",
             "[default]T[0]",
             "[default]",
+            // Review round 22 (Opus) N1: no property for `TagPathParser`.
+            "..",
+            ".",
+            "[default]..",
+            "T.",
+            "a/..",
         ] {
             assert!(tag_path_names_value(p), "{p}");
         }
@@ -1177,6 +1207,7 @@ mod tests {
             "[default]T.{prop}",
             "[default]T[0].eventScripts",
             "[default]T.Value.x",
+            "T..x",
         ] {
             assert!(!tag_path_names_value(p), "{p}");
         }

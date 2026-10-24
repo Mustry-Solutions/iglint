@@ -309,6 +309,11 @@ class, package and module was measured to exist.
   data (`Gson.toJsonTree` in the bytecode); the delegates' members return
   values or map data. A `PropertyTree` has no member that reaches its
   owner.
+* **Member classes.** `JAVA_MEMBER_CLASSES` lists, for every class of
+  `JAVA_PACKAGE_CLASSES`, the public member classes declared by the
+  class, a superclass or an interface (the attributes Jython resolves to
+  a class object, `Map.Entry`), so that reading one as a value counts as
+  holding a class (see "Shared objects").
 * **What an import finds.** `JAVA_PACKAGE_CLASSES` lists the public
   top-level classes of every vetted Java package and of the packages of
   the vetted classes, and `MODULE_ATTRS` every attribute (`dir()`) of
@@ -316,6 +321,117 @@ class, package and module was measured to exist.
   Java class is vetted only when it is listed there (an import of a
   missing class fails), and `SCR102` removes an import safely only with
   this positive evidence (see "Import side effects").
+
+### Shared objects
+
+Review round 22 (Codex, blocker): `import math`, `del math.pi`, then an
+unused `from math import pi` in a function whose `ImportError` the caller
+catches. Removing the import (SCR102's safe fix) changed what the script
+printed: Jython printed `missing` before and `7` after (verified on the
+8.3.3 image).
+
+Every measured fact above describes an object as the image loads it: the
+attributes of a module (`MODULE_ATTRS`, `MODULE_VETTED_ATTRS`), the
+members and member classes of a Java class (`JAVA_PACKAGE_CLASSES`,
+`JAVA_MEMBER_CLASSES`, the reflection, file and store closures), the
+functions of `system.*` (the stubs) and the builtins. These objects are
+singletons that every script of the gateway shares: a module lives once
+in `sys.modules`, a Java class has one proxy per JVM, `system` and
+`__builtin__` are the same object for every script. Measured on 8.3.3:
+`del math.pi`, `del m.e` after `import math as m`, `del os.path.join`
+and `setattr(math, 'tau', 6)` change the module for every importer;
+`ArrayList.foo = 1`, `ArrayList.size = lambda self: 42` and
+`type(ArrayList()).bar = 2` change the Java class proxy (a `final`
+static field refuses a store with `IllegalAccessException`); a Python
+class of a vetted module takes new attributes (`Template.delimiter =
+'%'`); `del __builtin__.len` makes `len` a `NameError` everywhere;
+`sys.modules['math'] = None` makes `import math` fail. Built-in types
+refuse (`str.foo = 1` is a `TypeError`), and a Java package refused `del
+ju.ArrayList`.
+
+**The measured facts hold only while no code changes the shared objects
+they describe; any code that may change one is unknown code**, with its
+site, under the closed-world rule (every safe fix that needs it is
+unsafe, and like other unknown code it counts as a possible file read).
+`vetted::unknown_code` reports, in every scope and through every name
+the semantic model resolves (aliases, `global` names, class bodies,
+nested functions, flow-insensitively):
+
+* a store, deletion or augmented assignment of an attribute (any target
+  form: assignment, `del`, `+=`, `for`, `with`, `except`) whose chain
+  root may be a vetted module (`math`, `os`, and `os.path` reached as
+  `os.path` or `from os import path`), `sys`, `system` or `fpmi`, a Java
+  class, a function, class or constant of a vetted module, a builtin, or
+  anything not vetted. The rest of the chain does not matter:
+  `string.Template.delimiter = '%'` changes a class the module hands out;
+* `__setattr__`, `__delattr__` and `__dict__` named in such a chain
+  (`math.__setattr__('pi', 1)`, `object.__setattr__(x, 'a', v)`);
+* `setattr` and `delattr` (literal names; any other use already
+  escapes) whose first argument may be such an object, or is not a name
+  or a chain rooted at one (`setattr(type(x), ...)`);
+* a Java class used as a value (`c = System`, `f(String)`, `return
+  System`) and a member class read as a value (`e = Map.Entry`; member
+  classes are measured, `JAVA_MEMBER_CLASSES`): whoever receives it may
+  change it. Uses that only read a class stay vetted: a callee, the
+  object of an attribute read, an `except` clause, a comparison operand,
+  the class arguments of `isinstance` and `issubclass`, the argument of
+  `str`, `repr` and `unicode`, a `print` value and the right operand of
+  `%` (alone or in a tuple or list);
+* `type(x)` with one argument other than in those read-only places: it
+  gives the class of a Java value without naming it;
+* module objects used as values, `reload`, `sys.modules`, `__builtin__`
+  (not vetted, so its import is unknown code: `__builtin__.len = f`,
+  `del __builtin__.open`, `__builtin__.__import__ = f`), `__builtins__`,
+  `vars`, `globals` and `__import__` were already unknown code.
+
+Project library modules are shared too, but their names have their own
+analysis: a store into a library module (`core.util.fmt = f`, `del
+core.util.fmt`, `setattr(core.util, 'fmt', f)`, `core.util.LIMIT += 1`;
+deletions count the same as stores) makes the name rebound
+(`library_stores`, `ProjectIndex::library_name_stored`). What a library
+module imports from elsewhere is not its own: the script layer records
+every object changed through a chain that may be a library name, and
+every such chain used as a value, with the site
+(`References::library_changes`, `References::library_values`), and the
+index (`ProjectIndex::shared_object_site`) counts as unknown code a
+change of anything reached through a name a library module imports
+that is not a library module, and a value that is such a shared object
+(`vetted::holds_shared_object`: a module, a Java class or member class,
+`system`, anything not vetted) or a library module or package one of
+whose modules imports one: `del lib.math.pi`, `q.math.pi = 1` after
+`import lib as q`, `from lib import math as mm` then `del mm.pi`, `k =
+lib.math`, `f(lib)`, `setattr(lib.math, 'pi', 1)` and `lib.ArrayList.size
+= 1` when `lib` has `import math` or `from java.util import ArrayList`.
+A name of a module whose names cannot be known counts too. Reading a
+vetted value through one stays vetted (`return lib.os.sep`).
+
+Not covered, by argument rather than by a list: Java instances (a
+`System.out` stream, an enum constant) and instances of vetted Python
+classes are values, not described by any measured fact except their
+declared types, which setting a public field keeps; a Python class or
+function of a vetted module kept as a value (`t = Template`) is not
+followed, because no measured fact describes its attributes (only that
+the module has it), so changing it through an alias invalidates nothing
+a fix relies on (direct changes still count, above). `os.environ` is a
+mutable mapping that no fact describes.
+
+Measured on the private corpus (its revision of 2026-10-24): findings
+and fix applicabilities are unchanged (2,928 findings; the corpus already
+held unknown code, so its SCR102, VIEW015 and NAME001 fixes were unsafe
+before); 9 unsafe reasons now name a site in the script itself instead of
+the closed world. The new forms occur 2 times as a Java class used as a
+value, 5 times as `type(x)` kept, and in 22 resources as a library module
+or name holding a shared object used as a value; no store, deletion,
+`setattr` or `__setattr__` into a shared object occurs.
+
+Tests: `changing_a_shared_object_is_unknown` (every form above, and the
+read-only forms that stay vetted), the binary test
+`changing_a_shared_object_keeps_the_import` (the repro: JSON
+applicability and reason with its site, `--fix` leaves the file
+unchanged, a warm cache, a run over the file alone, the change in
+another module; aliases, `os.path`, a Java static field, `__builtin__`
+and a library module's import) and the language server test
+`quick_fix_after_a_shared_module_change_is_not_preferred`.
 
 ### Names imports bind
 
@@ -1108,7 +1224,7 @@ as a value is itself a route.
 | `operator` | Except `attrgetter` and `methodcaller`, which look attributes up by name (verified). |
 | `os` | Only path and file functions and constants (`path`, `sep`, `getcwd`, `listdir`, `stat`, `environ`, `getenv`, `makedirs`, `remove`, `rename`, `walk`, ...). Not processes or anything else. Every path-taking one counts as a possible file access (see "File reads"). |
 | `sys` (also as Ignition's implicit global) | Only `version`, `version_info`, `hexversion`, `platform`, `maxint`, `maxsize`, `maxunicode`, `byteorder`, `float_info`, `stdout`, `stderr`, `exit`, `getdefaultencoding`, `getfilesystemencoding`, `getrecursionlimit`. Not `_getframe`, `modules`, `exc_info`, `path` (it decides which module an import loads), trace hooks. |
-| `system` (Ignition's scripting API, also as its legacy alias `fpmi`) | No `system.*` function of 8.3 evaluates Python code in the caller's frame or resolves a callable by name in it (checked against the generated stubs): functions that take callables call the value, message handlers are looked up among the project's handlers, not in the caller. Except the functions that store or run code from run-time values, which are not vetted (see "`system.*` functions that run code"). Only members the stubs list are vetted (see "`system.*` members the stubs do not list"); a `system` package used as a value (`t = system.tag`) and any store into or deletion from the API (`system.tag.readBlocking = f`, which replaces the function for every script) are not vetted either. |
+| `system` (Ignition's scripting API, also as its legacy alias `fpmi`) | No `system.*` function of 8.3 evaluates Python code in the caller's frame or resolves a callable by name in it (checked against the generated stubs): functions that take callables call the value, message handlers are looked up among the project's handlers, not in the caller. Except the functions that store or run code from run-time values, which are not vetted (see "`system.*` functions that run code"). Only members the stubs list are vetted (see "`system.*` members the stubs do not list"); a `system` package used as a value (`t = system.tag`) and any store into or deletion from the API (`system.tag.readBlocking = f`, which replaces the function for every script) are not vetted either, nor is a change of any other shared object (see "Shared objects"). |
 | `__future__` | Compile-time only. |
 | `java.util` (except `ServiceLoader` and the resource bundles, which load classes by name), `java.util.concurrent` (and `atomic`, `locks`), `java.util.function`, `java.util.regex`, `java.util.stream`, `java.math`, `java.text`, `java.time` (and `chrono`, `format`, `temporal`), `java.nio.charset` | Data structures and formatting; no reflection. |
 | `java.lang`: `Math`, `StrictMath`, `String`, `StringBuilder`, `StringBuffer`, the boxed number types, `Boolean`, `Character`, `Number`, `System` (except `load`, `loadLibrary`, `mapLibraryName`, security managers, `inheritedChannel`), `Exception` and common runtime exceptions | Not `Class`, `ClassLoader`, `Thread`, `Throwable`, `Runtime`, `Process*`, reflection, `invoke` or `StackWalker`. The exception classes hand out only stack traces (class, method, file and line), which safe fixes never change. |
@@ -1149,7 +1265,8 @@ name a configuration property (`Tag.expression`, `Tag.eventScripts`).
 They are vetted only as direct calls whose path argument (first argument
 or `tagPaths=`) is a literal path, or a list or tuple of them, whose text
 after the last `/` (or `]`) names the tag's value (no property, or
-`Value`, `Quality`, `Timestamp`); a concatenation ending in such a literal
+`Value`, `Quality`, `Timestamp`; a property that is empty or only dots,
+as in `T.` or `..`, is none for Ignition 8.3.3's `TagPathParser`); a concatenation ending in such a literal
 that contains `/` (`base + '/Speed'`); or a `%` or `format` string whose
 text after the last `/` is such a literal. Any other path, unpacked
 arguments, or the function used as a value is unknown code.

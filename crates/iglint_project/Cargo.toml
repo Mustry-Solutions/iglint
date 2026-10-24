@@ -14,6 +14,7 @@ iglint_text.workspace = true
 iglint_json.workspace = true
 iglint_expression.workspace = true
 iglint_stubs.workspace = true
+iglint_python_semantic.workspace = true
 rayon = "1.12"
 rustc-hash = "2"
 self_cell = "1.3"

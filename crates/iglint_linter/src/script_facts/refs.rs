@@ -19,6 +19,8 @@
 //! | `core.util.fmt`, `from core.util import fmt`, a module's own top-level names | library name |
 //! | a library name used as a value, `from m import *`, non-literal `__import__`/`eval`/`exec`, `execfile`, `sys.modules` | dynamic library reference |
 //! | `core.util.fmt = f`, `del core.util.fmt`, `setattr(core.util, 'fmt', f)`, `core.util.__dict__` | library store |
+//! | `lib.math.pi = 1`, `del lib.math.pi`, `setattr(lib.math, 'pi', 1)`, `lib.math.__dict__` | library change of the object `lib.math`, with its site (the index decides whether it is a shared object) |
+//! | `k = lib.math`, `f(lib)` | library value with its site (likewise) |
 //! | a library name used as a value other than as an argument of a `system.*` call (`alias = core.util.fmt`, `register(fmt)`), `core.util.fmt.func_globals`, `.__globals__` | exposed library name: other code may rebind the names of its module |
 //! | `importlib.import_module('core.util')`, `imp.load_module(...)` | dynamic library reference (the module escapes) |
 //! | `exec '...'`, `eval('...')`, `compile('...', ...)` with literal code | the references of the code |
@@ -28,6 +30,7 @@ use iglint_project::summary::{MessageSend, MessageTarget, References, UnknownSit
 use iglint_python::ast::{Expr, ExprContext, Slice, Stmt};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
 use iglint_python_semantic::{BindingKind, Resolution, ScopeId, SemanticModel, UnboundNames};
+use iglint_text::Ranged;
 
 use super::api::{ApiTarget, api_target};
 use super::calls::{
@@ -308,6 +311,7 @@ fn dynamic_code(
         Some(e) if matches!(callee, "setattr" | "delattr") => {
             let mut chains = Chains { model, ctx, refs };
             if let Some(object) = chains.dotted(e) {
+                chains.changed(&call.func, e);
                 let attr = call.args.get(1).and_then(|a| match a {
                     Expr::Str(s) => s.s.as_str(),
                     _ => None,
@@ -368,6 +372,13 @@ fn literal_code(ctx: &FactsContext<'_>, code: &iglint_python::ast::ExprStr, refs
         site.range = code.range;
     }
     for (_, site) in &mut inner.unvetted_names {
+        site.range = code.range;
+    }
+    for (_, site) in inner
+        .library_changes
+        .iter_mut()
+        .chain(&mut inner.library_values)
+    {
         site.range = code.range;
     }
     refs.extend(inner);
@@ -457,7 +468,48 @@ impl Chains<'_, '_, '_, '_> {
         let Some(q) = self.dotted(e) else {
             return;
         };
+        if role == Role::Value && self.library_root(e) {
+            self.refs
+                .library_values
+                .push((q.clone(), UnknownSite::detached(e.range())));
+        }
+        if q.ends_with(".__dict__")
+            && let Expr::Attribute(a) = e
+        {
+            self.changed(e, &a.value);
+        }
         self.record_dotted(q, role);
+    }
+
+    /// Whether the root of the chain `e` may be a library name: a name
+    /// bound only by imports, or by nothing in the script (a library
+    /// package, or a top-level name of the module itself).
+    fn library_root(&self, e: &Expr) -> bool {
+        let mut root = e;
+        while let Expr::Attribute(a) = root {
+            root = &a.value;
+        }
+        let Expr::Name(n) = root else { return false };
+        self.model.reference_at(n.range).is_none_or(|r| {
+            r.bindings.iter().all(|b| {
+                let b = self.model.binding(*b);
+                matches!(b.kind, BindingKind::Import | BindingKind::FromImport)
+                    || (self.ctx.module.is_some() && b.scope == ScopeId::MODULE)
+            })
+        })
+    }
+
+    /// Records that the object `object` is changed at `at` (a store into
+    /// one of its attributes, `setattr`, its `__dict__`).
+    fn changed(&mut self, at: &Expr, object: &Expr) {
+        if !self.library_root(object) {
+            return;
+        }
+        if let Some(q) = self.dotted(object) {
+            self.refs
+                .library_changes
+                .push((q, UnknownSite::detached(at.range())));
+        }
     }
 
     /// `getattr(chain, 'name', ...)` or `hasattr(chain, 'name')` with the
@@ -565,6 +617,7 @@ impl Chains<'_, '_, '_, '_> {
                 } else {
                     self.record(&a.value, Role::Base);
                     if let Some(q) = self.dotted(e) {
+                        self.changed(e, &a.value);
                         self.store(q);
                     }
                 }

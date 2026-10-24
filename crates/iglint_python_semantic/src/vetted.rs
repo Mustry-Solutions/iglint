@@ -35,12 +35,20 @@
 //! consumed by [`crate::dynamic`]). Module objects used as values are not
 //! vetted either (an attribute read through an alias is not checked), and
 //! subclassing a Java class is unknown (its instances are Java-backed).
+//!
+//! The measured facts describe shared objects as loaded: every script of
+//! the gateway sees the same module, Java class, `system` API and
+//! builtins. Code that may change one (a store, deletion or augmented
+//! assignment into it, `setattr`/`delattr`, `__setattr__`, `__dict__`, a
+//! Java class handed out as a value, `type(x)` kept) is unknown code
+//! ("Shared objects" in `docs/internal/fix-safety.md`).
 
 use iglint_python::ast::{
     Alias, Expr, ExprCall, ExprContext, ExprName, Operator, Stmt, StmtImportFrom,
 };
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
 use iglint_text::{Ranged, TextRange};
+use rustc_hash::FxHashSet;
 
 use crate::file_reads::{Facility, JavaPolicy, Output};
 use crate::{Binding, BindingKind, Resolution, ScopeId, ScopeKind, SemanticModel};
@@ -358,8 +366,11 @@ fn value_write_path(e: &Expr) -> bool {
         }
         match tail.split_once('.') {
             None => true,
+            // `T.` and `..` name no property (`tag_path_names_value`).
             Some((_, property)) => {
-                ["value", "quality", "timestamp"].contains(&property.to_ascii_lowercase().as_str())
+                property.chars().all(|c| c == '.')
+                    || ["value", "quality", "timestamp"]
+                        .contains(&property.to_ascii_lowercase().as_str())
             }
         }
     }
@@ -600,6 +611,81 @@ pub fn java_class_exists(package: &str, class: &str) -> bool {
         .is_some_and(|(_, classes)| classes.binary_search(&class).is_ok())
 }
 
+/// Whether `attr` of the vetted Java class `qualified` is a public member
+/// class ([`crate::generated::JAVA_MEMBER_CLASSES`], measured: declared by
+/// the class, a superclass or an interface), so that reading it gives a
+/// class object.
+fn java_member_class(qualified: &str, attr: &str) -> bool {
+    crate::generated::JAVA_MEMBER_CLASSES
+        .iter()
+        .find(|(c, _)| *c == qualified)
+        .is_some_and(|(_, names)| names.contains(&attr))
+}
+
+/// Whether the object that the dotted name `qualified` (as an import
+/// names it, then attributes: `math`, `os.path.sep`, `java.util.Map.Entry`)
+/// stands for may be a shared object that code holding it could change: a
+/// module, a Java class or member class, `system`, or anything that is not
+/// vetted. A vetted attribute of a vetted module (a function, class or
+/// immutable constant, `os.sep`) and a static member of a vetted Java
+/// class (`System.out`) are values: no measured fact describes what they
+/// hold beyond their existence and type ("Shared objects" in
+/// `docs/internal/fix-safety.md`).
+pub fn holds_shared_object(qualified: &str) -> bool {
+    let segments: Vec<&str> = qualified.split('.').collect();
+    let root = segments[0];
+    if root == "java" || root == "javax" {
+        for i in 1..segments.len() {
+            let package = segments[..i].join(".");
+            if let Some(_class) = java_class(&package, segments[i]) {
+                let class = segments[..=i].join(".");
+                return match segments.get(i + 1) {
+                    None => true,
+                    Some(attr) => java_member_class(&class, attr),
+                };
+            }
+        }
+        return true;
+    }
+    let (mut bound, rest) = if segments.len() > 1 && segments[0] == "os" && segments[1] == "path" {
+        (Bound::Module("os.path"), &segments[2..])
+    } else {
+        match vetted_module(root) {
+            Some(m) => (Bound::Module(m), &segments[1..]),
+            None => return true,
+        }
+    };
+    for attr in rest {
+        bound = match bound {
+            Bound::Module("system") => return true,
+            Bound::Module(m) => match module_attribute(m, attr) {
+                Some(next) => next,
+                None => return true,
+            },
+            _ => return false,
+        };
+    }
+    !matches!(bound, Bound::Value)
+}
+
+/// Attribute names through which code changes the object they are read
+/// from: `x.__setattr__('a', v)`, `object.__delattr__(x, 'a')`, a write to
+/// `x.__dict__`.
+const MUTATING_ATTRIBUTES: &[&str] = &["__delattr__", "__dict__", "__setattr__"];
+
+/// Whether a name bound to `b` may stand for a shared object whose
+/// measured facts code could invalidate by changing it: a module (vetted,
+/// `sys`, Ignition's `system`), a Java class, a function, class or
+/// constant of a vetted module or a builtin, or something that is not
+/// vetted. A project library module is [`Bound::Plain`]: its own analysis
+/// follows the stores into it (`library_stores` in the project index).
+fn shared(b: Bound) -> bool {
+    matches!(
+        b,
+        Bound::Module(_) | Bound::JavaClass(_) | Bound::Value | Bound::Unknown
+    )
+}
+
 /// Whether `package` is a measured Java package (or a parent of one), so
 /// that `import package` succeeds.
 pub fn java_package_exists(package: &str) -> bool {
@@ -738,6 +824,7 @@ pub fn unknown_code(model: &SemanticModel<'_>) -> UnknownCode {
         bound,
         qualified,
         callee: None,
+        class_ok: FxHashSet::default(),
         out: UnknownCode::default(),
     };
     for stmt in &model.module.body {
@@ -861,6 +948,12 @@ struct Walk<'m, 'a> {
     qualified: Vec<Option<String>>,
     /// The callee of the call being visited: not a use as a value.
     callee: Option<TextRange>,
+    /// Expressions where a class object (a Java class, `type(x)`) is only
+    /// read, never kept or changed: callees, the object of an attribute
+    /// read, `except` clauses, comparison operands, the class arguments
+    /// of `isinstance` and `issubclass`, the argument of `str`, `repr` and
+    /// `unicode`, `print` and the operand of `%` ([`Walk::class_read`]).
+    class_ok: FxHashSet<TextRange>,
     out: UnknownCode,
 }
 
@@ -959,21 +1052,75 @@ impl Walk<'_, '_> {
         }
         let Expr::Name(n) = root else { return false };
         attrs.reverse();
-        // Storing into or deleting from the scripting API replaces a
-        // function every other script calls (`system.tag.readBlocking =
-        // f`).
-        let stored = matches!(expr, Expr::Attribute(a) if a.ctx != ExprContext::Load);
-        for candidate in self.candidates(n) {
-            if candidate == Bound::Module("system") {
-                if stored {
-                    self.other(expr.range());
-                } else {
-                    self.check_system(&attrs, callee_checked);
-                }
+        // Storing into or deleting from a shared object (a module, a Java
+        // class, Ignition's scripting API, a builtin) changes it for every
+        // script of the gateway, and the measured facts about it (that
+        // `from math import pi` succeeds, what `system.tag.readBlocking`
+        // does) no longer hold: unknown code ("Shared objects" in
+        // `docs/internal/fix-safety.md`).
+        let stored = matches!(
+            expr,
+            Expr::Attribute(a) if matches!(a.ctx, ExprContext::Store | ExprContext::Del | ExprContext::AugStore)
+        ) || attrs.iter().any(|(a, _)| MUTATING_ATTRIBUTES.contains(a));
+        let candidates = self.candidates_with_names(n);
+        if stored && candidates.iter().any(|(b, _)| shared(*b)) {
+            self.other(expr.range());
+        }
+        // A member class read as a value (`e = Map.Entry`) is a class
+        // object that is not followed, like the class itself.
+        if !stored
+            && self.callee != Some(expr.range())
+            && !self.class_ok.contains(&expr.range())
+            && let Some((first, _)) = attrs.first()
+            && candidates.iter().any(|(b, q)| {
+                matches!(b, Bound::JavaClass(_))
+                    && q.as_deref().is_some_and(|q| java_member_class(q, first))
+            })
+        {
+            self.other(expr.range());
+        }
+        for (candidate, _) in candidates {
+            if candidate == Bound::Module("system") && !stored {
+                self.check_system(&attrs, callee_checked);
             }
             self.check_chain(candidate, n.range, &attrs);
         }
         true
+    }
+
+    /// Marks `e` (and the elements of a tuple or list `e`) as a place
+    /// where a class object is only read ([`Walk::class_ok`]).
+    fn class_read(&mut self, e: &Expr) {
+        self.class_ok.insert(e.range());
+        if let Expr::Tuple(t) = e {
+            for e in &t.elts {
+                self.class_ok.insert(e.range());
+            }
+        } else if let Expr::List(l) = e {
+            for e in &l.elts {
+                self.class_ok.insert(e.range());
+            }
+        }
+    }
+
+    /// Whether the callee `func` may only be the builtin `name`.
+    fn only_builtin(&self, func: &Expr, name: &str) -> bool {
+        let Expr::Name(n) = func else { return false };
+        if n.ctx != ExprContext::Load {
+            return false;
+        }
+        let candidates = self.candidates_with_names(n);
+        let qualified = format!("__builtin__.{name}");
+        !candidates.is_empty()
+            && candidates
+                .iter()
+                .all(|(_, q)| q.as_deref() == Some(qualified.as_str()))
+    }
+
+    /// Whether the callee `func` may be the builtin `name`.
+    fn maybe_builtin(&self, func: &Expr, name: &str) -> bool {
+        let qualified = format!("__builtin__.{name}");
+        self.dotted_names(func).contains(&qualified)
     }
 
     /// Ignition's scripting API ("`system.*` functions that run code" in
@@ -1232,6 +1379,54 @@ impl Walk<'_, '_> {
             })
     }
 
+    /// Calls that hand out or change a class object: `type(x)` gives the
+    /// class of `x` (a Java class for a Java value), which is only read
+    /// where [`Walk::class_ok`] says so; `setattr` and `delattr` change
+    /// their first argument, which must not be a shared object; the class
+    /// arguments of `isinstance` and `issubclass` and the argument of
+    /// `str`, `repr` and `unicode` are only read.
+    fn check_class_call(&mut self, c: &ExprCall) {
+        let plain_call = c.starargs.is_none() && c.kwargs.is_none() && c.keywords.is_empty();
+        if self.maybe_builtin(&c.func, "type")
+            && c.args.len() == 1
+            && !self.class_ok.contains(&c.range)
+        {
+            self.other(c.range);
+        }
+        if self.maybe_builtin(&c.func, "setattr") || self.maybe_builtin(&c.func, "delattr") {
+            let target = c.args.first().map(|a| chain_parts(a).1);
+            let shared_target = match target {
+                Some(Expr::Name(n)) if n.ctx == ExprContext::Load => {
+                    self.candidates(n).into_iter().any(shared)
+                }
+                // `setattr(type(x), ...)`, `setattr(*args)`: not followed.
+                Some(Expr::Name(_)) => false,
+                _ => true,
+            };
+            if shared_target || !plain_call {
+                self.other(c.range);
+            }
+        }
+        if !plain_call {
+            return;
+        }
+        if self.only_builtin(&c.func, "isinstance") {
+            if let Some(classes) = c.args.get(1) {
+                self.class_read(classes);
+            }
+        } else if self.only_builtin(&c.func, "issubclass") {
+            for a in c.args.iter().take(2) {
+                self.class_read(a);
+            }
+        } else if ["str", "repr", "unicode"]
+            .iter()
+            .any(|b| self.only_builtin(&c.func, b))
+            && c.args.len() == 1
+        {
+            self.class_read(&c.args[0]);
+        }
+    }
+
     fn check_file_call(&mut self, c: &ExprCall) {
         let mut read = false;
         for q in self.dotted_names(&c.func) {
@@ -1384,6 +1579,18 @@ impl<'a> Visitor<'a> for Walk<'_, '_> {
                     self.out.imports.push((module.to_owned(), i.range));
                 }
             }
+            Stmt::TryExcept(t) => {
+                for h in &t.handlers {
+                    if let Some(ty) = &h.type_ {
+                        self.class_read(ty);
+                    }
+                }
+            }
+            Stmt::Print(p) => {
+                for v in &p.values {
+                    self.class_read(v);
+                }
+            }
             Stmt::ClassDef(c) => {
                 for base in &c.bases {
                     // Subclassing a Java class makes the instances
@@ -1413,9 +1620,23 @@ impl<'a> Visitor<'a> for Walk<'_, '_> {
             Expr::Call(c) => {
                 self.check_file_call(c);
                 self.check_navigate_call(c);
+                self.check_class_call(c);
                 self.callee = Some(c.func.range());
+                self.class_ok.insert(c.func.range());
             }
-            Expr::Attribute(_) => {
+            Expr::Compare(c) => {
+                self.class_read(&c.left);
+                for e in &c.comparators {
+                    self.class_read(e);
+                }
+            }
+            Expr::BinOp(b) if b.op == Operator::Mod => self.class_read(&b.right),
+            Expr::Attribute(a) => {
+                // Reading an attribute of a class object does not keep or
+                // change it; writing one does.
+                if a.ctx == ExprContext::Load && !MUTATING_ATTRIBUTES.contains(&a.attr.as_str()) {
+                    self.class_ok.insert(a.value.range());
+                }
                 self.check_store_members(expr);
                 self.check_file_members(expr);
                 self.check_file_value(expr);
@@ -1454,12 +1675,14 @@ impl<'a> Visitor<'a> for Walk<'_, '_> {
             }
             Expr::Name(n) if n.ctx == ExprContext::Load => {
                 // A module object used as a value: what is read from it
-                // later is not checked. A binding that is not vetted.
-                if self
-                    .candidates(n)
-                    .iter()
-                    .any(|b| matches!(b, Bound::Module(_) | Bound::Unknown))
-                {
+                // later is not checked. A binding that is not vetted. A
+                // Java class kept or passed on (`c = System`, `f(String)`):
+                // whoever holds it may change it (`c.out = ...`).
+                let class_ok = self.class_ok.contains(&n.range);
+                if self.candidates(n).iter().any(|b| {
+                    matches!(b, Bound::Module(_) | Bound::Unknown)
+                        || (matches!(b, Bound::JavaClass(_)) && !class_ok)
+                }) {
                     self.other(n.range);
                 }
                 return;
@@ -1516,6 +1739,132 @@ mod tests {
             "import system.perspective\nsystem.perspective.print(1)\n",
         ] {
             assert!(unknown(src).is_empty(), "{src}");
+        }
+    }
+
+    /// Review round 22 (Codex) blocker: measured facts describe shared
+    /// objects (modules, Java classes, the scripting API, builtins) as
+    /// loaded; code that changes one of them anywhere is unknown code, at
+    /// the change.
+    #[test]
+    fn changing_a_shared_object_is_unknown() {
+        for (src, site) in [
+            ("import math\ndel math.pi\n", "math.pi"),
+            ("import math\nmath.pi = 3\n", "math.pi"),
+            ("import math\nmath.pi += 1\n", "math.pi"),
+            ("import math as m\ndel m.pi\n", "m.pi"),
+            (
+                "from math import pi\ndef f():\n    global x\n    del math.e\nimport math\n",
+                "math.e",
+            ),
+            (
+                "def f():\n    import math\n    def g():\n        del math.pi\n",
+                "math.pi",
+            ),
+            ("class C:\n    import math\n    del math.pi\n", "math.pi"),
+            ("import os\ndel os.path.join\n", "os.path.join"),
+            ("import os.path\nos.path.sep = 'x'\n", "os.path.sep"),
+            ("from os import path\ndel path.join\n", "path.join"),
+            (
+                "import string\nstring.Template.delimiter = '%'\n",
+                "string.Template.delimiter",
+            ),
+            (
+                "from string import Template\nTemplate.delimiter = '%'\n",
+                "Template.delimiter",
+            ),
+            ("for math.pi in [1]:\n    pass\nimport math\n", "math.pi"),
+            (
+                "import math\nmath.__setattr__('pi', 1)\n",
+                "math.__setattr__",
+            ),
+            (
+                "from java.lang import System\nSystem.out = None\n",
+                "System.out",
+            ),
+            (
+                "from java.util import ArrayList\ndel ArrayList.size\n",
+                "ArrayList.size",
+            ),
+            (
+                "from java.util import ArrayList\nArrayList.size = f\n",
+                "ArrayList.size",
+            ),
+            (
+                "from java.util import ArrayList\nArrayList.__setattr__('x', 1)\n",
+                "ArrayList.__setattr__",
+            ),
+            ("from java.lang import System\nc = System\n", "System"),
+            ("from java.lang import System\nf(System)\n", "System"),
+            (
+                "from java.lang import System\ndef f():\n    return System\n",
+                "System",
+            ),
+            ("from java.util import Map\ne = Map.Entry\n", "Map.Entry"),
+            (
+                "from java.util import ArrayList\nt = type(ArrayList())\n",
+                "type(ArrayList())",
+            ),
+            (
+                "from java.util import ArrayList\ntype(ArrayList()).x = 1\n",
+                "type(ArrayList())",
+            ),
+            (
+                "from java.lang import System\nsetattr(System, 'out', None)\n",
+                "setattr(System, 'out', None)",
+            ),
+            (
+                "import math\nsetattr(math, 'pi', 1)\n",
+                "setattr(math, 'pi', 1)",
+            ),
+            ("setattr(len, 'x', 1)\n", "setattr(len, 'x', 1)"),
+            (
+                "from string import Template\ndelattr(Template, 'delimiter')\n",
+                "delattr(Template, 'delimiter')",
+            ),
+            ("object.__setattr__(o, 'x', 1)\n", "object.__setattr__"),
+            ("len.x = 1\n", "len.x"),
+            ("sys.stdout = f\n", "sys.stdout"),
+            ("system.tag.readBlocking = f\n", "system.tag.readBlocking"),
+            ("del fpmi.tag.readBlocking\n", "fpmi.tag.readBlocking"),
+            ("import math\nreload(math)\n", "reload"),
+            ("__builtins__['len'] = f\n", "__builtins__"),
+        ] {
+            let found = unknown(src).other.unwrap_or_else(|| panic!("{src}"));
+            assert_eq!(
+                src.get(usize::from(found.start())..usize::from(found.end())),
+                Some(site),
+                "{src}"
+            );
+        }
+        // `__builtin__` is not vetted: changing it is an unvetted import.
+        for src in [
+            "import __builtin__\n__builtin__.len = f\n",
+            "import __builtin__ as b\ndel b.open\n",
+            "import __builtin__\n__builtin__.__import__ = f\n",
+        ] {
+            assert!(!unknown(src).is_empty(), "{src}");
+        }
+        // Reading a class, or changing a value the code made, is not a
+        // change of a shared object.
+        for src in [
+            "import math\nx = math.pi\n",
+            "from java.lang import System\nSystem.out.println('a')\n",
+            "from java.util import ArrayList\nl = ArrayList()\nl.add(1)\n",
+            "from java.util import ArrayList\nok = isinstance(x, ArrayList)\n",
+            "from java.util import ArrayList, List\nok = isinstance(x, (ArrayList, List))\n",
+            "from java.util import ArrayList\nok = type(x) == ArrayList\n",
+            "from java.util import ArrayList\nn = type(x).__name__\n",
+            "from java.util import ArrayList\ns = str(type(x))\n",
+            "from java.util import ArrayList\ns = '%s' % type(x)\n",
+            "from java.lang import Exception as E\ntry:\n    pass\nexcept (E, ValueError), e:\n    pass\n",
+            "from java.util import Map\nx = Map.Entry.comparingByKey()\n",
+            "from java.util.concurrent import TimeUnit\nx = TimeUnit.SECONDS\n",
+            "class C(object):\n    pass\nc = C()\nc.x = 1\nsetattr(c, 'y', 2)\ndel c.x\n",
+            "self.props.text = 'a'\nself.getSibling('B').props.x = 1\n",
+            "def f(o):\n    o.value += 1\n",
+        ] {
+            assert!(unknown(src).is_empty(), "{src}: {:?}", unknown(src));
         }
     }
 

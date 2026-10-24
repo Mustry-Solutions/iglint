@@ -151,6 +151,8 @@ pub fn run_script_code(
                 .iter_mut()
                 .map(|(_, s)| s)
                 .chain(inner.unvetted_names.iter_mut().map(|(_, s)| s))
+                .chain(inner.library_changes.iter_mut().map(|(_, s)| s))
+                .chain(inner.library_values.iter_mut().map(|(_, s)| s))
             {
                 *site = UnknownSite {
                     file,

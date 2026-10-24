@@ -3236,6 +3236,339 @@ pub(crate) const JAVA_PACKAGE_CLASSES: &[(&str, &[&str])] = &[
     ]),
 ];
 
+/// For every class of JAVA_PACKAGE_CLASSES that has any, the simple
+/// names of the public member classes declared by the class, a
+/// superclass or an interface: the attributes Jython resolves to a
+/// class object. Sorted.
+pub(crate) const JAVA_MEMBER_CLASSES: &[(&str, &[&str])] = &[
+    ("java.io.ObjectInputFilter", &[
+        "Config",
+        "FilterInfo",
+        "Status",
+    ]),
+    ("java.io.ObjectInputStream", &[
+        "GetField",
+    ]),
+    ("java.io.ObjectOutputStream", &[
+        "PutField",
+    ]),
+    ("java.lang.Character", &[
+        "Subset",
+        "UnicodeBlock",
+        "UnicodeScript",
+    ]),
+    ("java.lang.Class", &[
+        "OfField",
+        "OfMethod",
+    ]),
+    ("java.lang.Enum", &[
+        "EnumDesc",
+    ]),
+    ("java.lang.ModuleLayer", &[
+        "Controller",
+    ]),
+    ("java.lang.ProcessBuilder", &[
+        "Redirect",
+    ]),
+    ("java.lang.ProcessHandle", &[
+        "Info",
+    ]),
+    ("java.lang.Runtime", &[
+        "Version",
+    ]),
+    ("java.lang.StackWalker", &[
+        "Option",
+        "StackFrame",
+    ]),
+    ("java.lang.System", &[
+        "Logger",
+        "LoggerFinder",
+    ]),
+    ("java.lang.Thread", &[
+        "State",
+        "UncaughtExceptionHandler",
+    ]),
+    ("java.math.RoundingMode", &[
+        "EnumDesc",
+    ]),
+    ("java.net.Authenticator", &[
+        "RequestorType",
+    ]),
+    ("java.net.Proxy", &[
+        "Type",
+    ]),
+    ("java.net.StandardProtocolFamily", &[
+        "EnumDesc",
+    ]),
+    ("java.text.AttributedCharacterIterator", &[
+        "Attribute",
+    ]),
+    ("java.text.ChoiceFormat", &[
+        "Field",
+        "Style",
+    ]),
+    ("java.text.CompactNumberFormat", &[
+        "Field",
+        "Style",
+    ]),
+    ("java.text.DateFormat", &[
+        "Field",
+    ]),
+    ("java.text.DecimalFormat", &[
+        "Field",
+        "Style",
+    ]),
+    ("java.text.Format", &[
+        "Field",
+    ]),
+    ("java.text.MessageFormat", &[
+        "Field",
+    ]),
+    ("java.text.Normalizer", &[
+        "Form",
+    ]),
+    ("java.text.NumberFormat", &[
+        "Field",
+        "Style",
+    ]),
+    ("java.text.SimpleDateFormat", &[
+        "Field",
+    ]),
+    ("java.time.DayOfWeek", &[
+        "EnumDesc",
+    ]),
+    ("java.time.Month", &[
+        "EnumDesc",
+    ]),
+    ("java.time.chrono.HijrahEra", &[
+        "EnumDesc",
+    ]),
+    ("java.time.chrono.IsoEra", &[
+        "EnumDesc",
+    ]),
+    ("java.time.chrono.MinguoEra", &[
+        "EnumDesc",
+    ]),
+    ("java.time.chrono.ThaiBuddhistEra", &[
+        "EnumDesc",
+    ]),
+    ("java.time.format.FormatStyle", &[
+        "EnumDesc",
+    ]),
+    ("java.time.format.ResolverStyle", &[
+        "EnumDesc",
+    ]),
+    ("java.time.format.SignStyle", &[
+        "EnumDesc",
+    ]),
+    ("java.time.format.TextStyle", &[
+        "EnumDesc",
+    ]),
+    ("java.time.temporal.ChronoField", &[
+        "EnumDesc",
+    ]),
+    ("java.time.temporal.ChronoUnit", &[
+        "EnumDesc",
+    ]),
+    ("java.util.AbstractMap", &[
+        "Entry",
+        "SimpleEntry",
+        "SimpleImmutableEntry",
+    ]),
+    ("java.util.Base64", &[
+        "Decoder",
+        "Encoder",
+    ]),
+    ("java.util.Calendar", &[
+        "Builder",
+    ]),
+    ("java.util.EnumMap", &[
+        "Entry",
+        "SimpleEntry",
+        "SimpleImmutableEntry",
+    ]),
+    ("java.util.Formatter", &[
+        "BigDecimalLayoutForm",
+    ]),
+    ("java.util.GregorianCalendar", &[
+        "Builder",
+    ]),
+    ("java.util.HashMap", &[
+        "Entry",
+        "SimpleEntry",
+        "SimpleImmutableEntry",
+    ]),
+    ("java.util.Hashtable", &[
+        "Entry",
+    ]),
+    ("java.util.IdentityHashMap", &[
+        "Entry",
+        "SimpleEntry",
+        "SimpleImmutableEntry",
+    ]),
+    ("java.util.LinkedHashMap", &[
+        "Entry",
+        "SimpleEntry",
+        "SimpleImmutableEntry",
+    ]),
+    ("java.util.ListResourceBundle", &[
+        "Control",
+    ]),
+    ("java.util.Locale", &[
+        "Builder",
+        "Category",
+        "FilteringMode",
+        "IsoCountryCode",
+        "LanguageRange",
+    ]),
+    ("java.util.Map", &[
+        "Entry",
+    ]),
+    ("java.util.NavigableMap", &[
+        "Entry",
+    ]),
+    ("java.util.PrimitiveIterator", &[
+        "OfDouble",
+        "OfInt",
+        "OfLong",
+    ]),
+    ("java.util.Properties", &[
+        "Entry",
+    ]),
+    ("java.util.PropertyResourceBundle", &[
+        "Control",
+    ]),
+    ("java.util.Random", &[
+        "ArbitrarilyJumpableGenerator",
+        "JumpableGenerator",
+        "LeapableGenerator",
+        "SplittableGenerator",
+        "StreamableGenerator",
+    ]),
+    ("java.util.ResourceBundle", &[
+        "Control",
+    ]),
+    ("java.util.ServiceLoader", &[
+        "Provider",
+    ]),
+    ("java.util.SortedMap", &[
+        "Entry",
+    ]),
+    ("java.util.Spliterator", &[
+        "OfDouble",
+        "OfInt",
+        "OfLong",
+        "OfPrimitive",
+    ]),
+    ("java.util.Spliterators", &[
+        "AbstractDoubleSpliterator",
+        "AbstractIntSpliterator",
+        "AbstractLongSpliterator",
+        "AbstractSpliterator",
+    ]),
+    ("java.util.SplittableRandom", &[
+        "ArbitrarilyJumpableGenerator",
+        "JumpableGenerator",
+        "LeapableGenerator",
+        "SplittableGenerator",
+        "StreamableGenerator",
+    ]),
+    ("java.util.TreeMap", &[
+        "Entry",
+        "SimpleEntry",
+        "SimpleImmutableEntry",
+    ]),
+    ("java.util.WeakHashMap", &[
+        "Entry",
+        "SimpleEntry",
+        "SimpleImmutableEntry",
+    ]),
+    ("java.util.concurrent.CompletableFuture", &[
+        "AsynchronousCompletionTask",
+    ]),
+    ("java.util.concurrent.ConcurrentHashMap", &[
+        "Entry",
+        "KeySetView",
+        "SimpleEntry",
+        "SimpleImmutableEntry",
+    ]),
+    ("java.util.concurrent.ConcurrentMap", &[
+        "Entry",
+    ]),
+    ("java.util.concurrent.ConcurrentNavigableMap", &[
+        "Entry",
+    ]),
+    ("java.util.concurrent.ConcurrentSkipListMap", &[
+        "Entry",
+        "SimpleEntry",
+        "SimpleImmutableEntry",
+    ]),
+    ("java.util.concurrent.Flow", &[
+        "Processor",
+        "Publisher",
+        "Subscriber",
+        "Subscription",
+    ]),
+    ("java.util.concurrent.ForkJoinPool", &[
+        "ForkJoinWorkerThreadFactory",
+        "ManagedBlocker",
+    ]),
+    ("java.util.concurrent.ForkJoinWorkerThread", &[
+        "State",
+        "UncaughtExceptionHandler",
+    ]),
+    ("java.util.concurrent.ScheduledThreadPoolExecutor", &[
+        "AbortPolicy",
+        "CallerRunsPolicy",
+        "DiscardOldestPolicy",
+        "DiscardPolicy",
+    ]),
+    ("java.util.concurrent.ThreadLocalRandom", &[
+        "ArbitrarilyJumpableGenerator",
+        "JumpableGenerator",
+        "LeapableGenerator",
+        "SplittableGenerator",
+        "StreamableGenerator",
+    ]),
+    ("java.util.concurrent.ThreadPoolExecutor", &[
+        "AbortPolicy",
+        "CallerRunsPolicy",
+        "DiscardOldestPolicy",
+        "DiscardPolicy",
+    ]),
+    ("java.util.concurrent.TimeUnit", &[
+        "EnumDesc",
+    ]),
+    ("java.util.concurrent.locks.AbstractQueuedLongSynchronizer", &[
+        "ConditionObject",
+    ]),
+    ("java.util.concurrent.locks.AbstractQueuedSynchronizer", &[
+        "ConditionObject",
+    ]),
+    ("java.util.concurrent.locks.ReentrantReadWriteLock", &[
+        "ReadLock",
+        "WriteLock",
+    ]),
+    ("java.util.stream.Collector", &[
+        "Characteristics",
+    ]),
+    ("java.util.stream.DoubleStream", &[
+        "Builder",
+        "DoubleMapMultiConsumer",
+    ]),
+    ("java.util.stream.IntStream", &[
+        "Builder",
+        "IntMapMultiConsumer",
+    ]),
+    ("java.util.stream.LongStream", &[
+        "Builder",
+        "LongMapMultiConsumer",
+    ]),
+    ("java.util.stream.Stream", &[
+        "Builder",
+    ]),
+];
+
 /// The members of the Perspective script objects (component, page,
 /// session and view SafetyWrappers), in the Java method and bean
 /// spellings, with the kind of their declared type: `host` (a page or

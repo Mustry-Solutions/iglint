@@ -250,7 +250,12 @@ impl ScriptFacts for AstScriptFacts {
                 references.file_read_site = Some(site);
             }
         }
-        for (_, site) in &mut references.unvetted_imports {
+        for (_, site) in references
+            .unvetted_imports
+            .iter_mut()
+            .chain(&mut references.library_changes)
+            .chain(&mut references.library_values)
+        {
             place(site);
         }
         for (_, site) in &mut references.unvetted_names {

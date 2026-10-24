@@ -917,6 +917,155 @@ fn imports_that_bind_a_read_package_are_kept() {
     );
 }
 
+/// The SCR102 diagnostics of a JSON run in `dir` with `args`, as (file
+/// name suffix, applicability, reason message, reason site `what`, reason
+/// site file name).
+fn scr102_reasons(dir: &std::path::Path, args: &[&str]) -> Vec<[String; 5]> {
+    let out = iglint(dir)
+        .args(["check", "--output-format", "json", "--select", "SCR102"])
+        .args(args)
+        .output()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let text = |v: &serde_json::Value| v.as_str().unwrap_or_default().to_owned();
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|d| {
+            let reason = &d["fix"]["unsafe_reason"];
+            [
+                text(&d["filename"]),
+                text(&d["fix"]["applicability"]),
+                text(&reason["message"]),
+                text(&reason["what"]),
+                text(&reason["filename"]),
+            ]
+        })
+        .collect()
+}
+
+/// Review round 22 (Codex) blocker: measured facts (a module's attributes,
+/// a Java class's members, the builtins) describe shared objects as
+/// loaded. After `del math.pi`, `from math import pi` raises
+/// `ImportError`, so removing it changes the script (Jython printed
+/// `missing` before the fix and `7` after). Any change of a shared object
+/// is unknown code, at its site: in the module itself (also with a warm
+/// cache and when the file is linted alone, and `--fix` keeps it) and in
+/// another module of the workspace, through an alias, `os.path`, a Java
+/// static field, `__builtin__` or a library module's import.
+#[test]
+fn changing_a_shared_object_keeps_the_import() {
+    let repro = "import math\ndel math.pi\ndef f():\n    from math import pi\n    return 7\ntry:\n    print f()\nexcept ImportError:\n    print \"missing\"\n";
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        "p/project.json",
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    );
+    let module = |name: &str, text: &str| {
+        write(
+            &format!("p/ignition/script-python/{name}/resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        );
+        write(&format!("p/ignition/script-python/{name}/code.py"), text);
+    };
+    module("m", repro);
+    let m = dir.path().join("p/ignition/script-python/m/code.py");
+    let m_rel = "p/ignition/script-python/m/code.py";
+    let expected = [
+        m_rel.to_owned(),
+        "unsafe".to_owned(),
+        "the script uses code that is not vetted".to_owned(),
+        "math.pi".to_owned(),
+        m_rel.to_owned(),
+    ];
+    let cache = dir.path().join("cache");
+    let cache = cache.to_str().unwrap();
+    for args in [
+        vec!["--no-cache"],
+        vec!["--no-cache", m_rel],
+        vec!["--cache-dir", cache],
+        vec!["--cache-dir", cache],
+        vec!["--cache-dir", cache, m_rel],
+    ] {
+        assert_eq!(
+            scr102_reasons(dir.path(), &args),
+            std::slice::from_ref(&expected),
+            "{args:?}"
+        );
+    }
+    for args in [vec!["--fix"], vec!["--fix", m_rel]] {
+        iglint(dir.path())
+            .args(["check", "--no-cache", "--select", "SCR102"])
+            .args(&args)
+            .output()
+            .unwrap();
+        assert_eq!(std::fs::read_to_string(&m).unwrap(), repro, "{args:?}");
+    }
+
+    // The change in another module: the closed world.
+    let user = "def f():\n    from math import pi\n    return 7\n";
+    module("m", user);
+    module("l", "import math\nfrom java.util import ArrayList\n");
+    for (other, site) in [
+        ("x = 1\n", None),
+        ("import math\ndel math.pi\n", Some("math.pi")),
+        ("import math as mm\nmm.pi = 3\n", Some("mm.pi")),
+        (
+            "def g():\n    import math\n    math.pi += 1\n",
+            Some("math.pi"),
+        ),
+        ("import os\ndel os.path.join\n", Some("os.path.join")),
+        ("from os import path\npath.sep = '/'\n", Some("path.sep")),
+        (
+            "from java.lang import System\nSystem.out = None\n",
+            Some("System.out"),
+        ),
+        (
+            "from java.lang import System\nout = System\n",
+            Some("System"),
+        ),
+        (
+            "import __builtin__\ndel __builtin__.open\n",
+            Some("__builtin__"),
+        ),
+        ("del l.math.pi\n", Some("l.math.pi")),
+        ("from l import math as lm\ndel lm.pi\n", Some("lm.pi")),
+        ("k = l.math\n", Some("l.math")),
+        ("l.ArrayList.size = 1\n", Some("l.ArrayList.size")),
+    ] {
+        module("other", other);
+        for args in [vec!["--no-cache"], vec!["--no-cache", m_rel]] {
+            let found = scr102_reasons(dir.path(), &args);
+            let of_m: Vec<_> = found.iter().filter(|f| f[0] == m_rel).collect();
+            assert_eq!(of_m.len(), 1, "{other} {args:?} {found:?}");
+            match site {
+                None => assert_eq!(of_m[0][1], "safe", "{other} {found:?}"),
+                Some(site) => {
+                    assert_eq!(of_m[0][1], "unsafe", "{other} {found:?}");
+                    assert!(of_m[0][2].starts_with("closed world"), "{other} {found:?}");
+                    assert_eq!(of_m[0][3], site, "{other} {found:?}");
+                    assert_eq!(
+                        of_m[0][4], "p/ignition/script-python/other/code.py",
+                        "{other} {found:?}"
+                    );
+                }
+            }
+        }
+        if site.is_some() {
+            iglint(dir.path())
+                .args(["check", "--no-cache", "--fix", "--select", "SCR102"])
+                .output()
+                .unwrap();
+            assert_eq!(std::fs::read_to_string(&m).unwrap(), user, "{other}");
+        }
+    }
+}
+
 /// Review round 13 (both reviewers): imports that a class body reads by
 /// name, spelled mangled (`__m` is `_D__m` in class `D`) or before the
 /// class binds the name, and an import the interpreter reads as a class's
