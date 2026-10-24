@@ -348,6 +348,7 @@ impl Diagnostic {
         file: SourceFile,
         range: TextRange,
     ) -> Self {
+        let range = char_range(file.text(), range);
         Diagnostic {
             rule,
             severity,
@@ -448,4 +449,20 @@ impl Hasher for Fnv64 {
             self.0 = self.0.wrapping_mul(0x0100_0000_01b3);
         }
     }
+}
+
+/// `range` widened to whole characters of `text` ([`TextRange::snap_to_chars`]).
+/// Every range of a finding goes through here, so a rule that computes a
+/// range in bytes (one byte at the start of a file that begins with a byte
+/// order mark) cannot make the output or the language server panic.
+/// Debug builds assert that the rule's range was already on character
+/// boundaries, so tests find such rules.
+pub(crate) fn char_range(text: &str, range: TextRange) -> TextRange {
+    debug_assert!(
+        range.end().to_usize() > text.len() || range.is_on_char_boundaries(text),
+        "range {range:?} splits a character of {:?}",
+        &text[iglint_text::floor_char_boundary(text, range.start().to_usize().saturating_sub(4))
+            ..iglint_text::ceil_char_boundary(text, range.end().to_usize() + 4)]
+    );
+    range.snap_to_chars(text)
 }

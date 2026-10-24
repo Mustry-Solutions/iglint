@@ -2,7 +2,7 @@
 
 use iglint_project::model::ModelData;
 use iglint_project::summary::covered_by_prefix;
-use iglint_text::{TextRange, TextSize};
+use iglint_text::TextRange;
 
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
@@ -79,8 +79,11 @@ pub(crate) fn report_unused(cx: &mut Checker<'_, '_>, file: iglint_project::File
     if ws.project(project).inheritable() || index.usage_count(resource.id) > 0 {
         return;
     }
-    let len = cx.file(file).map_or(0, |f| f.text().len().min(1));
-    let range = TextRange::at(TextSize::new(0), TextSize::new(len as u32));
+    // The first character, which may be longer than a byte (a byte
+    // order mark).
+    let range = cx
+        .file(file)
+        .map_or(TextRange::default(), |f| TextRange::first_char(f.text()));
     cx.report_in(
         file,
         range,

@@ -3,7 +3,7 @@
 use iglint_json::Value;
 use iglint_project::kinds::FileKind;
 use iglint_project::model::ModelData;
-use iglint_text::{TextRange, TextSize};
+use iglint_text::TextRange;
 
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
@@ -173,8 +173,7 @@ fn is_stray_script(kind: FileKind, name: &str) -> bool {
 /// The first character of a file (empty for an empty file): where findings
 /// about the whole file point.
 fn start_range(text: &str) -> TextRange {
-    let end = text.chars().next().map_or(0, char::len_utf8);
-    TextRange::new(TextSize::new(0), TextSize::new(end as u32))
+    TextRange::first_char(text)
 }
 
 /// A `view.json` or Python file of a project or collection that is not in

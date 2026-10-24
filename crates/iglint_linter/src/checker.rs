@@ -53,6 +53,15 @@ impl FileTable {
         self.files.get(id.index())?.as_ref()
     }
 
+    /// The text of the file of the table at `path`, if any.
+    fn text_of(&self, path: &std::path::Path) -> Option<&str> {
+        self.files
+            .iter()
+            .flatten()
+            .find(|f| f.path() == path)
+            .map(|f| f.text())
+    }
+
     pub fn len(&self) -> usize {
         self.files.len()
     }
@@ -389,13 +398,25 @@ impl Report<'_> {
     }
 
     /// Fixes that edit a file with invalid UTF-8 are dropped: writing its
-    /// text back would replace the invalid bytes.
+    /// text back would replace the invalid bytes. So are fixes with an
+    /// edit that is not on character boundaries of the file it edits
+    /// (debug builds assert): applying it would split a character.
     pub fn fix(mut self, fix: Fix) -> Self {
         if let Some(d) = &mut self.diagnostic
             && !fix
                 .edits
                 .iter()
                 .any(|e| self.files.has_invalid_utf8(&e.path))
+            && fix.edits.iter().all(|e| {
+                let text = if e.path == d.file.path() {
+                    Some(d.file.text())
+                } else {
+                    self.files.text_of(&e.path)
+                };
+                let fits = text.is_none_or(|t| e.edit.range.is_on_char_boundaries(t));
+                debug_assert!(fits, "fix edit {:?} splits a character", e.edit.range);
+                fits
+            })
         {
             d.fix = Some(fix);
         }
@@ -411,10 +432,12 @@ impl Report<'_> {
 
     /// A secondary location in `file`.
     pub fn label(mut self, file: FileId, range: TextRange, message: impl Into<String>) -> Self {
-        if let (Some(d), Some(source)) = (&mut self.diagnostic, self.files.get(file)) {
+        if let (Some(d), Some(source)) = (&mut self.diagnostic, self.files.get(file))
+            && range.end().to_usize() <= source.text().len()
+        {
             d.labels.push(Label {
                 file: source.clone(),
-                range,
+                range: crate::diagnostic::char_range(source.text(), range),
                 message: message.into(),
             });
         }

@@ -162,6 +162,51 @@ impl TextRange {
     pub fn slice(self, text: &str) -> &str {
         &text[self.to_std()]
     }
+
+    /// Whether both ends of the range are character boundaries of `text`
+    /// (and inside it).
+    #[inline]
+    pub fn is_on_char_boundaries(self, text: &str) -> bool {
+        text.is_char_boundary(self.start.to_usize()) && text.is_char_boundary(self.end.to_usize())
+    }
+
+    /// The range widened to the characters of `text` it touches: the start
+    /// moves back and the end forward to the nearest character boundary,
+    /// both clamped to the text. A range that splits a multi-byte
+    /// character (a one-byte range at the start of a file that begins
+    /// with a byte order mark) then covers the whole character, so slicing
+    /// and line/column conversions cannot panic.
+    pub fn snap_to_chars(self, text: &str) -> TextRange {
+        let start = floor_char_boundary(text, self.start.to_usize());
+        let end = ceil_char_boundary(text, self.end.to_usize().max(start));
+        TextRange::new(TextSize::from(start), TextSize::from(end))
+    }
+
+    /// The range of the first character of `text` (empty for an empty
+    /// text): where findings about a whole file point.
+    pub fn first_char(text: &str) -> TextRange {
+        let end = text.chars().next().map_or(0, char::len_utf8);
+        TextRange::new(TextSize::new(0), TextSize::from(end))
+    }
+}
+
+/// The largest character boundary of `text` at or before `offset`.
+pub fn floor_char_boundary(text: &str, offset: usize) -> usize {
+    let mut at = offset.min(text.len());
+    while !text.is_char_boundary(at) {
+        at -= 1;
+    }
+    at
+}
+
+/// The smallest character boundary of `text` at or after `offset` (the
+/// text's length past its end).
+pub fn ceil_char_boundary(text: &str, offset: usize) -> usize {
+    let mut at = offset.min(text.len());
+    while !text.is_char_boundary(at) {
+        at += 1;
+    }
+    at
 }
 
 impl From<Range<usize>> for TextRange {
@@ -302,7 +347,10 @@ impl LineIndex {
     }
 
     /// One-based line and character column of `offset`.
+    /// An offset inside a multi-byte character counts as the character's
+    /// start.
     pub fn line_column(&self, offset: TextSize, text: &str) -> LineColumn {
+        let offset = self.snap(offset, text);
         let line = self.line_of(offset);
         let start = self.line_starts[line];
         let column = if self.ascii {
@@ -316,7 +364,10 @@ impl LineIndex {
         }
     }
 
+    /// The LSP position of `offset`; an offset inside a multi-byte
+    /// character counts as the character's start.
     pub fn utf16_position(&self, offset: TextSize, text: &str) -> Utf16Position {
+        let offset = self.snap(offset, text);
         let line = self.line_of(offset);
         let start = self.line_starts[line];
         let character = if self.ascii {
@@ -330,6 +381,17 @@ impl LineIndex {
         Utf16Position {
             line: line as u32,
             character,
+        }
+    }
+
+    /// `offset` moved back to a character boundary of `text` (and into
+    /// it); unchanged for ASCII text.
+    #[inline]
+    fn snap(&self, offset: TextSize, text: &str) -> TextSize {
+        if self.ascii && offset <= self.len {
+            offset
+        } else {
+            TextSize::from(floor_char_boundary(text, offset.to_usize()))
         }
     }
 

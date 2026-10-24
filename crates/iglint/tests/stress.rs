@@ -38,7 +38,10 @@ fn iglint(dir: &Path, args: &[&str]) -> Output {
         matches!(output.status.code(), Some(0 | 1)),
         "iglint {args:?} failed with {:?}: {}",
         output.status,
-        &stderr[..stderr.len().min(2000)]
+        &stderr[..(0..=stderr.len().min(2000))
+            .rev()
+            .find(|&i| stderr.is_char_boundary(i))
+            .unwrap_or(0)]
     );
     assert!(!stderr.contains("overflow"), "{stderr}");
     output
@@ -716,7 +719,11 @@ impl Server {
 
 fn file_uri(path: &Path) -> String {
     let path = path.canonicalize().unwrap();
-    let text = path.to_string_lossy().replace('\\', "/");
+    let text = path
+        .to_string_lossy()
+        .replace('\\', "/")
+        .replace('%', "%25")
+        .replace(' ', "%20");
     // Windows: `\\?\C:\...`.
     let text = text.strip_prefix("//?/").unwrap_or(&text);
     if text.starts_with('/') {
@@ -874,4 +881,168 @@ fn large_views_and_modules_take_linear_time() {
         "250,000 lines: {t_small:?}, 1,000,000: {t_large:?}"
     );
     assert!(t_large < Duration::from_secs(60), "{t_large:?}");
+}
+
+/// A change of a file's text.
+type Change = dyn Fn(&str) -> String;
+
+/// Copies the public fixture projects (`iglint_project`'s fixtures, and
+/// the ign-lint parity views of at most 64 KiB as views of a project)
+/// into `to`, every text file changed by `change`.
+fn multi_byte_fixture(to: &Path, change: &Change) {
+    let crates = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let mut copied = 0;
+    let mut copy = |from: &Path, rel: &Path| {
+        let target = to.join(rel);
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        match std::fs::read_to_string(from) {
+            Ok(text) => std::fs::write(&target, change(&text)).unwrap(),
+            Err(_) => {
+                std::fs::copy(from, &target).unwrap();
+            }
+        }
+        copied += 1;
+    };
+    let mut stack = vec![crates.join("iglint_project/tests/fixtures")];
+    let base = stack[0].clone();
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                copy(&path, path.strip_prefix(&base).unwrap());
+            }
+        }
+    }
+    let cases = crates.join("iglint_linter/tests/fixtures/ign-lint/cases");
+    for entry in std::fs::read_dir(&cases).unwrap().flatten() {
+        let view = entry.path().join("view.json");
+        if std::fs::metadata(&view).is_ok_and(|m| m.len() <= 64 * 1024) {
+            let name = entry.file_name();
+            let dir = Path::new("cases/projects/cases/com.inductiveautomation.perspective/views")
+                .join(&name);
+            copy(&view, &dir.join("view.json"));
+            let manifest = entry.path().join("resource.json");
+            if manifest.is_file() {
+                copy(&manifest, &dir.join("resource.json"));
+            }
+        }
+    }
+    write(
+        to,
+        "cases/projects/cases/project.json",
+        &change(r#"{"title": "cases", "enabled": true, "inheritable": false}"#),
+    );
+    assert!(copied > 100, "{copied}");
+}
+
+/// Review round 17 (Opus): a file whose first character is longer than
+/// a byte (a byte order mark, `€`, an emoji) made rules that point at
+/// "the first byte" panic. Every rule (`--select ALL`, with fixes applied),
+/// the ign-lint mode and the language server must survive files that start
+/// with such a character and files that are only one. Debug builds also
+/// assert that no rule reports a range that splits a character.
+#[test]
+fn multi_byte_first_characters_do_not_panic() {
+    let changes: [(&str, &Change); 5] = [
+        ("byte order mark first", &|t: &str| format!("\u{feff}{t}")),
+        ("euro sign first", &|t: &str| format!("\u{20ac}{t}")),
+        ("emoji first", &|t: &str| format!("\u{1f600}{t}")),
+        ("only a byte order mark", &|_: &str| "\u{feff}".to_owned()),
+        ("only an emoji", &|_: &str| "\u{1f600}".to_owned()),
+    ];
+    let ign_lint_rules: serde_json::Map<String, Value> = [
+        "BadComponentReferenceRule",
+        "ComponentReferenceValidationRule",
+        "ExcessiveContextDataRule",
+        "NamePatternRule",
+        "PollingIntervalRule",
+        "PropertyAccessRule",
+        "PropertyPersistenceRule",
+        "UnusedCustomPropertiesRule",
+    ]
+    .into_iter()
+    .map(|r| (r.to_owned(), json!({"enabled": true})))
+    .collect();
+    for (name, change) in changes {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        multi_byte_fixture(root, change);
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        // pylint is not needed (and may not be installed).
+        let all = ["--select", "ALL", "--ignore", "SCR900"];
+        for format in ["json", "text", "github", "sarif"] {
+            let mut args = vec!["check", "--no-cache", "--output-format", format];
+            args.extend(all);
+            iglint(root, &args);
+        }
+        // Every file on its own, as pre-commit and editors lint it.
+        let mut files = Vec::new();
+        let mut stack = vec![root.to_path_buf()];
+        while let Some(d) = stack.pop() {
+            for entry in std::fs::read_dir(&d).unwrap().flatten() {
+                let path = entry.path();
+                if entry.file_name() == ".git" {
+                    continue;
+                }
+                if path.is_dir() {
+                    stack.push(path);
+                } else {
+                    files.push(path);
+                }
+            }
+        }
+        files.sort();
+        let mut args: Vec<&str> = vec!["check", "--no-cache", "--output-format", "json"];
+        args.extend(all);
+        let mut each = args.clone();
+        each.extend(files.iter().map(|f| f.to_str().unwrap()));
+        iglint(root, &each);
+        let mut diff = args.clone();
+        diff.extend(["--diff", "--unsafe-fixes"]);
+        iglint(root, &diff);
+        let mut fix = args.clone();
+        fix.extend(["--fix", "--unsafe-fixes"]);
+        iglint(root, &fix);
+        // The ign-lint mode, with its defaults and with every rule on.
+        iglint(root, &["ign-lint", "--files", "**/view.json"]);
+        write(
+            root,
+            "rule_config.json",
+            &Value::Object(ign_lint_rules.clone()).to_string(),
+        );
+        iglint(root, &["ign-lint", "--files", "**/view.json"]);
+        std::fs::remove_file(root.join("rule_config.json")).unwrap();
+        // The language server, with every rule: open every file, ask for
+        // its code actions and hover over its first character.
+        write(
+            root,
+            "iglint.toml",
+            "select = [\"ALL\"]\nignore = [\"SCR900\"]\n",
+        );
+        let mut server = Server::start(root);
+        for file in files
+            .iter()
+            .filter(|f| f.extension().is_some_and(|e| e == "json" || e == "py"))
+        {
+            let text = std::fs::read_to_string(file).unwrap_or_default();
+            let diagnostics = server.edit(file, &text);
+            let uri = file_uri(file);
+            server.request(
+                "textDocument/codeAction",
+                json!({
+                    "textDocument": {"uri": uri},
+                    "range": {"start": {"line": 0, "character": 0}, "end": {"line": 10000, "character": 0}},
+                    "context": {"diagnostics": diagnostics}
+                }),
+            );
+            server.request(
+                "textDocument/hover",
+                json!({"textDocument": {"uri": uri}, "position": {"line": 0, "character": 1}}),
+            );
+        }
+        server.stop();
+        eprintln!("{name}: {} files survived", files.len());
+    }
 }

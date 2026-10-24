@@ -4,7 +4,7 @@ use iglint_project::kinds::EventScriptKind;
 use iglint_project::model::ModelData;
 use iglint_project::summary::covered_by_prefix;
 use iglint_project::{ProjectId, ProjectIndex};
-use iglint_text::{TextRange, TextSize};
+use iglint_text::TextRange;
 
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
@@ -129,10 +129,12 @@ impl ResourceRule for UnhandledMessageHandler {
                     return;
                 }
                 let file = e.script.as_ref().map_or(resource.manifest.file, |s| s.file);
-                let len = cx.file(file).map_or(0, |f| f.text().len().min(1));
+                let range = cx
+                    .file(file)
+                    .map_or(TextRange::default(), |f| TextRange::first_char(f.text()));
                 cx.report_in(
                     file,
-                    TextRange::at(TextSize::new(0), TextSize::new(len as u32)),
+                    range,
                     format!("No script sends to message handler `{name}`"),
                 )
                 .node_path(name);

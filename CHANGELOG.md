@@ -123,6 +123,13 @@ from 0.1.0 on.
   folder) gets no fixes, and REF009 says that iglint lints it on its own,
   without saying that the gateway does not load it. In the language
   server such a file gets a folder of its own.
+- Rules that point at the first character of a file (REF011, REF013,
+  STYLE002, REF014) no longer panic (exit 101, no output) when the file
+  starts with a character longer than a byte, such as a UTF-8 byte order
+  mark (review round 17, Opus). Every finding's range is widened to whole
+  characters in one place, line and column conversions accept any offset,
+  and a fix with an edit inside a character is dropped; debug builds assert
+  that rules compute ranges on character boundaries.
 - The workspace root no longer depends on what is linted (review round
   15): it is the outermost of the configuration directory, every Ignition
   layout root around the path (up to the Git work tree) and the Git work
