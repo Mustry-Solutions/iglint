@@ -309,11 +309,21 @@ Remaining hotspots (large corpus):
 bench/parity.py ~/.cache/iglint-bench/corpora/medium -- --config bench/configs/rules-only.json --files 'projects/**/view.json'
 ```
 
-Real ign-lint stages every script into the `debug_dir` of its
-configuration (default `.ignition-lint/debug/`, inside the project)
-whatever `debug` says, so running it on a corpus writes into the corpus.
-`parity.py` never does that: it passes ign-lint a scratch copy of the
-`--config` with `debug` off and every `debug_dir` pointed into `--out`.
+Real ign-lint 0.6.4 stages the scripts of a view into a debug directory
+whenever pylint reports something, whatever `debug` says. Without a
+`debug_dir` in its configuration it picks one itself: `tests/debug` in
+the nearest ancestor that is or holds a `tests` directory (for the
+bundled fixtures, `crates/iglint_linter/tests/debug` in this
+repository), else `.ignition-lint/debug/` in the corpus. So running it
+on a corpus writes into the corpus or the source tree. `parity.py` never
+does that: it passes ign-lint a scratch copy of the `--config` (or, without
+one, of the corpus's `rule_config.json`, which ign-lint reads by
+default) with `debug` off and every `debug_dir` pointed into `--out`,
+and gives `PylintScriptRule` (the only rule with debug output) both
+settings when its entry or the keys are absent, unless it is disabled;
+`--debug-output` is pointed into `--out` too. `cargo test -p iglint
+--test bench_parity` checks that a run with pylint enabled leaves `git
+status` unchanged.
 Pass the project's own `--whitelist` so both linters skip the same legacy
 views (otherwise `iglint` reports on files ign-lint was told to ignore).
 
@@ -329,14 +339,17 @@ component reference pattern counts, name suggestions), then classified:
 (identical, or equal after normalising the wording) are also compared by
 severity: the output gives the number of matched findings with the same
 severity, the expected severity differences per category (a documented
-mapping: native `SCR` rules take the severity mapped for `E` or `W`) and
-the unexplained ones per rule and severity pair.
+mapping; none is needed for the compared rules) and the unexplained ones
+per rule and severity pair.
 
 **Pylint findings are outside the parity comparison.** Every
 `PylintScriptRule` finding (`SCR900` and the native `SCR` rules it maps
-to) is counted under "expected" as `not compared: PylintScriptRule`, never
-as identical or unexplained, so the identical and unexplained columns
-speak only for the other rules. Pylint findings are compared separately,
+to) is set aside before matching: it is in none of the columns
+(identical, expected, unexplained) and in no severity comparison, and
+the output and `summary.json` (`not compared`) give their number per
+side. An earlier version matched them like the other findings and
+counted the ones with identical text as identical. Pylint findings are
+compared separately,
 by file, node path and message code, because ign-lint's combined file
 shifts lines and adds file-level messages, and they differ from ign-lint's
 by design: iglint drops the messages caused by ign-lint's combined file
@@ -366,14 +379,17 @@ private project with its own configuration (pylint included):
 | small | 24 | 7 | 0 | 0 |
 | medium | 218 | 108 | 0 | 0 |
 | large | 2,247 | 1,146 | 0 | 0 |
-| private project (aggregates) ³ | 1,531 | 3,932 ² | 0 | 0 |
+| private project (aggregates) ³ | 1,463 ² | 915 | 0 | 0 |
 
-² Including 3,017 pylint findings, which are outside the comparison and
-compared by message code instead (below).
+² Without the pylint findings, which are not compared (ign-lint 1,933,
+iglint 1,220) and are compared by message code instead (below). Counted
+the earlier way (pylint findings with the same text as identical, the
+others as expected), the same run gives 1,531 identical and 3,932
+expected.
 
 ³ Numbers from the private project depend on its revision. These were
-measured on 2026-10-24, on the revision of 2026-10-21, with ign-lint 0.6.4
-(0.6.3 gives the same numbers).
+measured on 2026-10-24, on a copy of the revision of 2026-10-21, with
+ign-lint 0.6.4 (0.6.3 gave the same numbers in the earlier count).
 
 Every expected difference has a category in
 `docs/compat/ign-lint-differences.md`. The ones found with this tool and

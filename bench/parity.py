@@ -49,6 +49,8 @@ ABBREVIATIONS = (
     "LCD OLED CRT ID"
 ).split()
 
+PYLINT = "PylintScriptRule"
+
 FILE_LINE = re.compile(r"^(?:❌|⚠️|✅)\s+(.+)$")
 SECTION = re.compile(r"^(ERRORS|WARNINGS) \(\d+ total\):$")
 RULE = re.compile(r"^  (\w+):$")
@@ -249,8 +251,6 @@ def has_abbreviation(name):
 def classify(f, side, views):
     """Category for an unmatched finding, or None when unexplained."""
     rule, path, text = f["rule"], f["path"], f["text"]
-    if rule == "PylintScriptRule":
-        return "not compared: PylintScriptRule (SCR rules)"
     if rule == "ComponentReferenceValidationRule":
         if side == "iglint" and ".scripts.extensionFunctions[" in path and "not found as sibling" in text:
             return "SCR305: extension functions are scripts and are checked (bug 1)"
@@ -354,102 +354,99 @@ def _propconfig_only(view, path):
     return name not in (component.get("custom") or {}) and f"custom.{name}" in (component.get("propConfig") or {})
 
 
-DEFAULT_CATEGORY_MAPPING = {"F": "error", "E": "error", "W": "warning", "C": "warning", "R": "warning"}
-
-
-def pylint_category_mapping(flags, corpus):
-    """PylintScriptRule's `category_mapping` of the ign-lint configuration
-    named by `--config` (relative to the corpus), else ign-lint's default."""
-    for i, flag in enumerate(flags[:-1]):
-        if flag != "--config":
-            continue
-        path = Path(flags[i + 1])
-        if not path.is_absolute():
-            path = corpus / path
-        try:
-            config = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            break
-        rule = config.get("PylintScriptRule") if isinstance(config, dict) else None
-        kwargs = (rule or {}).get("kwargs") if isinstance(rule, dict) else None
-        mapping = (kwargs or {}).get("category_mapping") if isinstance(kwargs, dict) else None
-        if isinstance(mapping, dict):
-            return mapping
-        break
-    return DEFAULT_CATEGORY_MAPPING
-
-
-def classify_severity(f, g, mapping):
+def classify_severity(f, g):
     """Category for a matched pair (`f` from ign-lint, `g` from iglint) whose
-    severities differ, or None when unexplained."""
-    if f["rule"] == "PylintScriptRule" and g["category"] is None:
-        # A native SCR rule takes the severity mapped for `E` (error-level
-        # rules) or `W` (warning-level rules), not that of the pylint
-        # category ign-lint grouped the message under.
-        if g["severity"] in (mapping.get("E"), mapping.get("W")):
-            return "SCR: native rules take the severity mapped for E or W"
+    severities differ, or None when unexplained. PylintScriptRule findings
+    are not matched, so no documented severity mapping applies to the
+    compared rules."""
     return None
 
 
 def _debug_off_config(flags, out, corpus):
-    """`flags` with every `--config PATH` pointing at an ign-lint
-    configuration replaced by a copy in `out` that turns `debug` off and
-    points every `debug_dir` into `out`. The real ign-lint stages scripts
-    into `debug_dir` whatever `debug` says, so a config that names a
-    `debug_dir` inside the corpus (the default `.ignition-lint/debug/`)
-    writes into the corpus; this keeps all of that in the scratch
-    directory. Configs without those keys are left untouched."""
+    """`flags` with the ign-lint configuration replaced by a copy in `out`
+    that keeps every debug output of ign-lint in `out`.
+
+    Real ign-lint 0.6.4 stages the scripts of a view into a debug directory
+    whenever pylint reports something, whatever `debug` says. Without a
+    `debug_dir` it picks one itself: `<ancestor>/tests/debug` when the
+    working directory (the corpus) is in or next to a `tests` directory
+    (the bundled fixtures are), else `.ignition-lint/debug` in the corpus.
+    So the copy always gives `PylintScriptRule` (the only rule with debug
+    output) `debug: false` and a `debug_dir` in `out`, also when its entry
+    or the keys are absent, unless the rule is disabled; every other
+    `debug` key is turned off and every other `debug_dir` points into
+    `out` too. Without `--config`, ign-lint reads `rule_config.json` from
+    the corpus: that file is copied the same way. `--debug-output DIR`
+    (the engine's model dumps) is pointed into `out`."""
     debug_dir = out / "ign-lint-debug"
 
     def sanitised(o):
-        """A copy of `o` with `debug` off and `debug_dir` in `out`; returns
-        (new, changed)."""
-        changed = False
+        """A copy of `o` with `debug` off and `debug_dir` in `out`."""
         if isinstance(o, dict):
             new = {}
             for k, v in o.items():
-                if k == "debug" and v:
-                    new[k], changed = False, True
+                if k == "debug":
+                    new[k] = False
                 elif k == "debug_dir":
-                    debug_dir.mkdir(parents=True, exist_ok=True)
-                    new[k], changed = str(debug_dir), True
+                    new[k] = str(debug_dir)
                 else:
-                    nv, c = sanitised(v)
-                    new[k], changed = nv, changed or c
-            return new, changed
+                    new[k] = sanitised(v)
+            return new
         if isinstance(o, list):
-            out_list = []
-            for v in o:
-                nv, c = sanitised(v)
-                out_list.append(nv)
-                changed = changed or c
-            return out_list, changed
-        return o, False
+            return [sanitised(v) for v in o]
+        return o
+
+    def safe_copy(path):
+        """The path of a safe copy of the configuration at `path`, or None
+        when it cannot be read (ign-lint then stops without linting)."""
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        data = sanitised(data)
+        rule = data.get("PylintScriptRule")
+        if not isinstance(rule, dict):
+            rule = {}
+        if rule.get("enabled", True) is not False:
+            kwargs = rule.get("kwargs")
+            if not isinstance(kwargs, dict):
+                kwargs = {}
+            kwargs["debug"] = False
+            kwargs["debug_dir"] = str(debug_dir)
+            rule["kwargs"] = kwargs
+            data["PylintScriptRule"] = rule
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        copy = out / f"config-nodebug-{path.name}"
+        copy.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        return str(copy)
 
     cleaned = []
+    configured = False
     i = 0
     while i < len(flags):
-        cleaned.append(flags[i])
-        if flags[i] == "--config" and i + 1 < len(flags):
+        flag = flags[i]
+        if flag == "--config" and i + 1 < len(flags):
+            configured = True
             # ign-lint resolves a relative --config against the corpus (its
             # working directory), so resolve it there to read it.
             path = Path(flags[i + 1])
             if not path.is_absolute():
                 path = corpus / path
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                data = None
-            new, changed = sanitised(data) if data is not None else (None, False)
-            if changed:
-                copy = out / f"config-nodebug-{path.name}"
-                copy.write_text(json.dumps(new, indent=2), encoding="utf-8")
-                cleaned.append(str(copy))
-            else:
-                cleaned.append(flags[i + 1])
+            cleaned += [flag, safe_copy(path) or flags[i + 1]]
             i += 2
             continue
+        if flag == "--debug-output" and i + 1 < len(flags):
+            cleaned += [flag, str(out / "ign-lint-debug-output")]
+            i += 2
+            continue
+        cleaned.append(flag)
         i += 1
+    if not configured:
+        copy = safe_copy(corpus / "rule_config.json")
+        if copy:
+            cleaned += ["--config", copy]
     return cleaned
 
 
@@ -502,6 +499,13 @@ def main():
 
     left, right = parse_results(ign_report), parse_results(ig_report)
     views = ViewCache(corpus)
+    # PylintScriptRule findings (SCR900 and the native SCR rules it maps
+    # to) are not part of the comparison: they are set aside before
+    # matching, counted per side, and compared by message code below.
+    pylint_left = [f for f in left if f["rule"] == PYLINT]
+    pylint_right = [f for f in right if f["rule"] == PYLINT]
+    compared_left = [f for f in left if f["rule"] != PYLINT]
+    compared_right = [f for f in right if f["rule"] != PYLINT]
 
     def key(f, norm):
         return (f["file"], f["rule"], f["path"], normalise(f) if norm else f["text"])
@@ -512,10 +516,10 @@ def main():
     remaining = {"ign-lint": [], "iglint": []}
     # Pass 1: exact, pass 2: normalised message.
     pool = collections.defaultdict(list)
-    for f in right:
+    for f in compared_right:
         pool[key(f, False)].append(f)
     unmatched_left = []
-    for f in left:
+    for f in compared_left:
         k = key(f, False)
         if pool.get(k):
             g = pool[k].pop()
@@ -549,18 +553,20 @@ def main():
                 diffs.append({"side": side, **f})
 
     rules = sorted(stats)
-    mapping = pylint_category_mapping(resolved, corpus)
     severity_categories = collections.Counter()
     severity_diffs = []
     for f, g in pairs:
         if f["severity"] == g["severity"]:
             continue
-        cat = classify_severity(f, g, mapping)
+        cat = classify_severity(f, g)
         if cat:
             severity_categories[cat] += 1
         else:
             severity_diffs.append({"ign-lint severity": f["severity"], "iglint severity": g["severity"], **f})
-    print(f"\nfindings: ign-lint {len(left)}, iglint {len(right)}")
+    print(
+        f"\nfindings: ign-lint {len(left)}, iglint {len(right)}; compared (without "
+        f"{PYLINT}): ign-lint {len(compared_left)}, iglint {len(compared_right)}"
+    )
     print(f"{'rule':38} {'identical':>9} {'expected':>9} {'ign-lint-only':>13} {'iglint-only':>11}")
     for r in rules:
         s = stats[r]
@@ -568,10 +574,11 @@ def main():
     if stats and any(stats[r]["expected: wording"] for r in rules):
         categories["message wording (bugs 8, 18)"] += sum(stats[r]["expected: wording"] for r in rules)
     print(
-        "\nnote: PylintScriptRule (SCR900) findings are outside this comparison: they count as\n"
-        "expected ('not compared') and are compared by message code below. They differ by\n"
-        "design: iglint drops ign-lint's combined-file header messages (C0103, W1405), does\n"
-        "not report E0602 for names Ignition injects, and reports W0702 once, as SCR106."
+        f"\nnot compared: {PYLINT} (SCR900) findings, ign-lint {len(pylint_left)}, iglint "
+        f"{len(pylint_right)}.\nThey are set aside before matching (in no column above) and "
+        "compared by message code\nbelow. They differ by design: iglint drops ign-lint's "
+        "combined-file header messages\n(C0103, W1405), does not report E0602 for names Ignition "
+        "injects, and reports W0702\nonce, as SCR106."
     )
     print("\nexpected differences by category:")
     for c, n in categories.most_common():
@@ -618,6 +625,8 @@ def main():
     )
     summary = {
         "findings": {"ign-lint": len(left), "iglint": len(right)},
+        "compared": {"ign-lint": len(compared_left), "iglint": len(compared_right)},
+        "not compared": {PYLINT: {"ign-lint": len(pylint_left), "iglint": len(pylint_right)}},
         "identical": sum(stats[r]["identical"] for r in rules),
         "expected": sum(stats[r]["expected"] for r in rules),
         "expected by category": dict(categories),

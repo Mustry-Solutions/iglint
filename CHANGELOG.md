@@ -135,6 +135,15 @@ from 0.1.0 on.
   may return a function (`__eq__` returning a lambda is called by Jython).
   Only literals of non-callable types and the builtin constants count
   (review round 16, Codex).
+- `bench/parity.py` no longer lets ign-lint write its debug files into
+  the corpus or the source tree when the configuration has no debug
+  settings (ign-lint picks `tests/debug` or `.ignition-lint/debug` by
+  itself): `PylintScriptRule` always gets `debug` off and a `debug_dir`
+  in `--out` (review round 16, Codex). Pylint findings are set aside
+  before matching instead of being counted as identical when their text
+  matched; the summary gives their number per side under `not compared`
+  (the private project's parity row is now 1,463 identical and 915
+  expected, 0 unexplained).
 - `SCR112` missed formatting that certainly fails on Unicode (review round
   14, Codex): a unicode format spec with a character beyond U+00FF
   (`u'{0:\U0001f980^4}'.format(1)`: `ValueError`), a non-ASCII unicode
