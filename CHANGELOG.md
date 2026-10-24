@@ -77,6 +77,17 @@ from 0.1.0 on.
 
 ### Fixed
 
+- SCR112 missed format specs with characters after the type
+  (`'{0:dd}'.format(1)`, `'{0:%Y}'.format(1)`, `'{0:.2.2}'.format(1.5)`,
+  `'{0:s.}'.format('ab')`, `'{0:#x#}'.format(5)`) and a `.` without
+  digits (`'{0:5.}'.format(1)`), which Jython rejects for every literal
+  ("Invalid conversion specification", "Format specifier missing
+  precision"); objects with a `__format__` of their own (`datetime`) are
+  still left alone. Jython also never reads an alignment character as a
+  fill (`'{0:<<}'` is alignment `<` and type `<`), unlike CPython; SCR112
+  now parses it that way. `oracle/format-spec.sh` generates characters
+  after the type too: all 5,414,400 cases match Jython, and the replayed
+  sample was redrawn.
 - The rule catalogue (`docs/internal/rules.md`) labelled `NAME001`'s fix
   unsafe although it offers safe renames, and `VIEW013`'s although it is
   safe when there is no stored value. Rules whose fixes are safe or
@@ -136,8 +147,8 @@ from 0.1.0 on.
   `'{0:z}'.format(1)`, `'{0:.2}'.format(1)`, `'{0:+s}'.format('ab')`. It
   now checks the whole spec per literal type (presentation type, sign,
   alignment, `#`, `,`, zero padding, precision), matching Jython on every
-  one of 3,110,400 generated cases (`oracle/format-spec.sh`; a stratified
-  sample of 4,000 is replayed by the tests).
+  one of the generated cases (`oracle/format-spec.sh`, 5,414,400 since
+  the entry below; a stratified sample of 4,000 is replayed by the tests).
 - SCR102's documentation no longer says that removing an import of a
   missing JDK class is a remaining effect of the safe fix (that removal is
   unsafe since the previous round).

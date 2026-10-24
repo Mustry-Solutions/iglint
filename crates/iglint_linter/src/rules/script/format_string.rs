@@ -38,9 +38,12 @@ arguments, with Jython 2.7's rules (verified on Jython):
   (`ArrayIndexOutOfBoundsException`; `{-0}` is index 0). A format spec
   whose width or precision is too large for a Java `int`
   (`{0:2147483648}`) fails for a literal argument and with `!r` or `!s`
-  (other objects may have their own `__format__`). A format spec that the
+  (other objects may have their own `__format__`), and so does one that
+  Jython's parser rejects whatever the value: characters after the type
+  (`'{:dd}'.format(1)`, `'{:%Y}'.format(1)`, `'{:.2.2}'.format(1.5)`) or a
+  `.` without digits (`'{:5.}'.format(1)`). A format spec that the
   literal argument does not support (checked against Jython on more than
-  three million generated specs and literals): an unknown presentation type
+  five million generated specs and literals): an unknown presentation type
   (`'{:z}'.format(1)`, `'{:d}'.format('a')`, `'{:s}'.format(1)`,
   `'{:d}'.format(1.5)`, any type but `s` after `!r` or `!s`); for strings
   (and containers and `None`, formatted as their `str`) a sign, `#`, `=`
@@ -337,13 +340,15 @@ fn standard_spec(spec: &str) -> Option<StandardSpec> {
     let mut out = StandardSpec::default();
     let mut i = 0;
     let align = |c: Option<&char>| matches!(c, Some('<' | '>' | '=' | '^'));
-    if align(chars.get(1)) {
+    // Jython reads an alignment character first as the alignment, never as
+    // a fill (`<<` is alignment `<` and type `<`, verified), unlike CPython.
+    if align(chars.first()) {
+        out.align = Some(chars[0]);
+        i = 1;
+    } else if align(chars.get(1)) {
         out.fill = Some(chars[0]);
         out.align = Some(chars[1]);
         i = 2;
-    } else if align(chars.first()) {
-        out.align = Some(chars[0]);
-        i = 1;
     }
     if chars.get(i).is_some_and(|c| matches!(c, '+' | '-' | ' ')) {
         out.sign = true;
@@ -493,10 +498,11 @@ fn describe(lit: Literal) -> &'static str {
 /// Why the format spec `spec` fails for the literal `e` in `str.format`,
 /// with Jython's message. `!r` and `!s` make every value a string, and
 /// containers and `None` are formatted as their `str` (`object.__format__`).
-/// Checked against Jython on 3,110,400 generated specs and literals (every
+/// Checked against Jython on 5,414,400 generated specs and literals (every
 /// combination of fills and alignments, signs, `#`, `0`, widths, `,`,
 /// precisions, every presentation type and a few invalid ones, with and
-/// without `!r` / `!s`): this reports exactly the ones that raise.
+/// without `!r` / `!s`, and on a smaller grid the same followed by
+/// characters after the type): this reports exactly the ones that raise.
 ///
 /// * every literal: a `.` without digits ("Format specifier missing
 ///   precision") and characters after the type ("Invalid conversion
@@ -642,10 +648,11 @@ fn spec_number_too_large(spec: &str) -> Option<bool> {
     let chars: Vec<char> = spec.chars().collect();
     let mut i = 0;
     let align = |c: Option<&char>| matches!(c, Some('<' | '>' | '=' | '^'));
-    if align(chars.get(1)) {
-        i = 2;
-    } else if align(chars.first()) {
+    // As in `standard_spec`: an alignment character is never a fill.
+    if align(chars.first()) {
         i = 1;
+    } else if align(chars.get(1)) {
+        i = 2;
     }
     for flag in [&['+', '-', ' '][..], &['#'], &['0']] {
         if chars.get(i).is_some_and(|c| flag.contains(c)) {
@@ -1174,8 +1181,9 @@ mod tests {
 
     /// Reviewer round 10 (Codex): definite format spec errors with literal
     /// arguments (`'{0:z}'.format(1)`, `'{0:.2}'.format(1)`,
-    /// `'{0:+s}'.format('ab')`). A stratified sample of 4,000 of the
-    /// 3,110,400 generated cases, half of which Jython accepts.
+    /// `'{0:+s}'.format('ab')`), and round 11's characters after the type
+    /// (`'{0:dd}'.format(1)`). A stratified sample of 4,000 of the
+    /// 5,414,400 generated cases, half of which Jython accepts.
     #[test]
     fn format_specs_match_jython() {
         let checked = replay_format_specs(include_str!(
@@ -1243,6 +1251,41 @@ mod tests {
                 "x = '{0!r:>+5}'.format(1)",
                 "Sign not allowed in string format specifier",
             ),
+            // Reviewer round 11: characters after the type, and a `.`
+            // without digits, whatever the literal.
+            ("x = '{0:dd}'.format(1)", "Invalid conversion specification"),
+            ("x = '{0:%Y}'.format(1)", "Invalid conversion specification"),
+            (
+                "x = '{0:.2.2}'.format(1.5)",
+                "Invalid conversion specification",
+            ),
+            (
+                "x = '{0:s.}'.format('ab')",
+                "Invalid conversion specification",
+            ),
+            (
+                "x = '{0:#x#}'.format(5)",
+                "Invalid conversion specification",
+            ),
+            (
+                "x = '{0:dd}'.format(None)",
+                "Invalid conversion specification",
+            ),
+            (
+                "x = '{0!r:dd}'.format(x)",
+                "Invalid conversion specification",
+            ),
+            (
+                "x = '{0:5.}'.format(1)",
+                "Format specifier missing precision",
+            ),
+            // Jython never reads an alignment character as a fill.
+            ("x = '{0:<<}'.format('ab')", "Unknown format code '<'"),
+            ("x = '{0:^<}'.format(5)", "Unknown format code '<'"),
+            (
+                "x = '{0:>>10}'.format(5)",
+                "Invalid conversion specification",
+            ),
         ] {
             let d = lint_module("SCR112", code);
             assert_eq!(d.len(), 1, "{code}");
@@ -1257,6 +1300,9 @@ mod tests {
             "x = '{0:05}'.format(5)",
             "x = '{0:+.1%}'.format(5)",
             "x = '{0:z}'.format(value)",
+            // `datetime` and other objects have a `__format__` of their own.
+            "x = '{0:%Y-%m-%d}'.format(day)",
+            "x = '{0:dd}'.format(d)",
         ] {
             assert!(lint_module("SCR112", code).is_empty(), "{code}");
         }

@@ -9,7 +9,7 @@
 # The committed replay file
 # crates/iglint_linter/tests/fixtures/format-spec/sample.tsv is
 # `python3 oracle/format_spec_cases.py stratify ALL_RESULTS 10 4000` of the
-# results of `all` (3,110,400 cases, about ten minutes).
+# results of `all` (5,414,400 cases, about twenty minutes).
 # Needs Docker and the inductiveautomation/ignition image (override with
 # IGLINT_ORACLE_IMAGE).
 set -euo pipefail
