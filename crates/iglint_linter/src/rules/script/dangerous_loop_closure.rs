@@ -28,20 +28,31 @@ of its variables (a list comprehension binds them in the enclosing
 scope, the other kinds in their own; either way they are rebound on
 every iteration).
 
+Generator expressions created in the loop count too: one reads the
+loop's variables when it is consumed (in its body and its conditions;
+its first iterable is evaluated where it is written).
+
 Not reported: a function that cannot outlive the iteration that creates
 it, so that it reads that iteration's value: a `lambda` called where it
 is written (`(lambda: u)()`), a `lambda` passed directly to the builtin
-`sorted`, `min`, `max`, `map`, `filter` or `reduce` (which call it only
-while they run: `[sorted(rows, key=lambda r: r[c]) for c in cols]`), and
-a `def` (or a name bound to a `lambda`) whose every use is a call later
-in the same block of the loop body, in the same scope. A use before the
-definition, any other use (stored, passed, returned), a decorator, a
-call from a nested function or a closure it returns still count. So does
-a generator: calling a generator function (a `def` or `lambda` with
-`yield`) runs none of its body, and a generator expression in such a
-function runs when it is consumed, unless it is passed directly to a
-builtin that consumes it (`sum`, `any`, `all`, `list`, `sorted`, `min`,
-`max`, `''.join`, ...).
+`sorted`, `min`, `max`, `map`, `filter` or `reduce` as an argument the
+builtin calls while it runs (the `cmp` and `key` of `sorted`, the `key`
+of `min` and `max`, the first argument of `map`, `filter` and `reduce`:
+`[sorted(rows, key=lambda r: r[c]) for c in cols]`; any other argument
+is a value the builtin may return, `max(lambda: t, lambda: t)` returns a
+lambda), and a `def` (or a name bound to a `lambda`) whose every use is
+a call later in the same block of the loop body, in the same scope. A
+use before the definition, any other use (stored, passed, returned), a
+decorator, a call from a nested function or a closure it returns still
+count. So does a generator: calling a generator function (a `def` or
+`lambda` with `yield`) runs none of its body, and a generator expression
+runs when it is consumed, unless it is consumed where it is written: as
+the iterable of a builtin that consumes it (`sum`, `any`, `all`, `list`,
+`tuple`, `set`, `dict`, `sorted`, a single argument of `min` or `max`,
+the sequences of `map`, `filter`, `reduce` and `zip`, `''.join`), of a
+`for` statement or of a list, set or dict comprehension. A generator
+function whose every call is consumed that way (`total += sum(h())`)
+is not reported either.
 
 ## Why is this bad?
 
@@ -150,86 +161,166 @@ fn loop_names<'a>(target: &'a Expr, body: &'a [Stmt]) -> FxHashSet<&'a str> {
     names
 }
 
-/// Builtins that call a function argument only during the call and keep
-/// neither it nor what it reads (Jython 2.7: `map`, `filter` and
-/// `reduce` return lists or values; `sorted`, `min` and `max` call `key`
-/// and `cmp` while they run).
-const CALLING_BUILTINS: &[&str] = &["filter", "map", "max", "min", "reduce", "sorted"];
+/// An argument of a call: by position or by keyword.
+#[derive(Clone, Copy)]
+enum Arg<'a> {
+    At(usize),
+    Keyword(&'a str),
+}
 
-/// Builtins that consume an iterable argument during the call (a
-/// generator expression passed to them is run to its end, or abandoned,
-/// before the call returns). `enumerate`, `iter` and `reversed` keep it.
-const CONSUMING_BUILTINS: &[&str] = &[
-    "all",
-    "any",
-    "dict",
-    "filter",
-    "frozenset",
-    "list",
-    "map",
-    "max",
-    "min",
-    "reduce",
-    "set",
-    "sorted",
-    "sum",
-    "tuple",
-    "zip",
-];
+/// Whether the builtin `name` calls the function it gets as `arg` only
+/// while it runs, keeping neither it nor what it reads (Jython 2.7:
+/// `sorted` calls `cmp` and `key`, `min` and `max` call `key`, `map`,
+/// `filter` and `reduce` their first argument). Any other argument is a
+/// value the call may return or keep (review round 26, Codex:
+/// `max(lambda: t, lambda: t)` returns a lambda, `reduce(f, [], lambda:
+/// t)` its initial value).
+fn calls_argument(name: &str, arg: Arg<'_>) -> bool {
+    matches!(
+        (name, arg),
+        ("sorted", Arg::At(1 | 2) | Arg::Keyword("cmp" | "key"))
+            | ("min" | "max", Arg::Keyword("key"))
+            | ("map" | "filter" | "reduce", Arg::At(0))
+    )
+}
 
-/// Adds the ranges of the lambdas and generator expressions that the call
-/// `e` (when it is one) passes directly to a builtin that runs them before
-/// it returns (review round 25, N1: `[sorted(rows, key=lambda r: r[c]) for
-/// c in cols]` sorts by each `c`): lambdas to [`CALLING_BUILTINS`],
-/// generator expressions to [`CONSUMING_BUILTINS`] and to `join` on a
-/// string literal. The callee must be the builtin itself: a name that
+/// Whether the builtin `name` consumes the iterable it gets as `arg`
+/// before it returns (runs it to its end, or abandons it), with
+/// `positional` positional arguments: the iterable of `all`, `any`,
+/// `dict`, `frozenset`, `list`, `set`, `sorted`, `sum` and `tuple`, of
+/// `min` and `max` given one positional argument (with more they compare,
+/// and may return, the arguments themselves), the sequences of `filter`,
+/// `reduce`, `map` and `zip`. `enumerate`, `iter` and `reversed` keep it;
+/// `dict(k=g)` and `sum(x, g)` keep `g`.
+fn consumes_argument(name: &str, arg: Arg<'_>, positional: usize) -> bool {
+    match (name, arg) {
+        (
+            "all" | "any" | "dict" | "frozenset" | "list" | "set" | "sorted" | "sum" | "tuple",
+            Arg::At(0),
+        ) => true,
+        ("min" | "max", Arg::At(0)) => positional == 1,
+        ("filter" | "reduce", Arg::At(1)) => true,
+        ("map", Arg::At(i)) => i >= 1,
+        ("zip", Arg::At(_)) => true,
+        _ => false,
+    }
+}
+
+/// What a builtin runs before the call `e` (when it is one) returns
+/// (review round 25, N1; round 26): adds to `invoked` the lambdas it calls
+/// ([`calls_argument`]) and to `consumed` the arguments it consumes
+/// ([`consumes_argument`], and the argument of `join` on a string
+/// literal): generator expressions and calls of generator functions run
+/// to their end there. The callee must be the builtin itself: a name that
 /// resolves to no binding.
-fn run_during_call(model: &SemanticModel<'_>, e: &Expr, out: &mut FxHashSet<TextRange>) {
+fn run_during_call(
+    model: &SemanticModel<'_>,
+    e: &Expr,
+    invoked: &mut FxHashSet<TextRange>,
+    consumed: &mut FxHashSet<TextRange>,
+) {
     let Expr::Call(c) = e else { return };
-    let (calling, consuming) = match &*c.func {
-        Expr::Name(n) => {
-            let builtin = model
+    let name = match &*c.func {
+        Expr::Name(n)
+            if model
                 .reference_at(n.range)
-                .is_some_and(|r| r.resolution == Resolution::Builtin);
-            (
-                builtin && CALLING_BUILTINS.contains(&&*n.id),
-                builtin && CONSUMING_BUILTINS.contains(&&*n.id),
-            )
+                .is_some_and(|r| r.resolution == Resolution::Builtin) =>
+        {
+            &*n.id
         }
-        Expr::Attribute(a) => (
-            false,
-            a.attr.as_str() == "join" && matches!(&*a.value, Expr::Str(_)),
-        ),
-        _ => (false, false),
+        Expr::Attribute(a) if a.attr.as_str() == "join" && matches!(&*a.value, Expr::Str(_)) => {
+            if let Some(a) = c.args.first() {
+                consumed.insert(a.range());
+            }
+            return;
+        }
+        _ => return,
     };
-    for a in c.args.iter().chain(c.keywords.iter().map(|k| &k.value)) {
-        match a {
-            Expr::Lambda(l) if calling => {
-                out.insert(l.range);
-            }
-            Expr::GeneratorExp(_) if consuming => {
-                out.insert(a.range());
-            }
-            _ => {}
+    let args = c
+        .args
+        .iter()
+        .enumerate()
+        .map(|(i, a)| (Arg::At(i), a))
+        .chain(
+            c.keywords
+                .iter()
+                .map(|k| (Arg::Keyword(k.arg.as_str()), &k.value)),
+        );
+    for (arg, value) in args {
+        if let Expr::Lambda(l) = value
+            && calls_argument(name, arg)
+        {
+            invoked.insert(l.range);
         }
+        if consumes_argument(name, arg, c.args.len()) {
+            consumed.insert(value.range());
+        }
+    }
+}
+
+/// Adds the iterables of the generator expressions of `generators` that
+/// are consumed where they are written: they run when it does
+/// (`sum(x for x in (v * i for v in y))`).
+fn consumed_with(generators: &[&Expr], consumed: &mut FxHashSet<TextRange>) {
+    loop {
+        let mut changed = false;
+        for e in generators {
+            if let Expr::GeneratorExp(g) = e
+                && consumed.contains(&e.range())
+            {
+                for c in &g.generators {
+                    changed |= consumed.insert(c.iter.range());
+                }
+            }
+        }
+        if !changed {
+            return;
+        }
+    }
+}
+
+/// Adds the iterables that a statement or a comprehension of `body`
+/// consumes where it is written: the iterable of a `for` statement and
+/// every iterable of a list, set or dict comprehension (a generator
+/// expression is lazy, its own iterables are consumed when it is).
+fn consumed_in_place(stmts: &[Stmt], exprs: &[&Expr], consumed: &mut FxHashSet<TextRange>) {
+    walk_stmts(stmts, &mut |st| {
+        if let Stmt::For(f) = st {
+            consumed.insert(f.iter.range());
+        }
+    });
+    let mut comprehension = |e: &Expr| {
+        let generators = match e {
+            Expr::ListComp(c) => &c.generators,
+            Expr::SetComp(c) => &c.generators,
+            Expr::DictComp(c) => &c.generators,
+            _ => return,
+        };
+        for g in generators {
+            consumed.insert(g.iter.range());
+        }
+    };
+    walk_exprs(stmts, &mut comprehension);
+    for e in exprs {
+        walk_expr_tree(e, &mut comprehension);
     }
 }
 
 /// Which of `lambdas` and `generators` (with their scopes) run later than
 /// the iteration that creates them: a lambda unless it is called where it
-/// is written, passed to a builtin that runs it during the call
-/// (`during`), or `contained` ([`contained_closures`]), and not a
+/// is written, passed to a builtin that calls it during the call
+/// (`invoked`), or `contained` ([`contained_closures`]), and not a
 /// generator (a `yield` makes even a called lambda return a generator); a
-/// generator expression in the body of such an exempt function unless a
-/// builtin consumes it where it is written.
+/// generator expression unless it is consumed where it is written
+/// (`consumed`: by a builtin, a `for` statement or a comprehension).
 fn deferred(
     model: &SemanticModel<'_>,
     lambdas: &[&iglint_python::ast::ExprLambda],
     generators: &[&Expr],
     called: &FxHashSet<TextRange>,
-    during: &FxHashSet<TextRange>,
+    invoked: &FxHashSet<TextRange>,
+    consumed: &FxHashSet<TextRange>,
     contained: &FxHashSet<TextRange>,
-    exempt: &mut Vec<TextRange>,
 ) -> Vec<ScopeId> {
     let mut out = Vec::new();
     for l in lambdas {
@@ -238,17 +329,14 @@ fn deferred(
         };
         let runs_now = !model.scope(id).is_generator
             && (called.contains(&l.range)
-                || during.contains(&l.range)
+                || invoked.contains(&l.range)
                 || contained.contains(&l.range));
-        if runs_now {
-            exempt.push(l.range);
-        } else {
+        if !runs_now {
             out.push(id);
         }
     }
     for e in generators {
-        if !during.contains(&e.range())
-            && exempt.iter().any(|r| r.contains_range(e.range()))
+        if !consumed.contains(&e.range())
             && let Some(id) = model.generator_scope(e)
         {
             out.push(id);
@@ -257,22 +345,24 @@ fn deferred(
     out
 }
 
-/// Scopes of the lambdas and functions created in `body` (at any depth),
-/// except those that cannot outlive the iteration that creates them: a
-/// lambda called where it is written (`(lambda: u)()`) or passed to a
-/// builtin that calls it only while it runs ([`run_during_call`]), and a
-/// `def` (or a name bound to a lambda) whose every use is a call later in
-/// the same block, in the scope that holds the loop
-/// ([`called_in_iteration`]). Calling a generator function does not run
-/// its body, so such a function is never exempt, and the generator
-/// expressions in the body of an exempt function run when they are
-/// consumed: they count, unless a builtin consumes them where they are
-/// written (review round 25, Codex: `def h(): yield t` called as
-/// `out.append(h())`, or `lambda: (t for _ in [0])` called at once, gives
-/// every generator the last value).
+/// Scopes of the lambdas, functions and generator expressions created in
+/// `body` (at any depth), except those that cannot outlive the iteration
+/// that creates them: a lambda called where it is written (`(lambda:
+/// u)()`) or passed to a builtin that calls it only while it runs
+/// ([`run_during_call`]), a `def` (or a name bound to a lambda) whose
+/// every use is a call later in the same block, in the scope that holds
+/// the loop ([`called_in_iteration`]), and a generator expression consumed
+/// where it is written. Calling a generator function does not run its
+/// body, so such a function counts (review round 25, Codex: `def h():
+/// yield t` called as `out.append(h())` gives every generator the last
+/// value) unless every call of it is consumed where it is written
+/// (`total += sum(h())`, review round 26); a generator expression runs
+/// when it is consumed, so one that is kept (`out.append(v * i for v in
+/// y)`) counts too (review round 26).
 fn closures(model: &SemanticModel<'_>, loop_scope: ScopeId, body: &[Stmt]) -> Vec<ScopeId> {
     let mut called = FxHashSet::default();
-    let mut during = FxHashSet::default();
+    let mut invoked = FxHashSet::default();
+    let mut consumed = FxHashSet::default();
     let mut lambdas = Vec::new();
     let mut generators = Vec::new();
     walk_exprs(body, &mut |e| {
@@ -286,19 +376,23 @@ fn closures(model: &SemanticModel<'_>, loop_scope: ScopeId, body: &[Stmt]) -> Ve
             Expr::GeneratorExp(_) => generators.push(e),
             _ => {}
         }
-        run_during_call(model, e, &mut during);
+        run_during_call(model, e, &mut invoked, &mut consumed);
     });
-    let mut contained = FxHashSet::default();
-    contained_closures(model, loop_scope, body, &mut contained);
-    let mut exempt: Vec<TextRange> = Vec::new();
+    consumed_in_place(body, &[], &mut consumed);
+    consumed_with(&generators, &mut consumed);
+    let mut contained = Contained::default();
+    contained_closures(model, loop_scope, body, &consumed, &mut contained);
     let mut out = Vec::new();
     walk_stmts(body, &mut |st| {
         if let Stmt::FunctionDef(f) = st
             && let Some(id) = model.function_scope(f)
         {
-            if contained.contains(&f.range) && !model.scope(id).is_generator {
-                exempt.push(f.range);
+            let exempt = if model.scope(id).is_generator {
+                contained.consumed.contains(&f.range)
             } else {
+                contained.called.contains(&f.range)
+            };
+            if !exempt {
                 out.push(id);
             }
         }
@@ -308,43 +402,60 @@ fn closures(model: &SemanticModel<'_>, loop_scope: ScopeId, body: &[Stmt]) -> Ve
         &lambdas,
         &generators,
         &called,
-        &during,
-        &contained,
-        &mut exempt,
+        &invoked,
+        &consumed,
+        &contained.called,
     ));
     out.sort();
     out.dedup();
     out
 }
 
+/// What [`contained_closures`] finds.
+#[derive(Default)]
+struct Contained {
+    /// Functions and lambdas whose every use is a call later in the same
+    /// block.
+    called: FxHashSet<TextRange>,
+    /// Those of them whose every call is also consumed where it is written
+    /// (for generator functions).
+    consumed: FxHashSet<TextRange>,
+}
+
 /// The ranges of the `def` statements and lambdas of `block` (and of the
 /// blocks of its compound statements, not inside functions or classes)
 /// bound to a name that is only called later in the same block
-/// ([`called_in_iteration`]).
+/// ([`called_in_iteration`]), and of those whose calls are all in
+/// `consumed`.
 fn contained_closures(
     model: &SemanticModel<'_>,
     loop_scope: ScopeId,
     block: &[Stmt],
-    out: &mut FxHashSet<TextRange>,
+    consumed: &FxHashSet<TextRange>,
+    out: &mut Contained,
 ) {
-    let nested = |body: &[Stmt], out: &mut FxHashSet<TextRange>| {
-        contained_closures(model, loop_scope, body, out);
+    let nested = |body: &[Stmt], out: &mut Contained| {
+        contained_closures(model, loop_scope, body, consumed, out);
+    };
+    let add = |name: &str, range: TextRange, later: &[Stmt], out: &mut Contained| {
+        if let Some(calls) = called_in_iteration(model, loop_scope, name, later) {
+            out.called.insert(range);
+            if calls.iter().all(|c| consumed.contains(c)) {
+                out.consumed.insert(range);
+            }
+        }
     };
     for (i, s) in block.iter().enumerate() {
         let later = block.get(i + 1..).unwrap_or_default();
         match s {
             Stmt::FunctionDef(f) => {
-                if f.decorator_list.is_empty()
-                    && called_in_iteration(model, loop_scope, &f.name.id, later)
-                {
-                    out.insert(f.range);
+                if f.decorator_list.is_empty() {
+                    add(&f.name.id, f.range, later, out);
                 }
             }
             Stmt::Assign(a) => {
-                if let ([Expr::Name(n)], Expr::Lambda(l)) = (&a.targets[..], &*a.value)
-                    && called_in_iteration(model, loop_scope, &n.id, later)
-                {
-                    out.insert(l.range);
+                if let ([Expr::Name(n)], Expr::Lambda(l)) = (&a.targets[..], &*a.value) {
+                    add(&n.id, l.range, later, out);
                 }
             }
             Stmt::For(f) => {
@@ -385,30 +496,40 @@ fn contained_closures(
 /// statement reads the previous iteration's function, and any other use
 /// (stored, passed, returned, called from another scope) lets it outlive
 /// the iteration.
+///
+/// Returns the ranges of the calls when it is so.
 fn called_in_iteration(
     model: &SemanticModel<'_>,
     loop_scope: ScopeId,
     name: &str,
     later: &[Stmt],
-) -> bool {
+) -> Option<Vec<TextRange>> {
     let scope = model.scope(loop_scope);
     if scope.bindings_of(name).len() != 1 || scope.globals.contains_key(name) {
-        return false;
+        return None;
     }
-    let mut calls = FxHashSet::default();
+    // Callee ranges, with the range of their call.
+    let mut calls = rustc_hash::FxHashMap::default();
     walk_exprs(later, &mut |e| {
         if let Expr::Call(c) = e
             && let Expr::Name(n) = &*c.func
         {
-            calls.insert(n.range);
+            calls.insert(n.range, c.range);
         }
     });
-    model.references().all(|(_, r)| {
+    let mut found = Vec::new();
+    let only_calls = model.references().all(|(_, r)| {
         if r.name != name || r.is_implicit() {
             return true;
         }
         if r.scope == loop_scope {
-            return calls.contains(&r.range);
+            return match calls.get(&r.range) {
+                Some(call) => {
+                    found.push(*call);
+                    true
+                }
+                None => false,
+            };
         }
         // A reference in another scope may read this binding unless it
         // resolves to a binding of its own scope or of a scope other than
@@ -419,7 +540,8 @@ fn called_in_iteration(
             Resolution::Dynamic => false,
             _ => true,
         }
-    })
+    });
+    only_calls.then_some(found)
 }
 
 /// The innermost scope whose code holds `range`.
@@ -489,10 +611,11 @@ fn comprehension_closures(
         exprs.extend(g.ifs.iter());
     }
     let mut called = FxHashSet::default();
-    let mut during = FxHashSet::default();
+    let mut invoked = FxHashSet::default();
+    let mut consumed = FxHashSet::default();
     let mut lambdas = Vec::new();
     let mut nested = Vec::new();
-    for e in exprs {
+    for e in &exprs {
         walk_expr_tree(e, &mut |e| {
             match e {
                 Expr::Call(c) => {
@@ -504,17 +627,19 @@ fn comprehension_closures(
                 Expr::GeneratorExp(_) => nested.push(e),
                 _ => {}
             }
-            run_during_call(model, e, &mut during);
+            run_during_call(model, e, &mut invoked, &mut consumed);
         });
     }
+    consumed_in_place(&[], &exprs, &mut consumed);
+    consumed_with(&nested, &mut consumed);
     let mut out = deferred(
         model,
         &lambdas,
         &nested,
         &called,
-        &during,
+        &invoked,
+        &consumed,
         &FxHashSet::default(),
-        &mut Vec::new(),
     );
     out.sort();
     out.dedup();
@@ -832,6 +957,102 @@ mod tests {
         ] {
             let code = format!("{setup}{code}");
             assert!(!library("m", &code).lint(&["SCR120"]).is_empty(), "{code}");
+        }
+    }
+
+    /// Review round 26 (Codex): a builtin runs only the arguments it
+    /// calls or consumes; the others are values it returns or keeps
+    /// (Jython: `[2, 2, 2]` for `max(lambda: t, lambda: t)`, the initial
+    /// value of `reduce`, a lambda in the iterable of `sorted` or `map`,
+    /// `[[4], [4], [4]]` for `min` of two generators, `[[2], [2], [2]]`
+    /// for `dict(a=...)`).
+    #[test]
+    fn builtins_run_only_the_arguments_they_call_or_consume() {
+        for (body, names) in [
+            ("out.append(max(lambda: t, lambda: t))", &["t", "t"][..]),
+            ("out.append(min(lambda: t, key=len))", &["t"][..]),
+            (
+                "out.append(reduce(lambda x, y: x, [], lambda: t))",
+                &["t"][..],
+            ),
+            ("out.append(sorted([lambda: t]))", &["t"][..]),
+            ("out.append(map(None, [lambda: t]))", &["t"][..]),
+            ("out.append(filter(None, [lambda: t]))", &["t"][..]),
+            (
+                "out.append(min((v * t for v in [1]), (v * t for v in [2])))",
+                &["t", "t"][..],
+            ),
+            ("out.append(dict(a=(v * t for v in [1])))", &["t"][..]),
+            ("out.append(sum([1], (v * t for v in [1])))", &["t"][..]),
+            ("out.append(enumerate(v * t for v in [1]))", &["t"][..]),
+        ] {
+            let code = format!("out = []\nfor t in range(3):\n    {body}\n");
+            let d = library("m", &code).lint(&["SCR120"]);
+            assert_eq!(flagged(&d), names, "{code}");
+        }
+        for body in [
+            "out.append(sorted([3, 1], lambda x, y: cmp(x * t, y * t)))",
+            "out.append(sorted([3, 1], None, lambda x: x * t))",
+            "out.append(sorted([3, 1], cmp=lambda x, y: cmp(x * t, y)))",
+            "out.append(max([1, 2], key=lambda x: x * t))",
+            "out.append(map(lambda x: x * t, [1]))",
+            "out.append(filter(lambda x: x == t, [1]))",
+            "out.append(reduce(lambda x, y: x + y * t, [1], 0))",
+            "out.append(min(v * t for v in [1]))",
+            "out.append(sum(v * t for v in [1]))",
+            "out.append(map(str, (v * t for v in [1])))",
+            "out.append(zip([1], (v * t for v in [1])))",
+            "out.append(dict((v, t) for v in [1]))",
+            "out.append(', '.join(str(v * t) for v in [1]))",
+        ] {
+            let code = format!("out = []\nfor t in range(3):\n    {body}\n");
+            let d = library("m", &code).lint(&["SCR120"]);
+            assert!(d.is_empty(), "{code}: {:?}", flagged(&d));
+        }
+    }
+
+    /// Review round 26 (Opus, N2): a generator expression kept in a loop
+    /// reads the loop's variable when it is consumed, after the loop
+    /// (Jython: `[[2], [2], [2]]`), unless it is consumed where it is
+    /// written: by a builtin, a `for` statement or a comprehension, also
+    /// through the iterable of a consumed generator expression. A generator
+    /// function whose every call is consumed so reads each iteration's value
+    /// (Jython: `3` for the sum).
+    #[test]
+    fn generators_kept_or_consumed_in_the_loop() {
+        for (code, names) in [
+            (
+                "out = []\nfor i in range(3):\n    out.append(v * i for v in [1])\n",
+                &["i"][..],
+            ),
+            (
+                "def f(y, r):\n    keep = {}\n    for i in r:\n        keep[i] = (v * i for v in y)\n    return keep\n",
+                &["i"][..],
+            ),
+            (
+                "gs = [(v * k for v in [1]) for k in range(3)]\n",
+                &["k"][..],
+            ),
+            (
+                "out = []\nfor i in range(3):\n    def gen():\n        yield i\n    out.append(list(gen()))\n    out.append(gen())\n",
+                &["i"][..],
+            ),
+        ] {
+            let d = library("m", code).lint(&["SCR120"]);
+            assert_eq!(flagged(&d), names, "{code}");
+        }
+        for code in [
+            "total = 0\nfor i in range(3):\n    def gen():\n        yield i\n    total += sum(gen())\n",
+            "total = 0\nfor i in range(3):\n    def gen():\n        yield i\n    total += sum(gen())\n    print list(gen())\n",
+            "for i in range(3):\n    total = sum(x for x in (v * i for v in [1]))\n",
+            "for i in range(3):\n    for z in (v * i for v in [1]):\n        print z\n",
+            "for i in range(3):\n    print [z for z in (v * i for v in [1])]\n",
+            "for i in range(3):\n    print {z: 1 for z in (v * i for v in [1])}\n",
+            // The first iterable is evaluated in the iteration.
+            "out = []\nfor i in range(3):\n    out.append(v for v in [i])\n",
+        ] {
+            let d = library("m", code).lint(&["SCR120"]);
+            assert!(d.is_empty(), "{code}: {:?}", flagged(&d));
         }
     }
 
