@@ -130,6 +130,14 @@ from 0.1.0 on.
   characters in one place, line and column conversions accept any offset,
   and a fix with an edit inside a character is dropped; debug builds assert
   that rules compute ranges on character boundaries.
+- SCR307 no longer reports a handler binding that code the rule does not
+  follow may replace (review round 17, Codex): a `global` declaration of
+  the handler name in a class body or function (also when a later call
+  assigns it), a module-level list comprehension whose variable is the
+  name (Python 2 leaks it), `exec`, `import *` or writes through
+  `globals()` in any scope, or a route to a frame. Bindings that stay in
+  their scope (locals, class attributes, generator variables) still do
+  not hide a finding. Verified on the Jython of Ignition 8.3.3.
 - The workspace root no longer depends on what is linted (review round
   15): it is the outermost of the configuration directory, every Ignition
   layout root around the path (up to the Git work tree) and the Git work

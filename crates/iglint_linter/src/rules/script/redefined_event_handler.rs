@@ -2,6 +2,7 @@
 
 use iglint_project::{EventScriptKind, ScriptKind};
 use iglint_python::ast::{Arguments, Expr, Stmt};
+use iglint_python_semantic::{BindingKind, ScopeId, SemanticModel};
 use iglint_text::{Ranged, TextRange};
 
 use crate::checker::Checker;
@@ -44,11 +45,18 @@ one Ignition cannot call:
 
 Only bindings at module level that always run are followed: one inside
 an `if`, a loop, a `try` or a `with`, an import, a class, any other value,
-`exec` or `import *` at module level make the outcome unknown, and nothing
-is reported. Parameter names do not matter (Ignition passes the arguments
-by position), and defaults or `*args` that make the call fit are fine.
-Bindings inside the handler's body (also with `global`) do not change
-what Ignition calls.
+`exec` or `import *` make the outcome unknown, and nothing is reported.
+So does any binding of the name that the module-level statements do not
+show, found from every scope: a `global` declaration of the name in a
+function or class (also in the handler itself, which module code may
+call), a list comprehension at module level whose variable is the name
+(Python 2 comprehensions leak it), `exec`, `import *` or a write through
+`globals()` or `vars()` in any scope, and code that reaches a frame or
+the interpreter. Bindings that stay in their scope (a local of a
+function, a class attribute, the variable of a generator expression or
+of a comprehension inside a function) do not matter. Parameter names do
+not matter (Ignition passes the arguments by position), and defaults or
+`*args` that make the call fit are fine.
 
 Verified on an Ignition 8.3.3 gateway for timer, tag change, message,
 startup, shutdown and update scripts and WebDev handlers. Scheduled
@@ -284,8 +292,17 @@ impl ScriptRule for RedefinedEventHandler {
         if header.name.as_str() != name {
             return;
         }
-        let model = semantic(cx, unit);
-        let constant = |e: &Expr| model.is_some_and(|m| is_builtin_constant(m, e));
+        let Some(model) = semantic(cx, unit) else {
+            return;
+        };
+        // A binding the statement walk below does not see (through
+        // `global` in a function or class, a list comprehension's
+        // variable, `exec`, writes through `globals()` or a frame) cannot
+        // be ordered: the outcome is unknown.
+        if binds_elsewhere(model, name, body) {
+            return;
+        }
+        let constant = |e: &Expr| is_builtin_constant(model, e);
         let mut binding = Binding::Unknown;
         let mut redefined = false;
         for stmt in &body[1..] {
@@ -330,6 +347,35 @@ impl ScriptRule for RedefinedEventHandler {
         };
         let _ = report(cx, unit, range, message);
     }
+}
+
+/// Whether code that the walk over the module's statements does not
+/// follow may bind `name` in the module namespace, from the semantic
+/// model's bindings of every scope: a `global` declaration of the name in
+/// any function or class (a class body runs where it is defined, a
+/// function wherever it is called, the handler itself included, since
+/// module code may call it), a list comprehension's variable at module
+/// level (Python 2 comprehensions leak it: `[0 for handleTimerEvent in
+/// fs]`), any binding the model puts in the module from another scope,
+/// `exec`, `from m import *` or a write through `globals()` or `vars()` in
+/// any scope, and a route to a frame or the interpreter
+/// ([`iglint_python_semantic::dynamic::frame_escape`]).
+fn binds_elsewhere(model: &SemanticModel<'_>, name: &str, body: &[Stmt]) -> bool {
+    let dynamic = model.scopes().any(|(id, scope)| {
+        (id != ScopeId::MODULE && scope.declares_global(name))
+            || scope.has_exec
+            || scope.writes_globals
+            || scope.star_import.is_some()
+            || scope.unqualified_exec.is_some()
+    });
+    dynamic
+        || model
+            .scope(ScopeId::MODULE)
+            .bindings_of(name)
+            .iter()
+            .map(|id| model.binding(*id))
+            .any(|b| b.kind == BindingKind::ComprehensionVar || b.site != ScopeId::MODULE)
+        || iglint_python_semantic::dynamic::frame_escape(body).is_some()
 }
 
 /// The name of a `def`, or the whole statement.
@@ -428,6 +474,83 @@ mod tests {
         // Bindings in the body do not change what Ignition calls.
         let body = "def handleTimerEvent():\n\tglobal handleTimerEvent\n\tdef handleTimerEvent(event):\n\t\tpass\n";
         assert!(timer(body).is_empty());
+    }
+
+    /// Review round 17 (Codex): bindings of the handler name that the
+    /// walk over module-level statements does not see. Verified on the
+    /// Jython of Ignition 8.3.3 (the module code run, then the handler
+    /// looked up by name and called with no arguments): each of these
+    /// runs, so nothing may be reported.
+    #[test]
+    fn bindings_from_other_scopes_make_the_outcome_unknown() {
+        for tail in [
+            "handleTimerEvent = None\nclass C:\n\tglobal handleTimerEvent\n\thandleTimerEvent = lambda: 1\n",
+            "def handleTimerEvent(e):\n\tpass\nclass C:\n\tglobal handleTimerEvent\n\thandleTimerEvent = lambda: 1\n",
+            "def g():\n\tglobal handleTimerEvent\n\thandleTimerEvent = lambda: 1\nhandleTimerEvent = None\ng()\n",
+            "handleTimerEvent = None\ndef g(f):\n\tglobal handleTimerEvent\n\thandleTimerEvent = f\ng(poll)\n",
+            // Python 2 list comprehensions leak their variable.
+            "handleTimerEvent = None\n[0 for handleTimerEvent in [poll]]\n",
+            "handleTimerEvent = None\nx = [0 for handleTimerEvent in [poll]]\n",
+            "def handleTimerEvent(e):\n\tpass\nprint [1 for handleTimerEvent in [poll]]\n",
+            "handleTimerEvent = None\ndef g():\n\texec 'global handleTimerEvent; handleTimerEvent = poll'\ng()\n",
+            "handleTimerEvent = None\ndef g():\n\tglobals()['handleTimerEvent'] = poll\ng()\n",
+            "handleTimerEvent = None\nimport sys\nsys._getframe().f_globals['handleTimerEvent'] = poll\n",
+        ] {
+            let found = timer(&format!("{HEADER}{tail}"));
+            assert!(found.is_empty(), "{tail}: {found:?}");
+        }
+        // The handler itself rebinds the name when module code calls it.
+        let code = "def handleTimerEvent():\n\tglobal handleTimerEvent\n\thandleTimerEvent = poll\nkeep = handleTimerEvent\nhandleTimerEvent = None\nkeep()\n";
+        assert!(timer(code).is_empty(), "{:?}", timer(code));
+    }
+
+    /// The other direction: bindings in other scopes that do not reach the
+    /// module namespace leave the verdict as it was. Verified on Jython
+    /// like the test above: each of these fails.
+    #[test]
+    fn bindings_that_stay_in_their_scope_do_not_hide_the_finding() {
+        for (tail, what) in [
+            (
+                "handleTimerEvent = None\ndef g():\n\thandleTimerEvent = lambda: 1\ng()\n",
+                "cannot be called",
+            ),
+            (
+                "handleTimerEvent = None\nclass C:\n\thandleTimerEvent = lambda: 1\n",
+                "cannot be called",
+            ),
+            (
+                "handleTimerEvent = None\nx = list(0 for handleTimerEvent in [poll])\n",
+                "cannot be called",
+            ),
+            (
+                "handleTimerEvent = None\nx = {0 for handleTimerEvent in [poll]}\n",
+                "cannot be called",
+            ),
+            (
+                "handleTimerEvent = None\nx = {0: 1 for handleTimerEvent in [poll]}\n",
+                "cannot be called",
+            ),
+            (
+                "handleTimerEvent = None\ndef g():\n\t[0 for handleTimerEvent in [poll]]\ng()\n",
+                "cannot be called",
+            ),
+            (
+                "handleTimerEvent = None\ndef g():\n\tglobal other\n\tother = poll\ng()\n",
+                "cannot be called",
+            ),
+            (
+                "def handleTimerEvent(e):\n\tpass\nl = lambda: [0 for handleTimerEvent in [poll]]\nl()\n",
+                "cannot take no arguments",
+            ),
+            (
+                "def handleTimerEvent(e):\n\tpass\nclass C:\n\tx = [0 for handleTimerEvent in [poll]]\n",
+                "cannot take no arguments",
+            ),
+        ] {
+            let found = timer(&format!("{HEADER}{tail}"));
+            assert_eq!(found.len(), 1, "{tail}: {found:?}");
+            assert!(found[0].contains(what), "{tail}: {found:?}");
+        }
     }
 
     #[test]
