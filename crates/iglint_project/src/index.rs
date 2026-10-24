@@ -1290,10 +1290,10 @@ impl<'w> ProjectIndex<'w> {
             }
             for (k, u) in &provider.udts {
                 if *k == rest
-                    || rest.starts_with(&format!("{k}/")) && {
-                        let member = &rest[k.len() + 1..];
-                        self.udt_has_member(provider, u, member, 0)
-                    }
+                    || rest
+                        .strip_prefix(k.as_str())
+                        .and_then(|r| r.strip_prefix('/'))
+                        .is_some_and(|member| self.udt_has_member(provider, u, member, 0))
                 {
                     return Existence::Exists;
                 }

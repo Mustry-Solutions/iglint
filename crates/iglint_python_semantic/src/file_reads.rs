@@ -1319,7 +1319,7 @@ pub fn outside_workspace(text: &str) -> bool {
             || matches!(part, "projects" | "config" | "resources" | "ignition")
             || part.contains("inductiveautomation")
             || (i == last && matches!(part, "project.json" | "resource.json"))
-            || (i < last && part.len() > 1 && part[1..].contains('.'))
+            || (i < last && part.chars().skip(1).any(|c| c == '.'))
         {
             return false;
         }
@@ -1344,10 +1344,15 @@ pub fn url_outside_workspace(text: &str) -> bool {
             let rest = match rest.strip_prefix("//") {
                 // `file://host/...` names another machine's path, or with
                 // an empty host a local one.
-                Some(r) => r.find('/').map_or("", |i| &r[i..]),
+                Some(r) => r.find('/').and_then(|i| r.get(i..)).unwrap_or(""),
                 None => rest,
             };
-            outside_workspace(&text.trim()[text.trim().len() - rest.len()..])
+            // `lower` is `text.trim()` with ASCII letters lowered, so `rest`
+            // is a suffix of the same length in both.
+            let trimmed = text.trim();
+            trimmed
+                .get(trimmed.len() - rest.len()..)
+                .is_some_and(outside_workspace)
         }
         None => false,
     }
@@ -1369,6 +1374,25 @@ pub(crate) fn bare_name(text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Review round 18: a component starting with a multi-byte character
+    /// was sliced at byte 1.
+    #[test]
+    fn components_starting_with_multi_byte_characters() {
+        for p in [
+            "/\u{e9}/report.txt",
+            "C:\\\u{e9}\\x",
+            "\\\\server\\\u{e9}",
+            "/\u{1f600}x/y",
+        ] {
+            assert!(outside_workspace(p), "{p}");
+        }
+        for p in ["/\u{e9}.d/x", "/x\u{301}.y/z"] {
+            assert!(!outside_workspace(p), "{p}");
+        }
+        assert!(url_outside_workspace("file:///\u{e9}/x"));
+        assert!(url_outside_workspace("file://h\u{e9}/\u{e9}/x"));
+    }
 
     #[test]
     fn workspace_paths() {

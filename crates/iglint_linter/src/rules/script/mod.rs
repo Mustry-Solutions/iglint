@@ -215,15 +215,18 @@ pub fn file_edit(unit: &ScriptUnit<'_, '_>, range: TextRange, text: &str) -> Opt
 /// line through its line break, when the statement is alone on its lines.
 /// `None` when other code shares the lines (`a = 1; b = 2`).
 pub fn statement_line_range(source: &str, stmt: TextRange) -> Option<TextRange> {
-    let start = stmt.start().to_usize();
     let end = stmt.end().to_usize();
-    let line_start = source[..start].rfind('\n').map_or(0, |i| i + 1);
-    if !source[line_start..start].trim().is_empty() {
+    let before = source.get(..stmt.start().to_usize())?;
+    let rest = source.get(end..)?;
+    let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+    // `line_start` is just after a `\n` found by `rfind`.
+    if !before.split_at(line_start).1.trim().is_empty() {
         return None;
     }
-    let rest = &source[end..];
-    let line_end = rest.find('\n').map_or(source.len(), |i| end + i + 1);
-    let tail = source[end..line_end].trim();
+    let tail_len = rest.find('\n').map_or(rest.len(), |i| i + 1);
+    let line_end = end + tail_len;
+    // `tail_len` is the end of the text or just after a `\n` found by `find`.
+    let tail = rest.split_at(tail_len).0.trim();
     if !(tail.is_empty() || tail.starts_with('#')) {
         return None;
     }
@@ -232,11 +235,12 @@ pub fn statement_line_range(source: &str, stmt: TextRange) -> Option<TextRange> 
 
 /// The indentation of the line `offset` is on.
 pub fn indentation_at(source: &str, offset: TextSize) -> &str {
-    let at = offset.to_usize();
-    let line_start = source[..at].rfind('\n').map_or(0, |i| i + 1);
-    let line = &source[line_start..];
-    let len = line.len() - line.trim_start_matches([' ', '\t']).len();
-    &line[..len]
+    let before = TextRange::new(TextSize::ZERO, offset).slice(source);
+    let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+    // `line_start` is just after a `\n` found by `rfind`.
+    let line = source.split_at(line_start).1;
+    line.strip_suffix(line.trim_start_matches([' ', '\t']))
+        .unwrap_or_default()
 }
 
 /// An edit of the script source that may delete a statement of a suite.
@@ -366,11 +370,10 @@ pub fn trailing_whitespace(
 ) -> Vec<TextRange> {
     let mut out = Vec::new();
     let mut start = from.to_usize();
-    while start <= source.len() {
-        let end = source[start..]
-            .find('\n')
-            .map_or(source.len(), |i| start + i);
-        let mut line = &source[start..end];
+    while let Some(rest) = source.get(start..) {
+        let end = rest.find('\n').map_or(source.len(), |i| start + i);
+        // `end` is the end of the text or a `\n` found by `find`.
+        let mut line = rest.split_at(end - start).0;
         if keep_cr && end < source.len() {
             line = line.strip_suffix('\r').unwrap_or(line);
         }
@@ -516,13 +519,20 @@ pub fn file_line(
         ScriptBody::Json(_) => {
             let start = script.source_map.body_start().to_usize();
             let at = offset.to_usize().max(start);
-            Some(script.source[start..at].matches('\n').count() + 1)
+            Some(
+                TextRange::from(start..at)
+                    .slice(&script.source)
+                    .matches('\n')
+                    .count()
+                    + 1,
+            )
         }
         ScriptBody::File { .. } => {
             let file = cx.file(unit.file)?;
             let at = script.source_map.file_offset(offset).to_usize();
             Some(
-                file.text()[..at.min(file.text().len())]
+                TextRange::from(0..at)
+                    .slice(file.text())
                     .matches('\n')
                     .count()
                     + 1,

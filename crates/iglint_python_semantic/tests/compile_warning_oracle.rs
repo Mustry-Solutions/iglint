@@ -67,7 +67,12 @@ fn check(cases_file: &str, expected_file: &str) -> usize {
         let mut ours: Vec<(usize, String)> = compile_warnings(&model)
             .into_iter()
             .map(|w| {
-                let line = source[..w.range.start().to_usize()].matches('\n').count() + 1;
+                let line = source
+                    .get(..w.range.start().to_usize())
+                    .unwrap()
+                    .matches('\n')
+                    .count()
+                    + 1;
                 (line, w.message)
             })
             .collect();

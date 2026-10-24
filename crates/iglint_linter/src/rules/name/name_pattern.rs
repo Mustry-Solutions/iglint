@@ -941,10 +941,10 @@ impl<'v> Guards<'v> {
                     match (ident, start) {
                         (true, None) => start = Some(at),
                         (false, Some(from)) => {
-                            words
-                                .entry(&text[from..at])
-                                .or_default()
-                                .push((i as u32, from as u32));
+                            // Both ends come from `char_indices` (or the length).
+                            #[allow(clippy::string_slice)]
+                            let word = &text[from..at];
+                            words.entry(word).or_default().push((i as u32, from as u32));
                             start = None;
                         }
                         _ => {}
@@ -1061,8 +1061,9 @@ fn collect_strings<'v>(v: &'v Value<'v>, out: &mut Vec<&'v JsonString<'v>>) {
 /// Whether `text[at..at + len]` is not part of a longer identifier.
 fn is_word(text: &str, at: usize, len: usize) -> bool {
     let ident = |c: char| c.is_alphanumeric() || c == '_';
-    !text[..at].chars().next_back().is_some_and(ident)
-        && !text[at + len..].chars().next().is_some_and(ident)
+    let before = text.get(..at).unwrap_or_default();
+    let after = text.get(at + len..).unwrap_or_default();
+    !before.chars().next_back().is_some_and(ident) && !after.chars().next().is_some_and(ident)
 }
 
 /// The first `{...}` in `text` whose content, without surrounding
@@ -1072,10 +1073,11 @@ fn is_word(text: &str, at: usize, len: usize) -> bool {
 /// `.meta`, `.position`, `.params`. The range of the braces and content.
 fn reference_like_token(text: &str) -> Option<TextRange> {
     let mut from = 0;
-    while let Some(open) = text[from..].find('{').map(|i| i + from) {
-        let rest = &text[open + 1..];
+    // `from` and `open + 1` are just past an ASCII brace found in `text`.
+    while let Some(open) = text.get(from..)?.find('{').map(|i| i + from) {
+        let rest = text.get(open + 1..)?;
         let close = rest.find(['{', '}'])?;
-        if rest.as_bytes()[close] == b'}' && looks_like_reference(&rest[..close]) {
+        if rest.as_bytes()[close] == b'}' && looks_like_reference(rest.get(..close)?) {
             return Some(TextRange::new(
                 TextSize::from(open as u32),
                 TextSize::from((open + close + 2) as u32),

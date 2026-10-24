@@ -145,11 +145,8 @@ mod tests {
             let d = Fixture::view(view).lint(&["VIEW021"]);
             assert_eq!(messages(&d), [expected], "{view}");
             let text = d[0].file.text();
-            assert!(
-                text[d[0].range.start().to_usize()..].starts_with(at),
-                "{view}: {:?}",
-                &text[d[0].range.start().to_usize()..]
-            );
+            let found = text.get(d[0].range.start().to_usize()..).unwrap();
+            assert!(found.starts_with(at), "{view}: {found:?}");
         }
         // Well-formed views: nothing.
         let ok = r#"{"root": {"type": "ia.container.flex", "meta": {"name": "root"}, "children": [], "scripts": {"customMethods": [{"name": "m", "params": [], "script": "\treturn 1"}]}}}"#;

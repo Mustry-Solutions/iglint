@@ -92,7 +92,7 @@ fn every_prefix_of_a_program_parses_without_panicking() {
     let mut end = 0;
     while end <= program.len() {
         if program.is_char_boundary(end) {
-            exercise(&program[..end]);
+            exercise(program.get(..end).unwrap());
         }
         end += 7;
     }

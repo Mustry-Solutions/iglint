@@ -99,7 +99,7 @@ fn remove_last_root_member_in_fixture() {
     let index = root.as_object().unwrap().position("root").unwrap();
     let out = apply_one(VIEW, ed.remove_member(&root, index).unwrap());
     let cut = VIEW.find(",\n  \"root\": {").unwrap();
-    let expected = format!("{}\n}}", &VIEW[..cut]);
+    let expected = format!("{}\n}}", VIEW.get(..cut).unwrap());
     assert_eq!(out, expected);
 }
 
@@ -117,8 +117,8 @@ fn remove_whole_binding_in_fixture() {
     let end = VIEW.find("    \"params.lineName\"").unwrap();
     let expected = format!(
         "{}    \"custom.counter\": {{}},\n{}",
-        &VIEW[..start],
-        &VIEW[end..]
+        VIEW.get(..start).unwrap(),
+        VIEW.get(end..).unwrap()
     );
     assert_eq!(out, expected);
 }
@@ -133,11 +133,12 @@ fn remove_array_elements_in_fixture() {
 
     // Remove the first child: its lines go, the second keeps its indentation.
     let out = apply_one(VIEW, ed.remove_element(children, 0).unwrap());
-    let line_start = |offset: TextSize| VIEW[..offset.to_usize()].rfind('\n').unwrap() + 1;
+    let line_start =
+        |offset: TextSize| VIEW.get(..offset.to_usize()).unwrap().rfind('\n').unwrap() + 1;
     let expected = format!(
         "{}{}",
-        &VIEW[..line_start(first.start())],
-        &VIEW[line_start(second.start())..]
+        VIEW.get(..line_start(first.start())).unwrap(),
+        VIEW.get(line_start(second.start())..).unwrap()
     );
     assert_eq!(out, expected);
 
@@ -145,8 +146,8 @@ fn remove_array_elements_in_fixture() {
     let out = apply_one(VIEW, ed.remove_element(children, 1).unwrap());
     let expected = format!(
         "{}{}",
-        &VIEW[..first.end().to_usize()],
-        &VIEW[second.end().to_usize()..]
+        VIEW.get(..first.end().to_usize()).unwrap(),
+        VIEW.get(second.end().to_usize()..).unwrap()
     );
     assert_eq!(out, expected);
 
@@ -155,8 +156,8 @@ fn remove_array_elements_in_fixture() {
     let out = apply(VIEW, &edits);
     let expected = format!(
         "{}[]{}",
-        &VIEW[..children.range.start().to_usize()],
-        &VIEW[children.range.end().to_usize()..]
+        VIEW.get(..children.range.start().to_usize()).unwrap(),
+        VIEW.get(children.range.end().to_usize()..).unwrap()
     );
     assert_eq!(out, expected);
 }
@@ -571,15 +572,20 @@ fn insert_elements() {
     let after_second = children.index(1).unwrap().range.end().to_usize();
     let expected = format!(
         "{},\n      {}{}",
-        &VIEW[..after_second],
+        VIEW.get(..after_second).unwrap(),
         indented,
-        &VIEW[after_second..]
+        VIEW.get(after_second..).unwrap()
     );
     assert_eq!(out, expected);
 
     let out = apply_one(VIEW, ed.insert_element(children, 0, new_child).unwrap());
     let first = children.index(0).unwrap().range.start().to_usize();
-    let expected = format!("{}{},\n      {}", &VIEW[..first], indented, &VIEW[first..]);
+    let expected = format!(
+        "{}{},\n      {}",
+        VIEW.get(..first).unwrap(),
+        indented,
+        VIEW.get(first..).unwrap()
+    );
     assert_eq!(out, expected);
 
     let src = "{\n  \"list\": [],\n  \"inline\": [1, 3]\n}";

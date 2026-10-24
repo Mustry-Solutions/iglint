@@ -48,5 +48,9 @@ fn transform_findings_point_into_the_json_string() {
     // escaped characters of the first line.
     assert_eq!(d[0].range.slice(d[0].file.text()), "undefinedThing");
     let text = d[0].file.text();
-    assert!(text[..d[0].range.start().to_usize()].ends_with("\\n\\treturn "));
+    assert!(
+        text.get(..d[0].range.start().to_usize())
+            .unwrap()
+            .ends_with("\\n\\treturn ")
+    );
 }

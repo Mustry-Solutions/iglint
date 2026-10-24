@@ -119,8 +119,8 @@ pub(crate) fn parse_comment(comment: &str) -> Option<(Vec<String>, bool)> {
     };
     let rest = rest.trim_start();
     if let Some(list) = rest.strip_prefix('[') {
-        let end = list.find(']')?;
-        let selectors = list[..end]
+        let (inside, _) = list.split_once(']')?;
+        let selectors = inside
             .split(',')
             .map(str::trim)
             .filter(|s| !s.is_empty())
@@ -136,9 +136,10 @@ pub(crate) fn parse_comment(comment: &str) -> Option<(Vec<String>, bool)> {
 
 /// The line (without its line break) containing `offset`.
 fn line_range(text: &str, offset: TextSize) -> TextRange {
-    let at = offset.to_usize();
-    let start = text[..at].rfind('\n').map_or(0, |i| i + 1);
-    let end = text[at..].find('\n').map_or(text.len(), |i| at + i);
+    let at = iglint_text::floor_char_boundary(text, offset.to_usize());
+    let (before, after) = text.split_at_checked(at).unwrap_or((text, ""));
+    let start = before.rfind('\n').map_or(0, |i| i + 1);
+    let end = after.find('\n').map_or(text.len(), |i| at + i);
     TextRange::from(start..end)
 }
 
@@ -151,7 +152,10 @@ pub fn comments(source: &str) -> Vec<TextRange> {
     while i < b.len() {
         match b[i] {
             b'#' => {
-                let end = source[i..].find('\n').map_or(b.len(), |e| i + e);
+                let end = source
+                    .get(i..)
+                    .and_then(|rest| rest.find('\n'))
+                    .map_or(b.len(), |e| i + e);
                 let end = if end > i && b[end - 1] == b'\r' {
                     end - 1
                 } else {

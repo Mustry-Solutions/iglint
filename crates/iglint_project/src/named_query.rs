@@ -167,7 +167,12 @@ pub fn sql_placeholders(sql: &str) -> Vec<SqlPlaceholder<'_>> {
             continue;
         }
         if c == b'{' {
+            // `i` is at the ASCII `{`, so `i + 1` is a char boundary, and
+            // `close` comes from `find` on that suffix.
+            #[allow(clippy::string_slice)]
             if let Some(close) = sql[i + 1..].find('}') {
+                // Both ends are boundaries: see above.
+                #[allow(clippy::string_slice)]
                 let name = &sql[i + 1..i + 1 + close];
                 if !name.is_empty() && name.bytes().all(|c| is_part(c) || c == b' ' || c == b'-') {
                     out.push(SqlPlaceholder {
@@ -196,8 +201,12 @@ pub fn sql_placeholders(sql: &str) -> Vec<SqlPlaceholder<'_>> {
                 while j < b.len() && is_part(b[j]) {
                     j += 1;
                 }
+                // `i` is the ASCII `:` and `j` stops at the first byte that
+                // is not ASCII alphanumeric or `_`, so both are boundaries.
+                #[allow(clippy::string_slice)]
+                let name = &sql[i + 1..j];
                 out.push(SqlPlaceholder {
-                    name: &sql[i + 1..j],
+                    name,
                     kind: PlaceholderKind::Colon,
                     range: TextRange::new(TextSize::new(i as u32), TextSize::new(j as u32)),
                 });

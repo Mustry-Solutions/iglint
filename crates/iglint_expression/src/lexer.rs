@@ -299,6 +299,8 @@ impl Lexer<'_> {
                 b'0'..=b'9' => self.number(),
                 b'.' if self.peek_at(1).is_some_and(|d| d.is_ascii_digit()) => self.number(),
                 _ => {
+                    // `start` is the lexer position, always a char boundary.
+                    #[allow(clippy::string_slice)]
                     let c = self.src[start..].chars().next().expect("in bounds");
                     if is_ident_start(c) {
                         self.ident();
@@ -334,7 +336,8 @@ impl Lexer<'_> {
     fn ident(&mut self) {
         let start = self.pos;
         let mut end = start;
-        for (i, c) in self.src[start..].char_indices() {
+        let rest = self.src.get(start..).unwrap_or_default();
+        for (i, c) in rest.char_indices() {
             let ok = if i == 0 {
                 is_ident_start(c)
             } else {
@@ -346,6 +349,8 @@ impl Lexer<'_> {
             end = start + i + c.len_utf8();
         }
         self.pos = end;
+        // `start` is the lexer position and `end` follows whole chars.
+        #[allow(clippy::string_slice)]
         let text = &self.src[start..end];
         let (kind, value) = if text.eq_ignore_ascii_case("true") {
             (TokenKind::Bool, TokenValue::Bool(true))
@@ -417,14 +422,20 @@ impl Lexer<'_> {
         }
         if hex_end > dec_end.max(double_end) {
             self.pos = hex_end;
+            // Number literals are ASCII, so every offset in them is a boundary.
+            #[allow(clippy::string_slice)]
             let value = i64::from_str_radix(&self.src[start + 2..hex_end], 16);
             self.integer(start, value.ok());
         } else if dec_end >= double_end {
             self.pos = dec_end;
+            // Number literals are ASCII, so every offset in them is a boundary.
+            #[allow(clippy::string_slice)]
             let value = self.src[start..dec_end].parse::<i64>();
             self.integer(start, value.ok());
         } else {
             self.pos = double_end;
+            // Number literals are ASCII, so every offset in them is a boundary.
+            #[allow(clippy::string_slice)]
             let text = &self.src[start..double_end];
             // Java accepts `5.` and `.5`; Rust's parser does too.
             let value = text.parse::<f64>().unwrap_or(f64::NAN);
@@ -462,6 +473,8 @@ impl Lexer<'_> {
                 return;
             };
             if c == quote {
+                // `run` follows whole chars and `i` is at an ASCII byte.
+                #[allow(clippy::string_slice)]
                 value.push_str(&self.src[run..i]);
                 self.pos = i + 1;
                 self.push(TokenKind::String, start, TokenValue::Text(value));
@@ -469,6 +482,8 @@ impl Lexer<'_> {
             }
             match c {
                 b'\n' | b'\r' => {
+                    // `run` follows whole chars and `i` is at an ASCII byte.
+                    #[allow(clippy::string_slice)]
                     value.push_str(&self.src[run..i]);
                     // Reported at the line break, where Ignition detects it.
                     self.error(i, i + 1, LexErrorKind::UnterminatedString);
@@ -477,7 +492,11 @@ impl Lexer<'_> {
                     return;
                 }
                 b'\\' => {
+                    // `run` follows whole chars and `i` is at an ASCII byte.
+                    #[allow(clippy::string_slice)]
                     value.push_str(&self.src[run..i]);
+                    // `i` is at a one-byte backslash.
+                    #[allow(clippy::string_slice)]
                     let next = self.src[i + 1..].chars().next();
                     let decoded = match next {
                         Some('t' | 'T') => Some('\t'),
@@ -527,6 +546,8 @@ impl Lexer<'_> {
                 }
                 Some(b'}') => {
                     self.pos = i + 1;
+                    // `start` is at `{` and `i` at an ASCII byte.
+                    #[allow(clippy::string_slice)]
                     let path = self.src[start + 1..i].to_owned();
                     self.push(TokenKind::Reference, start, TokenValue::Text(path));
                     return;
@@ -534,6 +555,8 @@ impl Lexer<'_> {
                 Some(b'\n' | b'\r') => {
                     self.error(i, i + 1, LexErrorKind::UnterminatedReference);
                     self.pos = i;
+                    // `start` is at `{` and `i` at an ASCII byte.
+                    #[allow(clippy::string_slice)]
                     let path = self.src[start + 1..i].to_owned();
                     self.push(TokenKind::Reference, start, TokenValue::Text(path));
                     return;

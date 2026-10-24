@@ -75,8 +75,7 @@ fn is_literal(e: &Expr) -> bool {
 
 /// The range of the `is` / `is not` operator between two operands.
 fn operator_range(text: &str, from: TextSize, to: TextSize, negated: bool) -> Option<TextRange> {
-    let between = &text[from.to_usize()..to.to_usize()];
-    let bytes = between.as_bytes();
+    let bytes = TextRange::new(from, to).slice(text).as_bytes();
     let ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
     let mut i = 0;
     while i < bytes.len() {
@@ -86,16 +85,18 @@ fn operator_range(text: &str, from: TextSize, to: TextSize, negated: bool) -> Op
                     i += 1;
                 }
             }
-            b'i' if between[i..].starts_with("is")
+            b'i' if bytes[i..].starts_with(b"is")
                 && (i == 0 || !ident(bytes[i - 1]))
                 && !bytes.get(i + 2).copied().is_some_and(ident) =>
             {
                 let mut end = i + 2;
                 if negated {
-                    let rest = &between[end..];
-                    let skipped =
-                        rest.len() - rest.trim_start_matches([' ', '\t', '\\', '\n', '\r']).len();
-                    if !rest[skipped..].starts_with("not") {
+                    let rest = &bytes[end..];
+                    let skipped = rest
+                        .iter()
+                        .take_while(|b| matches!(b, b' ' | b'\t' | b'\\' | b'\n' | b'\r'))
+                        .count();
+                    if !rest[skipped..].starts_with(b"not") {
                         return None;
                     }
                     end += skipped + 3;

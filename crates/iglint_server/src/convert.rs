@@ -165,6 +165,8 @@ pub fn minimal_edit(old: &str, new: &str) -> (TextRange, String) {
         p
     };
     let max_suffix = (old.len() - prefix).min(new.len() - prefix);
+    // `prefix` was moved back to a boundary of both texts above.
+    #[allow(clippy::string_slice)]
     let mut suffix = old[prefix..]
         .chars()
         .rev()
@@ -176,10 +178,10 @@ pub fn minimal_edit(old: &str, new: &str) -> (TextRange, String) {
     while !old.is_char_boundary(old.len() - suffix) || !new.is_char_boundary(new.len() - suffix) {
         suffix -= 1;
     }
-    (
-        TextRange::from(prefix..old.len() - suffix),
-        new[prefix..new.len() - suffix].to_owned(),
-    )
+    // Both ends were moved to boundaries of `new` above.
+    #[allow(clippy::string_slice)]
+    let replacement = new[prefix..new.len() - suffix].to_owned();
+    (TextRange::from(prefix..old.len() - suffix), replacement)
 }
 
 #[cfg(test)]

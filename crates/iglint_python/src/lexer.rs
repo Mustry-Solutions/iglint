@@ -19,7 +19,7 @@
 //! The indentation logic of Jython's `PythonTokenSource` lives in
 //! [`crate::indentation`].
 
-use iglint_text::{TextRange, TextSize};
+use iglint_text::{TextRange, TextSize, floor_char_boundary};
 
 use crate::anchor::Anchor;
 use crate::error::{DropReason, DroppedText, ParseError, ParseErrorKind};
@@ -242,8 +242,11 @@ impl<'src> Lexer<'src> {
         let character = match byte {
             EOF => "<EOF>".to_owned(),
             _ => {
-                let at = offset.min(self.source.len());
-                let c = self.source[at..].chars().next().unwrap_or('\n');
+                // The character the offset is in (a lexer offset may be
+                // inside a multi-byte character).
+                let at = floor_char_boundary(self.source, offset);
+                let rest = self.source.get(at..).unwrap_or_default();
+                let c = rest.chars().next().unwrap_or('\n');
                 format!("{c:?}")
             }
         };
@@ -898,10 +901,11 @@ impl<'src> Lexer<'src> {
 
     /// Column of `offset` in UTF-16 code units, as Jython counts it.
     pub(crate) fn column_of(&self, offset: usize) -> i32 {
-        let offset = offset.min(self.bytes.len());
+        // An offset inside a multi-byte character counts as its start.
+        let offset = floor_char_boundary(self.source, offset);
         let line_start = memrchr_newline(&self.bytes[self.start..offset])
             .map_or(self.start, |index| self.start + index + 1);
-        let text = &self.source[line_start..offset];
+        let text = self.source.get(line_start..offset).unwrap_or_default();
         if text.is_ascii() {
             text.len() as i32
         } else {

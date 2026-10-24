@@ -158,9 +158,23 @@ impl TextRange {
         self.start.to_usize()..self.end.to_usize()
     }
 
+    /// The text in the range. A range that is not inside `text` or splits
+    /// a character is first widened to the characters it touches and
+    /// clamped to the text ([`TextRange::snap_to_chars`]), so this never
+    /// panics; [`TextRange::get`] tells the two cases apart.
     #[inline]
     pub fn slice(self, text: &str) -> &str {
-        &text[self.to_std()]
+        match text.get(self.to_std()) {
+            Some(slice) => slice,
+            None => self.snap_to_chars(text).get(text).unwrap_or_default(),
+        }
+    }
+
+    /// The text in the range, or `None` when the range is not inside
+    /// `text` or one of its ends splits a character.
+    #[inline]
+    pub fn get(self, text: &str) -> Option<&str> {
+        text.get(self.to_std())
     }
 
     /// Whether both ends of the range are character boundaries of `text`
@@ -356,7 +370,7 @@ impl LineIndex {
         let column = if self.ascii {
             (offset - start).to_u32()
         } else {
-            text[start.to_usize()..offset.to_usize()].chars().count() as u32
+            TextRange::new(start, offset).slice(text).chars().count() as u32
         };
         LineColumn {
             line: line as u32 + 1,
@@ -373,7 +387,8 @@ impl LineIndex {
         let character = if self.ascii {
             (offset - start).to_u32()
         } else {
-            text[start.to_usize()..offset.to_usize()]
+            TextRange::new(start, offset)
+                .slice(text)
                 .chars()
                 .map(|c| c.len_utf16() as u32)
                 .sum()
@@ -440,20 +455,29 @@ impl TextEdit {
     }
 }
 
-/// Error returned when edits overlap and cannot be applied together.
+/// Error returned when edits cannot be applied together.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OverlappingEdits {
-    pub first: TextRange,
-    pub second: TextRange,
+pub enum EditError {
+    /// Two edits overlap.
+    Overlapping { first: TextRange, second: TextRange },
+    /// An edit's range is not inside the text or splits a character.
+    OffBoundary(TextRange),
 }
 
-impl fmt::Display for OverlappingEdits {
+impl fmt::Display for EditError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "edits overlap: {} and {}", self.first, self.second)
+        match self {
+            EditError::Overlapping { first, second } => {
+                write!(f, "edits overlap: {first} and {second}")
+            }
+            EditError::OffBoundary(range) => {
+                write!(f, "edit range {range} is not on character boundaries")
+            }
+        }
     }
 }
 
-impl std::error::Error for OverlappingEdits {}
+impl std::error::Error for EditError {}
 
 /// The byte that stands in for each byte of an invalid UTF-8 sequence in
 /// [`decode_utf8`]. Like U+FFFD (what Ignition's UTF-8 decoding produces),
@@ -486,13 +510,18 @@ pub fn decode_utf8(bytes: Vec<u8>) -> (String, Vec<TextRange>) {
 
 /// Applies non-overlapping edits to `text`. Edits may be given in any order.
 /// Two insertions at the same offset are applied in the given order.
-pub fn apply_edits(text: &str, edits: &[TextEdit]) -> Result<String, OverlappingEdits> {
+/// An edit whose range is not inside `text` or splits a character is an
+/// error, not a panic.
+pub fn apply_edits(text: &str, edits: &[TextEdit]) -> Result<String, EditError> {
+    if let Some(edit) = edits.iter().find(|e| !e.range.is_on_char_boundaries(text)) {
+        return Err(EditError::OffBoundary(edit.range));
+    }
     let mut order: Vec<usize> = (0..edits.len()).collect();
     order.sort_by_key(|&i| (edits[i].range.start(), edits[i].range.end(), i));
     for pair in order.windows(2) {
         let (a, b) = (edits[pair[0]].range, edits[pair[1]].range);
         if a.end() > b.start() {
-            return Err(OverlappingEdits {
+            return Err(EditError::Overlapping {
                 first: a,
                 second: b,
             });
@@ -502,11 +531,13 @@ pub fn apply_edits(text: &str, edits: &[TextEdit]) -> Result<String, Overlapping
     let mut cursor = 0usize;
     for i in order {
         let edit = &edits[i];
-        out.push_str(&text[cursor..edit.range.start().to_usize()]);
+        // Every range was checked to be on character boundaries above, and
+        // sorted edits do not overlap, so `cursor <= start`.
+        out.push_str(TextRange::new(TextSize::from(cursor), edit.range.start()).slice(text));
         out.push_str(&edit.content);
         cursor = edit.range.end().to_usize();
     }
-    out.push_str(&text[cursor..]);
+    out.push_str(text.get(cursor..).unwrap_or_default());
     Ok(out)
 }
 

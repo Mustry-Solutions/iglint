@@ -248,7 +248,8 @@ fn common_prefix(values: &[String]) -> String {
             .map_or(0, |((i, a), _)| i + a.len_utf8())
             .min(len);
     }
-    first[..len].to_owned()
+    // `len` is the end of a character found by `char_indices` (or 0).
+    first.get(..len).unwrap_or_default().to_owned()
 }
 
 /// The keys of a dict literal (`{'a': 1}`) or `dict(a=1)` call, when every

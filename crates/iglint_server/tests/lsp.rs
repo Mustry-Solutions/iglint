@@ -91,11 +91,11 @@ fn publishes_diagnostics_with_lsp_details() {
     let utf16 = |s: &str| s.encode_utf16().count() as u32;
     assert_eq!(
         d.range.start,
-        Position::new(line_no as u32, utf16(&line[..at]))
+        Position::new(line_no as u32, utf16(line.get(..at).unwrap()))
     );
     assert_eq!(
         d.range.end,
-        Position::new(line_no as u32, utf16(&line[..at]) + 2)
+        Position::new(line_no as u32, utf16(line.get(..at).unwrap()) + 2)
     );
     client.shutdown();
 }
@@ -510,8 +510,7 @@ fn survives_malformed_input() {
     // Every prefix of a view (in steps) and some garbage.
     let mut texts: Vec<String> = (0..base.len())
         .step_by(7)
-        .filter(|i| base.is_char_boundary(*i))
-        .map(|i| base[..i].to_owned())
+        .filter_map(|i| base.get(..i).map(str::to_owned))
         .collect();
     texts.extend(
         [

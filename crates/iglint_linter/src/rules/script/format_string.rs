@@ -773,10 +773,9 @@ fn field_spec(
 ) -> Result<(), Bad> {
     // field_name [!conversion] [:format_spec]: Jython ends the name at the
     // first `!` or `:`, also inside `[...]`.
-    let name_end = field.find(['!', ':']).unwrap_or(field.len());
-    let name = &field[..name_end];
-    let first_end = name.find(['.', '[']).unwrap_or(name.len());
-    let head = &name[..first_end];
+    // Both ends come from `find`, so they are character boundaries.
+    let (name, after_name) = field.split_at(field.find(['!', ':']).unwrap_or(field.len()));
+    let (head, name_rest) = name.split_at(name.find(['.', '[']).unwrap_or(name.len()));
     if head.chars().any(maybe_java_digit) {
         return Err(Bad::Unknown);
     }
@@ -830,16 +829,16 @@ fn field_spec(
             }
         }
     }
-    field_rest(&name[first_end..])?;
-    if first_end < name.len() {
+    field_rest(name_rest)?;
+    if !name_rest.is_empty() {
         argument = None;
     }
-    let mut rest = &field[name_end..];
+    let mut rest = after_name;
     let converted = rest.starts_with('!');
     let conversion = rest.strip_prefix('!').and_then(|r| r.chars().next());
     let spec_text = rest
-        .find(':')
-        .map(|at| without_fields(&rest[at + 1..]))
+        .split_once(':')
+        .map(|(_, after)| without_fields(after))
         .unwrap_or_default();
     spec.fields.push(FieldUse {
         argument: argument.as_ref().map(FieldArg::clone_arg),
@@ -910,15 +909,16 @@ fn field_rest(mut rest: &str) -> Result<(), Bad> {
             if end == 0 {
                 return Err("Empty attribute in format string".into());
             }
-            rest = &r[end..];
+            // `end` comes from `find`, a character boundary.
+            rest = r.split_at(end).1;
         } else if let Some(r) = rest.strip_prefix('[') {
-            let Some(end) = r.find(']') else {
+            let Some((key, after)) = r.split_once(']') else {
                 return Err("Missing ']' in format string".into());
             };
-            if end == 0 {
+            if key.is_empty() {
                 return Err("Empty attribute in format string".into());
             }
-            rest = &r[end + 1..];
+            rest = after;
             if !rest.is_empty() && !rest.starts_with(['.', '[']) {
                 return Err("Only '.' or '[' may follow ']' in format field specifier".into());
             }

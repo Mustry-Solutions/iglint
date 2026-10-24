@@ -748,7 +748,7 @@ mod tests {
         let mut lines = patch.split_inclusive('\n').skip(2).peekable();
         while let Some(header) = lines.next() {
             let parse = |part: &str| -> (usize, usize) {
-                let (start, len) = part[1..].split_once(',').unwrap();
+                let (start, len) = part.get(1..).unwrap().split_once(',').unwrap();
                 (start.parse().unwrap(), len.parse().unwrap())
             };
             let mut parts = header.trim_end().split(' ');

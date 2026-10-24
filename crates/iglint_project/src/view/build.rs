@@ -1668,8 +1668,11 @@ impl<'a> Builder<'a> {
                         }
                         continue;
                     }
-                    let is_style =
-                        key.len() >= 5 && key[key.len() - 5..].eq_ignore_ascii_case("style");
+                    let is_style = key
+                        .len()
+                        .checked_sub(5)
+                        .and_then(|i| key.get(i..))
+                        .is_some_and(|tail| tail.eq_ignore_ascii_case("style"));
                     if matches!(m.value.kind, ValueKind::Object(_) | ValueKind::Array(_)) {
                         self.style_refs_in(owner, &m.value, child, is_style, owner_path);
                     }
@@ -1853,17 +1856,16 @@ fn placeholders(path: &JsonString<'_>) -> Vec<(String, TextRange)> {
     let text = path.value();
     let mut out = Vec::new();
     let mut rest = 0usize;
-    while let Some(open) = text[rest..].find('{') {
-        let start = rest + open + 1;
-        let Some(close) = text[start..].find('}') else {
+    while let Some((before, after)) = text.get(rest..).and_then(|t| t.split_once('{')) {
+        let start = rest + before.len() + 1;
+        let Some((name, _)) = after.split_once('}') else {
             break;
         };
-        let name = &text[start..start + close];
         if !name.contains('{') {
             let r = TextRange::at(TextSize::new(start as u32), TextSize::of(name));
             out.push((name.to_owned(), path.raw_range(r)));
         }
-        rest = start + close + 1;
+        rest = start + name.len() + 1;
     }
     out
 }

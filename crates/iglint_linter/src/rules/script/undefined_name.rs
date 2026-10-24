@@ -135,7 +135,9 @@ impl ScriptRule for UndefinedName {
                 continue;
             }
             if matches!(r.name, "project" | "shared" | "app")
-                && text[r.range.end().to_usize()..].starts_with('.')
+                && text
+                    .get(r.range.end().to_usize()..)
+                    .is_some_and(|rest| rest.starts_with('.'))
             {
                 continue;
             }

@@ -22,7 +22,7 @@ fn hex(s: &str) -> String {
 fn unhex(s: &str) -> String {
     let bytes: Vec<u8> = (0..s.len())
         .step_by(2)
-        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("hex input"))
+        .map(|i| u8::from_str_radix(s.get(i..i + 2).unwrap(), 16).expect("hex input"))
         .collect();
     String::from_utf8(bytes).expect("UTF-8 input")
 }
@@ -114,7 +114,7 @@ fn error_position(src: &str, kind: &ParseErrorKind, start: usize, end: usize) ->
         }
         i += 1;
     }
-    let column = src[line_start..at].encode_utf16().count() + 1;
+    let column = src.get(line_start..at).unwrap().encode_utf16().count() + 1;
     format!("{line}:{column}")
 }
 

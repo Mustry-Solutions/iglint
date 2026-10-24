@@ -207,7 +207,9 @@ fn private_corpus_latency() {
         let Some((line, column)) = text.lines().enumerate().find_map(|(n, l)| {
             let t = l.trim_end();
             let t = t.trim_end_matches(',');
-            (t.ends_with('"') && t.len() > 1).then(|| (n, t[..t.len() - 1].encode_utf16().count()))
+            t.strip_suffix('"')
+                .filter(|t| !t.is_empty())
+                .map(|t| (n, t.encode_utf16().count()))
         }) else {
             continue;
         };

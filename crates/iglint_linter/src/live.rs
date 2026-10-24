@@ -932,9 +932,10 @@ impl LiveWorkspace {
 /// `offset`, and the text to insert. The result is verified: the new source
 /// has a marker on that line that selects `code`.
 fn suppression_insert(source: &str, offset: TextSize, code: &str) -> Option<(TextSize, String)> {
-    let at = offset.to_usize().min(source.len());
-    let line_start = source[..at].rfind('\n').map_or(0, |i| i + 1);
-    let mut line_end = source[at..].find('\n').map_or(source.len(), |i| at + i);
+    let at = iglint_text::floor_char_boundary(source, offset.to_usize());
+    let (before, after) = source.split_at_checked(at)?;
+    let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+    let mut line_end = after.find('\n').map_or(source.len(), |i| at + i);
     if line_end > line_start && source.as_bytes()[line_end - 1] == b'\r' {
         line_end -= 1;
     }
@@ -954,14 +955,16 @@ fn suppression_insert(source: &str, offset: TextSize, code: &str) -> Option<(Tex
             }
         }
         None => {
-            let trimmed = source[line_start..line_end].trim_end().len() + line_start;
+            let line = source.get(line_start..line_end)?;
+            let trimmed = line.trim_end().len() + line_start;
             (trimmed, format!("  # iglint: ignore[{code}]"))
         }
     };
     let mut new = String::with_capacity(source.len() + insert.len());
-    new.push_str(&source[..insert_at]);
+    let (head, tail) = source.split_at_checked(insert_at)?;
+    new.push_str(head);
     new.push_str(&insert);
-    new.push_str(&source[insert_at..]);
+    new.push_str(tail);
     let new_line_end = line_end + insert.len();
     let ok = suppression::comments(&new).into_iter().any(|c| {
         c.start().to_usize() >= line_start
@@ -1145,7 +1148,7 @@ mod tests {
         fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
             let source: &str = &unit.script.source;
             let body = unit.script.source_map.body_start().to_usize();
-            for (i, _) in source[body..].match_indices("bad") {
+            for (i, _) in source.get(body..).unwrap_or_default().match_indices("bad") {
                 let start = TextSize::new((body + i) as u32);
                 let range = TextRange::at(start, TextSize::new(3));
                 cx.report_script(unit.file, unit.script, range, "bad name");

@@ -164,12 +164,15 @@ pub fn parse_tag_path(path: &str, offset: TextSize) -> TagPath {
     };
     while i < b.len() {
         let start = i;
-        let c = path[i..].chars().next().expect("in bounds");
+        // `i` only ever advances by whole chars.
+        #[allow(clippy::string_slice)]
+        let rest = &path[i..];
+        let c = rest.chars().next().expect("in bounds");
         let tok;
         if matches!(c, '\t' | '\x0C' | '\r' | '\n') {
             i += 1;
             continue;
-        } else if path[i..].starts_with("../") || path[i..].starts_with("..\\") {
+        } else if rest.starts_with("../") || rest.starts_with("..\\") {
             i += 3;
             tok = Tok::DirUp;
         } else if c == '/' || c == '\\' {
@@ -209,8 +212,7 @@ pub fn parse_tag_path(path: &str, offset: TextSize) -> TagPath {
                 }
             }
         } else if is_component_char(c) {
-            while i < b.len() {
-                let ch = path[i..].chars().next().expect("in bounds");
+            while let Some(ch) = path.get(i..).and_then(|r| r.chars().next()) {
                 if !is_component_char(ch) {
                     break;
                 }
@@ -226,6 +228,8 @@ pub fn parse_tag_path(path: &str, offset: TextSize) -> TagPath {
             );
             return result;
         }
+        // Both ends follow whole chars (tokens end after a char or `]`).
+        #[allow(clippy::string_slice)]
         let text = &path[start..i];
         if result.property.is_some() {
             fail(&mut result, start, i, TagPathErrorKind::AfterProperty);
@@ -238,7 +242,11 @@ pub fn parse_tag_path(path: &str, offset: TextSize) -> TagPath {
                     return result;
                 }
                 result.source = Some(TagPathPart {
-                    text: text[1..text.len() - 1].to_owned(),
+                    text: text
+                        .strip_prefix('[')
+                        .and_then(|t| t.strip_suffix(']'))
+                        .unwrap_or(text)
+                        .to_owned(),
                     range: rng(start + 1, i - 1),
                 });
             }
@@ -286,7 +294,7 @@ pub fn parse_tag_path(path: &str, offset: TextSize) -> TagPath {
 /// `\[ SourceID \]` at `start`: end offset.
 fn source_end(path: &str, start: usize) -> Option<usize> {
     let mut i = start + 1;
-    for c in path[start + 1..].chars() {
+    for c in path.get(start + 1..).unwrap_or_default().chars() {
         if c == ']' {
             return Some(i + 1);
         }
@@ -324,7 +332,9 @@ fn array_end(path: &str, i: usize) -> Option<usize> {
     if matches!(b.get(i + 1), Some(b'"' | b'\'')) {
         // `.*` stops at line breaks; take the longest match ending in a
         // quote followed by `]`.
-        let line_end = path[i + 2..]
+        let line_end = path
+            .get(i + 2..)
+            .unwrap_or_default()
             .find(['\n', '\r'])
             .map_or(path.len(), |k| i + 2 + k);
         let mut best = None;

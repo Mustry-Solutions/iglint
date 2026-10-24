@@ -307,7 +307,7 @@ fn escapes_are_decoded() {
         let s = v.as_json_string().unwrap();
         assert_eq!(s.value(), decoded, "{raw}");
         assert!(s.has_escapes());
-        assert_eq!(s.raw(), &raw[1..raw.len() - 1]);
+        assert_eq!(s.raw(), raw.get(1..raw.len() - 1).unwrap());
     }
     let v = ok("\"plain\"");
     assert!(!v.as_json_string().unwrap().has_escapes());
@@ -361,7 +361,7 @@ fn nesting_limit() {
                 });
                 assert_eq!(deepest, depth);
                 assert_eq!(visited, count);
-                let truncated = &text[..text.len() - 1];
+                let truncated = text.get(..text.len() - 1).unwrap();
                 assert!(parse(truncated).is_err());
                 drop(value);
             }

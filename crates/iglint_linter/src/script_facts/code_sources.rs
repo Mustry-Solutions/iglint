@@ -89,8 +89,10 @@ pub fn run_script_code(
                     .last()
                     .map_or(call.name_range.end(), |a| a.range.end());
                 // Through the closing parenthesis.
-                let close = e.text()[end.to_usize()..]
-                    .find(')')
+                let close = e
+                    .text()
+                    .get(end.to_usize()..)
+                    .and_then(|rest| rest.find(')'))
                     .map_or(end, |i| end + TextSize::new(i as u32 + 1));
                 TextRange::new(call.name_range.start(), close)
             };

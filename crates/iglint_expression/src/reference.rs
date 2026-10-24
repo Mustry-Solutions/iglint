@@ -220,7 +220,7 @@ pub fn misspaced_property_ref(path: &str, offset: TextSize) -> Option<PropertyRe
     if trimmed.len() == path.len() || trimmed.is_empty() {
         return None;
     }
-    let lead = TextSize::of(&path[..path.len() - start.len()]);
+    let lead = TextSize::from(path.len() - start.len());
     parse_property_ref(trimmed, offset + lead)
 }
 
@@ -428,9 +428,12 @@ fn decompose(path: &str, offset: TextSize, names: Names, legacy: bool) -> Proper
     // Parses `SUB* ` at i into segments.
     let push_subs = |mut i: usize, segments: &mut Vec<PropertySegment>| -> usize {
         while let Some(j) = m.sub(i) {
-            let inner = &path[i + 1..j - 1];
+            // The matcher is ASCII only, so these are boundaries when the
+            // grammar matched; `get` keeps an unchecked path from panicking.
+            let inner = path.get(i + 1..j - 1).unwrap_or_default();
             let kind = if inner.starts_with('"') || inner.starts_with('\'') {
-                SegmentKind::Key(inner[1..inner.len() - 1].to_owned())
+                let key = inner.get(1..inner.len().saturating_sub(1));
+                SegmentKind::Key(key.unwrap_or_default().to_owned())
             } else if inner.is_empty() {
                 SegmentKind::Index(None)
             } else {
@@ -457,7 +460,7 @@ fn decompose(path: &str, offset: TextSize, names: Names, legacy: bool) -> Proper
             }
             let j = m.name(i).unwrap_or(b.len()).max(i + 1);
             segments.push(PropertySegment {
-                kind: SegmentKind::Name(path[i..j].to_owned()),
+                kind: SegmentKind::Name(path.get(i..j).unwrap_or_default().to_owned()),
                 range: rng(i, j),
             });
             i = push_subs(j, segments);
@@ -497,7 +500,7 @@ fn decompose(path: &str, offset: TextSize, names: Names, legacy: bool) -> Proper
     loop {
         let j = m.name(i).expect("grammar checked");
         components.push(PropertySegment {
-            kind: SegmentKind::Name(path[i..j].to_owned()),
+            kind: SegmentKind::Name(path.get(i..j).unwrap_or_default().to_owned()),
             range: rng(i, j),
         });
         if b.get(j) == Some(&b'/') {

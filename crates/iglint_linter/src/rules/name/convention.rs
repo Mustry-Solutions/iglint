@@ -230,8 +230,14 @@ fn split_abbreviation_run(word: &str, abbreviations: &[String]) -> Vec<String> {
             .collect();
         candidates.sort_by_key(|a| std::cmp::Reverse(a.len()));
         for a in candidates {
-            out.push(a.to_uppercase());
-            if go(&rest[a.len()..], abbreviations, out) {
+            let upper = a.to_uppercase();
+            // The uppercase form can be shorter than `a` (`ı` is `I`), so
+            // strip what was matched, not `a.len()` bytes.
+            let Some(tail) = rest.strip_prefix(upper.as_str()) else {
+                continue;
+            };
+            out.push(upper);
+            if go(tail, abbreviations, out) {
                 return true;
             }
             out.pop();

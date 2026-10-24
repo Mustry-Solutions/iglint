@@ -541,25 +541,22 @@ pub(crate) fn encoding_declaration(source: &str) -> Option<(&str, TextRange)> {
     let source_start = if source.starts_with('\u{feff}') { 3 } else { 0 };
     let mut line_start = source_start;
     for _ in 0..2 {
-        if line_start > source.len() {
+        // `line_start` follows the byte order mark or an ASCII line break.
+        let Some(rest) = source.get(line_start..) else {
             break;
-        }
-        let rest = &source[line_start..];
+        };
         let line_len = rest.find(['\n', '\r']).unwrap_or(rest.len());
-        let line = &rest[..line_len];
+        let (line, tail) = rest.split_at_checked(line_len).unwrap_or((rest, ""));
         if let Some(found) = match_coding(line) {
             let start = line_start + found.0;
-            let name = &line[found.0..found.1];
+            // The name is ASCII.
+            let name = line.get(found.0..found.1).unwrap_or_default();
             return Some((name, TextRange::from(start..line_start + found.1)));
         }
-        if line_len == rest.len() {
+        if tail.is_empty() {
             break;
         }
-        let terminator = if rest[line_len..].starts_with("\r\n") {
-            2
-        } else {
-            1
-        };
+        let terminator = if tail.starts_with("\r\n") { 2 } else { 1 };
         line_start += line_len + terminator;
     }
     None
@@ -572,7 +569,11 @@ fn match_coding(line: &str) -> Option<(usize, usize)> {
     let is_name = |byte: u8| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.');
     // `.*` is greedy, so the last occurrence that matches wins.
     let mut search_end = line.len();
-    while let Some(index) = line[hash + 1..search_end].rfind("coding") {
+    // `hash` is at a `#` and `search_end` at the end or a `coding`.
+    while let Some(index) = line
+        .get(hash + 1..search_end)
+        .and_then(|s| s.rfind("coding"))
+    {
         let index = hash + 1 + index;
         let mut cursor = index + "coding".len();
         if matches!(bytes.get(cursor), Some(b':' | b'=')) {

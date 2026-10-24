@@ -327,7 +327,7 @@ impl<'s> JsonEditor<'s> {
         let separator = o
             .members
             .first()
-            .map(|m| &self.source[m.key.range().end().to_usize()..m.value.range.start().to_usize()])
+            .map(|m| TextRange::new(m.key.range().end(), m.value.range.start()).slice(self.source))
             .unwrap_or(&self.key_separator);
         let items: Vec<TextRange> = o.members.iter().map(Member::range).collect();
         let quoted = self.quote(key);
@@ -407,7 +407,7 @@ impl<'s> JsonEditor<'s> {
     /// containers.
     fn item_separator(&self, items: &[TextRange]) -> &str {
         if items.len() >= 2 {
-            let between = &self.source[items[0].end().to_usize()..items[1].start().to_usize()];
+            let between = TextRange::new(items[0].end(), items[1].start()).slice(self.source);
             if !between.contains('\n') {
                 return between;
             }
@@ -453,7 +453,8 @@ impl<'s> JsonEditor<'s> {
         while end < bytes.len() && matches!(bytes[end], b' ' | b'\t') {
             end += 1;
         }
-        &self.source[start..end]
+        // Both ends are next to ASCII bytes (a line break, a space or a tab).
+        self.source.get(start..end).unwrap_or_default()
     }
 
     fn detect_indent_unit(&self, root: &Value<'_>) -> Option<String> {
@@ -493,7 +494,8 @@ impl<'s> JsonEditor<'s> {
                 && let Some(m) = o.members.first()
             {
                 found = Some(
-                    self.source[m.key.range().end().to_usize()..m.value.range.start().to_usize()]
+                    TextRange::new(m.key.range().end(), m.value.range.start())
+                        .slice(self.source)
                         .to_owned(),
                 );
             }

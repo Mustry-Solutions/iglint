@@ -273,7 +273,10 @@ impl<'a> Visitor<'a> for ScriptHits<'_> {
                         "parent" | "children"
                     )
                 {
-                    let next = self.source[a.range.end().to_usize()..].chars().next();
+                    let next = self
+                        .source
+                        .get(a.range.end().to_usize()..)
+                        .and_then(|rest| rest.chars().next());
                     self.hits.push((
                         Hit::SelfAttribute(a.attr.as_str().to_owned(), next),
                         a.range,

@@ -299,9 +299,10 @@ impl ScriptWalker<'_, '_, '_> {
         let prefix = text.len() - body.len();
         for q in ["\"\"\"", "'''", "\"", "'"] {
             if body.len() >= 2 * q.len()
-                && body.starts_with(q)
-                && body.ends_with(q)
-                && &body[q.len()..body.len() - q.len()] == value
+                && body
+                    .strip_prefix(q)
+                    .and_then(|b| b.strip_suffix(q))
+                    .is_some_and(|inner| inner == value)
                 && !value.contains('\\')
             {
                 let start = range.start() + TextSize::from(prefix + q.len());

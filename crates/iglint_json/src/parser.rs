@@ -383,9 +383,12 @@ impl<'a> Parser<'a> {
     fn special(&mut self, word: &'static str, start: usize) -> Result<Value<'a>, ParseError> {
         if self.bytes[self.pos..].starts_with(word.as_bytes()) {
             self.pos += word.len();
+            // `start` is a token start and `word` is ASCII.
+            #[allow(clippy::string_slice)]
+            let text = &self.text[start..self.pos];
             Ok(Value {
                 range: range(start, self.pos),
-                kind: ValueKind::Number(Number::new(&self.text[start..self.pos])),
+                kind: ValueKind::Number(Number::new(text)),
             })
         } else {
             Err(self.unexpected(Expected::Value))
@@ -450,9 +453,12 @@ impl<'a> Parser<'a> {
             return Err(invalid(end));
         }
         self.pos = pos;
+        // A number token is ASCII and starts at a token start.
+        #[allow(clippy::string_slice)]
+        let text = &self.text[start..pos];
         Ok(Value {
             range: range(start, pos),
-            kind: ValueKind::Number(Number::new(&self.text[start..pos])),
+            kind: ValueKind::Number(Number::new(text)),
         })
     }
 
@@ -498,7 +504,9 @@ impl<'a> Parser<'a> {
             }
         }
         // `pos` may have stepped into the middle of a multi-byte character
-        // after a backslash; the closing quote is always a boundary.
+        // after a backslash; the closing quote is always a boundary, and
+        // `content_start` follows the opening quote.
+        #[allow(clippy::string_slice)]
         let raw = &self.text[content_start..pos];
         self.pos = pos + 1;
         let value = if has_escape {

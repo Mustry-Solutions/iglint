@@ -128,7 +128,10 @@ mod tests {
         let text = d[0].file.text();
         let label = |d: &crate::diagnostic::Diagnostic| {
             let r = d.labels[0].range;
-            text[..r.start().to_usize()].matches("\"name\"").count()
+            text.get(..r.start().to_usize())
+                .unwrap()
+                .matches("\"name\"")
+                .count()
         };
         // The label of `B` is on the third `"name"` key (root, A, B).
         assert_eq!(label(&d[0]), 3);

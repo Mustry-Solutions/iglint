@@ -675,8 +675,8 @@ impl ViewModel {
         let mut binding_paths: Vec<String> = Vec::new();
         let mut seen = BTreeSet::new();
         for (key, _) in flat.iter() {
-            if let Some(at) = key.rfind(".binding.type") {
-                let path = key[..at].to_owned();
+            if let Some((path, _)) = key.rsplit_once(".binding.type") {
+                let path = path.to_owned();
                 if seen.insert(path.clone()) {
                     binding_paths.push(path);
                 }
@@ -853,8 +853,8 @@ impl ViewModel {
             if !key.contains(".events.") {
                 continue;
             }
-            let event_path = if let Some(at) = key.find(".config.script") {
-                &key[..at]
+            let event_path = if let Some((path, _)) = key.split_once(".config.script") {
+                path
             } else if let Some(path) = key.strip_suffix(".script") {
                 path
             } else {
@@ -888,14 +888,12 @@ impl ViewModel {
             {
                 continue;
             }
-            let after = match key.rfind("propConfig.") {
-                Some(at) => &key[at + "propConfig.".len()..],
-                None => continue,
+            let Some((_, after)) = key.rsplit_once("propConfig.") else {
+                continue;
             };
             let property = after
-                .rfind(".onChange")
-                .map(|at| &after[..at])
-                .unwrap_or(after);
+                .rsplit_once(".onChange")
+                .map_or(after, |(property, _)| property);
             model.property_change_scripts.push(Node {
                 path: path.to_owned(),
                 node_type: NodeType::PropertyChangeScript,

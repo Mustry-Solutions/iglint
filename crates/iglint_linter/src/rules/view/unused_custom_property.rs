@@ -254,18 +254,19 @@ fn credit(view: &View<'_>, usage: &mut Usage, resolution: RefResolution, write: 
 fn braced_refs(text: &str) -> Vec<iglint_expression::PropertyRef> {
     let mut out = Vec::new();
     let mut rest = text;
-    while let Some(start) = rest.find('{') {
-        let after = &rest[start + 1..];
+    while let Some((_, after)) = rest.split_once('{') {
         let Some(end) = after.find(['{', '}']) else {
             break;
         };
-        if after.as_bytes()[end] == b'}'
-            && let Some(r) = parse_property_ref(&after[..end], TextSize::ZERO)
-                .or_else(|| misspaced_property_ref(&after[..end], TextSize::ZERO))
+        // `end` is the position of an ASCII brace found in `after`.
+        let (content, tail) = after.split_at(end);
+        if tail.starts_with('}')
+            && let Some(r) = parse_property_ref(content, TextSize::ZERO)
+                .or_else(|| misspaced_property_ref(content, TextSize::ZERO))
         {
             out.push(r);
         }
-        rest = &after[end..];
+        rest = tail;
     }
     out
 }
@@ -1328,8 +1329,8 @@ mod tests {
                         ALL.iter()
                             .filter(|p| {
                                 !(container
-                                    && p.starts_with("view.custom.")
-                                    && (read_all || read.contains(&&p["view.custom.".len()..])))
+                                    && p.strip_prefix("view.custom.")
+                                        .is_some_and(|name| read_all || read.contains(&name)))
                             })
                             .map(|p| (*p).to_owned())
                             .collect()

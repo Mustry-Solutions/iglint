@@ -231,7 +231,7 @@ fn update_matches_set_text_and_check() {
             .rev()
             .find(|i| text.is_char_boundary(*i))
             .unwrap_or(0);
-        for text in [text.clone(), text[..half].to_owned()] {
+        for text in [text.clone(), text.get(..half).unwrap().to_owned()] {
             let (found, dependents) = a.update(&path, Arc::from(text.as_str()));
             let expected_dependents = b.set_text(&path, Some(Arc::from(text.as_str())));
             let expected = b.check(std::slice::from_ref(&path)).remove(0);

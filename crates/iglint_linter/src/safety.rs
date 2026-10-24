@@ -351,7 +351,7 @@ fn line_problem(
         if touching.is_empty() {
             continue;
         }
-        let Some(decoded) = decode(&before[start..end], start) else {
+        let Some(decoded) = before.get(start..end).and_then(|raw| decode(raw, start)) else {
             return Some(MOVED.to_owned());
         };
         let mut local = Vec::with_capacity(touching.len());
@@ -390,13 +390,14 @@ pub(crate) fn lines_preserved(text: &str, edits: &[(usize, usize, String)]) -> b
         {
             return false;
         }
-        after.push_str(&text[prev..*s]);
+        // Both ends were checked to be character boundaries.
+        after.push_str(text.get(prev..*s).unwrap_or_default());
         anchors.push((*s, after.len()));
         after.push_str(content);
         prev = *t;
         anchors.push((*t, after.len()));
     }
-    after.push_str(&text[prev..]);
+    after.push_str(text.get(prev..).unwrap_or_default());
     anchors.push((text.len(), after.len()));
     let (b, a) = (break_ends(text), break_ends(&after));
     let line = |ends: &[usize], at: usize| ends.partition_point(|&e| e <= at);
@@ -443,7 +444,7 @@ fn decode(raw: &str, base: usize) -> Option<Decoded> {
     while i < bytes.len() {
         offsets.push((base + i, text.len()));
         if bytes[i] != b'\\' {
-            let c = raw[i..].chars().next()?;
+            let c = raw.get(i..)?.chars().next()?;
             text.push(c);
             i += c.len_utf8();
             continue;
@@ -657,7 +658,11 @@ mod tests {
             let raw = |snippet: &str| -> String {
                 if json {
                     let quoted = crate::rules::script::testing::json(snippet);
-                    quoted[1..quoted.len() - 1].to_owned()
+                    quoted
+                        .strip_prefix('"')
+                        .and_then(|q| q.strip_suffix('"'))
+                        .unwrap()
+                        .to_owned()
                 } else {
                     snippet.to_owned()
                 }

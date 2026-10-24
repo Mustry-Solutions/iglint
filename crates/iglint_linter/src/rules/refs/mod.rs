@@ -144,7 +144,7 @@ pub(crate) fn value_at<'v, 'a>(root: &'v Value<'a>, path: &str) -> Option<&'v Va
     let mut at = root;
     for part in path.split('.') {
         let (key, indexes) = match part.find('[') {
-            Some(i) => (&part[..i], &part[i..]),
+            Some(i) => part.split_at(i),
             None => (part, ""),
         };
         if !key.is_empty() {

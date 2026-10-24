@@ -69,8 +69,8 @@ fn compare(source: &[u8], expected: &Record) -> Option<String> {
             let from = at.saturating_sub(80);
             format!(
                 "dump differs at {at}:\n  jython: ...{}\n  iglint: ...{}",
-                &a[from..(at + 80).min(a.len())],
-                &b[from..(at + 80).min(b.len())]
+                String::from_utf8_lossy(&a.as_bytes()[from..(at + 80).min(a.len())]),
+                String::from_utf8_lossy(&b.as_bytes()[from..(at + 80).min(b.len())])
             )
         }
         _ => format!("jython: {expected:?}\n  iglint: {}", ours.trim_end()),

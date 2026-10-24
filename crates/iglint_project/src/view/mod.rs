@@ -417,15 +417,17 @@ impl<'a> PropPath<'a> {
     /// Splits a property path.
     pub fn parse(raw: &'a str) -> PropPath<'a> {
         let (category, rest) = match raw.find(['.', '[']) {
-            Some(i) if raw.as_bytes()[i] == b'.' => (&raw[..i], &raw[i + 1..]),
-            Some(i) => (&raw[..i], &raw[i..]),
+            Some(i) => {
+                // `i` is where `find` matched, so a char boundary.
+                let (category, rest) = raw.split_at(i);
+                (category, rest.strip_prefix('.').unwrap_or(rest))
+            }
             None => (raw, ""),
         };
-        let name_end = rest.find(['.', '[']).unwrap_or(rest.len());
         PropPath {
             raw,
             category,
-            name: &rest[..name_end],
+            name: rest.split(['.', '[']).next().unwrap_or(rest),
             rest,
         }
     }

@@ -17,7 +17,7 @@
 use std::collections::BTreeMap;
 
 use iglint_project::ScriptKind;
-use iglint_text::TextRange;
+use iglint_text::{TextRange, TextSize};
 use rustc_hash::FxHashMap;
 
 use crate::checker::Checker;
@@ -465,9 +465,9 @@ pub fn message_id(diagnostic: &Diagnostic) -> Option<(&str, &str)> {
         return None;
     }
     let message = diagnostic.message.strip_suffix(')')?;
-    let open = message.rfind(" (")?;
-    let (_, id) = message[open + 2..].rsplit_once(", ")?;
-    Some((id, &message[..open]))
+    let (text, rest) = message.rsplit_once(" (")?;
+    let (_, id) = rest.rsplit_once(", ")?;
+    Some((id, text))
 }
 
 /// The name a pylint message is about: the first `'...'`, or the module
@@ -540,12 +540,13 @@ const TRAILING_WHITESPACE: &str = "C0303";
 /// The trailing whitespace (as Python's `rstrip` sees it) of the line that
 /// `at` is on.
 fn whitespace_on_line(source: &str, at: TextRange) -> Option<TextRange> {
-    let start = at.start().to_usize().min(source.len());
-    let line_start = source[..start].rfind('\n').map_or(0, |i| i + 1);
-    let line_end = source[line_start..]
-        .find('\n')
-        .map_or(source.len(), |i| line_start + i);
-    let line = &source[line_start..line_end];
+    // Clamped to the text like `min(source.len())`.
+    let before = TextRange::new(TextSize::ZERO, at.start()).slice(source);
+    let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+    // `line_start` is just after a `\n` found by `rfind`.
+    let from_line = source.split_at(line_start).1;
+    let line = from_line.split('\n').next().unwrap_or_default();
+    let line_end = line_start + line.len();
     let kept = line.trim_end_matches(is_python_space).len();
     (kept < line.len()).then(|| TextRange::from(line_start + kept..line_end))
 }
@@ -618,9 +619,9 @@ fn keep(
 
 /// The first `'...'` of a pylint message (`Undefined variable 'x'`).
 fn quoted(text: &str) -> Option<&str> {
-    let start = text.find('\'')? + 1;
-    let end = start + text[start..].find('\'')?;
-    Some(&text[start..end])
+    let (_, rest) = text.split_once('\'')?;
+    let (quoted, _) = rest.split_once('\'')?;
+    Some(quoted)
 }
 
 /// The options of SCR900 in a rule set, when it is enabled.

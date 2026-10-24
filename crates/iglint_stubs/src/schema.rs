@@ -242,7 +242,8 @@ fn walk(root: &'static Schema, path: &str) -> Option<&'static Schema> {
     let mut at = Located { root, node: root };
     for raw in path.split('.').filter(|s| !s.is_empty()) {
         let (name, indexes) = match raw.find('[') {
-            Some(i) => (&raw[..i], &raw[i..]),
+            // `i` is at a `[`.
+            Some(i) => raw.split_at_checked(i).unwrap_or((raw, "")),
             None => (raw, ""),
         };
         if !name.is_empty() {

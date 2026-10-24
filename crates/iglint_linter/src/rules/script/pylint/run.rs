@@ -646,7 +646,10 @@ fn line_text<'s>(source: &'s str, starts: &[usize], line: i64) -> (usize, &'s st
         return (source.len(), "");
     };
     let end = starts.get(line).copied().unwrap_or(source.len());
-    let text = source[start..end].trim_end_matches(['\n', '\r']);
+    let text = source
+        .get(start..end)
+        .unwrap_or_default()
+        .trim_end_matches(['\n', '\r']);
     (start, text)
 }
 

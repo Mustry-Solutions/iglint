@@ -71,10 +71,12 @@ fn float_repr_style(value: f64, add_dot_zero: bool) -> String {
         out.push('-');
     }
     if !(-4..16).contains(&exponent) {
-        out.push_str(&digits[..1]);
-        if digits.len() > 1 {
+        // `digits` is ASCII and not empty.
+        let (first, rest) = digits.split_at_checked(1).unwrap_or((&digits, ""));
+        out.push_str(first);
+        if !rest.is_empty() {
             out.push('.');
-            out.push_str(&digits[1..]);
+            out.push_str(rest);
         }
         let sign = if exponent < 0 { '-' } else { '+' };
         let _ = write!(out, "e{sign}{:02}", exponent.abs());
@@ -86,10 +88,13 @@ fn float_repr_style(value: f64, add_dot_zero: bool) -> String {
         out.push_str(&digits);
     } else {
         let whole = exponent as usize + 1;
-        if whole < digits.len() {
-            out.push_str(&digits[..whole]);
+        // `digits` is ASCII, so `whole` is a boundary.
+        if let Some((int, frac)) = digits.split_at_checked(whole)
+            && !frac.is_empty()
+        {
+            out.push_str(int);
             out.push('.');
-            out.push_str(&digits[whole..]);
+            out.push_str(frac);
         } else {
             out.push_str(&digits);
             for _ in digits.len()..whole {

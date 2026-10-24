@@ -285,11 +285,14 @@ pub fn css_classes(css: &str) -> Vec<String> {
                 while j < b.len() {
                     let c = b[j];
                     if c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_') || c >= 0x80 {
-                        let ch = css[j..].chars().next().unwrap_or(' ');
+                        let ch = css.get(j..).and_then(|s| s.chars().next()).unwrap_or(' ');
                         name.push(ch);
                         j += ch.len_utf8();
                     } else if c == b'\\' && j + 1 < b.len() && b[j + 1] != b'\n' {
-                        let ch = css[j + 1..].chars().next().unwrap_or(' ');
+                        let ch = css
+                            .get(j + 1..)
+                            .and_then(|s| s.chars().next())
+                            .unwrap_or(' ');
                         name.push(ch);
                         j += 1 + ch.len_utf8();
                     } else {

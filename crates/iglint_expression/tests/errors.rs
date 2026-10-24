@@ -338,7 +338,7 @@ fn trees_deeper_than_the_limit_are_rejected() {
         assert!(
             p.errors.iter().any(|e| e.kind == ParseErrorKind::TooDeep),
             "{}",
-            &src[..10]
+            src.get(..10).unwrap()
         );
         assert!(matches!(p.expr.kind, iglint_expression::ExprKind::Error(_)));
     }

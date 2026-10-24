@@ -172,7 +172,8 @@ pub fn lines(diagnostics: &[Diagnostic]) -> Vec<(usize, String)> {
         .iter()
         .map(|d| {
             let text = d.file.text();
-            let line = text[..d.range.start().to_usize()].matches('\n').count() + 1;
+            let before = text.get(..d.range.start().to_usize()).unwrap();
+            let line = before.matches('\n').count() + 1;
             (line, d.range.slice(text).to_owned())
         })
         .collect()

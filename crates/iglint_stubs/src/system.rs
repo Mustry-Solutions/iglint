@@ -311,7 +311,8 @@ fn children<T>(
     table[start..]
         .iter()
         .take_while(move |e| key(e).starts_with(prefix.as_str()))
-        .filter(move |e| !key(e)[len..].contains('.'))
+        // Every key here starts with `prefix`, so `len` is a boundary.
+        .filter(move |e| !key(e).get(len..).unwrap_or_default().contains('.'))
 }
 
 /// The direct members of a package (`"system"` for the top level), in path

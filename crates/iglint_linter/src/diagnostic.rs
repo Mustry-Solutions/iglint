@@ -461,8 +461,10 @@ pub(crate) fn char_range(text: &str, range: TextRange) -> TextRange {
     debug_assert!(
         range.end().to_usize() > text.len() || range.is_on_char_boundaries(text),
         "range {range:?} splits a character of {:?}",
-        &text[iglint_text::floor_char_boundary(text, range.start().to_usize().saturating_sub(4))
-            ..iglint_text::ceil_char_boundary(text, range.end().to_usize() + 4)]
+        text.get(
+            iglint_text::floor_char_boundary(text, range.start().to_usize().saturating_sub(4))
+                ..iglint_text::ceil_char_boundary(text, range.end().to_usize() + 4)
+        )
     );
     range.snap_to_chars(text)
 }

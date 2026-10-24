@@ -78,12 +78,15 @@ fn analyze(file: &SourceFile, kind: FileKind, settings: &LinterSettings) -> Vec<
     if let Some(rule) = settings.rule(naming) {
         for (at, _) in text.match_indices("\"name\": \"") {
             let start = at + "\"name\": \"".len();
-            let end = start + text[start..].find('"').unwrap();
-            let name = &text[start..end];
+            let name = text.get(start..).unwrap().split('"').next().unwrap();
             if name == "root" || !name.starts_with(|c: char| c.is_ascii_lowercase()) {
                 continue;
             }
-            let fixed = format!("{}{}", name[..1].to_ascii_uppercase(), &name[1..]);
+            let fixed = format!(
+                "{}{}",
+                name.get(..1).unwrap().to_ascii_uppercase(),
+                name.get(1..).unwrap()
+            );
             out.push(
                 Diagnostic::new(
                     naming,

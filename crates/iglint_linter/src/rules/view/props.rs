@@ -60,16 +60,16 @@ pub fn lookup<'a>(object: &'a Value<'a>, path: &str) -> Option<&'a Value<'a>> {
     let mut at = object;
     for segment in path.split('.') {
         let (name, mut rest) = match segment.find('[') {
-            Some(i) => (&segment[..i], &segment[i..]),
+            Some(i) => segment.split_at(i),
             None => (segment, ""),
         };
         if !name.is_empty() {
             at = at.get(name)?;
         }
         while let Some(stripped) = rest.strip_prefix('[') {
-            let end = stripped.find(']')?;
-            at = at.index(stripped[..end].parse().ok()?)?;
-            rest = &stripped[end + 1..];
+            let (index, tail) = stripped.split_once(']')?;
+            at = at.index(index.parse().ok()?)?;
+            rest = tail;
         }
     }
     Some(at)

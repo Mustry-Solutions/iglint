@@ -30,7 +30,7 @@ fn check(source: &str, map: &SourceMap, body: Option<(TextRange, bool)>, file: &
         let r = map.file_range(TextRange::at(TextSize::new(i as u32), TextSize::new(1)));
         assert_eq!(r, map.anchor(), "{what}: header offset {i}");
     }
-    for (i, ch) in source[body_start..].char_indices() {
+    for (i, ch) in source.get(body_start..).unwrap().char_indices() {
         let g = TextRange::at(
             TextSize::new((body_start + i) as u32),
             TextSize::of(ch.encode_utf8(&mut [0; 4]) as &str),

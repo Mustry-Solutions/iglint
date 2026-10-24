@@ -868,11 +868,12 @@ impl Parser<'_> {
             return false;
         };
         let rest = self.source.get(offset.to_usize()..).unwrap_or("");
-        rest.starts_with("None")
-            && !rest[4..]
+        rest.strip_prefix("None").is_some_and(|after| {
+            !after
                 .bytes()
                 .next()
                 .is_some_and(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+        })
     }
 
     /// `try_stmt`

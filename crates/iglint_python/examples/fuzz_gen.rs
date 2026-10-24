@@ -105,13 +105,18 @@ fn collect_python_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// `text[range]`; the ranges here are token or char boundaries.
+fn cut<R: std::slice::SliceIndex<str, Output = str>>(text: &str, range: R) -> &str {
+    text.get(range).expect("char boundary")
+}
+
 /// Lines starting with `### ` would split the case.
 fn sanitize(source: &str) -> String {
     source
         .split_inclusive('\n')
         .map(|line| {
             if line.starts_with("###") {
-                format!("#x{}", &line[1..])
+                format!("#x{}", cut(line, 1..))
             } else {
                 line.to_owned()
             }
@@ -145,7 +150,7 @@ fn dedent(text: &str) -> String {
     text.split_inclusive('\n')
         .map(|line| {
             let strip = indent.min(line.len() - line.trim_start_matches([' ', '\t']).len());
-            &line[strip..]
+            cut(line, strip..)
         })
         .collect()
 }
@@ -281,14 +286,14 @@ fn mutate(rng: &mut Rng, source: &str) -> String {
         0 if !real.is_empty() => {
             let token = rng.pick(&real);
             let range = token.range.to_std();
-            format!("{}{}", &source[..range.start], &source[range.end..])
+            format!("{}{}", cut(source, ..range.start), cut(source, range.end..))
         }
         // Duplicate a token somewhere else.
         1 if !real.is_empty() => {
             let token = rng.pick(&real);
-            let text = &source[token.range.to_std()];
+            let text = cut(source, token.range.to_std());
             let at = boundary(rng);
-            format!("{}{}{}", &source[..at], text, &source[at..])
+            format!("{}{}{}", cut(source, ..at), text, cut(source, at..))
         }
         // Swap two adjacent tokens.
         2 if real.len() > 1 => {
@@ -299,17 +304,17 @@ fn mutate(rng: &mut Rng, source: &str) -> String {
             }
             format!(
                 "{}{}{}{}{}",
-                &source[..a.start],
-                &source[b.clone()],
-                &source[a.end..b.start],
-                &source[a.clone()],
-                &source[b.end..]
+                cut(source, ..a.start),
+                cut(source, b.clone()),
+                cut(source, a.end..b.start),
+                cut(source, a.clone()),
+                cut(source, b.end..)
             )
         }
         // Truncate.
         3 => {
             let at = boundary(rng);
-            source[..at].to_owned()
+            cut(source, ..at).to_owned()
         }
         // Delete a character.
         4 if !source.is_empty() => {
@@ -317,14 +322,14 @@ fn mutate(rng: &mut Rng, source: &str) -> String {
             while !source.is_char_boundary(at) {
                 at -= 1;
             }
-            let next = source[at..].chars().next().map_or(0, char::len_utf8);
-            format!("{}{}", &source[..at], &source[at + next..])
+            let next = cut(source, at..).chars().next().map_or(0, char::len_utf8);
+            format!("{}{}", cut(source, ..at), cut(source, at + next..))
         }
         // Insert a token.
         _ => {
             let at = boundary(rng);
             let text = rng.pick(INSERTIONS);
-            format!("{}{}{}", &source[..at], text, &source[at..])
+            format!("{}{}{}", cut(source, ..at), text, cut(source, at..))
         }
     }
 }

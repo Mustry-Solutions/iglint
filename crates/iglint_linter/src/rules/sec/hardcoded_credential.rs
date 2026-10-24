@@ -243,13 +243,13 @@ fn is_authorization_value(value: &str) -> bool {
 /// as a byte range of `text`.
 fn url_password(text: &str) -> Option<std::ops::Range<usize>> {
     let scheme_end = text.find("://")? + 3;
-    let rest = &text[scheme_end..];
+    let rest = text.get(scheme_end..)?;
     let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    let authority = &rest[..authority_end];
+    let authority = rest.get(..authority_end)?;
     let at = authority.rfind('@')?;
-    let userinfo = &authority[..at];
+    let userinfo = authority.get(..at)?;
     let colon = userinfo.find(':')?;
-    let password = &userinfo[colon + 1..];
+    let password = userinfo.get(colon + 1..)?;
     if !is_credential_value(password) {
         return None;
     }

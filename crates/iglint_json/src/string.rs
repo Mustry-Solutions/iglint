@@ -170,6 +170,8 @@ pub(crate) fn decode(raw: &str) -> Result<String, StringError> {
             i += 1;
             continue;
         }
+        // `i` is at a backslash and `run_start` after an ASCII escape.
+        #[allow(clippy::string_slice)]
         out.push_str(&raw[run_start..i]);
         let Some(&c) = bytes.get(i + 1) else {
             return Err(StringError::InvalidEscape { at: i, len: 1 });
@@ -211,11 +213,15 @@ pub(crate) fn decode(raw: &str) -> Result<String, StringError> {
                 i += 6;
             }
         } else {
+            // `i` is at a one-byte backslash.
+            #[allow(clippy::string_slice)]
             let len = 1 + raw[i + 1..].chars().next().map_or(0, char::len_utf8);
             return Err(StringError::InvalidEscape { at: i, len });
         }
         run_start = i;
     }
+    // `run_start` is 0 or follows an ASCII escape.
+    #[allow(clippy::string_slice)]
     out.push_str(&raw[run_start..]);
     Ok(out)
 }
@@ -273,6 +279,8 @@ pub fn escape_into(out: &mut String, value: &str, style: EscapeStyle) {
         if replacement.is_none() && !needs_hex {
             continue;
         }
+        // Both offsets come from `char_indices`.
+        #[allow(clippy::string_slice)]
         out.push_str(&value[run_start..i]);
         match replacement {
             Some(r) => out.push_str(r),
@@ -283,6 +291,8 @@ pub fn escape_into(out: &mut String, value: &str, style: EscapeStyle) {
         }
         run_start = i + c.len_utf8();
     }
+    // `run_start` comes from `char_indices`.
+    #[allow(clippy::string_slice)]
     out.push_str(&value[run_start..]);
 }
 

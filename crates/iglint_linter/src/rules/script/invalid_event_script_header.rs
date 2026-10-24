@@ -122,20 +122,27 @@ enum DefLine<'t> {
     Complete {
         /// The text between the parentheses.
         params: &'t str,
-        /// Offset just after the `:`.
-        colon_end: usize,
+        /// The line up to and including the `:`.
+        header: &'t str,
         /// What follows the colon.
         tail: &'t str,
     },
 }
 
 fn parse_def_line<'t>(line: &'t str, function: &str) -> DefLine<'t> {
-    let open = "def ".len() + function.len() + 1;
+    // Only called for a line that starts with `def function(`.
+    let Some(after_open) = line
+        .strip_prefix("def ")
+        .and_then(|r| r.strip_prefix(function))
+        .and_then(|r| r.strip_prefix('('))
+    else {
+        return DefLine::NoColon;
+    };
     let mut depth = 1;
     let mut quote: Option<char> = None;
     let mut escaped = false;
     let mut close = None;
-    for (i, c) in line[open..].char_indices() {
+    for (i, c) in after_open.char_indices() {
         if let Some(q) = quote {
             if escaped {
                 escaped = false;
@@ -152,7 +159,7 @@ fn parse_def_line<'t>(line: &'t str, function: &str) -> DefLine<'t> {
             ')' | ']' | '}' => {
                 depth -= 1;
                 if depth == 0 {
-                    close = Some(open + i);
+                    close = Some(i);
                     break;
                 }
             }
@@ -163,16 +170,18 @@ fn parse_def_line<'t>(line: &'t str, function: &str) -> DefLine<'t> {
     let Some(close) = close else {
         return DefLine::Wrapped;
     };
-    let rest = &line[close + 1..];
-    let trimmed = rest.trim_start();
-    if !trimmed.starts_with(':') {
+    // `close` is where `char_indices` found a one-byte closing bracket.
+    let (params, after_close) = after_open.split_at(close);
+    let rest = after_close
+        .strip_prefix([')', ']', '}'])
+        .unwrap_or(after_close);
+    let Some(tail) = rest.trim_start().strip_prefix(':') else {
         return DefLine::NoColon;
-    }
-    let colon_end = close + 1 + (rest.len() - trimmed.len()) + 1;
+    };
     DefLine::Complete {
-        params: &line[open..close],
-        colon_end,
-        tail: &line[colon_end..],
+        params,
+        header: line.strip_suffix(tail).unwrap_or(line),
+        tail,
     }
 }
 
@@ -198,8 +207,11 @@ fn check(cx: &mut Checker<'_, '_>, script: &ScriptFile<'_>) {
     let text: &str = &script.written.source;
     let function = script.kind.function_name();
     let canonical = script.kind.canonical_header();
-    let line1 = &text[script.first_line.to_std()];
-    let newline = if text[line1.len()..].starts_with("\r\n") {
+    let line1 = script.first_line.slice(text);
+    let newline = if text
+        .get(line1.len()..)
+        .is_some_and(|r| r.starts_with("\r\n"))
+    {
         "\r\n"
     } else {
         "\n"
@@ -221,12 +233,12 @@ fn check(cx: &mut Checker<'_, '_>, script: &ScriptFile<'_>) {
             ),
             DefLine::Complete {
                 params,
-                colon_end,
+                header,
                 tail,
             } => {
                 let tail_code = tail.trim();
                 if tail_code.is_empty() || tail_code.starts_with('#') {
-                    if without_whitespace(&line1[..colon_end]) == without_whitespace(&canonical) {
+                    if without_whitespace(header) == without_whitespace(&canonical) {
                         return;
                     }
                     let canonical_params = script.kind.params();
@@ -256,7 +268,7 @@ fn check(cx: &mut Checker<'_, '_>, script: &ScriptFile<'_>) {
                     (
                         message,
                         Some(TextEdit::replace(
-                            TextRange::new(TextSize::ZERO, TextSize::of(&line1[..colon_end])),
+                            TextRange::new(TextSize::ZERO, TextSize::of(header)),
                             canonical.clone(),
                         )),
                     )
@@ -272,14 +284,11 @@ fn check(cx: &mut Checker<'_, '_>, script: &ScriptFile<'_>) {
             }
         },
         HeaderStatus::Missing => {
-            let bom = if text.starts_with('\u{feff}') {
-                '\u{feff}'.len_utf8()
-            } else {
-                0
-            };
+            let body = text.strip_prefix('\u{feff}').unwrap_or(text);
+            let bom = text.len() - body.len();
             let mut offset = bom;
             let mut first_code = None;
-            for line in text[bom..].split_inclusive('\n') {
+            for line in body.split_inclusive('\n') {
                 let content = line.trim_end_matches(['\n', '\r']);
                 if !content.trim().is_empty() && !content.trim_start().starts_with('#') {
                     first_code = Some((offset, content));
@@ -358,7 +367,7 @@ fn move_body_edit(
     body: &str,
     newline: &str,
 ) -> Option<TextEdit> {
-    let rest = &text[line1.len()..];
+    let rest = text.get(line1.len()..).unwrap_or_default();
     let next = rest
         .lines()
         .skip(1)
@@ -366,7 +375,9 @@ fn move_body_edit(
     let indent = match next {
         None => "\t",
         Some(l) => {
-            let indent = &l[..l.len() - l.trim_start_matches([' ', '\t']).len()];
+            let indent = l
+                .strip_suffix(l.trim_start_matches([' ', '\t']))
+                .unwrap_or_default();
             if indent.is_empty() {
                 return None;
             }
@@ -389,7 +400,7 @@ fn insert_header_edit(text: &str, canonical: &str, newline: &str) -> Option<Text
     let mut multiline = false;
     walk_exprs(&parsed.module.body, &mut |e| {
         if let Expr::Str(s) = e
-            && text[s.range.to_std()].contains('\n')
+            && s.range.slice(text).contains('\n')
         {
             multiline = true;
         }

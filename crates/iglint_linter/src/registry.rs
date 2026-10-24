@@ -342,7 +342,7 @@ impl Registry {
         // A code prefix must match at least one rule and start with a category.
         let upper = key.to_ascii_uppercase();
         let matched = self.rules.iter().find(|m| m.code.starts_with(&upper))?;
-        let prefix = &matched.code[..upper.len()];
+        let prefix = matched.code.get(..upper.len())?;
         Category::ALL
             .into_iter()
             .any(|c| prefix.starts_with(c.prefix()))

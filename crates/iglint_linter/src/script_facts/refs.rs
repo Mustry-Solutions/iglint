@@ -620,11 +620,9 @@ impl Chains<'_, '_, '_, '_> {
                     // it (`re.sys.modules`).
                     let at = q
                         .find("sys.modules")
-                        .filter(|i| *i == 0 || q[..*i].ends_with('.'));
-                    at.is_some_and(|i| {
-                        let rest = &q[i + "sys.modules".len()..];
-                        rest.is_empty() || rest.starts_with('.')
-                    })
+                        .filter(|i| *i == 0 || q.get(..*i).is_some_and(|h| h.ends_with('.')));
+                    at.and_then(|i| q.get(i..)?.strip_prefix("sys.modules"))
+                        .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
                 })
     }
 }

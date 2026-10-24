@@ -536,10 +536,7 @@ pub fn summarize(model: &ResourceModel<'_>) -> ResourceSummary {
 /// the files a fix edits. The same rule as the vetted `system.tag` reads
 /// and writes of literal paths (`iglint_python_semantic::vetted`).
 pub fn tag_path_names_value(path: &str) -> bool {
-    let tail = match path.rfind(['/', ']']) {
-        Some(i) => &path[i + 1..],
-        None => path,
-    };
+    let tail = path.rsplit(['/', ']']).next().unwrap_or(path);
     if tail.contains(['{', '}']) {
         return false;
     }
@@ -881,7 +878,10 @@ fn tag_facts(folder: &TagFolder<'_>, refs: &mut References) -> TagFacts {
             let mut stack: Vec<_> = t.children.iter().rev().copied().collect();
             while let Some(c) = stack.pop() {
                 let child = folder.tag(c);
-                let rel = child.path[t.path.len()..]
+                let rel = child
+                    .path
+                    .get(t.path.len()..)
+                    .unwrap_or_default()
                     .trim_start_matches('/')
                     .to_owned();
                 if child.tag_type == TagType::UdtInstance

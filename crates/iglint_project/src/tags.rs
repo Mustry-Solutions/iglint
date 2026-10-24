@@ -572,16 +572,16 @@ fn udt_placeholders<'a>(s: &'a JsonString<'a>) -> Vec<(&'a str, TextRange)> {
     let text: &'a str = s.value();
     let mut out = Vec::new();
     let mut from = 0;
-    while let Some(open) = text[from..].find('{') {
-        let start = from + open + 1;
-        let Some(close) = text[start..].find(['}', '{']) else {
+    while let Some((before, after)) = text.get(from..).and_then(|t| t.split_once('{')) {
+        let start = from + before.len() + 1;
+        let Some(close) = after.find(['}', '{']) else {
             break;
         };
-        if text.as_bytes()[start + close] == b'{' {
+        if after.as_bytes()[close] == b'{' {
             from = start + close;
             continue;
         }
-        let name = &text[start..start + close];
+        let name = after.get(..close).unwrap_or_default();
         if !name.is_empty() {
             let r = TextRange::at(TextSize::new(start as u32), TextSize::of(name));
             out.push((name, s.raw_range(r)));

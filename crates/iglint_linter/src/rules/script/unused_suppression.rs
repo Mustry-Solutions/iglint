@@ -217,13 +217,14 @@ fn directive_rest(comment: &str) -> &str {
     let Some(at) = comment.find("ignore") else {
         return comment;
     };
-    let rest = &comment[at..];
+    // `at` comes from `find`, a character boundary.
+    let rest = comment.split_at(at).1;
     let rest = rest
         .strip_prefix("ignore-file")
         .or_else(|| rest.strip_prefix("ignore"))
         .unwrap_or(rest);
     match rest.trim_start().strip_prefix('[') {
-        Some(list) => list.find(']').map_or("", |end| &list[end + 1..]),
+        Some(list) => list.split_once(']').map_or("", |(_, after)| after),
         None => rest,
     }
 }
@@ -231,9 +232,11 @@ fn directive_rest(comment: &str) -> &str {
 /// Whether a comment matches PEP 263's `coding[:=]` (only meaningful on
 /// the first two lines, but never worth deleting).
 fn is_coding_declaration(comment: &str) -> bool {
-    comment
-        .match_indices("coding")
-        .any(|(i, m)| comment[i + m.len()..].starts_with([':', '=']))
+    comment.match_indices("coding").any(|(i, m)| {
+        comment
+            .get(i + m.len()..)
+            .is_some_and(|rest| rest.starts_with([':', '=']))
+    })
 }
 
 /// Deletes a comment and the whitespace before it. A comment alone on its
@@ -244,19 +247,21 @@ fn remove_comment(
     comment: TextRange,
     keep_line: bool,
 ) -> Option<(TextRange, String)> {
-    let start = comment.start().to_usize();
-    let line_start = source[..start].rfind('\n').map_or(0, |i| i + 1);
+    let before = source.get(..comment.start().to_usize())?;
+    let line_start = before.rfind('\n').map_or(0, |i| i + 1);
     let end = comment.end().to_usize();
-    if source[line_start..start].trim().is_empty() {
+    // `line_start` is just after a `\n` found by `rfind`.
+    if before.split_at(line_start).1.trim().is_empty() {
         if keep_line {
             return Some((TextRange::from(line_start..end), String::new()));
         }
-        let line_end = source[end..]
+        let line_end = source
+            .get(end..)?
             .find('\n')
             .map_or(source.len(), |i| end + i + 1);
         return Some((TextRange::from(line_start..line_end), String::new()));
     }
-    let code_end = source[..start].trim_end_matches([' ', '\t']).len();
+    let code_end = before.trim_end_matches([' ', '\t']).len();
     Some((
         TextRange::new(TextSize::from(code_end), comment.end()),
         String::new(),
@@ -272,7 +277,8 @@ fn rewrite_selectors(
 ) -> Option<(TextRange, String)> {
     let text = comment.slice(source);
     let open = text.find('[')?;
-    let close = text[open..].find(']')? + open;
+    // `open` comes from `find`, a character boundary.
+    let close = text.split_at(open).1.find(']')? + open;
     let kept: Vec<&str> = selectors
         .iter()
         .enumerate()

@@ -85,15 +85,17 @@ pub(crate) fn ign_inject(path: String, object: &Value<'_>) -> String {
 pub fn strip_indices(path: &str) -> String {
     let mut out = String::with_capacity(path.len());
     let mut rest = path;
-    while let Some(open) = rest.find('[') {
-        let after = &rest[open + 1..];
-        match after.find(']') {
-            Some(close) if after[..close].bytes().all(|b| b.is_ascii_digit()) && close > 0 => {
-                out.push_str(&rest[..open]);
-                rest = &after[close + 1..];
+    while let Some((before, after)) = rest.split_once('[') {
+        match after.split_once(']') {
+            Some((index, tail))
+                if !index.is_empty() && index.bytes().all(|b| b.is_ascii_digit()) =>
+            {
+                out.push_str(before);
+                rest = tail;
             }
             _ => {
-                out.push_str(&rest[..=open]);
+                out.push_str(before);
+                out.push('[');
                 rest = after;
             }
         }

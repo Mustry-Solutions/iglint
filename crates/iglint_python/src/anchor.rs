@@ -194,7 +194,8 @@ impl<'src> Locator<'src> {
         while !self.source.is_char_boundary(end) {
             end -= 1;
         }
-        let text = &self.source[start..end.max(start)];
+        // `start` follows a line break and `end` was moved to a boundary.
+        let text = self.source.get(start..end.max(start)).unwrap_or_default();
         let column = if text.is_ascii() {
             text.len()
         } else {

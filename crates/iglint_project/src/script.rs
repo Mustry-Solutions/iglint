@@ -207,7 +207,9 @@ pub struct EmbeddedScript<'a> {
 impl<'a> EmbeddedScript<'a> {
     /// The body part of `source` (after the header line).
     pub fn body_text(&self) -> &str {
-        &self.source[self.source_map.body_start().to_usize()..]
+        self.source
+            .get(self.source_map.body_start().to_usize()..)
+            .unwrap_or_default()
     }
 
     /// True when the body has nothing but whitespace (Ignition fails to
@@ -353,7 +355,7 @@ impl<'a> ScriptFile<'a> {
         let function = kind.function_name();
         let canonical = kind.canonical_header();
         let line_end = text.find('\n');
-        let first_line_text = &text[..line_end.unwrap_or(text.len())];
+        let first_line_text = text.split('\n').next().unwrap_or(text);
         let first_line_trimmed = first_line_text
             .strip_suffix('\r')
             .unwrap_or(first_line_text);
@@ -392,7 +394,8 @@ impl<'a> ScriptFile<'a> {
         } else {
             0
         };
-        let body = &text[body_start..];
+        // `body_start` is 0, the length, or just after a `\n`.
+        let (head, body) = text.split_at_checked(body_start).unwrap_or((text, ""));
         let mut source = String::with_capacity(canonical.len() + 1 + body.len());
         source.push_str(&canonical);
         source.push('\n');
@@ -409,14 +412,14 @@ impl<'a> ScriptFile<'a> {
             source_map: SourceMap::file_with_prefix(
                 TextSize::of(canonical.as_str()) + TextSize::new(1),
                 anchor,
-                TextSize::of(&text[..body_start]),
+                TextSize::of(head),
                 TextSize::of(body),
             ),
             header: canonical,
             source: Cow::Owned(source),
             body: ScriptBody::File {
                 text,
-                start: TextSize::of(&text[..body_start]),
+                start: TextSize::of(head),
             },
             owner: Owner::Resource,
             node_path,

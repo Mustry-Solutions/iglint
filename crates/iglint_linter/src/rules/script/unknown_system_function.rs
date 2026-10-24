@@ -98,13 +98,11 @@ fn parse_options(r: &OptionReader<'_>) -> Result<ParsedOptions, String> {
 impl Options {
     /// Whether `path` or one of its parent paths is allowed.
     fn allows(&self, path: &str) -> bool {
-        let mut prefix_end = 0;
+        // Each `i` is the offset of a `.` from `match_indices`.
         let prefixes = path
-            .split('.')
-            .map(|seg| {
-                prefix_end += seg.len() + usize::from(prefix_end > 0);
-                &path[..prefix_end]
-            })
+            .match_indices('.')
+            .map(|(i, _)| path.split_at(i).0)
+            .chain(std::iter::once(path))
             .collect::<Vec<_>>();
         prefixes
             .iter()

@@ -66,7 +66,7 @@ fn compare(cases: &str, expected: &str) -> (usize, Vec<String>) {
             continue;
         }
         let ours = scope_dump(&model, source);
-        let theirs = &outcome["ok\n".len()..];
+        let theirs = outcome.get("ok\n".len()..).unwrap();
         if ours != theirs {
             failures.push(format!(
                 "{name}:\n{source}--- jython\n{}--- iglint\n{}",

@@ -83,12 +83,11 @@ fn is_process_function(name: &str) -> bool {
         return matches!(
             f,
             "system" | "popen" | "popen2" | "popen3" | "popen4" | "startfile"
-        ) || (f.starts_with("exec")
-            && f.len() > 4
-            && f[4..].bytes().all(|b| b"lpev".contains(&b)))
-            || (f.starts_with("spawn")
-                && f.len() > 5
-                && f[5..].bytes().all(|b| b"lpev".contains(&b)));
+        ) || f
+            .strip_prefix("exec")
+            .is_some_and(|s| !s.is_empty() && s.bytes().all(|b| b"lpev".contains(&b)))
+            || f.strip_prefix("spawn")
+                .is_some_and(|s| !s.is_empty() && s.bytes().all(|b| b"lpev".contains(&b)));
     }
     matches!(
         name,

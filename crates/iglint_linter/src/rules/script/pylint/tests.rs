@@ -13,10 +13,11 @@ use crate::rules::test_support::Fixture;
 /// pylint counts them.
 fn position(source: &str, needle: &str) -> (i64, i64, i64) {
     let at = source.find(needle).expect("needle");
-    let line_start = source[..at].rfind('\n').map_or(0, |i| i + 1);
-    let line = source[..at].matches('\n').count() as i64 + 1;
+    let before = source.get(..at).unwrap();
+    let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+    let line = before.matches('\n').count() as i64 + 1;
     let bytes = (at - line_start) as i64;
-    let chars = source[line_start..at].chars().count() as i64;
+    let chars = before.get(line_start..).unwrap().chars().count() as i64;
     (line, bytes, chars)
 }
 
@@ -712,7 +713,8 @@ fn trailing_whitespace_fix_strips_every_line() {
             None
         ),
     ]);
-    assert_eq!(&source[source.find("1   ").unwrap() + 1..][..3], "   ");
+    let after_one = source.find("1   ").unwrap() + 1;
+    assert_eq!(source.get(after_one..after_one + 3), Some("   "));
     let (f, command) = fake_pylint(view(ViewScript::Action, body), &messages);
     let d = f.lint_with(&[("SCR900", &command)]);
     assert_eq!(d.len(), 2);

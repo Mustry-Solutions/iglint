@@ -218,7 +218,7 @@ fn removal(
     }
     let prefix = TextRange::new(target.range.start(), a.value.range().start());
     // Only `x = ` (possibly with parentheses around the value).
-    let between = &text[target.range.end().to_usize()..a.value.range().start().to_usize()];
+    let between = TextRange::new(target.range.end(), a.value.range().start()).get(text)?;
     if !between.trim().trim_end_matches('(').trim().eq("=") {
         return None;
     }

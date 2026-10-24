@@ -95,7 +95,7 @@ impl ScriptRule for LegacyScriptPrefix {
                 return;
             }
             let dot = TextRange::new(n.range.end(), a.attr.range.start());
-            let prefix = (&text[dot.to_std()] == ".")
+            let prefix = (dot.slice(text) == ".")
                 .then(|| TextRange::new(n.range.start(), n.range.end() + TextSize::new(1)));
             found.push((a.range, prefix, n.id.to_string(), a.attr.id.to_string()));
         });

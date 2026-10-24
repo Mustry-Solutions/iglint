@@ -57,7 +57,12 @@ pub fn mark_limit_error(source: &str) -> Option<CompileError> {
             .position(|&b| matches!(b, b'\n' | b'\r'))
             .map_or(source.len(), |i| from + i)
     };
-    let units = |from: usize, to: usize| source[from..to].encode_utf16().count();
+    // Line ends are ASCII line breaks or the end, so `get` always succeeds.
+    let units = |from: usize, to: usize| {
+        source
+            .get(from..to)
+            .map_or(0, |line| line.encode_utf16().count())
+    };
     let end1 = line_end(0);
     let (start2, terminator) = match bytes.get(end1) {
         None => (end1, 1),
@@ -668,7 +673,7 @@ mod tests {
 
     fn mark(source: &str) -> Option<(String, usize)> {
         mark_limit_error(source).map(|e| {
-            let text = &source[e.range.start().to_usize()..e.range.end().to_usize()];
+            let text = e.range.get(source).unwrap();
             (text.chars().take(3).collect(), text.len())
         })
     }
@@ -779,7 +784,7 @@ mod tests {
                 passes("        ")
             ),
         ] {
-            assert!(sizes(&dead).is_empty(), "{}", &dead[..60]);
+            assert!(sizes(&dead).is_empty(), "{}", dead.get(..60).unwrap());
         }
         for live in [
             format!("raise X\n{}", passes("")),
@@ -814,7 +819,7 @@ mod tests {
                 sizes(&live),
                 [CompileErrorKind::MethodTooLarge],
                 "{}",
-                &live[..60]
+                live.get(..60).unwrap()
             );
         }
         let strings: String = (0..=CONSTANT_POOL_LIMIT / 2)

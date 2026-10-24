@@ -75,7 +75,8 @@ fn unreachable(src: &str) -> Vec<String> {
             .iter()
             .map(|(s, _)| {
                 let r: TextRange = iglint_text::Ranged::range(*s);
-                src[r.to_std()]
+                r.get(src)
+                    .unwrap()
                     .lines()
                     .next()
                     .unwrap_or("")

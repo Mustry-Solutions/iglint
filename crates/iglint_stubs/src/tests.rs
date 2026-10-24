@@ -190,7 +190,11 @@ fn constants_and_members() {
     let names: Vec<_> = system_members("system.db").map(|m| m.path()).collect();
     assert!(names.contains(&"system.db.runPrepQuery"));
     assert!(names.contains(&"system.db.INTEGER"));
-    assert!(!names.iter().any(|n| n["system.db.".len()..].contains('.')));
+    assert!(
+        !names
+            .iter()
+            .any(|n| n.strip_prefix("system.db.").unwrap().contains('.'))
+    );
 
     let top: Vec<_> = system_members("system").map(|m| m.path()).collect();
     for p in [

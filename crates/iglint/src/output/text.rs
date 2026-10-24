@@ -129,7 +129,10 @@ fn display_line(line: &str, start: usize, end: usize) -> DisplayLine {
     }
     let start = start.clamp(lo, hi);
     let end = end.clamp(start, hi);
-    display_window(&line[lo..hi], start - lo, end - lo, lo > 0, hi < line.len())
+    // `lo` and `hi` were moved to char boundaries of `line` above.
+    #[allow(clippy::string_slice)]
+    let window = &line[lo..hi];
+    display_window(window, start - lo, end - lo, lo > 0, hi < line.len())
 }
 
 /// [`display_line`] for a part of a line; `cut_left` and `cut_right` say
@@ -318,7 +321,10 @@ mod tests {
         assert!(shown.text.starts_with("..."));
         assert!(shown.text.ends_with("..."));
         assert_eq!(
-            &shown.text[shown.underline_start..shown.underline_start + 6],
+            shown
+                .text
+                .get(shown.underline_start..shown.underline_start + 6)
+                .unwrap(),
             "TARGET"
         );
         assert_eq!(shown.underline_width, 6);

@@ -85,7 +85,8 @@ pub(crate) fn float(text: &str) -> f64 {
 
 /// The imaginary part of a `COMPLEX` token.
 pub(crate) fn imaginary(text: &str) -> f64 {
-    float(&text[..text.len().saturating_sub(1)])
+    // The token ends in an ASCII `j` or `J`.
+    float(text.get(..text.len().saturating_sub(1)).unwrap_or_default())
 }
 
 /// Jython's constant folding of a unary minus on a literal
@@ -105,8 +106,9 @@ pub(crate) fn negate(number: &Number) -> Option<Number> {
 }
 
 fn strip_prefix_ci<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
-    if text.len() >= prefix.len() && text[..prefix.len()].eq_ignore_ascii_case(prefix) {
-        Some(&text[prefix.len()..])
+    let head = text.get(..prefix.len())?;
+    if head.eq_ignore_ascii_case(prefix) {
+        text.get(prefix.len()..)
     } else {
         None
     }
@@ -309,7 +311,9 @@ fn string_body(token: &str, unicode_literals: bool) -> (&str, bool) {
     };
     let body_start = (start + quotes).min(bytes.len());
     let body_end = bytes.len().saturating_sub(quotes).max(body_start);
-    (&token[body_start..body_end], unicode)
+    // Prefixes and quotes are ASCII.
+    let body = token.get(body_start..body_end).unwrap_or_default();
+    (body, unicode)
 }
 
 /// Appends the value of one string token (as UTF-16 code units; a `str`

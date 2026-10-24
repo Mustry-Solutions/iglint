@@ -187,9 +187,9 @@ impl ScriptRule for ExceptTuple {
         for (whole, name_range, name) in found {
             // A comment between the two names cannot move into parentheses
             // safely.
-            let fix = (!text[whole.to_std()].contains('#'))
+            let fix = (!whole.slice(text).contains('#'))
                 .then(|| {
-                    let replacement = format!("({})", &text[whole.to_std()]);
+                    let replacement = format!("({})", whole.slice(text));
                     fix(
                         cx,
                         unit,

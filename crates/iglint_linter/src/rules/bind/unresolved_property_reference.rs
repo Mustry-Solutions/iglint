@@ -342,8 +342,13 @@ fn may_be_created_by_scripts(
 fn mentions_identifier(text: &str, name: &str) -> bool {
     let is_ident = |c: char| c.is_alphanumeric() || c == '_';
     text.match_indices(name).any(|(i, _)| {
-        let before = text[..i].chars().next_back();
-        let after = text[i + name.len()..].chars().next();
+        // `match_indices` yields character boundaries.
+        let before = text.get(..i).unwrap_or_default().chars().next_back();
+        let after = text
+            .get(i + name.len()..)
+            .unwrap_or_default()
+            .chars()
+            .next();
         !before.is_some_and(is_ident) && !after.is_some_and(is_ident)
     })
 }

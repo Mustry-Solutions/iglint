@@ -187,7 +187,12 @@ mod tests {
             format!("{}a{} = 1\n", "-(".repeat(100), ")".repeat(100)),
             format!("for ({}a) in x:\n    pass\n", "~".repeat(200)),
         ] {
-            assert_eq!(lint_module("SCR002", &code).len(), 1, "{}", &code[..20]);
+            assert_eq!(
+                lint_module("SCR002", &code).len(),
+                1,
+                "{}",
+                code.get(..20).unwrap()
+            );
         }
     }
 

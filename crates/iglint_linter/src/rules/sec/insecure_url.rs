@@ -98,14 +98,14 @@ fn client_method(name: &str) -> Option<usize> {
 /// plain HTTP and its host is present and not a loopback address.
 fn insecure_host(text: &str) -> Option<&str> {
     let t = text.trim_start();
-    if t.len() < 7 || !t[..7].eq_ignore_ascii_case("http://") {
-        return None;
-    }
-    let rest = &t[7..];
-    let authority = &rest[..rest.find(['/', '?', '#']).unwrap_or(rest.len())];
+    let rest = match t.split_at_checked(7) {
+        Some((scheme, rest)) if scheme.eq_ignore_ascii_case("http://") => rest,
+        _ => return None,
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
     let host_port = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
     let host = if let Some(v6) = host_port.strip_prefix('[') {
-        &v6[..v6.find(']')?]
+        v6.split_once(']')?.0
     } else {
         host_port.split(':').next().unwrap_or("")
     };

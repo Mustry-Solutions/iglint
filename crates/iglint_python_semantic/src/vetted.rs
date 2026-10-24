@@ -342,9 +342,8 @@ fn value_write_path(e: &Expr) -> bool {
     /// The known tail of a path text: after the last `/` or `]`, when
     /// there is one (`whole`: the text is the whole path).
     fn tail_ok(text: &str, whole: bool, placeholder: &[char]) -> bool {
-        let cut = text.rfind(['/', ']']);
-        let tail = match cut {
-            Some(i) => &text[i + 1..],
+        let tail = match text.rsplit_once(['/', ']']) {
+            Some((_, tail)) => tail,
             None if whole => text,
             None => return false,
         };

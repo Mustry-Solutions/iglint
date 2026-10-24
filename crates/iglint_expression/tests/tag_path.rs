@@ -225,8 +225,10 @@ fn invalid_paths() {
 fn ranges_and_helpers() {
     let src = "[default]Folder/Tag.Quality";
     let t = parse_tag_path(src, TextSize::new(1));
-    let shifted =
-        |r: iglint_text::TextRange| &src[r.start().to_usize() - 1..r.end().to_usize() - 1];
+    let shifted = |r: iglint_text::TextRange| {
+        src.get(r.start().to_usize() - 1..r.end().to_usize() - 1)
+            .unwrap()
+    };
     assert_eq!(shifted(t.source.as_ref().unwrap().range), "default");
     assert_eq!(shifted(t.components[1].range), "Tag");
     assert_eq!(shifted(t.property.as_ref().unwrap().range), "Quality");

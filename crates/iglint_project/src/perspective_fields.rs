@@ -118,10 +118,7 @@ impl ConfigField {
                 (&"true", Some(ValueKind::Bool(true))) => true,
                 (&"false", Some(ValueKind::Bool(false))) => true,
                 (e, Some(ValueKind::String(s))) => {
-                    e.len() >= 2
-                        && e.starts_with('"')
-                        && e.ends_with('"')
-                        && &e[1..e.len() - 1] == s.value()
+                    e.strip_prefix('"').and_then(|e| e.strip_suffix('"')) == Some(s.value())
                 }
                 _ => false,
             })
@@ -253,9 +250,9 @@ mod tests {
             for v in *values {
                 assert!(
                     matches!(*v, "absent" | "true" | "false")
-                        || (v.starts_with('"')
-                            && v.ends_with('"')
-                            && !v[1..v.len() - 1].contains(['"', '\\'])),
+                        || v.strip_prefix('"')
+                            .and_then(|v| v.strip_suffix('"'))
+                            .is_some_and(|v| !v.contains(['"', '\\'])),
                     "condition value {v}"
                 );
             }
