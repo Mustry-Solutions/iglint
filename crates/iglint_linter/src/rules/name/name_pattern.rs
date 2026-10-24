@@ -80,7 +80,12 @@ action's settings, a field of an unknown binding type); no reference is
 written with whitespace inside its braces (`{ ../Label.props.text }`,
 which Perspective reads as a tag path); and no string of the view holds
 the name, as a word, anywhere the fix does not update it. It is *unsafe*
-otherwise, and names the place that keeps it from being safe.
+otherwise, and names the place that keeps it from being safe. Like every
+fix, it is also unsafe while code in the workspace may read the files a
+fix edits (a read whose path is not a literal outside the workspace, or
+code that is not vetted); the project setting `[fix]
+assume-scripts-do-not-read-workspace-files = true` declares that no script
+does (see `docs/internal/fix-safety.md`, "File reads").
 
 Keys of `props` that the component's schema declares (`text`, `style`,
 `pipes`, ...) are Ignition's names, not yours, and are never checked; only

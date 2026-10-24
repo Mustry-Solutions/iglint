@@ -45,7 +45,6 @@ from 0.1.0 on.
   (`generated_fields_match_the_generator` fails when the generator changes
   without regenerating, `every_measured_field_is_modelled` when the view
   model misses a measured field).
-
 - VIEW021 `invalid-view-structure` reports the parts of a view (and of
   the session properties) that have the wrong JSON type, once at the
   offending value: `"root": []`, `"children": "x"`, `"script": 7`,
