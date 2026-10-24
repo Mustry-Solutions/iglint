@@ -1452,6 +1452,18 @@ struct Layout {
     projects: &'static [&'static str],
     /// Collection directories; each holds a tag with the event script.
     collections: &'static [&'static str],
+    /// A directory that is a Git work tree of its own inside the top one.
+    inner: Option<(&'static str, Inner)>,
+}
+
+/// How a nested work tree is made.
+#[derive(Clone, Copy)]
+enum Inner {
+    /// `git init` inside the outer work tree (a `.git` directory).
+    Repository,
+    /// `git submodule add` of a local repository (a `.git` file that
+    /// points into the outer repository's `.git/modules`); needs Git.
+    Submodule,
 }
 
 const LAYOUTS: &[Layout] = &[
@@ -1462,6 +1474,7 @@ const LAYOUTS: &[Layout] = &[
         config: None,
         projects: &["projects/A"],
         collections: &["gateway/data/config/resources/core"],
+        inner: None,
     },
     // Reviewer round 15 B1, variant.
     Layout {
@@ -1470,6 +1483,7 @@ const LAYOUTS: &[Layout] = &[
         config: None,
         projects: &["src/projects/A"],
         collections: &["gateway/config/resources/core"],
+        inner: None,
     },
     Layout {
         name: "monorepo with several gateways",
@@ -1480,6 +1494,7 @@ const LAYOUTS: &[Layout] = &[
             "gw1/data/config/resources/core",
             "gw2/services/gw/config/resources/core",
         ],
+        inner: None,
     },
     Layout {
         name: "layout roots at different depths",
@@ -1487,6 +1502,7 @@ const LAYOUTS: &[Layout] = &[
         config: None,
         projects: &["ignition/projects/A", "x/y/z/projects/C"],
         collections: &["deploy/site/services/gw/config/resources/core"],
+        inner: None,
     },
     Layout {
         name: "configuration file in a subdirectory",
@@ -1494,6 +1510,7 @@ const LAYOUTS: &[Layout] = &[
         config: Some("ignition/iglint.toml"),
         projects: &["ignition/projects/A", "other/projects/B"],
         collections: &["other/gateway/config/resources/core"],
+        inner: None,
     },
     Layout {
         name: "no Git, configuration at the top",
@@ -1501,6 +1518,25 @@ const LAYOUTS: &[Layout] = &[
         config: Some("iglint.toml"),
         projects: &["projects/A"],
         collections: &["gateway/data/config/resources/core"],
+        inner: None,
+    },
+    // Reviewer round 16 B3: the projects in a nested repository, the
+    // gateway configuration in the enclosing one.
+    Layout {
+        name: "nested repository",
+        git: true,
+        config: None,
+        projects: &["ign/projects/A"],
+        collections: &["gateway/config/resources/core"],
+        inner: Some(("ign", Inner::Repository)),
+    },
+    Layout {
+        name: "submodule",
+        git: true,
+        config: None,
+        projects: &["ign/projects/A", "other/projects/B"],
+        collections: &["gateway/config/resources/core"],
+        inner: Some(("ign", Inner::Submodule)),
     },
 ];
 
@@ -1525,7 +1561,7 @@ fn write_layout(layout: &Layout, module: &str, tag_script: &str) -> tempfile::Te
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, text).unwrap();
     };
-    if layout.git {
+    if layout.git && !matches!(layout.inner, Some((_, Inner::Submodule))) {
         std::fs::create_dir_all(dir.path().join(".git")).unwrap();
     }
     if let Some(config) = layout.config {
@@ -1561,7 +1597,57 @@ fn write_layout(layout: &Layout, module: &str, tag_script: &str) -> tempfile::Te
             ),
         );
     }
+    match layout.inner {
+        Some((inner, Inner::Repository)) => {
+            std::fs::create_dir_all(dir.path().join(inner).join(".git")).unwrap();
+        }
+        Some((inner, Inner::Submodule)) => make_submodule(dir.path(), inner),
+        None => {}
+    }
     dir
+}
+
+/// Makes `top` a Git repository and `top/inner` a submodule of it: the
+/// files of `inner` are committed to a repository next to `top` and added
+/// back with `git submodule add` from its `file://` URL.
+fn make_submodule(top: &std::path::Path, inner: &str) {
+    let git = |cwd: &std::path::Path, args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .current_dir(cwd)
+            .args([
+                "-c",
+                "user.name=iglint",
+                "-c",
+                "user.email=iglint@example.invalid",
+                "-c",
+                "protocol.file.allow=always",
+                "-c",
+                "init.defaultBranch=main",
+                "-c",
+                "commit.gpgsign=false",
+            ])
+            .args(args)
+            .output()
+            .expect("git");
+        assert!(
+            out.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+    let source = top.with_file_name(format!(
+        "{}-submodule-source",
+        top.file_name().unwrap().to_string_lossy()
+    ));
+    std::fs::rename(top.join(inner), &source).unwrap();
+    git(&source, &["init", "-q"]);
+    git(&source, &["add", "-A"]);
+    git(&source, &["commit", "-q", "-m", "inner"]);
+    git(top, &["init", "-q"]);
+    let url = format!("file://{}", source.display());
+    git(top, &["submodule", "add", "-q", &url, inner]);
+    std::fs::remove_dir_all(&source).unwrap();
+    assert!(top.join(inner).join(".git").is_file());
 }
 
 /// The findings of a JSON run, one line each, with paths made absolute
@@ -1646,10 +1732,11 @@ fn single_file_runs_match_the_root_run(
     while let Some(d) = stack.pop() {
         for entry in std::fs::read_dir(&d).unwrap().flatten() {
             let path = entry.path();
+            if entry.file_name() == ".git" || entry.file_name() == ".gitmodules" {
+                continue;
+            }
             if path.is_dir() {
-                if entry.file_name() != ".git" {
-                    stack.push(path);
-                }
+                stack.push(path);
             } else {
                 files.push(path);
             }
@@ -1751,25 +1838,18 @@ fn fixes_of(out: &std::process::Output) -> Vec<(String, String, String)> {
 }
 
 /// Reviewer round 15 B2: projects and collections named like build or
-/// dependency directories, and linked ones, are linted and are part of
-/// the workspace (they load on the gateway).
-#[cfg(unix)]
+/// dependency directories are linted and are part of the workspace (they
+/// load on the gateway).
 #[test]
 fn unusual_project_and_collection_directories_are_linted() {
     let dir = closed_world_repository("\tprint 1  # iglint: ignore[SCR001]\n");
     let root = dir.path();
     std::fs::create_dir_all(root.join(".git")).unwrap();
-    // `projects/A` becomes `projects/target`, and the collection a link.
+    // `projects/A` becomes `projects/target`, the collection `target`.
     std::fs::rename(root.join("projects/A"), root.join("projects/target")).unwrap();
-    let elsewhere = tempfile::tempdir().unwrap();
     std::fs::rename(
         root.join("services/gw/config/resources/core"),
-        elsewhere.path().join("core"),
-    )
-    .unwrap();
-    std::os::unix::fs::symlink(
-        elsewhere.path().join("core"),
-        root.join("services/gw/config/resources/core"),
+        root.join("services/gw/config/resources/target"),
     )
     .unwrap();
     let out = iglint(root)
@@ -1789,16 +1869,11 @@ fn unusual_project_and_collection_directories_are_linted() {
     );
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(!text.contains("REF009"), "{text}");
-    // A library function in the linked project that reads files: it is
-    // part of the workspace, so every fix is unsafe, from any file.
-    let linked = tempfile::tempdir().unwrap();
+    // A library function in a project named `node_modules` that reads
+    // files: it is part of the workspace, so every fix is unsafe, from
+    // any file.
     std::fs::rename(
         root.join("projects/target"),
-        linked.path().join("node_modules"),
-    )
-    .unwrap();
-    std::os::unix::fs::symlink(
-        linked.path().join("node_modules"),
         root.join("projects/node_modules"),
     )
     .unwrap();
@@ -1807,7 +1882,7 @@ fn unusual_project_and_collection_directories_are_linted() {
         "def f(p):\n    return open(p).read()\n",
     )
     .unwrap();
-    let tags = "services/gw/config/resources/core/ignition/tag-definition/default/tags.json";
+    let tags = "services/gw/config/resources/target/ignition/tag-definition/default/tags.json";
     for args in [vec![], vec![tags]] {
         let out = iglint(root)
             .args(["check", "--no-cache", "--output-format", "json"])
@@ -1822,6 +1897,480 @@ fn unusual_project_and_collection_directories_are_linted() {
             "{fixes:?}"
         );
     }
+}
+
+/// The findings of a JSON run as (file, code, applicability, reason,
+/// message).
+fn all_fixes(out: &std::process::Output) -> Vec<(String, String, String, String, String)> {
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap_or_else(|_| {
+        panic!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        )
+    });
+    let mut found: Vec<_> = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| {
+            (
+                d["filename"].as_str().unwrap_or("").to_owned(),
+                d["code"].as_str().unwrap_or("").to_owned(),
+                d["fix"]["applicability"]
+                    .as_str()
+                    .unwrap_or("no fix")
+                    .to_owned(),
+                d["fix"]["unsafe_reason"]["message"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_owned(),
+                d["message"].as_str().unwrap_or("").to_owned(),
+            )
+        })
+        .collect();
+    found.sort();
+    found
+}
+
+/// Reviewer round 16 B2: Ignition 8.3.3 does not follow symbolic links to
+/// directories (verified on a throwaway gateway: a linked project never
+/// starts, a linked `core` collection keeps the gateway from starting, a
+/// linked library folder, `script-python` or `ignition` directory gives
+/// `ImportError: No module named lib`, a linked tag folder has no tags).
+/// Neither does iglint: what a link holds is not part of the workspace,
+/// the files behind it are reported by REF009 and get no fixes (the edit
+/// would land where the link points), and the link counts as a directory
+/// that was not read, so every safe fix elsewhere is unsafe with the link
+/// named.
+#[cfg(unix)]
+#[test]
+fn symbolic_links_to_directories_are_not_followed() {
+    let link = |target: &std::path::Path, at: &std::path::Path| {
+        std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(target, at).unwrap();
+    };
+    // (where the link is, relative to the repository; what it replaces).
+    let cases: [(&str, &str); 5] = [
+        ("projects/S", "a project"),
+        ("services/gw/config/resources/core", "a collection"),
+        ("projects/A/ignition/script-python/lib", "a library folder"),
+        ("projects/B/ignition/script-python", "the script library"),
+        ("projects/B/ignition", "the module directory"),
+    ];
+    for (at, what) in cases {
+        // The tag script uses `m.os`: with the collection behind a link,
+        // that use is not known, and nothing else may be assumed either.
+        let dir = closed_world_repository("\tprint m.os.sep\n");
+        let root = dir.path();
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let lib = "def f(p):\n    return 1\nimport os\n";
+        for project in ["S", "B"] {
+            let p = root.join(format!("projects/{project}"));
+            std::fs::create_dir_all(p.join("ignition/script-python/lib/n")).unwrap();
+            std::fs::write(
+                p.join("project.json"),
+                r#"{"title": "P", "enabled": true, "inheritable": false}"#,
+            )
+            .unwrap();
+            std::fs::write(
+                p.join("ignition/script-python/lib/n/resource.json"),
+                r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+            )
+            .unwrap();
+            std::fs::write(p.join("ignition/script-python/lib/n/code.py"), lib).unwrap();
+        }
+        let a_lib = root.join("projects/A/ignition/script-python/lib/n");
+        std::fs::create_dir_all(&a_lib).unwrap();
+        std::fs::copy(
+            root.join("projects/S/ignition/script-python/lib/n/resource.json"),
+            a_lib.join("resource.json"),
+        )
+        .unwrap();
+        std::fs::write(a_lib.join("code.py"), lib).unwrap();
+        let moved = elsewhere.path().join("moved");
+        std::fs::rename(root.join(at), &moved).unwrap();
+        link(&moved, &root.join(at));
+
+        let run = |args: &[&str]| {
+            let out = iglint(root)
+                .args(["check", "--no-cache", "--output-format", "json"])
+                .args(args)
+                .output()
+                .unwrap();
+            all_fixes(&out)
+        };
+        let found = run(&[]);
+        let shown = format!("{what}: {found:#?}");
+        // Every SCR102 finding of the workspace: unsafe, the link named.
+        let outside: Vec<_> = found
+            .iter()
+            .filter(|f| f.1 == "SCR102" && !f.0.starts_with(at))
+            .collect();
+        assert!(!outside.is_empty(), "{shown}");
+        for f in outside {
+            assert_eq!(f.2, "unsafe", "{shown}");
+            assert!(
+                f.3.starts_with("closed world unknown: `")
+                    && f.3
+                        .contains(&format!("{at}` could hold Ignition resources"))
+                    && f.3
+                        .contains("symbolic link to a directory: Ignition 8.3.3 does not follow"),
+                "{shown}"
+            );
+        }
+        // The files behind the link: REF009, and no fix at all.
+        let behind: Vec<_> = found.iter().filter(|f| f.0.starts_with(at)).collect();
+        assert!(!behind.is_empty(), "{shown}");
+        assert!(
+            behind.iter().any(|f| f.1 == "REF009"
+                && f.4.contains("is behind `")
+                && f.4.contains("a symbolic link to a directory")),
+            "{shown}"
+        );
+        assert!(behind.iter().all(|f| f.2 == "no fix"), "{shown}");
+        // `--fix --unsafe-fixes` leaves the link target alone.
+        let before: Vec<_> = walk_files(&moved)
+            .into_iter()
+            .map(|p| (p.clone(), std::fs::read(&p).unwrap()))
+            .collect();
+        iglint(root)
+            .args(["check", "--no-cache", "--fix", "--unsafe-fixes"])
+            .output()
+            .unwrap();
+        for (path, text) in before {
+            assert_eq!(
+                std::fs::read(&path).unwrap(),
+                text,
+                "{what}: {}",
+                path.display()
+            );
+        }
+        assert!(
+            std::fs::symlink_metadata(root.join(at))
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+    }
+}
+
+/// Every file below `dir` (through no links), sorted.
+fn walk_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut files = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for entry in std::fs::read_dir(&d).unwrap().flatten() {
+            let path = entry.path();
+            if entry.file_type().unwrap().is_dir() {
+                stack.push(path);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    files
+}
+
+/// Projects `P` and `Q` in a Git work tree: `P`'s library module `lib/a`
+/// imports `math` and `os` and uses only `math`; `Q`'s module `lib/a` is a
+/// symbolic link to `P`'s file, and `Q`'s module `use/b` uses
+/// `lib.a.os.sep`.
+#[cfg(unix)]
+fn linked_file_repository() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = root.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    let manifest = r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#;
+    for p in ["P", "Q"] {
+        write(
+            &format!("projects/{p}/project.json"),
+            r#"{"title": "P", "enabled": true, "inheritable": false}"#,
+        );
+        write(
+            &format!("projects/{p}/ignition/script-python/lib/a/resource.json"),
+            manifest,
+        );
+    }
+    write(LINKED_P, LINKED_MODULE);
+    std::os::unix::fs::symlink(
+        "../../../../../P/ignition/script-python/lib/a/code.py",
+        root.join(LINKED_Q),
+    )
+    .unwrap();
+    write(
+        "projects/Q/ignition/script-python/use/b/resource.json",
+        manifest,
+    );
+    write(
+        "projects/Q/ignition/script-python/use/b/code.py",
+        "def g():\n    return lib.a.os.sep\n",
+    );
+    dir
+}
+
+const LINKED_MODULE: &str = "import math\nimport os\n\ndef f():\n    return math.pi\n";
+const LINKED_P: &str = "projects/P/ignition/script-python/lib/a/code.py";
+const LINKED_Q: &str = "projects/Q/ignition/script-python/lib/a/code.py";
+
+/// Reviewer round 16 B1: the gateway reads a library `code.py` that is a
+/// symbolic link (verified on 8.3.3: project `Q` ran `P`'s file), so a fix
+/// of `P`'s file changes `Q`'s module, whose `os` `Q` uses. Every fix of
+/// a file that is a link, the target of a link of the workspace or a file
+/// with hard links is unsafe, with the other paths named; `--fix` keeps
+/// the import, and a fix written to a link keeps the link.
+#[cfg(unix)]
+#[test]
+fn fixes_of_files_reached_through_links_are_unsafe() {
+    let dir = linked_file_repository();
+    let root = dir.path();
+    for args in [vec![], vec![LINKED_P], vec!["projects/P"]] {
+        let out = iglint(root)
+            .args([
+                "check",
+                "--no-cache",
+                "--output-format",
+                "json",
+                "--select",
+                "SCR102",
+            ])
+            .args(&args)
+            .output()
+            .unwrap();
+        let found = all_fixes(&out);
+        let p: Vec<_> = found.iter().filter(|f| f.0 == LINKED_P).collect();
+        assert_eq!(p.len(), 1, "{args:?} {found:#?}");
+        assert_eq!(p[0].2, "unsafe", "{found:#?}");
+        assert!(
+            p[0].3.contains("which is the same file as `")
+                && p[0]
+                    .3
+                    .contains(&format!("{LINKED_Q}` (a symbolic link to it)")),
+            "{found:#?}"
+        );
+        iglint(root)
+            .args(["check", "--no-cache", "--fix", "--select", "SCR102"])
+            .args(&args)
+            .output()
+            .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(root.join(LINKED_P)).unwrap(),
+            LINKED_MODULE
+        );
+    }
+    // The link itself (Q does not use `math`... it uses `os`; make a
+    // module whose link is the one with the finding).
+    std::fs::write(
+        root.join("projects/Q/ignition/script-python/use/b/code.py"),
+        "def g():\n    return 1\n",
+    )
+    .unwrap();
+    let out = iglint(root)
+        .args([
+            "check",
+            "--no-cache",
+            "--output-format",
+            "json",
+            "--select",
+            "SCR102",
+            LINKED_Q,
+        ])
+        .output()
+        .unwrap();
+    let found = all_fixes(&out);
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(found[0].2, "unsafe", "{found:#?}");
+    assert!(
+        found[0].3.contains(&format!(
+            "{LINKED_P}` (the file this symbolic link points to)"
+        )),
+        "{found:#?}"
+    );
+    // Applied on purpose, the fix writes through the link.
+    iglint(root)
+        .args([
+            "check",
+            "--no-cache",
+            "--fix",
+            "--unsafe-fixes",
+            "--select",
+            "SCR102",
+            LINKED_Q,
+        ])
+        .assert()
+        .success();
+    assert!(
+        std::fs::symlink_metadata(root.join(LINKED_Q))
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.join(LINKED_P)).unwrap(),
+        "import math\n\n\ndef f():\n    return math.pi\n"
+    );
+
+    // A link to a file outside the workspace, and a hard link.
+    let dir = linked_file_repository();
+    let root = dir.path();
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("x.py"), LINKED_MODULE).unwrap();
+    std::fs::remove_file(root.join(LINKED_Q)).unwrap();
+    std::os::unix::fs::symlink(outside.path().join("x.py"), root.join(LINKED_Q)).unwrap();
+    std::fs::hard_link(root.join(LINKED_P), outside.path().join("hard.py")).unwrap();
+    std::fs::write(
+        root.join("projects/Q/ignition/script-python/use/b/code.py"),
+        "def g():\n    return 1\n",
+    )
+    .unwrap();
+    let out = iglint(root)
+        .args([
+            "check",
+            "--no-cache",
+            "--output-format",
+            "json",
+            "--select",
+            "SCR102",
+        ])
+        .output()
+        .unwrap();
+    let found = all_fixes(&out);
+    let reason = |file: &str| {
+        found
+            .iter()
+            .find(|f| f.0 == file)
+            .map(|f| (f.2.clone(), f.3.clone()))
+            .unwrap_or_else(|| panic!("{found:#?}"))
+    };
+    let (applicability, why) = reason(LINKED_Q);
+    assert_eq!(applicability, "unsafe");
+    assert!(
+        why.contains("x.py` (the file this symbolic link points to)"),
+        "{why}"
+    );
+    let (applicability, why) = reason(LINKED_P);
+    assert_eq!(applicability, "unsafe");
+    assert!(
+        why.contains("1 other hard link outside the workspace"),
+        "{why}"
+    );
+    iglint(root)
+        .args([
+            "check",
+            "--no-cache",
+            "--fix",
+            "--unsafe-fixes",
+            "--select",
+            "SCR102",
+        ])
+        .assert()
+        .success();
+    assert!(
+        std::fs::symlink_metadata(root.join(LINKED_Q))
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(
+        std::fs::read_to_string(outside.path().join("hard.py")).unwrap(),
+        std::fs::read_to_string(root.join(LINKED_P)).unwrap(),
+        "the hard link is kept"
+    );
+    assert_ne!(
+        std::fs::read_to_string(root.join(LINKED_P)).unwrap(),
+        LINKED_MODULE
+    );
+}
+
+/// Reviewer round 16: manifests that are symbolic links to files are read,
+/// like the gateway reads them (verified on 8.3.3 for `project.json`,
+/// `resource.json`, `config-mode.json` and `tags.json`).
+#[cfg(unix)]
+#[test]
+fn manifests_that_are_links_are_read() {
+    let dir = closed_world_repository("\tprint m.os.sep\n");
+    let root = dir.path();
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    let store = tempfile::tempdir().unwrap();
+    let core = "services/gw/config/resources/core";
+    for (i, rel) in [
+        "projects/A/project.json".to_owned(),
+        "projects/A/ignition/script-python/m/resource.json".to_owned(),
+        format!("{core}/config-mode.json"),
+        format!("{core}/ignition/tag-definition/default/tags.json"),
+    ]
+    .iter()
+    .enumerate()
+    {
+        let kept = store.path().join(format!("{i}.json"));
+        std::fs::rename(root.join(rel), &kept).unwrap();
+        std::os::unix::fs::symlink(&kept, root.join(rel)).unwrap();
+    }
+    let out = iglint(root)
+        .args(["check", "--no-cache", "--output-format", "json"])
+        .output()
+        .unwrap();
+    let found = all_fixes(&out);
+    // The tag script (in a linked tags.json of a collection with a linked
+    // config-mode.json) keeps `import os` of `m` used.
+    assert!(
+        !found.iter().any(|f| f.1 == "SCR102" || f.1 == "REF009"),
+        "{found:#?}"
+    );
+}
+
+/// Reviewer round 16 B3: a nested Git repository (made with `git init`
+/// inside another work tree) holding `projects/` is part of the enclosing
+/// work tree, where a gateway tag script uses `m.os`: linting the module
+/// on its own gives the root run's answer (no SCR102).
+#[test]
+fn nested_repositories_belong_to_the_enclosing_work_tree() {
+    let dir = closed_world_repository("\tprint m.os.sep\n");
+    let root = dir.path();
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    std::fs::create_dir_all(root.join("ign")).unwrap();
+    std::fs::rename(root.join("projects"), root.join("ign/projects")).unwrap();
+    std::fs::create_dir_all(root.join("ign/.git")).unwrap();
+    let module = format!("ign/{MODULE}");
+    for (cwd, path) in [
+        (root.to_path_buf(), module.clone()),
+        (root.join("ign"), MODULE.to_owned()),
+        (
+            root.join("ign/projects/A/ignition/script-python/m"),
+            "code.py".to_owned(),
+        ),
+    ] {
+        let out = iglint(&cwd)
+            .args([
+                "check",
+                "--no-cache",
+                "--output-format",
+                "json",
+                "--select",
+                "SCR102",
+            ])
+            .arg(&path)
+            .output()
+            .unwrap();
+        assert_eq!(scr102_fixes(&out), [], "{} {path}", cwd.display());
+    }
+    let out = iglint(root)
+        .args(["check", "--no-cache", "--show-settings"])
+        .arg(&module)
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.contains(&format!("Workspace root: {}\n", root.display())),
+        "{text}"
+    );
 }
 
 /// Hidden resource directories and folders inside a project load on the
@@ -1876,7 +2425,8 @@ fn hidden_resource_directories_are_linted() {
 }
 
 /// Reviewer round 15 B2: a directory of the workspace that cannot be
-/// walked (a broken link, a link cycle, no permission to list it) may
+/// walked (a broken link, a link to a directory that holds projects, no
+/// permission to list it) may
 /// hold projects; the closed world is then unknown, never "no code
 /// there", and every fix says which directory.
 #[cfg(unix)]
@@ -1913,7 +2463,7 @@ fn directories_that_cannot_be_read_make_the_closed_world_unknown() {
     unknown("broken symbolic link");
     std::fs::remove_file(root.join("projects/B")).unwrap();
     std::os::unix::fs::symlink(root, root.join("tools")).unwrap();
-    unknown("symbolic link cycle");
+    unknown("symbolic link to a directory");
     std::fs::remove_file(root.join("tools")).unwrap();
     let locked = root.join("vendor");
     std::fs::create_dir_all(&locked).unwrap();

@@ -816,7 +816,28 @@ pub(crate) fn fix_file(
 
 /// Writes `text` to a temporary file next to `path` and renames it over
 /// `path`, keeping the original permissions.
+///
+/// A symbolic link stays a link: the text is written to the file it
+/// points to (resolved, then written the same way next to that file), so
+/// every path that reaches the file, the gateway's included, sees the new
+/// text, as an editor that writes through the link would. A file with
+/// several hard links is rewritten in place (truncated and written, not
+/// atomic): a rename would give this path a new file and leave the other
+/// names with the old text. Fixes of such files are never safe
+/// (`rules::vetting::gate_shared_files`), so only `--unsafe-fixes` (or a
+/// quick fix the user picks) writes them.
 pub fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
+    let is_link = std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink());
+    let resolved;
+    let path = if is_link {
+        resolved = std::fs::canonicalize(path)?;
+        resolved.as_path()
+    } else {
+        path
+    };
+    if hard_links(path) > 1 {
+        return std::fs::write(path, text);
+    }
     let dir = path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -833,6 +854,58 @@ pub fn write_atomically(path: &Path, text: &str) -> std::io::Result<()> {
     std::fs::rename(&temp, path).inspect_err(|_| {
         let _ = std::fs::remove_file(&temp);
     })
+}
+
+/// The number of hard links of the file at `path` (1 when not known).
+fn hard_links(path: &Path) -> u64 {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        std::fs::metadata(path).map_or(1, |m| m.nlink())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        1
+    }
+}
+
+#[cfg(all(test, unix))]
+mod write_tests {
+    use super::write_atomically;
+
+    /// Reviewer round 16 M4: a fix of a path that is a symbolic link keeps
+    /// the link and writes the file it points to; a file with hard links
+    /// keeps them.
+    #[test]
+    fn links_are_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("real.py");
+        let link = dir.path().join("sub/link.py");
+        std::fs::create_dir_all(dir.path().join("sub")).unwrap();
+        std::fs::write(&target, "a\n").unwrap();
+        std::os::unix::fs::symlink("../real.py", &link).unwrap();
+        write_atomically(&link, "b\n").unwrap();
+        assert!(
+            std::fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "b\n");
+        let names: Vec<_> = std::fs::read_dir(dir.path().join("sub"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["link.py"], "no temporary file is left");
+
+        let other = dir.path().join("other.py");
+        std::fs::hard_link(&target, &other).unwrap();
+        write_atomically(&target, "c\n").unwrap();
+        assert_eq!(std::fs::read_to_string(&other).unwrap(), "c\n");
+        use std::os::unix::fs::MetadataExt;
+        assert_eq!(std::fs::metadata(&other).unwrap().nlink(), 2);
+    }
 }
 
 #[cfg(test)]

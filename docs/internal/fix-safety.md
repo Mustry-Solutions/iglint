@@ -484,17 +484,31 @@ inside (or equal to) a project or collection:
   ancestor of the path that itself holds a project in `projects/` or a
   collection in `config/resources/` or
   `services/<gateway>/config/resources/`. The search through the
-  ancestors stops at the top of the Git work tree that contains the path;
-  outside a Git work tree, at the outermost of the configuration file's
+  ancestors stops at the top of the outermost Git work tree that
+  contains the path; outside a Git work tree, at the outermost of the
+  configuration file's
   directory and the working directory that contain the path (with
   neither, only the layout around the enclosing container counts);
-* the top of the Git work tree that contains the path, when any project
-  or collection lies anywhere below it. The search walks the work tree
-  like the workspace walk (below) and stops at the first container; it
-  runs once per work tree and run. A search that reaches the walk's
-  directory limit (200,000 directories) counts as finding one: the
-  workspace walk then stops at the same limit and the closed world is
-  unknown.
+* the top of every Git work tree that contains the path, when any
+  project or collection lies anywhere below it. The search walks the
+  work tree like the workspace walk (below) and stops at the first
+  container (or symbolic link to one); it runs once per work tree and
+  run. A search that reaches the walk's directory limit (200,000
+  directories) counts as finding one: the workspace walk then stops at
+  the same limit and the closed world is unknown. Work trees nest: a
+  submodule (its `.git` is a file that points into the enclosing
+  repository's `.git/modules`) or a repository made with `git init`
+  inside another work tree is part of the enclosing work tree, whose
+  other directories may hold the rest of the gateway (review round 16:
+  with only the nearest `.git`, a run over `ign/projects/A/.../m/code.py`
+  of a nested repository `ign` offered `SCR102`'s safe fix while the run
+  over the outer repository, whose gateway tag script uses `m.os.sep`,
+  reported nothing). Every enclosing work tree is a candidate, so the
+  outermost one that holds a container is the root, and the search for
+  layout roots goes up to it. A consequence: a home directory that is a
+  Git work tree (dotfiles) makes every repository below it one
+  workspace when it holds other projects; the closed world is then
+  larger, or unknown at the walk's limit, which only withholds fixes.
 
 Without any candidate and without a configuration file, the working
 directory is the root when it contains the path and holds a project, a
@@ -527,24 +541,87 @@ folders (`script-python/.hidden/`, `script-python/pkg/.inner/`,
 `__pycache__` (verified with the gateway's project manager and imports),
 so the workspace walk and the walk of linted files enter them. Hidden
 files are skipped: the gateway reads only the files a manifest names.
-Symbolic links to directories are followed, also to directories outside
-the repository, and the project or resource is found at the path through
-the link (the walk of linted files, `discovery::discover`, follows them
-too); the walk keeps the real paths of the directories it is in, and a
-link to one of them (or to a directory that holds one) is a cycle, cut
-there. A directory that could hold Ignition resources but is not read
-(it cannot be listed, a broken link, a cut cycle, the directory limit)
-is recorded in `Workspace::unread`, never taken as empty: while one
-exists, the closed world is unknown (`ProjectIndex::unread_directory`,
-part of `has_any_unknown_code`), so the safe fixes of `SCR102`, `VIEW015`
-and `NAME001` are unsafe with the reason "closed world unknown: `<path>`
-could hold Ignition resources but was not read (<why>), so code there is
-not known", and code there may read the files a fix edits, so every
-other safe fix is unsafe through the file-read gate with the same path
-and cause. A resource file named on the command line inside a project or
-collection that the walk did not reach is reported by `REF009` as such
-(with the directory that was not read, when there is one), not as a file
-outside every project.
+**Symbolic links, as the gateway reads them.** Measured on a throwaway
+8.3.3 gateway (review round 16), with the project scripts imported from
+a WebDev endpoint of each project and the collection's tags read after
+a restart:
+
+* symbolic links to **directories** are not followed. A project whose
+  `ignition/script-python/lib`, `ignition/script-python` or `ignition`
+  directory is a link (to another project's folder or to a directory
+  outside `data/`) gets `ImportError: No module named lib`; a project
+  directory that is a link (`projects/S -> ../Sreal`) never starts; a
+  tag folder of a collection that is a link
+  (`core/ignition/tag-definition/default -> ...`) has no tags, and the
+  gateway then rewrote the `unary-resource.json` it found through the
+  link with an empty `files` list; a `core` collection that is a link
+  keeps the gateway from starting (`Unable to create 'core' resource
+  collection ... exists but is not empty`);
+* symbolic links to **files** are read: a library `code.py` that is a
+  link to another project's file (or to a file outside `data/`) runs
+  that file, and linked `project.json`, `resource.json`,
+  `config-mode.json` and `tags.json` load as if they were copies. Hard
+  links are the same file under two names.
+
+iglint matches this. The workspace walk does not follow symbolic links
+to directories. A link anywhere inside a project or collection, a
+project or collection directory that is a link, and a link outside them
+that leads to a directory holding a project or collection (a probe
+walks the target, with the same directory limit and no links followed)
+is recorded in `Workspace::directory_links` and as a directory that was
+not read, with the cause "symbolic link to a directory: Ignition 8.3.3
+does not follow symbolic links to directories, so the gateway does not
+load what it holds at this path". What a link holds is not part of the
+workspace (the gateway does not run it at that path), but a deployment
+that resolves links (a copy, an archive, a container image built from
+the repository) would load it, so it counts as unknown code for the
+closed world and for the file-read gate, like any directory that was not
+read (below). Other links outside every container (a linked
+documentation folder) are ignored. The walk of linted files still
+follows links, so the files behind a link are linted on their own
+(standalone, like files outside every project), `REF009` reports each
+one as "behind `<link>`, a symbolic link to a directory", and no fix is
+offered for them (`rules::vetting::gate_shared_files` drops it): the edit
+would land in the directory the link points to, which may be outside
+the repository and loaded by another gateway. A literal path that names
+the link target is no longer a way around the file-read gate either,
+since the link itself makes every safe fix unsafe. Since nothing is
+followed, there are no link cycles; a link back to an ancestor that
+holds projects is a directory link like any other.
+
+Symbolic links to files are files of the workspace (`FileEntry::symlink`).
+The gateway runs the file a link points to, for every resource that
+reaches it, so a fix of one path changes all of them: review round 16
+found `SCR102`'s safe fix removing `import os` from project `P`'s
+`lib/a`, which project `Q` reaches through a link and uses as
+`lib.a.os.sep`. Every file is therefore also known by its identity
+(device and inode on Unix, the canonical path elsewhere;
+`Workspace::shared_file`, computed for the whole workspace on first use),
+and **a safe fix that edits a file that is a symbolic link, the target
+of a symbolic link of the workspace, or a file with more than one hard
+link is unsafe**, with the other paths named ("the fix edits `p`, which
+is the same file as `q` (a symbolic link to it): every resource that
+reaches the file runs the edited text, and the fix is analysed only for
+this path"; hard links outside the workspace are counted). This is the
+simplest sound rule: analysing a fix for every resource that reaches the
+file would need every rule to merge the facts of several resources.
+`assume-scripts-do-not-read-workspace-files` does not lift it. The gate
+runs before the file-read gate, on every path that reports or applies
+fixes.
+
+A directory that could hold Ignition resources but is not read
+(it cannot be listed, a broken link, a symbolic link to a directory, the
+directory limit) is recorded in `Workspace::unread`, never taken as
+empty: while one exists, the closed world is unknown
+(`ProjectIndex::unread_directory`, part of `has_any_unknown_code`), so
+the safe fixes of `SCR102`, `VIEW015` and `NAME001` are unsafe with the
+reason "closed world unknown: `<path>` could hold Ignition resources but
+was not read (<why>), so code there is not known", and code there may
+read the files a fix edits, so every other safe fix is unsafe through
+the file-read gate with the same path and cause. A resource file named
+on the command line inside a project or collection that the walk did not
+reach is reported by `REF009` as such (with the directory that was not
+read, when there is one), not as a file outside every project.
 
 When no root is found around a linted path (a project directory linted
 from elsewhere with nothing around it, a loose file outside every Git work
@@ -559,11 +636,20 @@ fixture linted on its own from the top, from another directory and from
 its own directory gives the findings and fix applicabilities of the run
 over the whole fixture), `closed_world_reasons_do_not_depend_on_what_is_linted`,
 `fixes_that_need_the_closed_world_are_unsafe_without_a_root`,
-`unusual_project_and_collection_directories_are_linted` and
-`directories_that_cannot_be_read_make_the_closed_world_unknown`, the
+`unusual_project_and_collection_directories_are_linted`,
+`directories_that_cannot_be_read_make_the_closed_world_unknown`,
+`symbolic_links_to_directories_are_not_followed` (a linked project,
+collection, library folder, `script-python` and `ignition` directory),
+`fixes_of_files_reached_through_links_are_unsafe` (a link inside the
+workspace, a link to a file outside it, a hard link),
+`manifests_that_are_links_are_read` and
+`nested_repositories_belong_to_the_enclosing_work_tree` (the layouts of
+the first test include a nested repository and a real `git submodule
+add`), the
 `iglint_project` tests of `workspace::tests`, and the language server
-test `a_folder_inside_the_workspace_sees_the_whole_workspace` cover each
-way of linting part of a workspace.
+tests `a_folder_inside_the_workspace_sees_the_whole_workspace` and
+`quick_fix_of_a_file_reached_through_a_link_is_unsafe` cover each way of
+linting part of a workspace.
 
 **Other views.** A Perspective page hands out the views it shows
 (`page.views`, `getViews()`, its primary `page.view`) and a session its
@@ -885,7 +971,17 @@ the directory holds the same names; the temporary name exists only
 while iglint runs. The rename makes a new inode (and, when iglint runs
 as another user, a new owner). Listing and existence checks of
 workspace paths therefore do not observe a fix by themselves, but they
-count anyway under the default-deny rule above.
+count anyway under the default-deny rule above. Links are kept (review
+round 16: a rename over a link replaced it with a regular file): a fix
+of a path that is a symbolic link is written through to the file the
+link points to (resolved, then written the same way next to that file),
+as an editor that saves through the link does, so every path that
+reaches the file sees the fix; a file with several hard links is
+rewritten in place (truncated and written, not atomically), so every
+name keeps the same file. Both are only ever unsafe fixes (above), so
+they are written only with `--unsafe-fixes` or a quick fix the user
+picks. Fixes of files behind a symbolic link to a directory are not
+offered at all.
 
 **Not covered**, outside the closed world like projects outside the
 workspace: other processes that read the files (a database server on the

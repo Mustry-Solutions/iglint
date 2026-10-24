@@ -110,15 +110,14 @@ from 0.1.0 on.
   `src/projects/A` next to `gateway/config/resources/`, now sees the
   projects too, so its fixes are as safe as in a run over the repository.
 - Projects and collections named `target`, `node_modules` or
-  `__pycache__`, and linked ones (also outside the repository), are
-  discovered, linted and part of the closed world; before they were
-  skipped, reported by REF009 file by file, or left nothing to lint
-  (review round 15).
+  `__pycache__` are discovered, linted and part of the closed world;
+  before they were skipped (review round 15).
 - Hidden resource directories and folders inside a project or collection
   (`script-python/.hidden/`, `views/.folder/V`) are linted and part of the
   closed world: an 8.3.3 gateway loads them. Before they were skipped.
 - A workspace directory that cannot be read (permissions, a broken
-  symbolic link, a link cycle) makes the closed world unknown: safe fixes
+  symbolic link, a symbolic link to a directory) makes the closed world
+  unknown: safe fixes
   become unsafe with a reason that names the directory. REF009 says when
   a resource file lies in a project the workspace walk did not reach,
   instead of calling it outside every project.
@@ -130,6 +129,34 @@ from 0.1.0 on.
   error (review round 15, Codex).
 - The "nothing to lint" warning shows the working directory as `.`
   instead of an empty path.
+- Symbolic links to directories are no longer followed, like Ignition
+  8.3.3, which does not follow them (review round 16, verified on a
+  throwaway gateway: a linked project never starts, a linked `core`
+  collection keeps the gateway from starting, a linked library folder,
+  `script-python` or `ignition` directory gives `ImportError`, a linked
+  tag folder has no tags). A link inside a project or collection, a
+  project or collection directory that is a link, and a link to a
+  directory that holds projects count as a directory that was not read:
+  every safe fix is unsafe, with the link named. The files behind such a
+  link are linted on their own, reported by REF009 ("behind ..., a
+  symbolic link to a directory") and get no fixes, so `--fix` no longer
+  edits files where a link points, also outside the repository.
+- A safe fix of a file that is a symbolic link, the target of a symbolic
+  link of the workspace, or a file with hard links is unsafe, with the
+  other paths named (review round 16): the gateway reads files through
+  links, so the fix changed every resource that reaches the file
+  (`SCR102` removed an import that another project used through its
+  link). Every file is known by its identity (device and inode).
+  Symbolic links to manifests (`project.json`, `resource.json`,
+  `config-mode.json`) and data files are read, as the gateway reads them.
+- `--fix` keeps symbolic links and hard links: a fix of a link is written
+  to the file it points to, and a file with hard links is rewritten in
+  place. Before, the link was replaced by a regular file (review round 16).
+- The workspace root of a file in a nested Git work tree (a submodule, or
+  a repository made inside another one) is the outermost work tree that
+  holds a project or collection, not the nearest `.git`, so linting one
+  file of the nested repository sees the gateway configuration of the
+  enclosing one (review round 16).
 - Without a configuration file, baseline paths and fingerprints are
   relative to the workspace root instead of the working directory, so an
   explicit baseline matches, and is pruned, the same from every

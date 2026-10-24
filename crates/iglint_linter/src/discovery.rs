@@ -271,8 +271,10 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
             .ignore(settings.respect_gitignore)
             .parents(settings.respect_gitignore)
             .require_git(false)
-            // A linked project or collection is linted where the gateway
-            // finds it, like the workspace walk (`Workspace::discover`).
+            // Links are followed, unlike the workspace walk and the
+            // gateway: the files behind a link to a directory are linted
+            // on their own, and REF009 says that the gateway does not
+            // load them (no fixes are offered for them).
             .follow_links(true)
             .sort_by_file_name(|a, b| a.cmp(b));
         // Prune excluded directories early instead of filtering their files.
@@ -396,16 +398,19 @@ pub struct WorkspaceRoots {
 ///    ancestor of the path that holds such a layout itself (a project in
 ///    its `projects/`, a collection in its `config/resources/` or in
 ///    `services/<gateway>/config/resources/`). The ancestors searched end
-///    at the top of the Git work tree that contains the path; outside a
-///    Git work tree, at the outermost of the configuration file's
+///    at the top of the outermost Git work tree that contains the path;
+///    outside a Git work tree, at the outermost of the configuration file's
 ///    directory and the working directory that contain the path (only the
 ///    layout around the enclosing container counts when neither does);
-/// 3. the top of the Git work tree that contains the path, when any
+/// 3. the top of every Git work tree that contains the path, when any
 ///    project or collection lies anywhere below it
 ///    ([`iglint_project::workspace::holds_container`], searched once per
 ///    work tree; a search that reaches its directory limit counts as
 ///    holding one, and the walk of the workspace then marks the closed
-///    world unknown at the same limit).
+///    world unknown at the same limit). Work trees nest: a submodule, or
+///    a repository made inside another one's work tree, is part of the
+///    enclosing work tree, whose other directories may hold the rest of
+///    the gateway, so the outermost one that holds a container wins.
 ///
 /// Without any candidate and without a configuration file, the working
 /// directory is the root when it contains the path and holds a project or
@@ -444,7 +449,11 @@ pub fn workspace_roots(settings: &ProjectSettings, paths: &[PathBuf]) -> Workspa
                 && container.as_ref().is_none_or(|c| !dir.starts_with(c))
                 && !is_container(dir)
         };
-        let git = git_work_tree(&path);
+        // Every Git work tree around the path, nearest first: a submodule
+        // or a nested repository is part of the work tree around it,
+        // which may hold the rest of the gateway.
+        let work_trees = git_work_trees(&path);
+        let git = work_trees.last().cloned();
         let mut candidates: Vec<PathBuf> = Vec::new();
         candidates.extend(configured.clone().filter(|d| usable(d)));
         candidates.extend(
@@ -469,12 +478,12 @@ pub fn workspace_roots(settings: &ProjectSettings, paths: &[PathBuf]) -> Workspa
                 }
             }
         }
-        if let Some(git) = git.filter(|d| usable(d)) {
+        for tree in work_trees.iter().filter(|d| usable(d)) {
             let holds = *git_holds
-                .entry(git.clone())
-                .or_insert_with(|| iglint_project::workspace::holds_container(&git) != Some(false));
+                .entry(tree.clone())
+                .or_insert_with(|| iglint_project::workspace::holds_container(tree) != Some(false));
             if holds {
-                candidates.push(git);
+                candidates.push(tree.clone());
             }
         }
         let root = candidates
@@ -587,12 +596,16 @@ fn holds_ignition_layout(dir: &Path) -> bool {
         })
 }
 
-/// The top directory of the Git work tree that contains `path`: the
-/// nearest ancestor with a `.git` directory or file.
-fn git_work_tree(path: &Path) -> Option<PathBuf> {
+/// The top directories of the Git work trees that contain `path`, nearest
+/// first: every ancestor with a `.git` directory or file. More than one
+/// means nested work trees: a submodule (its `.git` is a file that points
+/// into the enclosing repository's `.git/modules`), or a repository made
+/// inside another one's work tree.
+fn git_work_trees(path: &Path) -> Vec<PathBuf> {
     path.ancestors()
-        .find(|d| d.join(".git").exists())
+        .filter(|d| d.join(".git").exists())
         .map(Path::to_path_buf)
+        .collect()
 }
 
 /// Why `file` is not linted (excluded or whitelisted), if it is not.

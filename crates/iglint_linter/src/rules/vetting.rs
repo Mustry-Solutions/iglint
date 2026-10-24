@@ -284,6 +284,111 @@ pub(crate) fn complete_reasons(diagnostics: &mut [Diagnostic], site: Option<&Rea
     }
 }
 
+/// Withholds fixes of files that other paths share, before the file-read
+/// gate ([`gate_file_reads`] runs it first, so it runs on every path that
+/// reports or applies fixes, and `assume-scripts-do-not-read-workspace-files`
+/// does not lift it):
+///
+/// * a fix that edits a file behind a symbolic link to a directory
+///   ([`iglint_project::Workspace::directory_links`]) is dropped: the
+///   gateway does not load the file at that path, and the edit would land
+///   in the directory the link points to, which may be outside the
+///   repository and loaded elsewhere. `REF009` reports the file;
+/// * a safe fix that edits a file that is a symbolic link, the target of a
+///   symbolic link of the workspace, or a file with hard links
+///   ([`iglint_project::Workspace::shared_file`]) is unsafe, with the
+///   other paths named. The gateway reads files through links (verified
+///   on 8.3.3), so every resource that reaches the file runs the edited
+///   text, and the analysis of the fix only knows the resource of the
+///   linted path (an import that is unused in one project's module may be
+///   used through another project's link to the same file).
+pub(crate) fn gate_shared_files(diagnostics: &mut [Diagnostic], ws: &iglint_project::Workspace) {
+    let mut seen: rustc_hash::FxHashMap<std::path::PathBuf, Option<String>> =
+        rustc_hash::FxHashMap::default();
+    for d in diagnostics {
+        let Some(fix) = d.fix.as_ref() else { continue };
+        if fix
+            .edits
+            .iter()
+            .any(|e| ws.directory_link_above(&e.path).is_some())
+        {
+            d.fix = None;
+            continue;
+        }
+        if fix.applicability != Applicability::Safe {
+            continue;
+        }
+        let reason = fix.edits.iter().find_map(|e| {
+            seen.entry(e.path.clone())
+                .or_insert_with(|| {
+                    let shared = ws.shared_file(&e.path);
+                    shared
+                        .is_shared()
+                        .then(|| shared_file_reason(&e.path, &shared))
+                })
+                .clone()
+        });
+        if let (Some(reason), Some(fix)) = (reason, d.fix.as_mut()) {
+            fix.applicability = Applicability::Unsafe;
+            fix.unsafe_reason = Some(UnsafeReason {
+                message: reason,
+                site: None,
+                workspace: false,
+            });
+        }
+    }
+}
+
+/// Why a fix of `path`, a file shared with other paths, is unsafe.
+pub(crate) fn shared_file_reason(
+    path: &std::path::Path,
+    shared: &iglint_project::workspace::SharedFile,
+) -> String {
+    use crate::discovery::slash_path;
+    let mut others: Vec<String> = Vec::new();
+    let is_target = |p: &std::path::Path| {
+        shared
+            .link_target
+            .as_deref()
+            .is_some_and(|t| std::fs::canonicalize(p).is_ok_and(|c| c == t))
+    };
+    if let Some(target) = &shared.link_target
+        && !shared.same_file.iter().any(|p| is_target(p))
+    {
+        others.push(format!(
+            "`{}` (the file this symbolic link points to)",
+            slash_path(target)
+        ));
+    }
+    others.extend(shared.same_file.iter().map(|p| {
+        let what = if std::fs::symlink_metadata(p).is_ok_and(|m| m.file_type().is_symlink()) {
+            "a symbolic link to it"
+        } else if is_target(p) {
+            "the file this symbolic link points to"
+        } else {
+            "a hard link"
+        };
+        format!("`{}` ({what})", slash_path(p))
+    }));
+    if shared.other_hard_links > 0 {
+        others.push(format!(
+            "{} other hard link{} outside the workspace",
+            shared.other_hard_links,
+            if shared.other_hard_links == 1 {
+                ""
+            } else {
+                "s"
+            }
+        ));
+    }
+    format!(
+        "the fix edits `{}`, which is the same file as {}: every resource that reaches the file \
+         runs the edited text, and the fix is analysed only for this path",
+        slash_path(path),
+        others.join(", ")
+    )
+}
+
 /// Why every fix is unsafe while code in the workspace may read the files
 /// a fix edits ([`ProjectIndex::may_read_workspace_files`]).
 pub(crate) const FILE_READ_REASON: &str = "code in the workspace may read the files a fix edits \
@@ -305,6 +410,7 @@ pub(crate) fn gate_file_reads(
     files: &FileTable,
     assume_no_reads: bool,
 ) {
+    gate_shared_files(diagnostics, index.workspace());
     if assume_no_reads || !index.may_read_workspace_files() {
         return;
     }

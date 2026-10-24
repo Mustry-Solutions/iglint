@@ -1391,3 +1391,92 @@ fn positions_with_lone_cr_follow_the_protocol() {
     assert_eq!(d.range.start, Position::new(2, 0), "{d:#?}");
     client.shutdown();
 }
+
+/// Reviewer round 16 B1: project `Q`'s library module `lib/a` is a
+/// symbolic link to `P`'s file, and `Q` uses `lib.a.os`. The quick fix
+/// that removes `P`'s unused `import os` changes `Q`'s module too, so it is
+/// unsafe (not preferred), names the link, and fix-all leaves the file.
+#[cfg(unix)]
+#[test]
+fn quick_fix_of_a_file_reached_through_a_link_is_unsafe() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    let manifest = MANIFEST.replace("view.json", "code.py");
+    for p in ["P", "Q"] {
+        write(
+            &root,
+            &format!("projects/{p}/project.json"),
+            r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+        );
+        write(
+            &root,
+            &format!("projects/{p}/ignition/script-python/lib/a/resource.json"),
+            &manifest,
+        );
+    }
+    let text = "import math\nimport os\n\ndef f():\n    return math.pi\n";
+    let path = write(
+        &root,
+        "projects/P/ignition/script-python/lib/a/code.py",
+        text,
+    );
+    let link = root.join("projects/Q/ignition/script-python/lib/a/code.py");
+    std::os::unix::fs::symlink(&path, &link).unwrap();
+    write(
+        &root,
+        "projects/Q/ignition/script-python/use/b/resource.json",
+        &manifest,
+    );
+    write(
+        &root,
+        "projects/Q/ignition/script-python/use/b/code.py",
+        "def g():\n    return lib.a.os.sep\n",
+    );
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&path, text);
+    let published = client.diagnostics(&uri, Some(1));
+    let range = published
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.code
+                .as_ref()
+                .is_some_and(|c| *c == lsp_types::NumberOrString::String("SCR102".to_owned()))
+        })
+        .unwrap_or_else(|| panic!("{published:#?}"))
+        .range;
+    let fixes: Vec<CodeAction> = code_actions(
+        &mut client,
+        &uri,
+        range,
+        Some(vec![CodeActionKind::QUICKFIX]),
+    )
+    .into_iter()
+    .filter(|a| a.title.starts_with("SCR102") && !a.title.contains("suppress"))
+    .collect();
+    assert!(!fixes.is_empty(), "{fixes:#?}");
+    for fix in &fixes {
+        assert!(
+            fix.title.contains("(unsafe: the fix edits `")
+                && fix.title.contains(
+                    "projects/Q/ignition/script-python/lib/a/code.py` (a symbolic link to it)"
+                ),
+            "{fix:#?}"
+        );
+        assert_eq!(fix.is_preferred, Some(false), "{fix:#?}");
+    }
+    let actions = code_actions(
+        &mut client,
+        &uri,
+        full_range(),
+        Some(vec![CodeActionKind::SOURCE_FIX_ALL]),
+    );
+    for action in actions {
+        let resolved = client.request::<CodeActionResolveRequest>(action);
+        if let Some(edit) = resolved.edit {
+            assert_eq!(apply(text, &edit.changes.unwrap()[&uri]), text);
+        }
+    }
+    client.shutdown();
+}

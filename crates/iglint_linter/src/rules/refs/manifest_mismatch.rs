@@ -47,7 +47,16 @@ resource:
   `config-mode.json` (its tags do not exist), and a `core` directory
   without one keeps the gateway from starting (`Unable to create 'core'
   resource collection`). iglint does not read such files either: their
-  tag event scripts and expressions are not analysed.
+  tag event scripts and expressions are not analysed;
+* a file behind a symbolic link to a directory inside a project or
+  collection (`ignition/script-python/lib -> ...`), or behind a project or
+  collection directory that is a symbolic link (`projects/S -> ../S`).
+  Verified on Ignition 8.3.3: the gateway does not follow symbolic links
+  to directories (a linked library folder gives `ImportError: No module
+  named lib`, a linked project never starts, a linked `core` collection
+  keeps the gateway from starting). iglint lints such a file on its own
+  and offers no fixes for it. Symbolic links to files are followed by
+  the gateway and are linted as usual.
 
 ## Why is this bad?
 
@@ -176,6 +185,23 @@ fn report_outside_resource(cx: &mut Checker<'_, '_>) {
     let Some(source) = cx.file(primary) else {
         return;
     };
+    if let Some(link) = cx.workspace().directory_link_above(source.path()) {
+        let name = source
+            .path()
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let message = format!(
+            "`{name}` is behind `{}`, a symbolic link to a directory: Ignition 8.3.3 does not \
+             follow symbolic links to directories, so the gateway does not load it at this path; \
+             iglint lints it on its own, outside the workspace, and offers no fixes for it",
+            crate::discovery::slash_path(link)
+        );
+        let range = start_range(source.text());
+        cx.report(range, message)
+            .fingerprint_key("behind directory link");
+        return;
+    }
     let Some(entry) = cx.workspace().file_by_path(source.path()) else {
         // A resource manifest or data file outside every project and
         // gateway configuration collection: iglint lists it but has no
