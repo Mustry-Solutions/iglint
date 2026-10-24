@@ -985,7 +985,15 @@ fn check_percent(format: &str, right: &Expr) -> Option<String> {
         }
         Expr::Dict(d) => {
             if spec.keys.is_empty() {
-                // The dict is the one value of a single placeholder.
+                // The dict is the one value: a `*` width or precision takes
+                // it first and needs an int (verified on Jython: `'%*s' %
+                // {'x': 1}` raises `TypeError: * wants int`); otherwise it is
+                // the value of a single placeholder. With keys, Jython takes
+                // `*` values inconsistently (`'%(x)*s' % {'x': 1}` formats,
+                // `'%(x).*f' % {'x': 1.0}` raises): not reported.
+                if spec.conversions.contains(&None) {
+                    return star_type_error(right);
+                }
                 return match spec.conversions.as_slice() {
                     [Some(c)] => percent_type_error(*c, right),
                     _ => None,
@@ -1654,5 +1662,39 @@ i = ('%s' + s) % (1,)
         assert_eq!(spec_number_too_large("%Y-%m-%d"), Some(false));
         assert_eq!(spec_number_too_large("\u{663}"), None);
         assert!(lint_module("SCR112", "x = '%*%' % (1,)\n").is_empty());
+    }
+
+    /// Reviewer round 12 (Codex) finding K2: a `*` width or precision with a
+    /// dict as the only operand. Each case was run on Jython 2.7 (Ignition
+    /// 8.3.3): the first group raises `TypeError: * wants int`, the second
+    /// formats (Jython takes `*` values of keyed formats inconsistently, so
+    /// keyed formats are not reported even where they raise).
+    #[test]
+    fn star_widths_with_a_dict_operand() {
+        let failing = r#"a = '%*s' % {'x': 1}
+b = '%.*f' % {'x': 1}
+c = '%*%' % {'x': 1}
+d = '%*s' % {}
+e = '%-*s' % {'x': 1}
+"#;
+        let d = lint_module("SCR112", failing);
+        assert_eq!(
+            lines(&d).into_iter().map(|(l, _)| l).collect::<Vec<_>>(),
+            [1, 2, 3, 4, 5],
+            "{d:?}"
+        );
+        assert!(
+            d[0].message.contains("`*` needs an integer"),
+            "{}",
+            d[0].message
+        );
+        let passing = r#"a = '%(x)*s' % {'x': 1}
+b = '%(x)s %*s' % {'x': 1}
+c = '%s' % {'x': 1}
+d = '%(x)s' % {'x': 1}
+e = '%*s' % d
+"#;
+        let d = lint_module("SCR112", passing);
+        assert!(d.is_empty(), "{d:?}");
     }
 }

@@ -80,6 +80,9 @@ from 0.1.0 on.
 
 ### Fixed
 
+- SCR112 missed `*` widths and precisions with a dict as the only
+  operand (`'%*s' % {'x': 1}`, `'%.*f' % {'x': 1}`), which raise
+  `TypeError: * wants int` on Jython.
 - SCR112 missed format specs with characters after the type
   (`'{0:dd}'.format(1)`, `'{0:%Y}'.format(1)`, `'{0:.2.2}'.format(1.5)`,
   `'{0:s.}'.format('ab')`, `'{0:#x#}'.format(5)`) and a `.` without
