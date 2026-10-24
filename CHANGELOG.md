@@ -109,6 +109,25 @@ from 0.1.0 on.
 
 ### Fixed
 
+- NAME001 no longer offers a safe rename to a name that broken references
+  already use: renaming `my_label` to `MyLabel` made
+  `self.getSibling('MyLabel')`, a binding path `../MyLabel.props.text` or
+  an expression `{/root/MyLabel.props.text}` start to resolve. The new
+  name gets the guards of the old one (any occurrence as a word in a
+  string of the view or a script's string literal, in any case, makes the
+  rename unsafe and names the site), and the safety net compares the
+  view's reference-resolution map (expression and binding references,
+  script lookups, tag and view paths, components identified by their
+  place in the view) before and after every safe fix to a `view.json`;
+  any change drops the fix, which is reported unsafe with the reason
+  (review round 21).
+- SCR104 reports a redefinition when the only read of the first
+  definition is in a top-level class body that runs after both
+  definitions (`class A: f = f`), which reads only the second one.
+- NAME001 offers no suggestion or fix for a name with a character whose
+  case mapping changes length (`ﬁle_name` became `FIleName`), and says
+  why.
+
 - Code iglint does not know no longer counts as vetted (review round 18,
   Opus, B1). A `system.*` member that the measured 8.3 stubs do not list
   (a third-party module's `system.perspective.runJavaScriptAsync`, a

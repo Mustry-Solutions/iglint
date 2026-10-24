@@ -62,6 +62,10 @@ pub struct References {
     /// Other string literals of the view's scripts: a component whose name
     /// appears among them may be looked up dynamically.
     pub literals: FxHashSet<String>,
+    /// Every string literal of the view's scripts, lookup arguments
+    /// included, with the file range of the literal: where a name occurs
+    /// that a rename *to* it could make a lookup find.
+    pub script_strings: Vec<(String, TextRange)>,
     /// `getChild(x)` / `getSibling(x)` with a computed argument.
     pub dynamic_lookup: bool,
     /// References Perspective reads as tag paths only because of
@@ -325,6 +329,9 @@ impl<'a> Visitor<'a> for ScriptWalker<'_, '_, '_> {
                         return;
                     };
                     let text = arg.s.to_latin1();
+                    self.refs
+                        .script_strings
+                        .push((text.to_string(), self.script.file_range(arg.range)));
                     let content = self.literal_content(arg.range, &text);
                     let resolved = value != Value::Unknown;
                     match content {
@@ -386,7 +393,11 @@ impl<'a> Visitor<'a> for ScriptWalker<'_, '_, '_> {
             Expr::Str(s) => {
                 // Latin-1 so a non-UTF-8 byte string still registers as a
                 // literal that may equal the component name.
-                self.refs.literals.insert(s.s.to_latin1().into_owned());
+                let text = s.s.to_latin1().into_owned();
+                self.refs
+                    .script_strings
+                    .push((text.clone(), self.script.file_range(s.range)));
+                self.refs.literals.insert(text);
             }
             _ => {}
         }

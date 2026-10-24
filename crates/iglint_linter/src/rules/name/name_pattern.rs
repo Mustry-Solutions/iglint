@@ -79,9 +79,22 @@ call `getChild('SaveButton')` itself; no string of the view that iglint
 does not read as an expression or script holds a `{...}` reference (an
 action's settings, a field of an unknown binding type); no reference is
 written with whitespace inside its braces (`{ ../Label.props.text }`,
-which Perspective reads as a tag path); and no string of the view holds
-the name, as a word, anywhere the fix does not update it. It is *unsafe*
-otherwise, and names the place that keeps it from being safe. Like every
+which Perspective reads as a tag path); no string of the view holds
+the name, as a word, anywhere the fix does not update it; and the new name
+occurs nowhere in the view: not in any string of the view (a broken
+`{../NewName.props.text}` or binding path `../NewName.props.text` would
+start to resolve) and not in any string literal of a script
+(`self.getSibling('NewName')`, which finds nothing now, would find the
+renamed component), in any spelling that differs only in case.
+Perspective compares names exactly, but case variants count too, to stay
+on the safe side. It is *unsafe* otherwise, and names the place that
+keeps it from being safe. The safety net checks the result as well: a
+safe fix that changes what any reference of the view resolves to (see
+`docs/internal/fix-safety.md`, "Threat model") is reported as unsafe.
+
+When a character of the name changes length under case mapping (the
+ligature `ﬁ` upper-cases to `FI`, `ß` to `SS`), no suggestion and no fix
+are offered and the message says why. Like every
 fix, it is also unsafe while code in the workspace may read the files a
 fix edits (any file access, read, write, rename or delete, whose path
 is not a literal outside the workspace, or
@@ -626,11 +639,33 @@ fn suggestion_for(name: &str, rules: &TypeRules, options: &Options) -> Option<St
     match rules.suggestion {
         Suggestion::None => None,
         Suggestion::Unknown => Some("No suggestion available".to_owned()),
+        Suggestion::In(_) if length_changing_char(name).is_some() => None,
         Suggestion::In(c) => {
             let s = suggest(name, c, &options.abbreviations, rules.allow_numbers);
             (!s.is_empty() && s != name).then_some(s)
         }
     }
+}
+
+/// The first character of `name` whose upper or lower case is more than
+/// one character (the ligature `ﬁ` upper-cases to `FI`, `ß` to `SS`).
+/// Converting such a name gives a suggestion that is not the name re-cased
+/// (`ﬁle_name` would become `FIleName`), so none is offered (review round
+/// 21, N3).
+fn length_changing_char(name: &str) -> Option<char> {
+    name.chars()
+        .find(|c| c.to_uppercase().count() != 1 || c.to_lowercase().count() != 1)
+}
+
+/// Why no suggestion is offered for a name that fails the pattern, when
+/// suggestions are configured.
+fn no_suggestion_note(name: &str, rules: &TypeRules) -> Option<String> {
+    if !matches!(rules.suggestion, Suggestion::In(_)) {
+        return None;
+    }
+    length_changing_char(name).map(|c| {
+        format!(" (no suggestion: changing the case of '{c}' changes its length; rename manually)")
+    })
 }
 
 fn report(
@@ -652,6 +687,11 @@ fn report(
         && let Some(s) = suggestion_for(node.name, rules, options)
     {
         text.push_str(&format!(" (suggestion: '{s}')"));
+    }
+    if matches!(failure, Failure::Pattern)
+        && let Some(note) = no_suggestion_note(node.name, rules)
+    {
+        text.push_str(&note);
     }
     emit(cx, node, text, rules, fix);
 }
@@ -731,6 +771,11 @@ fn check_components<'v>(
                 text.push_str(&format!(" (suggestion: '{s}')"));
             }
         }
+        if matches!(failure, Failure::Pattern)
+            && let Some(note) = no_suggestion_note(c.name, rules)
+        {
+            text.push_str(&note);
+        }
         let fix = usable.and_then(|new| {
             let key = (c.parent.map(|p| p.0), new.to_owned());
             if claimed.contains(&key) {
@@ -756,6 +801,9 @@ struct RenameContext {
     vetting: Option<UnsafeReason>,
     /// A component of the view may be handed to code outside it.
     escape: bool,
+    /// The words of the scripts' string literals by their lower-case form:
+    /// each spelling with the literal's file range, in order.
+    script_words: rustc_hash::FxHashMap<String, Vec<(String, TextRange)>>,
 }
 
 impl RenameContext {
@@ -773,7 +821,21 @@ impl RenameContext {
         // iglint does not know (`cPickle.loads` of an `eval` opcode).
         // Closed world: such code anywhere in the shared runtime counts.
         let vetting = crate::rules::vetting::unit_reason(cx);
+        let mut script_words: rustc_hash::FxHashMap<String, Vec<(String, TextRange)>> =
+            Default::default();
+        for (text, range) in &refs.script_strings {
+            for word in text
+                .split(|ch: char| !(ch.is_alphanumeric() || ch == '_'))
+                .filter(|w| !w.is_empty())
+            {
+                script_words
+                    .entry(word.to_lowercase())
+                    .or_default()
+                    .push((word.to_owned(), *range));
+            }
+        }
         RenameContext {
+            script_words,
             sites,
             fragile,
             vetting,
@@ -810,6 +872,13 @@ fn rename_fix<'v>(
     let vetting = rename.vetting.clone();
     let guards = guards.get_or_insert_with(|| Guards::collect(cx, view));
     let observed = guards.observed(cx, file, c, rename, &sites);
+    let message = format!("Rename component '{}' to '{new}'", c.name);
+    if let Some(reason) = guards.new_name_used(cx, file, c, new, rename) {
+        let edits = cx.file_edits(file, edits);
+        return Some(
+            Fix::unsafe_edit(message, edits, reason.message.clone()).because(Some(reason)),
+        );
+    }
     let risk = if count > 0 {
         Some(
             "the rename also rewrites references to the component in scripts and bindings, \
@@ -828,7 +897,6 @@ fn rename_fix<'v>(
     } else {
         None
     };
-    let message = format!("Rename component '{}' to '{new}'", c.name);
     let edits = cx.file_edits(file, edits);
     Some(match risk {
         Some(reason) => Fix::unsafe_edit(message, edits, reason).because(vetting.or(observed)),
@@ -860,6 +928,9 @@ struct Guards<'v> {
     /// `_`) with the string and offset of each occurrence, in order: the
     /// occurrences of a name made of such characters, built on first use.
     words: std::cell::OnceCell<rustc_hash::FxHashMap<&'v str, Vec<(u32, u32)>>>,
+    /// The distinct words of `words` by their lower-case form, built on
+    /// first use.
+    folded: std::cell::OnceCell<rustc_hash::FxHashMap<String, Vec<&'v str>>>,
 }
 
 impl<'v> Guards<'v> {
@@ -923,6 +994,7 @@ impl<'v> Guards<'v> {
             first_any_read,
             first_read,
             words: std::cell::OnceCell::new(),
+            folded: std::cell::OnceCell::new(),
         }
     }
 
@@ -953,6 +1025,77 @@ impl<'v> Guards<'v> {
             }
             words
         })
+    }
+
+    /// Why renaming `c` to `new` may make something of the view find the
+    /// component that did not find it before (review round 21, B1): the
+    /// guards of [`Guards::observed`] look for the old name, this looks for
+    /// the new one. Perspective compares names with `String.equals`, but
+    /// any spelling of `new` that differs only in case counts too: a
+    /// string of the view (expressions, binding paths and every other
+    /// value or key) or a string literal of a script (lookup arguments
+    /// included, resolved or not) holding it as a word. Occurrences of the
+    /// old name itself are left to the old name's guards (a case-only
+    /// rename rewrites them).
+    fn new_name_used(
+        &self,
+        cx: &Checker<'_, '_>,
+        file: FileId,
+        c: &Component<'_>,
+        new: &str,
+        rename: &RenameContext,
+    ) -> Option<UnsafeReason> {
+        const WHY: &str = "the new name already occurs in the view, where the rename could \
+                           make a reference or lookup that finds nothing now find the component";
+        let target = new.to_lowercase();
+        let is_ident =
+            |s: &str| !s.is_empty() && s.chars().all(|ch| ch.is_alphanumeric() || ch == '_');
+        if is_ident(new) {
+            let folded = self.folded.get_or_init(|| {
+                let mut folded: rustc_hash::FxHashMap<String, Vec<&'v str>> = Default::default();
+                for word in self.words().keys() {
+                    folded.entry(word.to_lowercase()).or_default().push(word);
+                }
+                folded
+            });
+            let first = folded
+                .get(&target)
+                .into_iter()
+                .flatten()
+                .filter(|w| **w != c.name)
+                .flat_map(|w| self.words()[w].iter().map(move |o| (*o, w.len())))
+                .min();
+            if let Some(((i, at), len)) = first {
+                let s = self.strings[i as usize];
+                let range = s.raw_range(TextRange::at(
+                    TextSize::from(at),
+                    TextSize::from(len as u32),
+                ));
+                return Some(reason_at(cx, file, range, WHY));
+            }
+            if let Some(range) = rename.script_words.get(&target).and_then(|hits| {
+                hits.iter()
+                    .find(|(word, _)| word != c.name)
+                    .map(|(_, range)| *range)
+            }) {
+                return Some(reason_at(cx, file, range, WHY));
+            }
+            return None;
+        }
+        // A name with other characters (`Title Case`): any string holding
+        // it in any case, beyond the occurrences of the old name.
+        let old = (c.name.to_lowercase() == target).then_some(c.name);
+        let holds = |text: &str| {
+            text.to_lowercase().matches(&target).count()
+                > old.map_or(0, |o| text.matches(o).count())
+        };
+        if let Some(s) = self.strings.iter().find(|s| holds(s.value())) {
+            return Some(reason_at(cx, file, s.range(), WHY));
+        }
+        if let Some((_, range)) = rename.refs.script_strings.iter().find(|(t, _)| holds(t)) {
+            return Some(reason_at(cx, file, *range, WHY));
+        }
+        None
     }
 
     /// Why renaming `c` may change what the view does although the edits
@@ -1464,6 +1607,29 @@ mod tests {
         );
     }
 
+    /// Review round 21, N3: a name with a character whose case mapping
+    /// changes length gets no suggestion and no fix, and the message says
+    /// why.
+    #[test]
+    fn no_suggestion_when_case_mapping_changes_length() {
+        let f = Fixture::view(&root(&[
+            component("\u{fb01}le_name", "ia.display.label", ""),
+            component("stra\u{df}e", "ia.display.label", ""),
+        ]));
+        let d = f.lint_with(&[(
+            "NAME001",
+            "convention = \"PascalCase\"\ntarget-node-types = [\"component\"]\nskip-names = [\"root\"]",
+        )]);
+        assert_eq!(
+            d.iter().map(|d| d.message.as_str()).collect::<Vec<_>>(),
+            [
+                "Name '\u{fb01}le_name' doesn't follow PascalCase for component (no suggestion: changing the case of '\u{fb01}' changes its length; rename manually)",
+                "Name 'stra\u{df}e' doesn't follow PascalCase for component (no suggestion: changing the case of '\u{df}' changes its length; rename manually)",
+            ]
+        );
+        assert!(d.iter().all(|d| d.fix.is_none()));
+    }
+
     #[test]
     fn sibling_collision_but_never_with_itself() {
         let f = Fixture::view(&root(&[
@@ -1477,6 +1643,160 @@ mod tests {
         );
         assert!(d[0].fix.is_none());
         assert_eq!(d.len(), 1);
+    }
+
+    /// Review round 21, B1: renaming to a name that broken references
+    /// already use would make them resolve. The new name gets the guards of
+    /// the old one: any occurrence of it (in any case) in the view's
+    /// strings or the scripts' literals makes the rename unsafe, naming
+    /// the site; `--fix` without `--unsafe-fixes` leaves the view as it is.
+    #[test]
+    fn rename_to_a_name_that_broken_references_use_is_unsafe() {
+        const LOOKUP: &str = r#", "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": "\tlbl = self.getSibling('MyLabel')\n\tif lbl is None:\n\t\tprint 'missing'\n\telse:\n\t\tprint 'found'"}}}}"#;
+        const BINDING: &str = r#", "propConfig": {"props.text": {"binding": {"type": "property", "config": {"path": "../MyLabel.props.text"}}}}"#;
+        const EXPRESSION: &str = r#", "propConfig": {"props.text": {"binding": {"type": "expr", "config": {"expression": "coalesce({/root/MyLabel.props.text}, 'none')"}}}}"#;
+        let rules = [(
+            "NAME001",
+            "convention = \"PascalCase\"\ntarget-node-types = [\"component\"]",
+        )];
+        let cases = [
+            (
+                "my_label",
+                vec![
+                    component("Btn", "ia.input.button", LOOKUP),
+                    component("Other", "ia.display.label", BINDING),
+                ],
+                "`MyLabel` at",
+            ),
+            (
+                "my_label",
+                vec![component("Other", "ia.display.label", EXPRESSION)],
+                "`MyLabel` at",
+            ),
+            (
+                "myLabel",
+                vec![component("Btn", "ia.input.button", LOOKUP)],
+                "`'MyLabel'` at",
+            ),
+            // Case variants count too.
+            (
+                "my_label",
+                vec![component(
+                    "Other",
+                    "ia.display.label",
+                    &BINDING.replace("MyLabel", "MYLABEL"),
+                )],
+                "`MYLABEL` at",
+            ),
+        ];
+        for (old, others, site) in cases {
+            let mut children = vec![component(old, "ia.display.label", "")];
+            children.extend(others);
+            let view = root(&children);
+            let f = Fixture::view(&view);
+            let d = f.lint_with(&rules);
+            let d = d
+                .iter()
+                .find(|d| d.message.contains(&format!("'{old}'")))
+                .unwrap_or_else(|| panic!("{old}: {d:?}"));
+            let fix = d.fix.as_ref().expect("a fix");
+            assert_eq!(fix.applicability, crate::Applicability::Unsafe, "{view}");
+            let reason = fix
+                .unsafe_reason
+                .as_ref()
+                .unwrap()
+                .describe(|p| p.display().to_string());
+            assert!(
+                reason.contains("the new name already occurs in the view") && reason.contains(site),
+                "{reason}"
+            );
+            let result = f.run(
+                &rules,
+                crate::FixMode::DiffOnly {
+                    unsafe_fixes: false,
+                },
+            );
+            assert!(result.fixed.iter().all(|s| !s.changed()), "{view}");
+        }
+    }
+
+    /// Review round 21, B1: on generated views with random names and
+    /// references (expressions, property bindings, script lookups, broken
+    /// ones included), every fix reported safe leaves the resolution map
+    /// of the view as it was (renamed components keep every reference),
+    /// alone and all together; and some fixes are safe.
+    #[test]
+    fn safe_fixes_keep_every_resolution() {
+        const NAMES: [&str; 8] = ["a_b", "AB", "ab", "Ab", "x_y", "XY", "Xy", "c_d"];
+        let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = |n: usize| {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((seed >> 33) as usize) % n
+        };
+        let rules = [(
+            "NAME001",
+            "convention = \"PascalCase\"\ntarget-node-types = [\"component\"]\nskip-names = [\"root\"]",
+        )];
+        let mut safe = 0;
+        for _ in 0..60 {
+            let mut pick = || NAMES[next(NAMES.len())];
+            let (p, q) = (pick(), pick());
+            let (r, t) = (pick(), pick());
+            let (u, v, w) = (pick(), pick(), pick());
+            let inner = component(
+                q,
+                "ia.display.label",
+                &format!(
+                    r#", "propConfig": {{"props.text": {{"binding": {{"type": "expr", "config": {{"expression": "{{../{r}.props.text}} + {{/root/{p}/{t}.props.text}}"}}}}}}}}"#
+                ),
+            );
+            let other = component(r, "ia.display.label", "");
+            let panel = format!(
+                r#"{{"meta": {{"name": "{p}"}}, "type": "ia.container.flex", "children": [{inner}, {other}]}}"#
+            );
+            let script = format!(
+                r#"\tx = self.getSibling('{u}')\n\ty = self.parent.getChild('{p}/{v}')\n\tprint x, y"#
+            );
+            let button = component(
+                w,
+                "ia.input.button",
+                &format!(
+                    r#", "propConfig": {{"props.enabled": {{"binding": {{"type": "property", "config": {{"path": "../{p}/{q}.props.visible"}}}}}}}}, "events": {{"component": {{"onActionPerformed": {{"type": "script", "scope": "G", "config": {{"script": "{script}"}}}}}}}}"#
+                ),
+            );
+            let view = root(&[panel, button, component(pick(), "ia.display.label", "")]);
+            let f = Fixture::view(&view);
+            let path = f.view_path("Main");
+            let text = std::fs::read_to_string(&path).unwrap();
+            let before = crate::safety::Resolutions::of(&path, &text).unwrap();
+            let d = f.lint_with(&rules);
+            let mut all = Vec::new();
+            for d in &d {
+                let Some(fix) = d.fix.as_ref() else { continue };
+                if fix.applicability != crate::Applicability::Safe {
+                    continue;
+                }
+                safe += 1;
+                let edits: Vec<TextEdit> = fix.edits.iter().map(|e| e.edit.clone()).collect();
+                all.extend(edits.iter().cloned());
+                let after = iglint_text::apply_edits(&text, &edits).unwrap();
+                let after = crate::safety::Resolutions::of(&path, &after).unwrap();
+                assert_eq!(before.difference(&after), None, "{}\n{view}", fix.message);
+            }
+            let result = f.run(
+                &rules,
+                crate::FixMode::DiffOnly {
+                    unsafe_fixes: false,
+                },
+            );
+            if let Some(fixed) = result.fixed.iter().find(|s| s.path == path) {
+                let after = crate::safety::Resolutions::of(&path, &fixed.fixed).unwrap();
+                assert_eq!(before.difference(&after), None, "{view}");
+            }
+        }
+        assert!(safe > 0);
     }
 
     #[test]

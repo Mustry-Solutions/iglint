@@ -73,6 +73,11 @@ finding).
   view hands a component to code outside the view, for example to a library
   function, which may look the component up by name (2 entries, one per
   view, for every variant).
+  The rename is also unsafe (ign-lint: safe) when the suggested name
+  already occurs as a word in a string of the view, in any case, where a
+  broken reference or lookup could start to find the renamed component;
+  in the fixtures that is a component type (`ia.input.button` for
+  `Button` to `button`) or a binding type (`query`) (18 entries).
 * Outside a project (a lone view, as in the fixtures), the rename is also
   unsafe when a script of the view calls a name that may be a project
   library function (`lib.util.f()`, an undefined name): iglint cannot

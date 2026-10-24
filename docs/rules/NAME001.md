@@ -62,9 +62,22 @@ call `getChild('SaveButton')` itself; no string of the view that iglint
 does not read as an expression or script holds a `{...}` reference (an
 action's settings, a field of an unknown binding type); no reference is
 written with whitespace inside its braces (`{ ../Label.props.text }`,
-which Perspective reads as a tag path); and no string of the view holds
-the name, as a word, anywhere the fix does not update it. It is *unsafe*
-otherwise, and names the place that keeps it from being safe. Like every
+which Perspective reads as a tag path); no string of the view holds
+the name, as a word, anywhere the fix does not update it; and the new name
+occurs nowhere in the view: not in any string of the view (a broken
+`{../NewName.props.text}` or binding path `../NewName.props.text` would
+start to resolve) and not in any string literal of a script
+(`self.getSibling('NewName')`, which finds nothing now, would find the
+renamed component), in any spelling that differs only in case.
+Perspective compares names exactly, but case variants count too, to stay
+on the safe side. It is *unsafe* otherwise, and names the place that
+keeps it from being safe. The safety net checks the result as well: a
+safe fix that changes what any reference of the view resolves to (see
+`docs/internal/fix-safety.md`, "Threat model") is reported as unsafe.
+
+When a character of the name changes length under case mapping (the
+ligature `ﬁ` upper-cases to `FI`, `ß` to `SS`), no suggestion and no fix
+are offered and the message says why. Like every
 fix, it is also unsafe while code in the workspace may read the files a
 fix edits (any file access, read, write, rename or delete, whose path
 is not a literal outside the workspace, or

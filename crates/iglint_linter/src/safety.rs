@@ -30,6 +30,17 @@
 //!
 //! Scripts are compared in order; a safe fix that adds or removes a script
 //! is dropped as well.
+//!
+//! For a `view.json`, a safe fix is also dropped when it changes what any
+//! reference of the view resolves to ([`resolution`]): the references of
+//! expressions and bindings, script lookups and view paths, with
+//! components identified by their place in the view, so that only a
+//! rename that updates every reference consistently leaves the map as it
+//! was.
+
+mod resolution;
+
+pub(crate) use resolution::Resolutions;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -250,7 +261,36 @@ fn futures(body: &[Stmt]) -> Vec<String> {
 
 /// Why a safe fix that turns `before` into `after` with `edits` (ranges in
 /// `before`) changes a script, if it does.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn safe_fix_problem(
+    path: &Path,
+    before: &str,
+    before_scripts: &[ScriptText],
+    before_facts: &[ScriptFacts],
+    before_refs: Option<&Resolutions>,
+    edits: &[TextEdit],
+    after: &str,
+    after_scripts: &[ScriptText],
+) -> Option<String> {
+    if let Some(problem) = scripts_problem(
+        path,
+        before,
+        before_scripts,
+        before_facts,
+        edits,
+        after_scripts,
+    ) {
+        return Some(problem);
+    }
+    let before_refs = before_refs?;
+    match Resolutions::of(path, after) {
+        Some(after_refs) => before_refs.difference(&after_refs),
+        None => Some("it would make the view unreadable".to_owned()),
+    }
+}
+
+/// [`safe_fix_problem`] for the scripts of the file.
+fn scripts_problem(
     path: &Path,
     before: &str,
     before_scripts: &[ScriptText],
@@ -325,7 +365,8 @@ pub(crate) fn mark_rejected_safe_fixes(
         return;
     }
     let before = scripts(text);
-    if before.is_empty() {
+    let refs = Resolutions::of(path, text);
+    if before.is_empty() && refs.is_none() {
         return;
     }
     let facts: Vec<ScriptFacts> = before.iter().map(ScriptFacts::of).collect();
@@ -333,7 +374,16 @@ pub(crate) fn mark_rejected_safe_fixes(
         let Ok(after) = iglint_text::apply_edits(text, edits) else {
             return None;
         };
-        safe_fix_problem(path, text, &before, &facts, edits, &scripts(&after))
+        safe_fix_problem(
+            path,
+            text,
+            &before,
+            &facts,
+            refs.as_ref(),
+            edits,
+            &after,
+            &scripts(&after),
+        )
     };
     let mut all: Vec<TextEdit> = fixes.iter().flat_map(|(_, e)| e.iter().cloned()).collect();
     all.sort_by_key(|e| e.range);
@@ -775,8 +825,16 @@ mod tests {
                     .collect();
                 text_edits.sort_by_key(|e| e.range);
                 let after = iglint_text::apply_edits(&text, &text_edits).unwrap();
-                let problem =
-                    safe_fix_problem(&path, &text, &before, &facts, &text_edits, &scripts(&after));
+                let problem = safe_fix_problem(
+                    &path,
+                    &text,
+                    &before,
+                    &facts,
+                    None,
+                    &text_edits,
+                    &after,
+                    &scripts(&after),
+                );
                 match expected {
                     None => assert_eq!(problem, None, "{}: {edits:?}", kind.name),
                     Some(want) => assert!(
@@ -801,7 +859,16 @@ mod tests {
         let facts: Vec<ScriptFacts> = before.iter().map(ScriptFacts::of).collect();
         let edits = [TextEdit::replace(TextRange::from(0..9), "")];
         let after = iglint_text::apply_edits(&text, &edits).unwrap();
-        let problem = safe_fix_problem(&path, &text, &before, &facts, &edits, &scripts(&after));
+        let problem = safe_fix_problem(
+            &path,
+            &text,
+            &before,
+            &facts,
+            None,
+            &edits,
+            &after,
+            &scripts(&after),
+        );
         assert!(problem.is_some_and(|p| p.contains("compiles")));
     }
 
@@ -833,7 +900,16 @@ mod tests {
                 String::new(),
             )];
             let after = iglint_text::apply_edits(&text, &edits).unwrap();
-            safe_fix_problem(path, &text, &before, &facts, &edits, &scripts(&after))
+            safe_fix_problem(
+                path,
+                &text,
+                &before,
+                &facts,
+                None,
+                &edits,
+                &after,
+                &scripts(&after),
+            )
         };
         let f = library("m", repro);
         let p = problem(&f, &library_path(&f, "m"), "import math");

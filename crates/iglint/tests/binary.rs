@@ -1172,6 +1172,85 @@ fn component_renames_respect_measured_fields_and_name_reads() {
     assert!(fixed.contains("{../APIToken.props.text}"), "{fixed}");
 }
 
+/// Review round 21, B1: renaming a component to the name that broken
+/// references already use (a script lookup and a property binding, an
+/// expression, a case-only change) would make them resolve. The CLI
+/// reports the rename unsafe with the site, and `--fix` leaves the view
+/// unchanged.
+#[test]
+fn renames_to_a_name_broken_references_use_are_unsafe() {
+    const LOOKUP: &str = r#"{"meta": {"name": "Btn"}, "type": "ia.input.button", "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": "\tlbl = self.getSibling('MyLabel')\n\tif lbl is None:\n\t\tprint 'missing'\n\telse:\n\t\tprint 'found'"}}}}}"#;
+    const BINDING: &str = r#"{"meta": {"name": "Other"}, "type": "ia.display.label", "propConfig": {"props.text": {"binding": {"type": "property", "config": {"path": "../MyLabel.props.text"}}}}}"#;
+    const EXPRESSION: &str = r#"{"meta": {"name": "Other"}, "type": "ia.display.label", "propConfig": {"props.text": {"binding": {"type": "expr", "config": {"expression": "coalesce({/root/MyLabel.props.text}, 'none')"}}}}}"#;
+    for (old, others) in [
+        ("my_label", format!("{LOOKUP}, {BINDING}")),
+        ("my_label", EXPRESSION.to_owned()),
+        ("myLabel", LOOKUP.to_owned()),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("p")).unwrap();
+        std::fs::write(
+            dir.path().join("p/project.json"),
+            r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("iglint.toml"),
+            "[rules.NAME001]\nconvention = \"PascalCase\"\ntarget-node-types = [\"component\"]\n",
+        )
+        .unwrap();
+        let view = format!(
+            r#"{{"custom": {{}}, "params": {{}}, "root": {{"meta": {{"name": "root"}}, "type": "ia.container.flex", "children": [{{"meta": {{"name": "{old}"}}, "type": "ia.display.label"}}, {others}]}}}}"#
+        );
+        let dir_v = dir
+            .path()
+            .join("p/com.inductiveautomation.perspective/views/Main");
+        std::fs::create_dir_all(&dir_v).unwrap();
+        std::fs::write(
+            dir_v.join("resource.json"),
+            r#"{"scope": "G", "version": 1, "files": ["view.json"]}"#,
+        )
+        .unwrap();
+        let path = dir_v.join("view.json");
+        std::fs::write(&path, &view).unwrap();
+        let out = iglint(dir.path())
+            .args([
+                "--no-cache",
+                "--select",
+                "NAME001",
+                "--output-format",
+                "json",
+            ])
+            .output()
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+        let finding = v
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["message"].as_str().unwrap().contains(&format!("'{old}'")))
+            .unwrap_or_else(|| panic!("{old}: {v}"));
+        assert_eq!(finding["fix"]["applicability"], "unsafe", "{v}");
+        let reason = &finding["fix"]["unsafe_reason"];
+        assert!(
+            reason["message"]
+                .as_str()
+                .unwrap()
+                .starts_with("the new name already occurs in the view"),
+            "{reason}"
+        );
+        assert!(
+            reason["what"].as_str().unwrap().contains("MyLabel"),
+            "{reason}"
+        );
+        iglint(dir.path())
+            .args(["--no-cache", "--fix", "--select", "NAME001"])
+            .output()
+            .unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), view);
+    }
+}
+
 /// Coordinator, round 10: a WebDev handler that reaches the gateway
 /// context (`request['context']`) holds every gateway manager, among them
 /// tag managers that import tags with their scripts from a JSON string

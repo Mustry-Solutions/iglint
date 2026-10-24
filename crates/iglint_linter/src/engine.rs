@@ -16,7 +16,7 @@ use crate::diagnostic::{Diagnostic, SourceFile};
 use crate::discovery::{self, FileKind, SkipReason};
 use crate::fix;
 use crate::registry::RuleCode;
-use crate::safety::{self, ScriptFacts, ScriptText, Scripts};
+use crate::safety::{self, Resolutions, ScriptFacts, ScriptText, Scripts};
 use crate::settings::{LinterSettings, ProjectSettings};
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -617,7 +617,8 @@ pub(crate) fn fix_file(
     let mut harmful: Vec<SkippedFix> = Vec::new();
     let mut current_health: Option<FxHashMap<_, _>> = None;
     // The scripts of `current` and what they do, for the safe-fix net.
-    let mut current_scripts: Option<(Vec<ScriptText>, Vec<ScriptFacts>)> = None;
+    let mut current_scripts: Option<(Vec<ScriptText>, Vec<ScriptFacts>, Option<Resolutions>)> =
+        None;
     // Set once no further fix applies: the fixes have reached a fixpoint
     // and a second `--fix` run would change nothing. If the pass budget
     // runs out while fixes are still being applied, this stays false and
@@ -644,7 +645,8 @@ pub(crate) fn fix_file(
         if pass_result.safe.iter().any(|s| *s) && current_scripts.is_none() {
             let found = scripts(&current);
             let facts = found.iter().map(ScriptFacts::of).collect();
-            current_scripts = Some((found, facts));
+            let refs = Resolutions::of(path, &current);
+            current_scripts = Some((found, facts, refs));
         }
         // Why the safe fixes with `safe_edits` (in `current`'s
         // coordinates) change a script, if they do.
@@ -652,7 +654,7 @@ pub(crate) fn fix_file(
             if safe_edits.is_empty() {
                 return None;
             }
-            let (before_scripts, before_facts) = current_scripts.as_ref()?;
+            let (before_scripts, before_facts, before_refs) = current_scripts.as_ref()?;
             let Ok(after) = iglint_text::apply_edits(&current, safe_edits) else {
                 return Some("its edits overlap".to_owned());
             };
@@ -663,7 +665,9 @@ pub(crate) fn fix_file(
                 &current,
                 before_scripts,
                 before_facts,
+                before_refs.as_ref(),
                 &sorted,
+                &after,
                 &scripts(&after),
             )
         };

@@ -2596,6 +2596,43 @@ pub fn unresolved_lookups(unit: &ScriptUnit<'_, '_>, view: &View<'_>) -> Vec<Unr
     out
 }
 
+/// What every `getSibling`/`getChild` call of a view script resolves to,
+/// in source order, for the safety net's resolution map
+/// (`crate::safety`): the receiver and the result as the access analysis
+/// follows them (as `SCR305` does), `None` where it does not follow them.
+/// Empty when the script does not parse.
+pub fn component_lookups(
+    owner: Owner,
+    parsed: &iglint_python::Parsed,
+    view: &View<'_>,
+) -> Vec<(Option<AccessTarget>, Option<AccessTarget>)> {
+    let this = match owner {
+        Owner::View => Val::Object(AccessTarget::View),
+        Owner::Component(c) => Val::Object(AccessTarget::Component(c)),
+        _ => return Vec::new(),
+    };
+    if !parsed.is_valid() {
+        return Vec::new();
+    }
+    let mut sink = Vec::new();
+    let a = Analysis::new(None, Some(view), this, &parsed.module.body, &mut sink);
+    let target = |v: Option<Val>| match v {
+        Some(Val::Object(t)) => Some(t),
+        _ => None,
+    };
+    let mut out = Vec::new();
+    crate::rules::script::walk_exprs(&parsed.module.body, &mut |e| {
+        let Expr::Call(c) = e else { return };
+        let Expr::Attribute(attr) = &*c.func else {
+            return;
+        };
+        if matches!(attr.attr.as_str(), "getSibling" | "getChild") {
+            out.push((target(a.peek(&attr.value)), target(a.peek(e))));
+        }
+    });
+    out
+}
+
 impl Analysis<'_, '_, '_> {
     /// Whether components may be looked up below `c` (it is a container).
     fn holds_children(&self, c: ComponentId) -> bool {

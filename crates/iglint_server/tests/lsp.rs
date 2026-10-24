@@ -1467,6 +1467,34 @@ fn rename_quick_fix_sees_measured_fields_and_name_reads() {
     }
 }
 
+/// Review round 21, B1, through the language server: a rename to the name
+/// that broken references already use (a script lookup and a binding, an
+/// expression, a case-only change) is offered as unsafe, not preferred,
+/// with the reason in its title.
+#[test]
+fn rename_quick_fix_to_a_name_broken_references_use_is_unsafe() {
+    let lookup = r#"{"meta": {"name": "Btn"}, "type": "ia.input.button", "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": "\tlbl = self.getSibling('MyLabel')\n\tprint lbl is None"}}}}}"#;
+    let binding = r#"{"meta": {"name": "Other"}, "type": "ia.display.label", "propConfig": {"props.text": {"binding": {"type": "property", "config": {"path": "../MyLabel.props.text"}}}}}"#;
+    let expression = r#"{"meta": {"name": "Other"}, "type": "ia.display.label", "propConfig": {"props.text": {"binding": {"type": "expr", "config": {"expression": "coalesce({/root/MyLabel.props.text}, 'none')"}}}}}"#;
+    for (old, others) in [
+        ("my_label", format!("{lookup}, {binding}")),
+        ("my_label", expression.to_owned()),
+        ("myLabel", lookup.to_owned()),
+    ] {
+        let view = format!(
+            r#"{{"custom": {{}}, "params": {{}}, "root": {{"meta": {{"name": "root"}}, "type": "ia.container.flex", "children": [{{"meta": {{"name": "{old}"}}, "type": "ia.display.label"}}, {others}]}}}}"#
+        );
+        let fixes = name001_fixes(&view, old);
+        assert_eq!(fixes.len(), 1, "{fixes:?}");
+        let (title, preferred) = &fixes[0];
+        assert!(
+            title.contains("(unsafe: the new name already occurs in the view"),
+            "{title}"
+        );
+        assert_eq!(*preferred, Some(false), "{title}");
+    }
+}
+
 /// Review round 14 (Opus) blocker: a folder opened on one project still
 /// sees the rest of the workspace (the root is discovered above it), so a
 /// gateway tag script that uses `m.os` keeps `import os` used, and one
