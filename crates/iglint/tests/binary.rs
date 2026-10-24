@@ -1433,6 +1433,251 @@ fn fixes_see_the_whole_workspace_whatever_is_linted() {
         std::fs::read_to_string(dir.path().join(MODULE)).unwrap(),
         "\n\ndef f():\n    return 1\n"
     );
+    // Reviewer round 15 B1: the same holds for every layout and every
+    // file of it.
+    for layout in LAYOUTS {
+        for content in CONTENTS {
+            single_file_runs_match_the_root_run(layout, content);
+        }
+    }
+}
+
+/// Where a fixture puts its projects and gateway collections.
+struct Layout {
+    name: &'static str,
+    git: bool,
+    /// A configuration file (relative path) with harmless contents.
+    config: Option<&'static str>,
+    /// Project directories; the first holds the library module `m`.
+    projects: &'static [&'static str],
+    /// Collection directories; each holds a tag with the event script.
+    collections: &'static [&'static str],
+}
+
+const LAYOUTS: &[Layout] = &[
+    // Reviewer round 15 B1: a gateway data directory next to `projects/`.
+    Layout {
+        name: "gateway data directory beside projects",
+        git: true,
+        config: None,
+        projects: &["projects/A"],
+        collections: &["gateway/data/config/resources/core"],
+    },
+    // Reviewer round 15 B1, variant.
+    Layout {
+        name: "projects in src, gateway configuration elsewhere",
+        git: true,
+        config: None,
+        projects: &["src/projects/A"],
+        collections: &["gateway/config/resources/core"],
+    },
+    Layout {
+        name: "monorepo with several gateways",
+        git: true,
+        config: None,
+        projects: &["gw1/data/projects/A", "gw2/data/projects/B"],
+        collections: &[
+            "gw1/data/config/resources/core",
+            "gw2/services/gw/config/resources/core",
+        ],
+    },
+    Layout {
+        name: "layout roots at different depths",
+        git: true,
+        config: None,
+        projects: &["ignition/projects/A", "x/y/z/projects/C"],
+        collections: &["deploy/site/services/gw/config/resources/core"],
+    },
+    Layout {
+        name: "configuration file in a subdirectory",
+        git: true,
+        config: Some("ignition/iglint.toml"),
+        projects: &["ignition/projects/A", "other/projects/B"],
+        collections: &["other/gateway/config/resources/core"],
+    },
+    Layout {
+        name: "no Git, configuration at the top",
+        git: false,
+        config: Some("iglint.toml"),
+        projects: &["projects/A"],
+        collections: &["gateway/data/config/resources/core"],
+    },
+];
+
+/// (library module `m`, tag event script, what the root run must show).
+const CONTENTS: &[(&str, &str, &str)] = &[
+    // The tag script keeps `import os` in `m` used.
+    (CLOSED_WORLD_MODULE, "\tprint m.os.sep\n", "no SCR102"),
+    // Code that is not vetted: the import's removal is unsafe.
+    (CLOSED_WORLD_MODULE, "\tprint eval('1')\n", "SCR102 unsafe"),
+    // A library function reads files: every fix is unsafe.
+    (
+        "def f(p):\n    return open(p).read()\n",
+        "\tprint 1  # iglint: ignore[SCR001]\n",
+        "SCR123 unsafe",
+    ),
+];
+
+fn write_layout(layout: &Layout, module: &str, tag_script: &str) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    if layout.git {
+        std::fs::create_dir_all(dir.path().join(".git")).unwrap();
+    }
+    if let Some(config) = layout.config {
+        write(config, "respect-gitignore = true\n");
+    }
+    for (i, project) in layout.projects.iter().enumerate() {
+        write(
+            &format!("{project}/project.json"),
+            r#"{"title": "P", "enabled": true, "inheritable": false}"#,
+        );
+        if i == 0 {
+            write(
+                &format!("{project}/ignition/script-python/m/resource.json"),
+                r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+            );
+            write(
+                &format!("{project}/ignition/script-python/m/code.py"),
+                module,
+            );
+        }
+    }
+    let script = serde_json::to_string(tag_script).unwrap();
+    for core in layout.collections {
+        write(&format!("{core}/config-mode.json"), "{}");
+        write(
+            &format!("{core}/ignition/tag-definition/default/unary-resource.json"),
+            r#"{"scope": "G", "version": 1, "restricted": false, "overridable": true, "files": ["tags.json"], "attributes": {"config": {}}}"#,
+        );
+        write(
+            &format!("{core}/ignition/tag-definition/default/tags.json"),
+            &format!(
+                r#"[{{"name": "T", "tagType": "AtomicTag", "valueSource": "memory", "dataType": "Int4", "eventScripts": [{{"eventid": "valueChanged", "script": {script}}}]}}]"#
+            ),
+        );
+    }
+    dir
+}
+
+/// The findings of a JSON run, one line each, with paths made absolute
+/// (relative ones are relative to `cwd`): file, code, position, message,
+/// fix applicability and the reason with its site.
+fn findings(out: &std::process::Output, cwd: &std::path::Path) -> Vec<String> {
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap_or_else(|_| {
+        panic!(
+            "{}\n{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        )
+    });
+    let absolute = |p: &serde_json::Value| {
+        p.as_str()
+            .map(|p| cwd.join(p).display().to_string())
+            .unwrap_or_default()
+    };
+    let mut found: Vec<String> = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| {
+            let reason = &d["fix"]["unsafe_reason"];
+            format!(
+                "{} {} {}:{}-{}:{} {} | {} | {} {} {}:{}",
+                absolute(&d["filename"]),
+                d["code"].as_str().unwrap_or(""),
+                d["location"]["row"],
+                d["location"]["column"],
+                d["end_location"]["row"],
+                d["end_location"]["column"],
+                d["message"].as_str().unwrap_or(""),
+                d["fix"]["applicability"].as_str().unwrap_or("no fix"),
+                reason["message"].as_str().unwrap_or(""),
+                absolute(&reason["filename"]),
+                reason["location"]["row"],
+                reason["location"]["column"],
+            )
+        })
+        .collect();
+    found.sort();
+    found
+}
+
+/// Every file of the fixture, linted on its own (from the top, from
+/// another directory with an absolute path, and from its own directory),
+/// gives the findings and fix applicabilities the run over the whole
+/// fixture gives for it.
+fn single_file_runs_match_the_root_run(
+    layout: &Layout,
+    (module, tag, expect): &(&str, &str, &str),
+) {
+    let dir = write_layout(layout, module, tag);
+    let top = dir.path();
+    let check = |cwd: &std::path::Path, path: Option<&std::path::Path>| {
+        let mut command = iglint(cwd);
+        command.args(["check", "--no-cache", "--output-format", "json"]);
+        if let Some(path) = path {
+            command.arg(path);
+        }
+        findings(&command.output().unwrap(), cwd)
+    };
+    let all = check(top, None);
+    let shown = format!("{}, {expect}: {all:#?}", layout.name);
+    match *expect {
+        "no SCR102" => assert!(all.iter().all(|f| !f.contains(" SCR102 ")), "{shown}"),
+        "SCR102 unsafe" => assert!(
+            all.iter()
+                .any(|f| f.contains(" SCR102 ") && f.contains("| unsafe | closed world:")),
+            "{shown}"
+        ),
+        _ => assert!(
+            all.iter().any(|f| f.contains(" SCR123 ")
+                && f.contains("| unsafe | code in the workspace may read")),
+            "{shown}"
+        ),
+    }
+    let elsewhere = tempfile::tempdir().unwrap();
+    let mut files = Vec::new();
+    let mut stack = vec![top.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for entry in std::fs::read_dir(&d).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if entry.file_name() != ".git" {
+                    stack.push(path);
+                }
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    for file in &files {
+        let rel = file.strip_prefix(top).unwrap();
+        let expected: Vec<&String> = all
+            .iter()
+            .filter(|f| f.starts_with(&format!("{} ", file.display())))
+            .collect();
+        for (cwd, path) in [
+            (top, rel.to_path_buf()),
+            (elsewhere.path(), file.clone()),
+            (file.parent().unwrap(), file.file_name().unwrap().into()),
+        ] {
+            let got = check(cwd, Some(&path));
+            assert_eq!(
+                got.iter().collect::<Vec<_>>(),
+                expected,
+                "{}, {expect}: {} from {}",
+                layout.name,
+                path.display(),
+                cwd.display()
+            );
+        }
+    }
 }
 
 /// The `eval` variant: a tag script that is not vetted makes the fix
@@ -1481,6 +1726,182 @@ fn closed_world_reasons_do_not_depend_on_what_is_linted() {
         .output()
         .unwrap();
     assert_eq!(scr102_fixes(&out), expected);
+}
+
+/// The SCR102 and SCR123 fixes of a JSON run as (code, applicability,
+/// reason).
+fn fixes_of(out: &std::process::Output) -> Vec<(String, String, String)> {
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout)
+        .unwrap_or_else(|_| panic!("{}", String::from_utf8_lossy(&out.stdout)));
+    v.as_array()
+        .unwrap()
+        .iter()
+        .filter(|d| d["code"] == "SCR102" || d["code"] == "SCR123")
+        .map(|d| {
+            (
+                d["code"].as_str().unwrap().to_owned(),
+                d["fix"]["applicability"].as_str().unwrap_or("").to_owned(),
+                d["fix"]["unsafe_reason"]["message"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// Reviewer round 15 B2: projects and collections named like build or
+/// dependency directories, and linked ones, are linted and are part of
+/// the workspace (they load on the gateway).
+#[cfg(unix)]
+#[test]
+fn unusual_project_and_collection_directories_are_linted() {
+    let dir = closed_world_repository("\tprint 1  # iglint: ignore[SCR001]\n");
+    let root = dir.path();
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    // `projects/A` becomes `projects/target`, and the collection a link.
+    std::fs::rename(root.join("projects/A"), root.join("projects/target")).unwrap();
+    let elsewhere = tempfile::tempdir().unwrap();
+    std::fs::rename(
+        root.join("services/gw/config/resources/core"),
+        elsewhere.path().join("core"),
+    )
+    .unwrap();
+    std::os::unix::fs::symlink(
+        elsewhere.path().join("core"),
+        root.join("services/gw/config/resources/core"),
+    )
+    .unwrap();
+    let out = iglint(root)
+        .args(["check", "--no-cache", "--output-format", "json"])
+        .output()
+        .unwrap();
+    let mut fixes = fixes_of(&out);
+    fixes.sort();
+    assert_eq!(
+        fixes,
+        [
+            ("SCR102".to_owned(), "safe".to_owned(), String::new()),
+            ("SCR123".to_owned(), "safe".to_owned(), String::new()),
+        ],
+        "{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(!text.contains("REF009"), "{text}");
+    // A library function in the linked project that reads files: it is
+    // part of the workspace, so every fix is unsafe, from any file.
+    let linked = tempfile::tempdir().unwrap();
+    std::fs::rename(
+        root.join("projects/target"),
+        linked.path().join("node_modules"),
+    )
+    .unwrap();
+    std::os::unix::fs::symlink(
+        linked.path().join("node_modules"),
+        root.join("projects/node_modules"),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("projects/node_modules/ignition/script-python/m/code.py"),
+        "def f(p):\n    return open(p).read()\n",
+    )
+    .unwrap();
+    let tags = "services/gw/config/resources/core/ignition/tag-definition/default/tags.json";
+    for args in [vec![], vec![tags]] {
+        let out = iglint(root)
+            .args(["check", "--no-cache", "--output-format", "json"])
+            .args(&args)
+            .output()
+            .unwrap();
+        let fixes = fixes_of(&out);
+        assert_eq!(fixes.len(), 1, "{args:?} {fixes:?}");
+        assert_eq!(fixes[0].1, "unsafe", "{args:?} {fixes:?}");
+        assert!(
+            fixes[0].2.starts_with("code in the workspace may read"),
+            "{fixes:?}"
+        );
+    }
+}
+
+/// Reviewer round 15 B2: a directory of the workspace that cannot be
+/// walked (a broken link, a link cycle, no permission to list it) may
+/// hold projects; the closed world is then unknown, never "no code
+/// there", and every fix says which directory.
+#[cfg(unix)]
+#[test]
+fn directories_that_cannot_be_read_make_the_closed_world_unknown() {
+    let fixes = |root: &std::path::Path| {
+        let out = iglint(root)
+            .args(["check", "--no-cache", "--output-format", "json", MODULE])
+            .output()
+            .unwrap();
+        fixes_of(&out)
+    };
+    let dir = closed_world_repository("\tprint 1\n");
+    let root = dir.path();
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    assert_eq!(
+        fixes(root),
+        [("SCR102".to_owned(), "safe".to_owned(), String::new())]
+    );
+    let unknown = |what: &str| {
+        let found = fixes(root);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].1, "unsafe", "{found:?}");
+        assert!(
+            found[0].2.starts_with("closed world unknown: `")
+                && found[0]
+                    .2
+                    .contains("` could hold Ignition resources but was not read (")
+                && found[0].2.contains(what),
+            "{found:?}"
+        );
+    };
+    std::os::unix::fs::symlink(root.join("gone"), root.join("projects/B")).unwrap();
+    unknown("broken symbolic link");
+    std::fs::remove_file(root.join("projects/B")).unwrap();
+    std::os::unix::fs::symlink(root, root.join("tools")).unwrap();
+    unknown("symbolic link cycle");
+    std::fs::remove_file(root.join("tools")).unwrap();
+    let locked = root.join("vendor");
+    std::fs::create_dir_all(&locked).unwrap();
+    std::fs::set_permissions(&locked, std::os::unix::fs::PermissionsExt::from_mode(0o000)).unwrap();
+    if std::fs::read_dir(&locked).is_err() {
+        unknown("cannot read directory");
+    }
+    std::fs::set_permissions(&locked, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    assert_eq!(fixes(root).len(), 1);
+    assert_eq!(fixes(root)[0].1, "safe");
+}
+
+/// Reviewer round 15 B2: a resource file inside a project that the
+/// workspace walk does not reach (below a directory it skips by name) is
+/// not said to be outside every project.
+#[test]
+fn ref009_names_projects_the_walk_did_not_reach() {
+    let dir = closed_world_repository("\tprint 1\n");
+    let root = dir.path();
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    let hidden = root.join("node_modules/pkg/projects/P/ignition/script-python/n");
+    std::fs::create_dir_all(&hidden).unwrap();
+    std::fs::write(root.join("node_modules/pkg/projects/P/project.json"), "{}").unwrap();
+    std::fs::write(
+        hidden.join("resource.json"),
+        r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+    )
+    .unwrap();
+    let out = iglint(root)
+        .args(["check", "--no-cache", "--select", "REF009"])
+        .arg(hidden.join("resource.json"))
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.contains("is inside `") && text.contains("but the workspace walk did not reach it"),
+        "{text}"
+    );
+    assert!(!text.contains("is not inside a project"), "{text}");
 }
 
 /// With no workspace root around the file (a project directory on its

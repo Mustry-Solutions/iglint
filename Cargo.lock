@@ -664,6 +664,7 @@ dependencies = [
  "rustc-hash",
  "self_cell",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

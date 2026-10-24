@@ -121,6 +121,13 @@ pub(crate) fn workspace_reason(cx: &Checker<'_, '_>) -> UnsafeReason {
             workspace: false,
         };
     }
+    if let Some(unread) = cx.index().and_then(|index| index.unread_directory()) {
+        return UnsafeReason {
+            message: unread_reason("closed world unknown", unread),
+            site: None,
+            workspace: false,
+        };
+    }
     UnsafeReason {
         message: "closed world: code in the workspace is not vetted, reads frames or reaches \
                   other views, first"
@@ -135,6 +142,20 @@ pub(crate) fn workspace_reason(cx: &Checker<'_, '_>) -> UnsafeReason {
 pub(crate) const CLOSED_WORLD_UNKNOWN: &str = "closed world unknown: no workspace root (a \
      configuration file, a `projects/` or `config/resources/` layout, a Git work tree or the \
      working directory) contains the file, so code elsewhere on its gateway is not known";
+
+/// Why a fix is unsafe because a directory of the workspace was not read
+/// (`iglint_project::workspace::Workspace::unread`), after `what`.
+pub(crate) fn unread_reason(
+    what: &str,
+    unread: &iglint_project::workspace::WorkspaceProblem,
+) -> String {
+    format!(
+        "{what}: `{}` could hold Ignition resources but was not read ({}), so code there is not \
+         known",
+        crate::discovery::slash_path(&unread.path),
+        unread.message
+    )
+}
 
 /// Why a fix of the unit is unsafe because of code that is not vetted:
 /// the unit's own first script that uses some, else the closed-world
@@ -299,16 +320,17 @@ pub(crate) fn gate_file_reads(
             what: site.what.clone(),
         })
     });
+    let unread = index.unread_directory().filter(|_| site.is_none());
     for d in diagnostics {
         if let Some(fix) = d.fix.as_mut()
             && fix.applicability == Applicability::Safe
         {
             fix.applicability = Applicability::Unsafe;
             fix.unsafe_reason = Some(UnsafeReason {
-                message: if site.is_some() {
-                    format!("{FILE_READ_REASON}, first")
-                } else {
-                    FILE_READ_REASON.to_owned()
+                message: match unread {
+                    Some(unread) => unread_reason(FILE_READ_REASON, unread),
+                    None if site.is_some() => format!("{FILE_READ_REASON}, first"),
+                    None => FILE_READ_REASON.to_owned(),
                 },
                 site: site.clone(),
                 workspace: true,

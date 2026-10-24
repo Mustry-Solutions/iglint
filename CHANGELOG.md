@@ -97,6 +97,23 @@ from 0.1.0 on.
 
 ### Fixed
 
+- The workspace root no longer depends on what is linted (review round
+  15): it is the outermost of the configuration directory, every Ignition
+  layout root around the path (up to the Git work tree) and the Git work
+  tree when a project or collection lies anywhere below it. Linting a tag
+  file in `gateway/data/config/resources/` next to `projects/`, or
+  `src/projects/A` next to `gateway/config/resources/`, now sees the
+  projects too, so its fixes are as safe as in a run over the repository.
+- Projects and collections named `target`, `node_modules` or
+  `__pycache__`, and linked ones (also outside the repository), are
+  discovered, linted and part of the closed world; before they were
+  skipped, reported by REF009 file by file, or left nothing to lint
+  (review round 15).
+- A workspace directory that cannot be read (permissions, a broken
+  symbolic link, a link cycle) makes the closed world unknown: safe fixes
+  become unsafe with a reason that names the directory. REF009 says when
+  a resource file lies in a project the workspace walk did not reach,
+  instead of calling it outside every project.
 - SCR307, SCR105, SCR112 and the library constants of the closed world
   treat `True`, `False` and `None` as constants only where they read
   Jython's builtins: all three are names a module can rebind (`True =

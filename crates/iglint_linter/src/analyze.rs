@@ -1511,6 +1511,12 @@ fn layout_hash(ws: &Workspace, table: &FileTable) -> u64 {
             }
         }
     }
+    // Directories that were not read decide the closed world (their
+    // reasons name them).
+    for unread in &ws.unread {
+        hasher.write(unread.path.as_os_str().as_encoded_bytes());
+        hasher.write(unread.message.as_bytes());
+    }
     hasher.finish()
 }
 

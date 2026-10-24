@@ -232,7 +232,18 @@ pub struct Workspace {
     pub resources: Vec<Resource>,
     pub files: Vec<FileEntry>,
     pub problems: Vec<WorkspaceProblem>,
+    /// Directories that could hold Ignition resources but were not read: a
+    /// directory that cannot be listed (permissions), a broken symbolic
+    /// link, a symbolic link back to a directory it is in (a cycle, cut
+    /// there), or a walk over [`WALK_LIMIT`] directories. What they hold
+    /// is unknown, never absent: the closed world is unknown while any
+    /// exists. Sorted by path.
+    pub unread: Vec<WorkspaceProblem>,
 }
+
+/// The most directories a walk for projects and collections visits
+/// outside them (see [`Workspace::unread`] when it is reached).
+pub const WALK_LIMIT: usize = 200_000;
 
 /// One resource directory found during the walk, before its manifest is
 /// read.
@@ -259,6 +270,7 @@ struct ScannedContainer {
     /// Files not inside a resource: (rel path, path, kind).
     other_files: Vec<(String, PathBuf, FileKind)>,
     problems: Vec<WorkspaceProblem>,
+    unread: Vec<WorkspaceProblem>,
 }
 
 impl Workspace {
@@ -272,7 +284,7 @@ impl Workspace {
 
     /// Like [`Workspace::discover`] with explicit options.
     pub fn discover_with<P: AsRef<Path>>(roots: &[P], options: DiscoveryOptions) -> Workspace {
-        let mut problems = Vec::new();
+        let mut unread = Vec::new();
         let mut containers: Vec<(PathBuf, bool, bool)> = Vec::new();
         for root in roots {
             let root = root.as_ref();
@@ -280,7 +292,13 @@ impl Workspace {
             if let Some((dir, is_project)) = enclosing_container(&root) {
                 containers.push((dir, is_project, false));
             } else {
-                find_containers(&root, &mut containers, &mut problems);
+                let mut walk = ContainerWalk {
+                    out: &mut containers,
+                    unread: &mut unread,
+                    budget: WALK_LIMIT,
+                    first_only: false,
+                };
+                walk.root(&root);
             }
         }
         containers.sort();
@@ -296,10 +314,12 @@ impl Workspace {
             .collect();
 
         let mut ws = Workspace {
-            problems,
+            unread,
             ..Workspace::default()
         };
         ws.assemble(scanned);
+        ws.unread.sort_by(|a, b| a.path.cmp(&b.path));
+        ws.unread.dedup();
         ws.resolve_parents();
         ws.compute_inheritance();
         ws
@@ -362,6 +382,7 @@ impl Workspace {
                 scanned,
             } = p;
             self.problems.extend(scanned.problems);
+            self.unread.extend(scanned.unread);
             let (manifest_path, manifest_doc) = manifest.expect("container manifest");
             let manifest_file = self.push_file(
                 manifest_path,
@@ -890,41 +911,177 @@ fn enclosing_container(path: &Path) -> Option<(PathBuf, bool)> {
     None
 }
 
-/// Walks down from `dir` collecting container directories.
-fn find_containers(
-    dir: &Path,
-    out: &mut Vec<(PathBuf, bool, bool)>,
-    problems: &mut Vec<WorkspaceProblem>,
-) {
-    let entries = match std::fs::read_dir(dir) {
-        Ok(e) => e,
-        Err(e) => {
-            problems.push(WorkspaceProblem {
-                path: dir.to_path_buf(),
+/// Whether `dir`, or a directory below it, holds a project or a gateway
+/// configuration collection that [`Workspace::discover`] would find:
+/// `Some(true)` or `Some(false)`, or `None` when the walk stopped at
+/// [`WALK_LIMIT`] directories without finding one.
+pub fn holds_container(dir: &Path) -> Option<bool> {
+    let mut out = Vec::new();
+    let mut unread = Vec::new();
+    let mut walk = ContainerWalk {
+        out: &mut out,
+        unread: &mut unread,
+        budget: WALK_LIMIT,
+        first_only: true,
+    };
+    walk.root(dir);
+    let exhausted = walk.budget == 0;
+    if !out.is_empty() {
+        Some(true)
+    } else if exhausted {
+        None
+    } else {
+        Some(false)
+    }
+}
+
+/// Directories skipped by name while looking for projects and
+/// collections, unless they hold a `project.json` or `config-mode.json`
+/// themselves (a project named `target` loads on the gateway): build
+/// outputs, dependencies and caches, and hidden directories (`.git`).
+fn skipped_by_name(name: &std::ffi::OsStr) -> bool {
+    is_hidden(name) || name == "node_modules" || name == "target" || name == "__pycache__"
+}
+
+/// The walk down from a root collecting container directories. Symbolic
+/// links to directories are followed (also outside the root), with the
+/// path through the link, so that a linked project is found where the
+/// gateway finds it; a link that leads back to a directory the walk is in
+/// is a cycle and cut there. Every directory that could hold a container
+/// but is not read is recorded in `unread`.
+struct ContainerWalk<'o> {
+    out: &'o mut Vec<(PathBuf, bool, bool)>,
+    unread: &'o mut Vec<WorkspaceProblem>,
+    /// Directories the walk may still visit.
+    budget: usize,
+    /// Stop at the first container found.
+    first_only: bool,
+}
+
+impl ContainerWalk<'_> {
+    fn root(&mut self, root: &Path) {
+        match std::fs::canonicalize(root) {
+            Ok(real) => {
+                let mut ancestors = vec![real];
+                self.dir(root, &mut ancestors);
+            }
+            Err(e) => self.unread.push(WorkspaceProblem {
+                path: root.to_path_buf(),
                 message: format!("cannot read directory: {e}"),
+            }),
+        }
+    }
+
+    fn done(&self) -> bool {
+        self.budget == 0 || (self.first_only && !self.out.is_empty())
+    }
+
+    /// Walks `dir`, whose real path is the last of `ancestors` (the real
+    /// paths of the directories the walk is in).
+    fn dir(&mut self, dir: &Path, ancestors: &mut Vec<PathBuf>) {
+        if self.done() {
+            return;
+        }
+        if self.budget == 1 {
+            self.budget = 0;
+            self.unread.push(WorkspaceProblem {
+                path: dir.to_path_buf(),
+                message: format!(
+                    "the walk for projects and collections stopped after {WALK_LIMIT} directories"
+                ),
             });
             return;
         }
-    };
-    let mut subdirs = Vec::new();
-    for entry in entries.flatten() {
-        let name = entry.file_name();
-        if is_hidden(&name) || name == "node_modules" || name == "target" {
-            continue;
+        self.budget -= 1;
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(e) => {
+                self.unread.push(WorkspaceProblem {
+                    path: dir.to_path_buf(),
+                    message: format!("cannot read directory: {e}"),
+                });
+                return;
+            }
+        };
+        let mut subdirs = Vec::new();
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(e) => {
+                    self.unread.push(WorkspaceProblem {
+                        path: dir.to_path_buf(),
+                        message: format!("cannot read directory: {e}"),
+                    });
+                    continue;
+                }
+            };
+            let name = entry.file_name();
+            let path = entry.path();
+            match subdirectory(&entry, &path, ancestors) {
+                Subdirectory::No => {}
+                Subdirectory::Yes(real) => subdirs.push((path, name, real)),
+                Subdirectory::Unread(message) => {
+                    if !is_hidden(&name) {
+                        self.unread.push(WorkspaceProblem { path, message });
+                    }
+                }
+            }
         }
-        if entry.file_type().is_ok_and(|t| t.is_dir()) {
-            subdirs.push(entry.path());
+        subdirs.sort();
+        for (sub, name, real) in subdirs {
+            if self.done() {
+                return;
+            }
+            if sub.join(PROJECT_MANIFEST).is_file() {
+                self.out.push((sub, true, false));
+            } else if sub.join(COLLECTION_MANIFEST).is_file() {
+                self.out.push((sub, false, false));
+            } else if !skipped_by_name(&name) {
+                ancestors.push(real);
+                self.dir(&sub, ancestors);
+                ancestors.pop();
+            }
         }
     }
-    subdirs.sort();
-    for sub in subdirs {
-        if sub.join(PROJECT_MANIFEST).is_file() {
-            out.push((sub, true, false));
-        } else if sub.join(COLLECTION_MANIFEST).is_file() {
-            out.push((sub, false, false));
-        } else {
-            find_containers(&sub, out, problems);
+}
+
+/// What a directory entry is for a walk: not a directory, a directory with
+/// its real path, or a directory (or a link that may be one) that cannot
+/// be walked, and why.
+enum Subdirectory {
+    No,
+    Yes(PathBuf),
+    Unread(String),
+}
+
+/// Classifies `entry` (at `path`) of the directory whose real path is the
+/// last of `ancestors`. A symbolic link is followed: to a file it is not a
+/// directory; broken, or to a directory the walk is in (or one that holds
+/// it), it cannot be walked.
+fn subdirectory(entry: &std::fs::DirEntry, path: &Path, ancestors: &[PathBuf]) -> Subdirectory {
+    let Ok(file_type) = entry.file_type() else {
+        return Subdirectory::Unread("cannot read the directory entry".to_owned());
+    };
+    if !file_type.is_symlink() {
+        if !file_type.is_dir() {
+            return Subdirectory::No;
         }
+        let parent = ancestors.last().map_or_else(PathBuf::new, PathBuf::clone);
+        return Subdirectory::Yes(parent.join(entry.file_name()));
+    }
+    match std::fs::metadata(path) {
+        Ok(meta) if !meta.is_dir() => Subdirectory::No,
+        Ok(_) => match std::fs::canonicalize(path) {
+            Ok(real) if ancestors.iter().any(|a| a.starts_with(&real)) => {
+                Subdirectory::Unread(format!(
+                    "symbolic link cycle: the link leads back to `{}`, which holds it",
+                    real.display()
+                ))
+            }
+            Ok(real) => Subdirectory::Yes(real),
+            Err(e) => Subdirectory::Unread(format!("cannot resolve symbolic link: {e}")),
+        },
+        Err(e) => Subdirectory::Unread(format!("broken symbolic link: {e}")),
     }
 }
 
@@ -968,27 +1125,49 @@ fn scan_container(dir: PathBuf, is_project: bool, context_only: bool) -> Scanned
         resources: Vec::new(),
         other_files: Vec::new(),
         problems: Vec::new(),
+        unread: Vec::new(),
     };
     let manifest_name = if is_project {
         PROJECT_MANIFEST
     } else {
         COLLECTION_MANIFEST
     };
-    let (files, modules) = list_dir(&dir, &mut sc.problems);
+    let mut ancestors = match std::fs::canonicalize(&dir) {
+        Ok(real) => vec![real],
+        Err(e) => {
+            sc.unread.push(WorkspaceProblem {
+                path: dir,
+                message: format!("cannot read directory: {e}"),
+            });
+            return sc;
+        }
+    };
+    let (files, modules) = list_dir(&dir, &ancestors, &mut sc.unread);
     for (name, path) in files {
         if name != manifest_name {
             sc.other_files.push((name, path, FileKind::Stray));
         }
     }
-    for (module, module_dir) in modules {
-        let (files, types) = list_dir(&module_dir, &mut sc.problems);
+    for (module, module_dir, real) in modules {
+        ancestors.push(real);
+        let (files, types) = list_dir(&module_dir, &ancestors, &mut sc.unread);
         for (name, path) in files {
             sc.other_files
                 .push((format!("{module}/{name}"), path, FileKind::Stray));
         }
-        for (type_id, type_dir) in types {
-            scan_resource_tree(&mut sc, &module, &type_id, &type_dir, String::new());
+        for (type_id, type_dir, real) in types {
+            ancestors.push(real);
+            scan_resource_tree(
+                &mut sc,
+                &module,
+                &type_id,
+                &type_dir,
+                String::new(),
+                &mut ancestors,
+            );
+            ancestors.pop();
         }
+        ancestors.pop();
     }
     sc
 }
@@ -999,8 +1178,9 @@ fn scan_resource_tree(
     type_id: &str,
     dir: &Path,
     path: String,
+    ancestors: &mut Vec<PathBuf>,
 ) {
-    let (files, subdirs) = list_dir(dir, &mut sc.problems);
+    let (files, subdirs) = list_dir(dir, ancestors, &mut sc.unread);
     let manifest = if files.iter().any(|(n, _)| n == RESOURCE_MANIFEST) {
         Some(RESOURCE_MANIFEST)
     } else if files.iter().any(|(n, _)| n == UNARY_MANIFEST) {
@@ -1038,44 +1218,57 @@ fn scan_resource_tree(
             }
         }
     }
-    for (name, sub) in subdirs {
+    for (name, sub, real) in subdirs {
         let child = if path.is_empty() {
             name
         } else {
             format!("{path}/{name}")
         };
-        scan_resource_tree(sc, module_id, type_id, &sub, child);
+        ancestors.push(real);
+        scan_resource_tree(sc, module_id, type_id, &sub, child, ancestors);
+        ancestors.pop();
     }
 }
 
-type DirListing = (Vec<(String, PathBuf)>, Vec<(String, PathBuf)>);
+type DirListing = (Vec<(String, PathBuf)>, Vec<(String, PathBuf, PathBuf)>);
 
-/// Files and subdirectories of `dir` (hidden entries skipped), sorted by name.
-fn list_dir(dir: &Path, problems: &mut Vec<WorkspaceProblem>) -> DirListing {
+/// Files and subdirectories (with their real paths) of `dir`, whose real
+/// path is the last of `ancestors`, sorted by name. Hidden entries are
+/// skipped. Symbolic links are followed; a directory that cannot be read,
+/// a broken link and a link back to a directory the walk is in are
+/// recorded in `unread` (see [`subdirectory`]).
+fn list_dir(dir: &Path, ancestors: &[PathBuf], unread: &mut Vec<WorkspaceProblem>) -> DirListing {
     let mut files = Vec::new();
     let mut dirs = Vec::new();
     match std::fs::read_dir(dir) {
         Ok(entries) => {
-            for entry in entries.flatten() {
+            for entry in entries {
+                let entry = match entry {
+                    Ok(entry) => entry,
+                    Err(e) => {
+                        unread.push(WorkspaceProblem {
+                            path: dir.to_path_buf(),
+                            message: format!("cannot read directory: {e}"),
+                        });
+                        continue;
+                    }
+                };
                 let name = entry.file_name();
                 if is_hidden(&name) {
                     continue;
                 }
                 let name = name.to_string_lossy().into_owned();
                 let path = entry.path();
-                let is_dir = match entry.file_type() {
-                    Ok(t) if t.is_symlink() => path.is_dir(),
-                    Ok(t) => t.is_dir(),
-                    Err(_) => false,
-                };
-                if is_dir {
-                    dirs.push((name, path));
-                } else {
-                    files.push((name, path));
+                match subdirectory(&entry, &path, ancestors) {
+                    Subdirectory::No => files.push((name, path)),
+                    Subdirectory::Yes(real) => dirs.push((name, path, real)),
+                    Subdirectory::Unread(message) => {
+                        unread.push(WorkspaceProblem { path, message })
+                    }
                 }
             }
         }
-        Err(e) => problems.push(WorkspaceProblem {
+        Err(e) => unread.push(WorkspaceProblem {
             path: dir.to_path_buf(),
             message: format!("cannot read directory: {e}"),
         }),
@@ -1083,4 +1276,214 @@ fn list_dir(dir: &Path, problems: &mut Vec<WorkspaceProblem>) -> DirListing {
     files.sort();
     dirs.sort();
     (files, dirs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write(root: &Path, rel: &str, text: &str) {
+        let path = root.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    }
+
+    fn project(root: &Path, rel: &str) {
+        write(root, &format!("{rel}/project.json"), r#"{"title": "p"}"#);
+        write(
+            root,
+            &format!("{rel}/ignition/script-python/m/resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        );
+        write(
+            root,
+            &format!("{rel}/ignition/script-python/m/code.py"),
+            "x = 1\n",
+        );
+    }
+
+    fn names(ws: &Workspace) -> Vec<String> {
+        let mut out: Vec<String> = ws
+            .projects
+            .iter()
+            .map(|p| format!("project {}", p.name))
+            .chain(
+                ws.collections
+                    .iter()
+                    .map(|c| format!("collection {}", c.name)),
+            )
+            .collect();
+        out.sort();
+        out
+    }
+
+    fn unread(ws: &Workspace) -> Vec<(String, String)> {
+        ws.unread
+            .iter()
+            .map(|u| {
+                (
+                    u.path.file_name().unwrap().to_string_lossy().into_owned(),
+                    u.message.clone(),
+                )
+            })
+            .collect()
+    }
+
+    /// Reviewer round 15 B2: a project or collection named like a build
+    /// or dependency directory loads on the gateway, so it is found; the
+    /// names are skipped only for directories that are neither.
+    #[test]
+    fn containers_are_found_whatever_their_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        project(root, "projects/target");
+        project(root, "projects/node_modules");
+        project(root, "projects/__pycache__");
+        write(
+            root,
+            "services/gw/config/resources/target/config-mode.json",
+            "{}",
+        );
+        // Below a skipped directory that is not a container: not loaded.
+        project(root, "node_modules/pkg/projects/X");
+        project(root, "target/debug/projects/Y");
+        project(root, ".git/projects/Z");
+        let ws = Workspace::discover(&[root]);
+        assert_eq!(
+            names(&ws),
+            [
+                "collection target",
+                "project __pycache__",
+                "project node_modules",
+                "project target",
+            ]
+        );
+        assert!(ws.unread.is_empty(), "{:?}", ws.unread);
+        assert_eq!(holds_container(root), Some(true));
+        let empty = tempfile::tempdir().unwrap();
+        project(empty.path(), "node_modules/pkg/projects/X");
+        assert_eq!(holds_container(empty.path()), Some(false));
+    }
+
+    /// Reviewer round 15 B2: symbolic links to projects and collections,
+    /// also outside the walked tree, are followed, and the project is
+    /// found at the path through the link, with its resources.
+    #[cfg(unix)]
+    #[test]
+    fn symbolic_links_are_followed() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("repo");
+        let elsewhere = dir.path().join("elsewhere");
+        project(&elsewhere, "A");
+        write(&elsewhere, "core/config-mode.json", "{}");
+        write(
+            &elsewhere,
+            "core/ignition/tag-definition/default/tags.json",
+            "[]",
+        );
+        project(&elsewhere, "lib/ignition/script-python/shared");
+        std::fs::create_dir_all(root.join("projects")).unwrap();
+        std::fs::create_dir_all(root.join("config/resources")).unwrap();
+        std::os::unix::fs::symlink(elsewhere.join("A"), root.join("projects/A")).unwrap();
+        std::os::unix::fs::symlink(elsewhere.join("core"), root.join("config/resources/core"))
+            .unwrap();
+        let ws = Workspace::discover(&[&root]);
+        assert_eq!(names(&ws), ["collection core", "project A"]);
+        assert!(ws.unread.is_empty(), "{:?}", ws.unread);
+        let a = ws.project_by_name("A").unwrap();
+        assert_eq!(a.dir, root.join("projects/A"));
+        assert!(
+            ws.files
+                .iter()
+                .any(|f| f.path == root.join("projects/A/ignition/script-python/m/code.py")),
+        );
+        assert!(
+            ws.resources.iter().any(
+                |r| r.dir == root.join("config/resources/core/ignition/tag-definition/default")
+            )
+        );
+        // A linked resource directory inside a project.
+        std::os::unix::fs::symlink(
+            elsewhere.join("lib/ignition/script-python/shared/ignition/script-python/m"),
+            elsewhere.join("A/ignition/script-python/linked"),
+        )
+        .unwrap();
+        let ws = Workspace::discover(&[&root]);
+        assert!(
+            ws.resources
+                .iter()
+                .any(|r| &*r.path == "linked" && r.dir.starts_with(root.join("projects/A"))),
+            "{:?}",
+            ws.resources.iter().map(|r| &r.path).collect::<Vec<_>>()
+        );
+    }
+
+    /// Reviewer round 15 B2: what cannot be walked is recorded as not
+    /// read (and so makes the closed world unknown), never as absent: a
+    /// broken link, a link cycle (cut, the walk ends), a directory that
+    /// cannot be listed.
+    #[cfg(unix)]
+    #[test]
+    fn what_cannot_be_walked_is_unread() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        project(root, "projects/A");
+        std::os::unix::fs::symlink(root.join("gone"), root.join("projects/B")).unwrap();
+        let ws = Workspace::discover(&[root]);
+        assert_eq!(names(&ws), ["project A"]);
+        let found = unread(&ws);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].0, "B");
+        assert!(found[0].1.starts_with("broken symbolic link"), "{found:?}");
+        std::fs::remove_file(root.join("projects/B")).unwrap();
+
+        // Cycles, outside and inside a project.
+        std::os::unix::fs::symlink(root, root.join("projects/loop")).unwrap();
+        std::os::unix::fs::symlink(
+            root.join("projects/A/ignition"),
+            root.join("projects/A/ignition/script-python/m/back"),
+        )
+        .unwrap();
+        let ws = Workspace::discover(&[root]);
+        assert_eq!(names(&ws), ["project A"]);
+        let found = unread(&ws);
+        assert_eq!(
+            found.iter().map(|f| f.0.as_str()).collect::<Vec<_>>(),
+            ["back", "loop"],
+            "{found:?}"
+        );
+        assert!(found.iter().all(|f| f.1.starts_with("symbolic link cycle")));
+        std::fs::remove_file(root.join("projects/loop")).unwrap();
+        std::fs::remove_file(root.join("projects/A/ignition/script-python/m/back")).unwrap();
+
+        // A directory that cannot be listed (skipped when running as
+        // root, which reads it anyway).
+        std::fs::create_dir_all(root.join("locked/projects")).unwrap();
+        let locked = root.join("locked");
+        std::fs::set_permissions(&locked, std::os::unix::fs::PermissionsExt::from_mode(0o000))
+            .unwrap();
+        let readable = std::fs::read_dir(&locked).is_ok();
+        let ws = Workspace::discover(&[root]);
+        let found = unread(&ws);
+        std::fs::set_permissions(&locked, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+            .unwrap();
+        if !readable {
+            assert_eq!(found.len(), 1, "{found:?}");
+            assert_eq!(found[0].0, "locked");
+            assert!(found[0].1.starts_with("cannot read directory"), "{found:?}");
+        }
+        // Inside a project too.
+        let module = root.join("projects/A/ignition/script-python/m");
+        std::fs::set_permissions(&module, std::os::unix::fs::PermissionsExt::from_mode(0o000))
+            .unwrap();
+        let readable = std::fs::read_dir(&module).is_ok();
+        let ws = Workspace::discover(&[root]);
+        let found = unread(&ws);
+        std::fs::set_permissions(&module, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+            .unwrap();
+        if !readable {
+            assert_eq!(found.len(), 1, "{found:?}");
+            assert_eq!(found[0].0, "m");
+        }
+    }
 }

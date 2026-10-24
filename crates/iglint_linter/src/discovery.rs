@@ -266,6 +266,9 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
             .ignore(settings.respect_gitignore)
             .parents(settings.respect_gitignore)
             .require_git(false)
+            // A linked project or collection is linted where the gateway
+            // finds it, like the workspace walk (`Workspace::discover`).
+            .follow_links(true)
             .sort_by_file_name(|a, b| a.cmp(b));
         // Prune excluded directories early instead of filtering their files.
         let dir_skip = Arc::clone(&skip);
@@ -277,6 +280,10 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
         for entry in builder.build() {
             let entry = match entry {
                 Ok(entry) => entry,
+                // A link cycle or a broken link: nothing to lint there. The
+                // workspace walk records the directory as not read, which
+                // makes the closed world unknown.
+                Err(error) if link_problem(&error) => continue,
                 Err(error) => {
                     discovery.errors.push((path.clone(), error.to_string()));
                     continue;
@@ -315,6 +322,25 @@ pub fn discover(settings: &ProjectSettings, paths: &[PathBuf]) -> Discovery {
     discovery
 }
 
+/// Whether a walk error is a symbolic link cycle or a broken symbolic
+/// link.
+fn link_problem(error: &ignore::Error) -> bool {
+    match error {
+        ignore::Error::Loop { .. } => true,
+        ignore::Error::WithPath { path, err } => {
+            (path
+                .symlink_metadata()
+                .is_ok_and(|m| m.file_type().is_symlink())
+                && !path.exists())
+                || link_problem(err)
+        }
+        ignore::Error::WithDepth { err, .. } | ignore::Error::WithLineNumber { err, .. } => {
+            link_problem(err)
+        }
+        _ => false,
+    }
+}
+
 /// Where the workspace of a run is: the directories whose projects and
 /// gateway collections form the closed world (see `docs/internal/fix-safety.md`,
 /// "Closed world"), and the linted paths around which none was found.
@@ -334,35 +360,47 @@ pub struct WorkspaceRoots {
 /// collection below a root is analysed, whatever subset of files is
 /// linted, so that linting one file (pre-commit, an editor, `cd
 /// projects/A`) sees the same closed world and the same uses of library
-/// names as linting the whole repository. The root of a path is, in this
-/// order:
+/// names as linting the whole repository.
 ///
-/// 1. the outermost of the configuration file's directory (when a
-///    configuration file was found) and the directory that holds the
-///    Ignition layout around the path: `<root>/projects/<project>`,
-///    `<root>/config/resources/<collection>` (a gateway data directory,
-///    widened to its parent when that holds `projects/` too) and
-///    `<root>/services/<gateway>/config/resources/<collection>`;
-/// 2. the Git work tree that contains the path;
-/// 3. without a configuration file, the working directory, when it
-///    contains the path.
+/// The root of a path is the outermost of these candidates, each counted
+/// when it contains the path and is not inside (or equal to) a project or
+/// gateway collection (the rest of the gateway lies outside it):
 ///
-/// The Git work tree and the working directory count only when they hold
-/// a project or a gateway collection directly, or a `projects/`,
-/// `services/` or `config/resources/` directory: a run from `/` or a home
-/// directory does not walk it, and a repository that is not an Ignition
-/// workspace (a tool's own test fixtures) does not become one.
+/// 1. the configuration file's directory, when a configuration file was
+///    found;
+/// 2. every Ignition layout root around the path: the directory that
+///    holds the layout around the enclosing project or collection
+///    (`<root>/projects/<project>`, `<root>/config/resources/<collection>`,
+///    widened to its parent when that holds `projects/` too, and
+///    `<root>/services/<gateway>/config/resources/<collection>`), and every
+///    ancestor of the path that holds such a layout itself (a project in
+///    its `projects/`, a collection in its `config/resources/` or in
+///    `services/<gateway>/config/resources/`). The ancestors searched end
+///    at the top of the Git work tree that contains the path; outside a
+///    Git work tree, at the outermost of the configuration file's
+///    directory and the working directory that contain the path (only the
+///    layout around the enclosing container counts when neither does);
+/// 3. the top of the Git work tree that contains the path, when any
+///    project or collection lies anywhere below it
+///    ([`iglint_project::workspace::holds_container`], searched once per
+///    work tree; a search that reaches its directory limit counts as
+///    holding one, and the walk of the workspace then marks the closed
+///    world unknown at the same limit).
 ///
-/// A candidate inside (or equal to) a project or a gateway collection is
-/// not a root: the rest of the gateway lies outside it. Exclusions and
-/// `.gitignore` do not apply to the workspace: an excluded resource still
-/// runs on the gateway, so it still counts for the closed world and for
-/// the uses of library names. The roots configured with `projects` and
-/// `gateways` are added. A directory outside every project and collection
-/// is its own root when nothing above it is one. Any other path with no
-/// root is returned in
-/// [`WorkspaceRoots::unknown`], with its enclosing container (or itself)
-/// as the root, so that the run still has the context it had before.
+/// Without any candidate and without a configuration file, the working
+/// directory is the root when it contains the path and holds a project or
+/// a collection directly, or a `projects/`, `services/` or
+/// `config/resources/` directory: a run from `/` or a home directory does
+/// not walk it.
+///
+/// Exclusions and `.gitignore` do not apply to the workspace: an excluded
+/// resource still runs on the gateway, so it still counts for the closed
+/// world and for the uses of library names. The roots configured with
+/// `projects` and `gateways` are added. A directory outside every project
+/// and collection is its own root when nothing above it is one. Any other
+/// path with no root is returned in [`WorkspaceRoots::unknown`], with its
+/// enclosing container (or itself) as the root, so that the run still has
+/// the context it had before.
 pub fn workspace_roots(settings: &ProjectSettings, paths: &[PathBuf]) -> WorkspaceRoots {
     let base = if settings.root.as_os_str().is_empty() {
         None
@@ -376,6 +414,8 @@ pub fn workspace_roots(settings: &ProjectSettings, paths: &[PathBuf]) -> Workspa
     };
     let mut out = WorkspaceRoots::default();
     let mut roots: Vec<PathBuf> = Vec::new();
+    // Git work tree -> whether a project or collection lies below it.
+    let mut git_holds: HashMap<PathBuf, bool> = HashMap::new();
     for path in paths {
         let path = absolute(path);
         let container = enclosing_container(&path);
@@ -384,16 +424,42 @@ pub fn workspace_roots(settings: &ProjectSettings, paths: &[PathBuf]) -> Workspa
                 && container.as_ref().is_none_or(|c| !dir.starts_with(c))
                 && !is_container(dir)
         };
-        let layout = container.as_deref().and_then(layout_root);
-        let first = [
-            configured.clone().filter(|d| usable(d)),
-            layout.filter(|d| usable(d)),
-        ]
-        .into_iter()
-        .flatten()
-        .min_by_key(|d| d.components().count());
-        let root = first
-            .or_else(|| git_work_tree(&path).filter(|d| usable(d) && holds_ignition_layout(d)))
+        let git = git_work_tree(&path);
+        let mut candidates: Vec<PathBuf> = Vec::new();
+        candidates.extend(configured.clone().filter(|d| usable(d)));
+        candidates.extend(
+            container
+                .as_deref()
+                .and_then(layout_root)
+                .filter(|d| usable(d)),
+        );
+        // Where the search for layout roots among the ancestors ends.
+        let top = git.clone().or_else(|| {
+            [configured.as_ref(), cwd.as_ref()]
+                .into_iter()
+                .flatten()
+                .filter(|d| path.starts_with(d))
+                .min_by_key(|d| d.components().count())
+                .cloned()
+        });
+        if let Some(top) = &top {
+            for ancestor in path.ancestors().take_while(|a| a.starts_with(top)) {
+                if usable(ancestor) && holds_layout_with_container(ancestor) {
+                    candidates.push(ancestor.to_path_buf());
+                }
+            }
+        }
+        if let Some(git) = git.filter(|d| usable(d)) {
+            let holds = *git_holds
+                .entry(git.clone())
+                .or_insert_with(|| iglint_project::workspace::holds_container(&git) != Some(false));
+            if holds {
+                candidates.push(git);
+            }
+        }
+        let root = candidates
+            .into_iter()
+            .min_by_key(|d| d.components().count())
             .or_else(|| {
                 cwd.clone()
                     .filter(|d| usable(d) && holds_ignition_layout(d))
@@ -423,6 +489,22 @@ pub fn workspace_roots(settings: &ProjectSettings, paths: &[PathBuf]) -> Workspa
     }
     out.roots = kept;
     out
+}
+
+/// Whether `dir` holds an Ignition layout with a container in it: a
+/// project in `projects/`, or a collection in `config/resources/` or in
+/// `services/<gateway>/config/resources/`.
+fn holds_layout_with_container(dir: &Path) -> bool {
+    let any_child = |d: &Path, test: &dyn Fn(&Path) -> bool| {
+        std::fs::read_dir(d).is_ok_and(|entries| entries.flatten().any(|e| test(&e.path())))
+    };
+    let project = |p: &Path| p.join("project.json").is_file();
+    let collection = |c: &Path| c.join("config-mode.json").is_file();
+    any_child(&dir.join("projects"), &project)
+        || any_child(&dir.join("config/resources"), &collection)
+        || any_child(&dir.join("services"), &|g: &Path| {
+            any_child(&g.join("config/resources"), &collection)
+        })
 }
 
 /// The project or gateway collection directory that `path` is in (or is).

@@ -471,24 +471,74 @@ collection below the workspace root of each linted path
 (`iglint_linter::discovery::workspace_roots`), and reports and fixes only
 the linted files. A gateway tag script that uses `m.os` keeps `import os`
 in `m` used, and a tag script that is not vetted makes the fix unsafe,
-whichever file is linted. The root of a path is the outermost of the
-configuration file's directory and the directory that holds the Ignition
-layout around the path (`<root>/projects/<project>`,
-`<root>/config/resources/<collection>`,
-`<root>/services/<gateway>/config/resources/<collection>`), else the Git
-work tree, else (without a configuration file) the working directory; the
-Git work tree and the working directory count only when they hold a
-project, a collection, `projects/`, `services/` or `config/resources/`, and
-no root lies inside a project or collection. The language server finds
-the root of each workspace folder the same way. `--show-settings` prints
-the roots (`Workspace root:`).
+whichever file is linted. The root of a path is the **outermost** of
+these candidates, each counted only when it contains the path and is not
+inside (or equal to) a project or collection:
 
-Exclusions do not shrink the closed world: `exclude`, the ign-lint
-whitelist and `.gitignore` decide which files are linted, but an excluded
-or ignored resource still runs on the gateway, so it still counts for the
-closed world, for the uses of library names and for every other
-cross-resource fact (discovery of the workspace walks every directory
-except hidden ones, `node_modules` and `target`).
+* the configuration file's directory;
+* every Ignition layout root around the path: the directory that holds
+  the layout around the enclosing project or collection
+  (`<root>/projects/<project>`, `<root>/config/resources/<collection>`,
+  widened to its parent when that holds `projects/` too,
+  `<root>/services/<gateway>/config/resources/<collection>`), and every
+  ancestor of the path that itself holds a project in `projects/` or a
+  collection in `config/resources/` or
+  `services/<gateway>/config/resources/`. The search through the
+  ancestors stops at the top of the Git work tree that contains the path;
+  outside a Git work tree, at the outermost of the configuration file's
+  directory and the working directory that contain the path (with
+  neither, only the layout around the enclosing container counts);
+* the top of the Git work tree that contains the path, when any project
+  or collection lies anywhere below it. The search walks the work tree
+  like the workspace walk (below) and stops at the first container; it
+  runs once per work tree and run. A search that reaches the walk's
+  directory limit (200,000 directories) counts as finding one: the
+  workspace walk then stops at the same limit and the closed world is
+  unknown.
+
+Without any candidate and without a configuration file, the working
+directory is the root when it contains the path and holds a project, a
+collection, `projects/`, `services/` or `config/resources/` directly. So
+in a Git repository with `projects/` and
+`gateway/data/config/resources/`, linting a tag file of the gateway, a
+library module, the project directory or the repository gives the same
+root, the repository, as does `src/projects/A` next to
+`gateway/config/resources/core`. The language server finds the root of
+each workspace folder the same way. `--show-settings` prints the roots
+(`Workspace root:`). A consequence: a repository that is not an Ignition
+workspace but holds projects as test fixtures (iglint's own) is one
+workspace, so its fixtures share one closed world; the ign-lint parity
+test copies each fixture out of the work tree to lint it on its own.
+
+**The workspace walk fails closed.** Exclusions do not shrink the closed
+world: `exclude`, the ign-lint whitelist and `.gitignore` decide which
+files are linted, but an excluded or ignored resource still runs on the
+gateway, so it still counts for the closed world, for the uses of
+library names and for every other cross-resource fact. Below a root,
+every directory that holds `project.json` or `config-mode.json` is a
+container, whatever its name (projects named `target` and
+`node_modules` load on an 8.3.3 gateway), so it is linted and analysed. Only directories that are not
+containers are skipped by name: hidden ones (`.git`), `node_modules`,
+`target` and `__pycache__` (a container below them is not where the
+gateway looks for one). Inside containers, hidden entries are skipped.
+Symbolic links to directories are followed, also to directories outside
+the repository, and the project or resource is found at the path through
+the link (the walk of linted files, `discovery::discover`, follows them
+too); the walk keeps the real paths of the directories it is in, and a
+link to one of them (or to a directory that holds one) is a cycle, cut
+there. A directory that could hold Ignition resources but is not read
+(it cannot be listed, a broken link, a cut cycle, the directory limit)
+is recorded in `Workspace::unread`, never taken as empty: while one
+exists, the closed world is unknown (`ProjectIndex::unread_directory`,
+part of `has_any_unknown_code`), so the safe fixes of `SCR102`, `VIEW015`
+and `NAME001` are unsafe with the reason "closed world unknown: `<path>`
+could hold Ignition resources but was not read (<why>), so code there is
+not known", and code there may read the files a fix edits, so every
+other safe fix is unsafe through the file-read gate with the same path
+and cause. A resource file named on the command line inside a project or
+collection that the walk did not reach is reported by `REF009` as such
+(with the directory that was not read, when there is one), not as a file
+outside every project.
 
 When no root is found around a linted path (a project directory linted
 from elsewhere with nothing around it, a loose file outside every Git work
@@ -497,11 +547,17 @@ tree and configuration), the closed world is unknown
 (`SCR102`, `VIEW015`, `NAME001`) is unsafe, with the reason "closed world
 unknown". The scripts of gateway collections and files outside any project
 use the same closed world as project scripts (the runtime is the same).
-The binary tests `fixes_see_the_whole_workspace_whatever_is_linted`,
-`closed_world_reasons_do_not_depend_on_what_is_linted` and
-`fixes_that_need_the_closed_world_are_unsafe_without_a_root`, and the
-language server test `a_folder_inside_the_workspace_sees_the_whole_workspace`
-cover each way of linting part of a workspace.
+The binary tests `fixes_see_the_whole_workspace_whatever_is_linted` (for
+six fixture layouts and three kinds of content, every file of each
+fixture linted on its own from the top, from another directory and from
+its own directory gives the findings and fix applicabilities of the run
+over the whole fixture), `closed_world_reasons_do_not_depend_on_what_is_linted`,
+`fixes_that_need_the_closed_world_are_unsafe_without_a_root`,
+`unusual_project_and_collection_directories_are_linted` and
+`directories_that_cannot_be_read_make_the_closed_world_unknown`, the
+`iglint_project` tests of `workspace::tests`, and the language server
+test `a_folder_inside_the_workspace_sees_the_whole_workspace` cover each
+way of linting part of a workspace.
 
 **Other views.** A Perspective page hands out the views it shows
 (`page.views`, `getViews()`, its primary `page.view`) and a session its

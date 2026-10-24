@@ -191,13 +191,40 @@ fn report_outside_resource(cx: &mut Checker<'_, '_>) {
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
             let range = start_range(source.text());
-            cx.report(
-                range,
-                format!(
+            // Inside a project or collection on disk that the workspace
+            // walk did not reach: the gateway may well load it.
+            let container =
+                source.path().ancestors().skip(1).find(|d| {
+                    d.join("project.json").is_file() || d.join("config-mode.json").is_file()
+                });
+            let message = match container {
+                Some(dir) => {
+                    let unread =
+                        cx.workspace().unread.iter().find(|u| {
+                            source.path().starts_with(&u.path) || dir.starts_with(&u.path)
+                        });
+                    let why = match unread {
+                        Some(u) => format!(
+                            "`{}` was not read: {}",
+                            crate::discovery::slash_path(&u.path),
+                            u.message
+                        ),
+                        None => "it is not below the workspace root, or the walk skips a \
+                                 directory above it by name"
+                            .to_owned(),
+                    };
+                    format!(
+                        "`{name}` is inside `{}`, but the workspace walk did not reach it ({why}); \
+                         iglint does not read it as a resource, and whether the gateway loads it \
+                         is not known",
+                        crate::discovery::slash_path(dir)
+                    )
+                }
+                None => format!(
                     "`{name}` is not inside a project (`project.json`) or a gateway configuration collection (`config-mode.json`); the gateway does not load it and iglint does not read it"
                 ),
-            )
-            .fingerprint_key("outside tree");
+            };
+            cx.report(range, message).fingerprint_key("outside tree");
         }
         return;
     };

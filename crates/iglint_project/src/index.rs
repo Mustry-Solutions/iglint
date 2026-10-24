@@ -927,6 +927,7 @@ impl<'w> ProjectIndex<'w> {
     /// closed.
     pub fn has_any_unknown_code(&self) -> bool {
         self.closed_world_unknown
+            || self.unread_directory().is_some()
             || self.gateway_unknown_code
             || self.projects.iter().any(|p| p.unknown_code)
     }
@@ -951,7 +952,17 @@ impl<'w> ProjectIndex<'w> {
     /// is safe while this holds, unless the project declares that scripts
     /// do not read workspace files.
     pub fn may_read_workspace_files(&self) -> bool {
-        self.reads_files
+        self.reads_files || self.unread_directory().is_some()
+    }
+
+    /// The first directory of the workspace (by path) that could hold
+    /// Ignition resources but was not read
+    /// ([`crate::workspace::Workspace::unread`]). Its scripts are unknown,
+    /// so while it exists the closed world is unknown
+    /// ([`ProjectIndex::has_any_unknown_code`]) and code in it may read
+    /// the files a fix edits ([`ProjectIndex::may_read_workspace_files`]).
+    pub fn unread_directory(&self) -> Option<&crate::workspace::WorkspaceProblem> {
+        self.ws.unread.first()
     }
 
     /// The first site (by path, then offset) of

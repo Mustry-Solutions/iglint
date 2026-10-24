@@ -208,6 +208,19 @@ fn actual_findings(view: &Path, config: &Value, variant: &str) -> Vec<Finding> {
         .collect()
 }
 
+fn copy_tree(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
 #[test]
 fn ign_lint_parity() {
     let root = fixtures();
@@ -226,9 +239,15 @@ fn ign_lint_parity() {
         dirs.sort();
         views.extend(dirs);
     }
+    // ign-lint saw only the view and its configuration. Inside this
+    // repository the Git work tree, which holds every fixture, would be
+    // iglint's workspace root; a copy outside it keeps each view on its own.
+    let copy = tempfile::tempdir().unwrap();
     let mut problems = Vec::new();
     let mut compared = 0;
     for dir in &views {
+        let isolated = copy.path().join(dir.strip_prefix(&root).unwrap());
+        copy_tree(dir, &isolated);
         let name = format!(
             "{}/{}",
             dir.parent().unwrap().file_name().unwrap().to_string_lossy(),
@@ -252,7 +271,7 @@ fn ign_lint_parity() {
                 continue;
             };
             let mut expected = expected_findings(&entry["findings"], entry.get("fixes"));
-            let mut actual = actual_findings(&dir.join("view.json"), config, variant);
+            let mut actual = actual_findings(&isolated.join("view.json"), config, variant);
             expected.sort();
             actual.sort();
             compared += expected.len();
