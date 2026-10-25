@@ -1,9 +1,16 @@
 name: Release
 
 # Builds everything on a version tag (v0.1.0) and attaches it to a draft
-# GitHub release. Publishing to PyPI needs the `pypi` environment with
-# trusted publishing configured; the VS Code Marketplace is not published
-# from here.
+# GitHub release, which is published by hand after checking. The VS Code
+# Marketplace is not published from here.
+#
+# Publishing to PyPI is off until it is configured. To enable it, create a
+# pending trusted publisher on PyPI for the project `iglint` (owner
+# Mustry-Solutions, repository iglint, workflow release.yml, environment
+# pypi), then set the repository variable PYPI_PUBLISH to `true`. Later tags
+# then publish to PyPI; for a tag that is already released, re-run its
+# release workflow (the github-release job leaves the existing release as it
+# is, and the wheels are built again).
 
 on:
   push:
@@ -184,13 +191,20 @@ jobs:
           mkdir -p dist
           find artifacts \( -path 'artifacts/vscode-bin-*' -prune \) -o -type f -print0 \
             | xargs -0 -I{} cp {} dist/
+          # A re-run (for example to publish to PyPI later) leaves an
+          # existing release as it is.
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "::notice::Release $GITHUB_REF_NAME exists already; not changed."
+            exit 0
+          fi
           gh release create "$GITHUB_REF_NAME" dist/* \
             --draft --verify-tag --title "iglint ${GITHUB_REF_NAME#v}" \
             --notes "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/CHANGELOG.md)."
 
   pypi:
     name: publish to PyPI
-    if: startsWith(github.ref, 'refs/tags/')
+    # Skipped (not failed) until PyPI is configured; see the top of this file.
+    if: startsWith(github.ref, 'refs/tags/') && vars.PYPI_PUBLISH == 'true'
     needs: [wheels, sdist, github-release]
     runs-on: ubuntu-latest
     environment: pypi
