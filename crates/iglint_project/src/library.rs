@@ -686,29 +686,14 @@ pub struct ResolveMemo {
     /// By name: the modules that bind it, and those that may get it through
     /// star imports.
     names: std::sync::Mutex<FxHashMap<String, std::sync::Arc<NameStars>>>,
-    /// By module and name: where the name may come from.
-    reach: std::sync::Mutex<FxHashMap<(usize, String), std::sync::Arc<StarReach>>>,
     objects: std::sync::Mutex<FxHashMap<String, Option<LibraryObject>>>,
-    /// By name and star-imported module: [`LibraryTree::star_lookup`].
-    star_lookups:
-        std::sync::Mutex<FxHashMap<String, FxHashMap<String, std::sync::Arc<StarLookup>>>>,
 }
 
-/// What `from <star> import *` brings of a name
-/// ([`LibraryTree::star_lookup`]).
+/// The star imports of a script, looked up once
+/// ([`LibraryTree::prepare_star_imports`]): each as written, with the
+/// module of the library it names, if it names one.
 #[derive(Debug)]
-enum StarLookup {
-    /// The module does not export it.
-    Nothing,
-    /// Look the name up in the star-imported module.
-    Itself,
-    /// The module only passes on what its own star imports bring: where
-    /// the name may come from in it.
-    Via {
-        module: usize,
-        reach: std::sync::Arc<StarReach>,
-    },
-}
+pub struct StarImports(Vec<(String, Option<usize>)>);
 
 impl std::fmt::Debug for ResolveMemo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -771,6 +756,7 @@ struct StarGraph {
     resources: Vec<ResourceId>,
     dotted: Vec<String>,
     by_resource: FxHashMap<ResourceId, usize>,
+    by_dotted: FxHashMap<String, usize>,
     /// What `from <module> import *` binds, by module.
     exports: Vec<StarExports>,
     /// Each module's module-level star imports of library paths, in order:
@@ -803,6 +789,9 @@ struct NameStars {
     /// Where the name may come from in a module that passes it on, for
     /// star imports without cycles ([`StarGraph::reach_acyclic`]).
     kept: std::sync::Mutex<FxHashMap<usize, std::sync::Arc<Sources>>>,
+    /// By module that does not bind the name: where it may come from
+    /// ([`ResolveMemo::reach`]).
+    reach: std::sync::Mutex<FxHashMap<usize, std::sync::Arc<StarReach>>>,
 }
 
 /// Where a name may come from in a module ([`NameStars::kept`]).
@@ -868,14 +857,8 @@ impl ResolveMemo {
         let Some(&root) = graph.by_resource.get(&resource) else {
             return Default::default();
         };
-        let key = (root, name.to_owned());
-        if let Some(known) = self.reach.lock().expect("memo").get(&key) {
-            return known.clone();
-        }
         let facts = self.name(graph, name);
-        let reach = std::sync::Arc::new(graph.reach(root, name, &facts));
-        self.reach.lock().expect("memo").insert(key, reach.clone());
-        reach
+        graph.reach_kept(root, name, &facts)
     }
 
     /// [`LibraryTree::object_of`], kept.
@@ -905,6 +888,7 @@ impl StarGraph {
         let mut g = StarGraph::default();
         for (dotted, resource) in tree.modules() {
             g.by_resource.insert(resource, g.resources.len());
+            g.by_dotted.insert(dotted.to_owned(), g.resources.len());
             g.resources.push(resource);
             g.dotted.push(dotted.to_owned());
         }
@@ -990,6 +974,7 @@ impl StarGraph {
             brings,
             cyclic: Default::default(),
             kept: Default::default(),
+            reach: Default::default(),
         }
     }
 
@@ -1010,6 +995,20 @@ impl StarGraph {
         } else {
             StarKind::None
         }
+    }
+
+    /// [`StarGraph::reach`], kept in `facts`.
+    fn reach_kept(&self, root: usize, name: &str, facts: &NameStars) -> std::sync::Arc<StarReach> {
+        if let Some(known) = facts.reach.lock().expect("memo").get(&root) {
+            return known.clone();
+        }
+        let reach = std::sync::Arc::new(self.reach(root, name, facts));
+        facts
+            .reach
+            .lock()
+            .expect("memo")
+            .insert(root, reach.clone());
+        reach
     }
 
     /// Where `name` may come from in the module `root`, which does not
@@ -1510,31 +1509,63 @@ impl LibraryTree {
         self.walk(next, shared, symbols, w, memo);
     }
 
+    /// The star imports `stars` of a script, looked up once for
+    /// [`LibraryTree::star_imports`].
+    pub fn prepare_star_imports<'i>(
+        &self,
+        stars: &[String],
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+        memo: &ResolveMemo,
+    ) -> StarImports {
+        if stars.is_empty() {
+            return StarImports(Vec::new());
+        }
+        let graph = memo.graph(self, symbols);
+        StarImports(
+            stars
+                .iter()
+                .map(|s| (s.clone(), graph.by_dotted.get(s).copied()))
+                .collect(),
+        )
+    }
+
     /// Where `name` may come from through the star imports `stars` of a
     /// script that does not bind it (review round 29, M2): the places to
     /// look the name up in, star-imported modules first, and the modules
-    /// on the way, each once (a module star-importing every earlier one
-    /// took time cubic in their number when each star import was looked up
-    /// on its own).
+    /// on the way, each once. A star import of a module that does not
+    /// export the name brings nothing; one of a module that binds it, or
+    /// whose names are not known, or of a library path that is not a
+    /// module, is a place; one of a module that only passes it on from its
+    /// own star imports is replaced by where it may come from there
+    /// ([`ResolveMemo::reach`]); one of a module that neither binds nor
+    /// passes it on brings nothing. Each star import costs a few set
+    /// lookups (a module star-importing every earlier one looked each name
+    /// up in all of them, each passing it on from all of theirs).
     pub fn star_imports<'i>(
         &self,
-        stars: &[String],
+        stars: &StarImports,
         name: &str,
         symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
         memo: &ResolveMemo,
     ) -> (Vec<String>, Vec<ResourceId>) {
-        let mut itself: Vec<String> = Vec::new();
-        let mut via: Option<Sources> = None;
+        let mut places: Vec<String> = Vec::new();
         let mut through: Vec<ResourceId> = Vec::new();
-        for star in stars {
-            match &*self.star_lookup(star, name, symbols, memo) {
-                StarLookup::Nothing => {}
-                StarLookup::Itself => {
-                    if !itself.contains(star) {
-                        itself.push(star.clone());
+        if stars.0.is_empty() {
+            return (places, through);
+        }
+        let graph = memo.graph(self, symbols);
+        let facts = memo.name(graph, name);
+        let mut via: Option<Sources> = None;
+        for (star, target) in &stars.0 {
+            match graph.star_kind(*target, name, &facts) {
+                StarKind::None => {}
+                StarKind::Other | StarKind::Place(_) => {
+                    if !places.contains(star) {
+                        places.push(star.clone());
                     }
                 }
-                StarLookup::Via { module, reach } => {
+                StarKind::Through(t) => {
+                    let reach = graph.reach_kept(t, name, &facts);
                     let all = via.get_or_insert_with(|| Sources {
                         places: ModuleSet::default(),
                         other: Vec::new(),
@@ -1543,13 +1574,11 @@ impl LibraryTree {
                     if let Some(found) = &reach.sources {
                         merge(all, found);
                     }
-                    all.through.insert(*module);
+                    all.through.insert(t);
                 }
             }
         }
-        let mut places = itself;
         if let Some(all) = via {
-            let graph = memo.graph(self, symbols);
             for p in all
                 .places
                 .iter()
@@ -1563,69 +1592,6 @@ impl LibraryTree {
             through.extend(all.through.iter().map(|i| graph.resources[i]));
         }
         (places, through)
-    }
-
-    /// What `from <star> import *` brings of `name` (review round 29, M2):
-    /// nothing when `star` does not export it ([`LibraryTree::exports`]);
-    /// when `star` is a module of the library that does not bind `name`
-    /// but passes on what its own star imports bring, that module;
-    /// otherwise `star` itself is where to look.
-    fn star_lookup<'i>(
-        &self,
-        star: &str,
-        name: &str,
-        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
-        memo: &ResolveMemo,
-    ) -> std::sync::Arc<StarLookup> {
-        if let Some(known) = memo
-            .star_lookups
-            .lock()
-            .expect("memo")
-            .get(name)
-            .and_then(|m| m.get(star))
-        {
-            return known.clone();
-        }
-        let lookup = std::sync::Arc::new(self.star_lookup_uncached(star, name, symbols, memo));
-        memo.star_lookups
-            .lock()
-            .expect("memo")
-            .entry(name.to_owned())
-            .or_default()
-            .insert(star.to_owned(), lookup.clone());
-        lookup
-    }
-
-    fn star_lookup_uncached<'i>(
-        &self,
-        star: &str,
-        name: &str,
-        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
-        memo: &ResolveMemo,
-    ) -> StarLookup {
-        if !self.exports(star, name, symbols) {
-            return StarLookup::Nothing;
-        }
-        let segments: Vec<String> = star.split('.').map(str::to_owned).collect();
-        let LibraryLookup::Module { resource, .. } = self.lookup(&segments, symbols).0 else {
-            return StarLookup::Itself;
-        };
-        let graph = memo.graph(self, symbols);
-        let Some(&t) = graph.by_resource.get(&resource) else {
-            return StarLookup::Itself;
-        };
-        let facts = memo.name(graph, name);
-        match graph.star_kind(Some(t), name, &facts) {
-            StarKind::Through(_) => {}
-            // Neither binds the name nor passes it on: it does not come
-            // from there.
-            StarKind::None => return StarLookup::Nothing,
-            StarKind::Place(_) | StarKind::Other => return StarLookup::Itself,
-        }
-        StarLookup::Via {
-            module: t,
-            reach: memo.reach(self, resource, name, symbols),
-        }
     }
 
     /// Whether `from <star> import *` may bind `name`: the library module

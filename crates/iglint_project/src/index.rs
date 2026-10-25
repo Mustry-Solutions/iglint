@@ -577,6 +577,8 @@ impl<'w> ProjectIndex<'w> {
                 // all of them, each passing it on from all of theirs), and
                 // the modules on the way are read.
                 let resolved = &self.projects[pid.index()].resolved[0];
+                let stars =
+                    library.prepare_star_imports(&refs.library_star_imports, &symbols, resolved);
                 let mut through: FxHashSet<ResourceId> = FxHashSet::default();
                 let mut star_paths = |name: &String| {
                     if refs.library_star_imports.is_empty()
@@ -586,7 +588,7 @@ impl<'w> ProjectIndex<'w> {
                     }
                     let first = name.split('.').next().unwrap_or("");
                     let (places, on_the_way) =
-                        library.star_imports(&refs.library_star_imports, first, &symbols, resolved);
+                        library.star_imports(&stars, first, &symbols, resolved);
                     through.extend(on_the_way);
                     places
                         .into_iter()
