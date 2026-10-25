@@ -2,7 +2,7 @@
 //! module models, the symbol summary filled in by the Python layer, and
 //! dotted-name resolution with Ignition 8.3 rules.
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use iglint_text::TextRange;
 
@@ -231,11 +231,14 @@ pub struct ModuleSymbols {
     /// the namespace dynamic here, for fixes, but not for findings
     /// ([`ModuleSymbols::for_findings`]).
     pub findings: Option<Box<ModuleSymbols>>,
-    /// Where the last definition of each name is in `symbols`, built on
-    /// the first [`ModuleSymbols::get`] (review round 25, M3: a linear
+    /// Where the last definition of each name is in `symbols`, and the
+    /// names of `constants`, built on the first [`ModuleSymbols::get`] or
+    /// [`ModuleSymbols::is_constant`] (review round 25, M3: a linear
     /// search per lookup made the index quadratic in the number of
-    /// top-level names). Not part of the value: it ignores comparison and
-    /// `Debug`, and `symbols` must not change after the first lookup.
+    /// top-level names; so did one through `constants`, found when CI
+    /// first ran on slower machines). Not part of the value: it ignores
+    /// comparison and `Debug`, and `symbols` and `constants` must not
+    /// change after the first lookup.
     pub names: NameIndex,
 }
 
@@ -290,7 +293,13 @@ pub struct VariableImport {
 
 /// See [`ModuleSymbols::names`].
 #[derive(Clone, Default)]
-pub struct NameIndex(std::sync::OnceLock<FxHashMap<String, usize>>);
+pub struct NameIndex(std::sync::OnceLock<Names>);
+
+#[derive(Clone)]
+struct Names {
+    names: FxHashMap<String, usize>,
+    constants: FxHashSet<String>,
+}
 
 impl PartialEq for NameIndex {
     fn eq(&self, _: &Self) -> bool {
@@ -315,14 +324,24 @@ impl ModuleSymbols {
 
     /// The last definition of `name` (later definitions win).
     pub fn get(&self, name: &str) -> Option<&Symbol> {
-        let names = self.names.0.get_or_init(|| {
-            let mut names = FxHashMap::default();
-            for (i, s) in self.symbols.iter().enumerate() {
-                names.insert(s.name.clone(), i);
-            }
-            names
-        });
-        self.symbols.get(*names.get(name)?)
+        self.symbols.get(*self.index().names.get(name)?)
+    }
+
+    /// Whether `name` is one of [`ModuleSymbols::constants`].
+    pub fn is_constant(&self, name: &str) -> bool {
+        self.index().constants.contains(name)
+    }
+
+    fn index(&self) -> &Names {
+        self.names.0.get_or_init(|| Names {
+            names: self
+                .symbols
+                .iter()
+                .enumerate()
+                .map(|(i, s)| (s.name.clone(), i))
+                .collect(),
+            constants: self.constants.iter().cloned().collect(),
+        })
     }
 }
 
@@ -747,10 +766,15 @@ impl ModuleSet {
     }
 
     fn iter(&self) -> impl Iterator<Item = usize> + '_ {
-        self.0.iter().enumerate().flat_map(|(w, bits)| {
-            (0..64)
-                .filter(move |b| bits & (1u64 << b) != 0)
-                .map(move |b| w * 64 + b)
+        self.0.iter().enumerate().flat_map(|(w, &bits)| {
+            let mut bits = bits;
+            std::iter::from_fn(move || {
+                (bits != 0).then(|| {
+                    let b = bits.trailing_zeros() as usize;
+                    bits &= bits - 1;
+                    w * 64 + b
+                })
+            })
         })
     }
 }
@@ -778,6 +802,12 @@ struct StarGraph {
     reach_unknown: ModuleSet,
     /// By name, the modules that bind it.
     binders: FxHashMap<String, Vec<usize>>,
+    /// The length of the longest chain of star imports from each module
+    /// (0 for a module that star-imports no module of the library), or
+    /// `u32::MAX` for a module on or above a cycle of star imports. A
+    /// module gets names through its star imports only from modules of a
+    /// lower level ([`StarGraph::below`]).
+    level: Vec<u32>,
 }
 
 /// For one name: the modules that bind it and the modules whose star
@@ -787,7 +817,14 @@ struct StarGraph {
 #[derive(Debug)]
 struct NameStars {
     binds: ModuleSet,
-    brings: ModuleSet,
+    /// The lowest level of a module that binds the name ([`StarGraph::level`];
+    /// `None` when none has a finite level).
+    floor: Option<u32>,
+    /// Which modules bring the name, found as they are asked about
+    /// ([`StarGraph::brings`]). Finding them all at once took time
+    /// quadratic in a chain of star imports: every module along the chain
+    /// gets the names of every earlier one.
+    brings: std::sync::Mutex<Brings>,
     /// A cycle of star imports that pass the name on was met: each
     /// module's answer is searched on its own ([`StarGraph::reach`]).
     cyclic: std::sync::atomic::AtomicBool,
@@ -797,6 +834,13 @@ struct NameStars {
     /// By module that does not bind the name: where it may come from
     /// ([`ResolveMemo::reach`]).
     reach: std::sync::Mutex<FxHashMap<usize, std::sync::Arc<StarReach>>>,
+}
+
+/// The modules known to bring a name, or not ([`NameStars::brings`]).
+#[derive(Debug, Default)]
+struct Brings {
+    yes: ModuleSet,
+    no: ModuleSet,
 }
 
 /// Where a name may come from in a module ([`NameStars::kept`]).
@@ -970,34 +1014,114 @@ impl StarGraph {
                 }
             }
         }
+        // Levels, from the modules that star-import none: a module's level
+        // is known once those of all the modules it star-imports are; the
+        // modules on or above a cycle are never reached.
+        let mut left = vec![0usize; n];
+        for importers in &g.importers {
+            for &i in importers {
+                left[i] += 1;
+            }
+        }
+        let mut above = vec![0u32; n];
+        g.level = vec![u32::MAX; n];
+        let mut work: Vec<usize> = (0..n).filter(|&i| left[i] == 0).collect();
+        while let Some(m) = work.pop() {
+            g.level[m] = above[m];
+            for &i in &g.importers[m] {
+                above[i] = above[i].max(above[m] + 1);
+                left[i] -= 1;
+                if left[i] == 0 {
+                    work.push(i);
+                }
+            }
+        }
         g
     }
 
     fn name_stars(&self, name: &str) -> NameStars {
         let mut binds = ModuleSet::default();
-        let mut brings = ModuleSet::default();
-        let mut work: Vec<usize> = Vec::new();
+        let mut floor: Option<u32> = None;
         for &i in self.binders.get(name).into_iter().flatten() {
             binds.insert(i);
-            work.push(i);
-        }
-        while let Some(m) = work.pop() {
-            if !self.exports[m].exports(name) {
-                continue;
-            }
-            for &i in &self.importers[m] {
-                if !binds.contains(i) && !self.unknown.contains(i) && brings.insert(i) {
-                    work.push(i);
-                }
+            if let Some(&level) = self.level.get(i).filter(|l| **l != u32::MAX) {
+                floor = Some(floor.map_or(level, |f| f.min(level)));
             }
         }
         NameStars {
             binds,
-            brings,
+            floor,
+            brings: Default::default(),
             cyclic: Default::default(),
             kept: Default::default(),
             reach: Default::default(),
         }
+    }
+
+    /// Whether the module `m` cannot get the name through its star imports
+    /// whatever they are: its level is not above that of any module that
+    /// binds the name (a module reaches only modules of lower levels).
+    fn below(&self, m: usize, facts: &NameStars) -> bool {
+        match self.level.get(m) {
+            Some(&level) if level != u32::MAX => facts.floor.is_none_or(|f| level <= f),
+            _ => false,
+        }
+    }
+
+    /// Whether the module `t` brings the name ([`NameStars`]): it neither
+    /// binds it nor has unknown names, and star-imports a module that
+    /// passes the name on (its `__all__` does) and binds or brings it. A
+    /// search through the star imports that may bring the name, which
+    /// keeps what it finds: every module on the way to one that binds the
+    /// name brings it; when none is found, none of the modules searched
+    /// does.
+    fn brings(&self, t: usize, name: &str, facts: &NameStars) -> bool {
+        if facts.binds.contains(t) || self.unknown.contains(t) || self.below(t, facts) {
+            return false;
+        }
+        let mut memo = facts.brings.lock().expect("memo");
+        if memo.yes.contains(t) {
+            return true;
+        }
+        if memo.no.contains(t) {
+            return false;
+        }
+        let mut seen: FxHashSet<usize> = FxHashSet::default();
+        seen.insert(t);
+        // (module, star imports looked at)
+        let mut stack: Vec<(usize, usize)> = vec![(t, 0)];
+        while let Some(top) = stack.last_mut() {
+            let (m, next) = *top;
+            top.1 += 1;
+            let Some((_, target)) = self.stars[m].get(next) else {
+                stack.pop();
+                continue;
+            };
+            let Some(s) = *target else {
+                continue;
+            };
+            if !self.exports[s].exports(name) {
+                continue;
+            }
+            if facts.binds.contains(s) || memo.yes.contains(s) {
+                for &(m, _) in &stack {
+                    memo.yes.insert(m);
+                }
+                return true;
+            }
+            if self.unknown.contains(s)
+                || memo.no.contains(s)
+                || self.below(s, facts)
+                || !seen.insert(s)
+            {
+                continue;
+            }
+            stack.push((s, 0));
+        }
+        for m in seen {
+            memo.no.insert(m);
+        }
+        false
     }
 
     /// How the star import `star` (naming `target`) of a module may bring
@@ -1012,7 +1136,7 @@ impl StarGraph {
             StarKind::None
         } else if facts.binds.contains(t) || self.unknown.contains(t) {
             StarKind::Place(t)
-        } else if facts.brings.contains(t) || self.reach_unknown.contains(t) {
+        } else if self.reach_unknown.contains(t) || self.brings(t, name, facts) {
             StarKind::Through(t)
         } else {
             StarKind::None
@@ -1606,15 +1730,8 @@ impl LibraryTree {
         let facts = memo.name(graph, name);
         let mut via: Option<Sources> = None;
         let mut passing: Vec<usize> = Vec::new();
-        // Only the star-imported modules that may bind the name or pass it
-        // on are looked at (a word of the sets at a time).
-        let word = |set: &ModuleSet, w: usize| set.0.get(w).copied().unwrap_or(0);
         for (w, bits) in stars.modules.0.iter().enumerate() {
-            let mut bits = bits
-                & (word(&facts.binds, w)
-                    | word(&facts.brings, w)
-                    | word(&graph.unknown, w)
-                    | word(&graph.reach_unknown, w));
+            let mut bits = *bits;
             while bits != 0 {
                 let t = w * 64 + bits.trailing_zeros() as usize;
                 bits &= bits - 1;
@@ -1912,9 +2029,7 @@ impl LibraryTree {
                     // A variable bound only to literals holds a plain value
                     // (`CACHE = {}`: `m.CACHE.clear` is the dict's method):
                     // only its special attributes count.
-                    SymbolKind::Variable
-                        if syms.is_some_and(|s| s.constants.iter().any(|c| c == seg)) =>
-                    {
+                    SymbolKind::Variable if syms.is_some_and(|s| s.is_constant(seg)) => {
                         rest.iter().any(|s| is_special_attribute(s)).then(module)
                     }
                     // An import the path did not follow (of a module outside

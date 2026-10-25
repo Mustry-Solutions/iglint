@@ -208,6 +208,7 @@ impl ScriptFacts for AstScriptFacts {
             &unit.parsed.module,
             &iglint_python_semantic::SemanticOptions {
                 injected: unit.script.implicit_globals().collect(),
+                sorted_injected: &[],
                 unknown_globals: false,
                 module_has_name: unit.script.has_module_name(),
             },
@@ -707,6 +708,7 @@ fn script_model<'s>(unit: &ScriptUnit<'s, '_>) -> Option<SemanticModel<'s>> {
         &unit.parsed.module,
         &iglint_python_semantic::SemanticOptions {
             injected: unit.script.implicit_globals().collect(),
+            sorted_injected: &[],
             unknown_globals: false,
             module_has_name: unit.script.has_module_name(),
         },

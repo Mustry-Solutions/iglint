@@ -288,6 +288,7 @@ pub(crate) struct Flow<'a, 'o> {
     references: Vec<Reference<'a>>,
     scope_of_node: FxHashMap<usize, ScopeId>,
     injected: &'o FxHashSet<&'o str>,
+    sorted_injected: &'o [String],
     unknown_globals: bool,
     implicit: FxHashMap<&'a str, BindingId>,
     binding_at: FxHashMap<u32, BindingId>,
@@ -335,6 +336,7 @@ impl<'a, 'o> Flow<'a, 'o> {
         module: &'a Module,
         table: SymbolTable<'a>,
         injected: &'o FxHashSet<&'o str>,
+        sorted_injected: &'o [String],
         unknown_globals: bool,
     ) -> Self {
         let n = table.scopes.len();
@@ -345,6 +347,7 @@ impl<'a, 'o> Flow<'a, 'o> {
             references: Vec::new(),
             scope_of_node: table.scope_of_node,
             injected,
+            sorted_injected,
             unknown_globals,
             implicit: FxHashMap::default(),
             binding_at: FxHashMap::default(),
@@ -939,7 +942,7 @@ impl<'a, 'o> Flow<'a, 'o> {
         if let Expr::Name(n) = test {
             let name: &str = &n.id;
             let rebindable = self.unknown_globals
-                || self.injected.contains(name)
+                || self.is_injected(name)
                 || self.scopes.iter().any(|s| {
                     s.local_index.contains_key(name)
                         || s.globals.contains_key(name)
@@ -996,6 +999,15 @@ impl<'a, 'o> Flow<'a, 'o> {
         Err(self.lookup_global(name))
     }
 
+    /// Whether the caller injects `name`.
+    fn is_injected(&self, name: &str) -> bool {
+        self.injected.contains(name)
+            || self
+                .sorted_injected
+                .binary_search_by(|n| n.as_str().cmp(name))
+                .is_ok()
+    }
+
     /// Resolves a name in the module's globals, then the caller's injected
     /// names, then the builtins.
     fn lookup_global(&mut self, name: &'a str) -> (Resolution, Vec<BindingId>) {
@@ -1008,7 +1020,7 @@ impl<'a, 'o> Flow<'a, 'o> {
             let id = self.implicit(name, BindingKind::ClassModule);
             return (Resolution::Builtin, vec![id]);
         }
-        if self.injected.contains(name) || name == "__builtins__" {
+        if self.is_injected(name) || name == "__builtins__" {
             let id = self.implicit(name, BindingKind::Injected);
             return (Resolution::Injected, vec![id]);
         }
@@ -1032,7 +1044,7 @@ impl<'a, 'o> Flow<'a, 'o> {
     }
 
     fn implicit_binding(&mut self, name: &'a str) -> Option<BindingId> {
-        if self.injected.contains(name) || name == "__builtins__" {
+        if self.is_injected(name) || name == "__builtins__" {
             Some(self.implicit(name, BindingKind::Injected))
         } else if iglint_stubs::is_jython_builtin(name) {
             Some(self.implicit(name, BindingKind::Builtin))
@@ -1702,6 +1714,7 @@ impl<'a, 'o> Flow<'a, 'o> {
                 }
                 self.expr(&e.elt, st);
                 let log = self.undo.pop().unwrap_or_default();
+                let nested = !self.undo.is_empty();
                 let mut done: FxHashSet<usize> = FxHashSet::default();
                 for (index, old) in log {
                     // The first entry of a local holds its ids before the
@@ -1709,18 +1722,24 @@ impl<'a, 'o> Flow<'a, 'o> {
                     if !done.insert(index) {
                         continue;
                     }
+                    // Copied only for an enclosing comprehension: a name
+                    // that every comprehension of a function binds (Jython
+                    // 2 comprehension variables leak) gathers every binding,
+                    // and a copy per comprehension made the function
+                    // quadratic.
+                    let before = nested.then(|| old.clone());
                     if st.reachable {
                         // `State::join` of the state before and after.
-                        let mut joined = old.clone();
+                        let mut joined = old;
                         union(&mut joined, &st.defs[index]);
                         st.defs[index] = joined;
                     } else {
                         // Joining an unreachable state changes nothing.
-                        st.defs[index] = old.clone();
+                        st.defs[index] = old;
                     }
                     // An enclosing comprehension sees the change too.
-                    if let Some(outer) = self.undo.last_mut() {
-                        outer.push((index, old));
+                    if let (Some(outer), Some(before)) = (self.undo.last_mut(), before) {
+                        outer.push((index, before));
                     }
                 }
             }

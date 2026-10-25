@@ -762,7 +762,7 @@ pub(crate) fn resolve_callee<'i>(
                 // A literal or one of its methods (`NAMES.index(x)`).
                 Some(SymbolKind::Variable)
                     if check
-                        && symbols.constants.iter().any(|c| c == head)
+                        && symbols.is_constant(head)
                         && !index.library_name_rebound(project, &format!("{module}.{head}")) =>
                 {
                     return opaque;
@@ -824,7 +824,7 @@ pub(crate) fn resolve_callee<'i>(
                 }
                 (SymbolKind::Class, _) => opaque,
                 (SymbolKind::Variable, _)
-                    if check && symbols.is_some_and(|s| s.constants.contains(&symbol.name)) =>
+                    if check && symbols.is_some_and(|s| s.is_constant(&symbol.name)) =>
                 {
                     opaque
                 }

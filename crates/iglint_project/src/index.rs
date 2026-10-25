@@ -133,12 +133,50 @@ struct ProjectData {
     /// (`References::unknown_code`, or an unvetted import that is not a
     /// library module of the project).
     unknown_code: bool,
+    /// [`ProjectIndex::has_unmodelled_scripts`].
+    unmodelled_scripts: bool,
+    /// [`ProjectIndex::any_library_name_reached_dynamically`].
+    any_library_name_dynamic: bool,
     complete: bool,
     inheritable: bool,
     descendants: Vec<ProjectId>,
     /// What resolving library paths keeps, for fixes and for findings
     /// (review round 29, M2).
     resolved: [ResolveMemo; 2],
+    /// [`ProjectIndex::script_library_globals`], built once: every script
+    /// of the project asks for it, and building it per script made a
+    /// library of `n` top-level names quadratic.
+    script_globals: Vec<String>,
+    script_globals_complete: bool,
+}
+
+/// Whether resources of `kind` hold scripts iglint does not model
+/// ([`ProjectIndex::has_unmodelled_scripts`]).
+fn unmodelled_scripts(kind: ResourceKind) -> bool {
+    matches!(
+        kind,
+        ResourceKind::VisionWindow
+            | ResourceKind::VisionTemplate
+            | ResourceKind::Report
+            | ResourceKind::AlarmPipeline
+            | ResourceKind::SfcChart
+            | ResourceKind::EventStream
+    )
+}
+
+/// Names sorted and without repeats, looked up by binary search
+/// ([`ProjectIndex::script_library_globals`]).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SortedNames<'a>(&'a [String]);
+
+impl<'a> SortedNames<'a> {
+    pub fn contains(&self, name: &str) -> bool {
+        self.0.binary_search_by(|n| n.as_str().cmp(name)).is_ok()
+    }
+
+    pub fn as_slice(&self) -> &'a [String] {
+        self.0
+    }
 }
 
 /// One UDT definition.
@@ -366,6 +404,12 @@ impl<'w> ProjectIndex<'w> {
     }
 
     fn build_projects(&mut self) {
+        // Resources of gateway collections run with every project.
+        let gateway_unmodelled = self.ws.resources.iter().any(|r| {
+            matches!(r.container, Container::Collection(_))
+                && !r.manifest.missing
+                && unmodelled_scripts(r.kind)
+        });
         for p in &self.ws.projects {
             let container = Container::Project(p.id);
             let mut data = ProjectData {
@@ -376,8 +420,10 @@ impl<'w> ProjectIndex<'w> {
             };
             let effective = self.ws.effective_resources(container);
             let mut modules = Vec::new();
+            data.unmodelled_scripts = gateway_unmodelled;
             for rid in effective {
                 let r = self.ws.resource(rid);
+                data.unmodelled_scripts |= unmodelled_scripts(r.kind);
                 match r.kind {
                     ResourceKind::ScriptLibrary => {
                         if self.ws.resource_file(rid, "code.py").is_some() {
@@ -428,6 +474,23 @@ impl<'w> ProjectIndex<'w> {
             }
             data.library = LibraryTree::new(modules);
             self.projects.push(data);
+        }
+        for i in 0..self.projects.len() {
+            let data = &self.projects[i];
+            let mut names: Vec<String> = data.library.globals().map(str::to_owned).collect();
+            let mut complete = data.complete;
+            if data.inheritable {
+                for d in &data.descendants {
+                    let child = &self.projects[d.index()];
+                    names.extend(child.library.globals().map(str::to_owned));
+                    complete &= child.complete;
+                }
+            }
+            names.sort_unstable();
+            names.dedup();
+            let data = &mut self.projects[i];
+            data.script_globals = names;
+            data.script_globals_complete = complete;
         }
     }
 
@@ -893,6 +956,7 @@ impl<'w> ProjectIndex<'w> {
                     d.gateway_messages.push(entry);
                 }
             }
+            p.any_library_name_dynamic = d.library.iter().any(String::is_empty);
             p.dynamic = d;
             p.escaped_modules = std::mem::take(&mut escaped[i]);
             p.value_modules = std::mem::take(&mut value_modules[i]);
@@ -1198,6 +1262,21 @@ impl<'w> ProjectIndex<'w> {
     /// (including gateway resources).
     pub fn dynamic_references(&self, project: ProjectId) -> &DynamicReferences {
         &self.projects[project.index()].dynamic
+    }
+
+    /// Whether a resource `project` sees, or a gateway resource, holds
+    /// scripts iglint does not model (Vision windows and templates,
+    /// reports, alarm pipelines, SFC charts, event streams): they may
+    /// reference anything.
+    pub fn has_unmodelled_scripts(&self, project: ProjectId) -> bool {
+        self.projects[project.index()].unmodelled_scripts
+    }
+
+    /// Whether code `project` sees may reach any library name in a way
+    /// that cannot be followed (an empty name of
+    /// [`DynamicReferences::library`]).
+    pub fn any_library_name_reached_dynamically(&self, project: ProjectId) -> bool {
+        self.projects[project.index()].any_library_name_dynamic
     }
 
     /// Whether a resource `project` sees uses code that is not vetted
@@ -1868,20 +1947,12 @@ impl<'w> ProjectIndex<'w> {
     /// project, those of its descendants (its scripts may run there). The
     /// flag is false when the list may be incomplete because the project's
     /// ancestry is incomplete (a parent outside the workspace).
-    pub fn script_library_globals(&self, project: ProjectId) -> (Vec<&str>, bool) {
+    pub fn script_library_globals(&self, project: ProjectId) -> (SortedNames<'_>, bool) {
         let data = &self.projects[project.index()];
-        let mut names: Vec<&str> = data.library.globals().collect();
-        let mut complete = data.complete;
-        if data.inheritable {
-            for d in &data.descendants {
-                let child = &self.projects[d.index()];
-                names.extend(child.library.globals());
-                complete &= child.complete;
-            }
-        }
-        names.sort_unstable();
-        names.dedup();
-        (names, complete)
+        (
+            SortedNames(&data.script_globals),
+            data.script_globals_complete,
+        )
     }
 
     /// The symbols of a library module, when the script layer provided them.

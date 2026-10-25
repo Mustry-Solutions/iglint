@@ -176,6 +176,7 @@ impl ScriptFacts {
             );
             let options = SemanticOptions {
                 injected: script.injected.iter().map(String::as_str).collect(),
+                sorted_injected: &[],
                 unknown_globals: true,
                 module_has_name: script.module_has_name,
             };

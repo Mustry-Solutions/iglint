@@ -95,7 +95,7 @@ impl ResourceRule for UnhandledMessageHandler {
         let ws = cx.workspace();
         if ws.project(project).inheritable()
             || !ws.project(project).inheritance.complete
-            || super::has_unmodelled_scripts(ws, project)
+            || index.has_unmodelled_scripts(project)
         {
             return;
         }
