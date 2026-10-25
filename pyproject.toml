@@ -24,7 +24,7 @@ dynamic = ["version"]
 
 [project.urls]
 Repository = "https://github.com/Mustry-Solutions/iglint"
-Documentation = "https://github.com/Mustry-Solutions/iglint#readme"
+Documentation = "https://iglint.mustrysolutions.com/"
 Changelog = "https://github.com/Mustry-Solutions/iglint/blob/main/CHANGELOG.md"
 Issues = "https://github.com/Mustry-Solutions/iglint/issues"
 

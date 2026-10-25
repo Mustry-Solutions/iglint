@@ -28,9 +28,11 @@ Useful variations:
 
 On an existing project, commit a [baseline](/guides/baseline/) first so that only new findings fail.
 
-:::caution[Pre-release]
-The `pip install iglint` lines below need the first release on PyPI. Until then, build the binary in the job (`cargo install --locked --git ... iglint`) or download it from your own artifact store.
-:::
+## Installing iglint in the job
+
+The examples below download the Linux x86_64 binary of a pinned release from [GitHub releases](https://github.com/Mustry-Solutions/iglint/releases) (it is statically linked and runs on any Linux image) and put it on the `PATH`. The archive `iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz` holds a directory of the same name with the `iglint` binary. Change the version in one place to upgrade. Each archive has a `.sha256` file next to it, which the GitHub Actions example checks; for a stronger check, compare against a hash you recorded yourself.
+
+Once iglint is on PyPI (planned, not published yet), `pip install iglint==0.1.0` will do the same in an image with Python.
 
 ## GitHub Actions
 
@@ -49,10 +51,18 @@ jobs:
       security-events: write   # only for the SARIF upload
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install iglint==0.1.0
+      - name: Install iglint
+        env:
+          IGLINT_VERSION: v0.1.0
+        run: |
+          cd "$RUNNER_TEMP"
+          archive="iglint-${IGLINT_VERSION}-x86_64-unknown-linux-musl"
+          url="https://github.com/Mustry-Solutions/iglint/releases/download/${IGLINT_VERSION}/${archive}.tar.gz"
+          curl -sSfLO "$url"
+          curl -sSfLO "$url.sha256"
+          sha256sum -c "${archive}.tar.gz.sha256"
+          tar -xzf "${archive}.tar.gz"
+          echo "$RUNNER_TEMP/${archive}" >> "$GITHUB_PATH"
       # Annotations, and the gate.
       - run: iglint check --output-format github
       # Code scanning (optional): a SARIF report, uploaded even when the gate failed.
@@ -80,9 +90,13 @@ GitLab shows Code Quality reports in merge requests:
 ```yaml
 # .gitlab-ci.yml
 iglint:
-  image: python:3.12
+  image: python:3.12   # any Linux image with curl
+  variables:
+    IGLINT_VERSION: v0.1.0
+    IGLINT_ARCHIVE: iglint-${IGLINT_VERSION}-x86_64-unknown-linux-musl
   script:
-    - pip install iglint==0.1.0
+    - curl -sSfL -o /tmp/iglint.tar.gz "https://github.com/Mustry-Solutions/iglint/releases/download/${IGLINT_VERSION}/${IGLINT_ARCHIVE}.tar.gz"
+    - tar -xzf /tmp/iglint.tar.gz -C /usr/local/bin --strip-components=1 "${IGLINT_ARCHIVE}/iglint"
     - iglint check --output-format gitlab --output-file gl-code-quality-report.json
   artifacts:
     when: always
@@ -96,13 +110,18 @@ The `azure` format prints `##vso[task.logissue]` logging commands, which show up
 
 ```yaml
 # azure-pipelines.yml
+pool:
+  vmImage: ubuntu-latest
+variables:
+  IGLINT_VERSION: v0.1.0
 steps:
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: "3.12"
   - script: |
-      pip install iglint==0.1.0
-      iglint check --output-format azure
+      archive="iglint-$(IGLINT_VERSION)-x86_64-unknown-linux-musl"
+      curl -sSfL "https://github.com/Mustry-Solutions/iglint/releases/download/$(IGLINT_VERSION)/${archive}.tar.gz" \
+        | tar -xz -C "$(Agent.TempDirectory)"
+      echo "##vso[task.prependpath]$(Agent.TempDirectory)/${archive}"
+    displayName: Install iglint
+  - script: iglint check --output-format azure
     displayName: iglint
 ```
 

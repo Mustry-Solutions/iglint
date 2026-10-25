@@ -1,6 +1,6 @@
 ---
 title: pre-commit
-description: Run iglint on every commit with pre-commit, as iglint's own hooks, from the PyPI wheel, or as a drop-in for ign-lint's hook.
+description: Run iglint on every commit with pre-commit, as iglint's own hooks, from a prebuilt binary, or as a drop-in for ign-lint's hook.
 ---
 
 [pre-commit](https://pre-commit.com) runs hooks on the files of each commit. The iglint repository provides three hooks:
@@ -13,10 +13,6 @@ description: Run iglint on every commit with pre-commit, as iglint's own hooks, 
 
 ## iglint's hooks
 
-:::caution[Pre-release]
-`rev: v0.1.0` is the planned first release tag, and the PyPI wheel comes with that release. Until it is tagged, use a commit hash as `rev`.
-:::
-
 ```yaml
 # .pre-commit-config.yaml
 repos:
@@ -26,7 +22,21 @@ repos:
       - id: iglint        # or iglint-fix to apply safe fixes
 ```
 
-These hooks install iglint from the repository with pip, which builds the binary from source on first use and needs a Rust toolchain. To use the prebuilt PyPI wheel instead, declare a local hook:
+These hooks install iglint from the repository with pip, which builds the binary from source on first use and needs a Rust toolchain. To skip the build, [install iglint](/installation/) yourself and declare a local hook that runs it from the `PATH`:
+
+```yaml
+repos:
+  - repo: local
+    hooks:
+      - id: iglint
+        name: iglint
+        entry: iglint check
+        language: system
+        types_or: [json, python]
+        require_serial: true
+```
+
+Once the PyPI wheel is published (planned, not yet), pre-commit can install the prebuilt binary itself:
 
 ```yaml
 repos:

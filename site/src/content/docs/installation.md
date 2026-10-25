@@ -1,40 +1,13 @@
 ---
 title: Installation
-description: Install iglint with pip, uv, pipx or Cargo, as a prebuilt binary, or as a VS Code extension.
+description: Install iglint as a prebuilt binary, with Cargo, or as a VS Code extension. A PyPI package is planned.
 ---
-
-:::caution[Not published yet]
-iglint is preparing its first release, 0.1.0. Until that release is tagged, the PyPI package, the GitHub release downloads and the VS Code packages below do not exist yet, and the GitHub repository may not be public. [Build from source](#from-source) in the meantime. The commands on this page are the ones that will work once 0.1.0 is published.
-:::
 
 iglint is a single executable with no runtime dependencies. Pick whichever channel suits your team; they all install the same binary.
 
-## Python package (pip, uv, pipx)
-
-The `iglint` package on PyPI is a wheel that contains only the binary (no Python code), so it fits into an existing Python tool chain or CI image:
-
-```sh
-pip install iglint
-# or, as an isolated tool:
-uv tool install iglint
-pipx install iglint
-```
-
-The package requires Python 3.8 or newer to install. Wheels are built for Linux (x86_64 and aarch64, glibc and musl), macOS (x86_64 and Apple silicon) and Windows (x86_64). On other platforms pip falls back to the source distribution, which needs a Rust toolchain to build.
-
-To pin a version in CI, use `pip install iglint==0.1.0`.
-
-## Cargo
-
-With Rust 1.90 or newer:
-
-```sh
-cargo install --locked --git https://github.com/Mustry-Solutions/iglint iglint
-```
-
 ## Prebuilt binaries
 
-Every [GitHub release](https://github.com/Mustry-Solutions/iglint/releases) will carry an archive per platform, each with a `.sha256` checksum:
+Every [GitHub release](https://github.com/Mustry-Solutions/iglint/releases) carries an archive per platform, each with a `.sha256` checksum. The archive `iglint-v0.1.0-<target>.tar.gz` (`.zip` on Windows) holds a directory of the same name with the binary, the README and the licenses:
 
 | Platform | Target | Archive |
 |---|---|---|
@@ -44,7 +17,27 @@ Every [GitHub release](https://github.com/Mustry-Solutions/iglint/releases) will
 | macOS Apple silicon | `aarch64-apple-darwin` | `.tar.gz` |
 | Windows x86_64 | `x86_64-pc-windows-msvc` | `.zip` |
 
-The Linux binaries are statically linked and run on any distribution; the Windows binary does not need the Visual C++ runtime. Unpack the archive and put `iglint` (or `iglint.exe`) on your `PATH`.
+The Linux binaries are statically linked and run on any distribution; the Windows binary does not need the Visual C++ runtime. Unpack the archive and put `iglint` (or `iglint.exe`) on your `PATH`. For example, on Linux x86_64:
+
+```sh
+curl -sSfLO https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz
+curl -sSfLO https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz.sha256
+sha256sum -c iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz.sha256
+tar -xzf iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz
+sudo install iglint-v0.1.0-x86_64-unknown-linux-musl/iglint /usr/local/bin/
+```
+
+On macOS, use `shasum -a 256 -c` instead of `sha256sum -c`. A binary downloaded with a browser is quarantined by Gatekeeper; `xattr -d com.apple.quarantine iglint` lets it run.
+
+## Cargo
+
+With Rust 1.90 or newer, from the release tag:
+
+```sh
+cargo install --locked --git https://github.com/Mustry-Solutions/iglint --tag v0.1.0 iglint
+```
+
+Without `--tag`, Cargo builds the latest commit of the `main` branch.
 
 ## VS Code extension
 
@@ -55,6 +48,25 @@ code --install-extension iglint-vscode-v0.1.0-linux-x64.vsix
 ```
 
 Platform names are `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64` and `win32-x64`. See [Editors](/guides/editors/) for its settings.
+
+## Python package (pip, uv, pipx; planned)
+
+:::note[Not on PyPI yet]
+The Python package is planned but not published yet: `pip install iglint` does not work today. Use a [prebuilt binary](#prebuilt-binaries) or [Cargo](#cargo) until it is. The commands below are the ones that will work once it is on PyPI.
+:::
+
+The `iglint` package on PyPI will be a wheel that contains only the binary (no Python code), so it fits into an existing Python tool chain or CI image:
+
+```sh
+pip install iglint
+# or, as an isolated tool:
+uv tool install iglint
+pipx install iglint
+```
+
+The package will require Python 3.8 or newer to install. Wheels will be built for Linux (x86_64 and aarch64, glibc and musl), macOS (x86_64 and Apple silicon) and Windows (x86_64). On other platforms pip will fall back to the source distribution, which needs a Rust toolchain to build.
+
+Pin a version with `pip install iglint==0.1.0`.
 
 ## From source
 

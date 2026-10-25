@@ -20,7 +20,8 @@ checks:
 It has more than 100 rules, auto-fixes, a language server for editors, and a
 compatibility mode for projects that use
 [ign-lint](https://github.com/bw-design-group/ignition-lint). See the
-[rule reference](docs/rules/README.md).
+[rule reference](docs/rules/README.md) and the documentation at
+<https://iglint.mustrysolutions.com/>.
 
 ## Why
 
@@ -43,37 +44,43 @@ Benchmarks against ign-lint and how to reproduce them are in
 
 ## Installation
 
-No version has been released yet. Until 0.1.0, the first public release,
-build iglint with Cargo (Rust 1.90 or newer):
-
-```sh
-cargo install --locked --git https://github.com/Mustry-Solutions/iglint iglint
-# or, from a clone:
-cargo install --locked --path crates/iglint
-```
-
-Planned for 0.1.0 (the release workflow builds them; nothing is published
-yet):
-
-* a PyPI wheel with the binary and no Python code:
+* Prebuilt binaries for Linux (x86_64, aarch64; static musl), macOS (x86_64,
+  aarch64) and Windows (x86_64) are attached to every
+  [GitHub release](https://github.com/Mustry-Solutions/iglint/releases),
+  each with a `.sha256` checksum. Unpack the archive and put `iglint` (or
+  `iglint.exe`) on your `PATH`:
 
   ```sh
-  pip install iglint      # or: uv tool install iglint / pipx install iglint
+  curl -sSfL https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz | tar -xz
+  sudo install iglint-v0.1.0-x86_64-unknown-linux-musl/iglint /usr/local/bin/
   ```
 
-* prebuilt binaries for Linux (x86_64, aarch64; static musl), macOS (x86_64,
-  aarch64) and Windows (x86_64), attached to every
-  [GitHub release](https://github.com/Mustry-Solutions/iglint/releases);
-* the VS Code extension, attached to the releases as well, as one VSIX per
-  platform (with the binary inside) and one that uses `iglint` from `PATH`:
+* With Cargo (Rust 1.90 or newer):
+
+  ```sh
+  cargo install --locked --git https://github.com/Mustry-Solutions/iglint --tag v0.1.0 iglint
+  # or, from a clone:
+  cargo install --locked --path crates/iglint
+  ```
+
+* The VS Code extension is attached to the releases as well, as one VSIX
+  per platform (with the binary inside) and one that uses `iglint` from
+  `PATH`:
 
   ```sh
   code --install-extension iglint-vscode-v0.1.0-linux-x64.vsix
   ```
 
-Check the installation with `iglint --version`. The CI examples below
-install the PyPI wheel; until it is published, install with Cargo
-instead.
+* A PyPI wheel with the binary and no Python code is planned but not
+  published yet. Once it is:
+
+  ```sh
+  pip install iglint      # or: uv tool install iglint / pipx install iglint
+  ```
+
+Check the installation with `iglint --version`. More details are on the
+[installation page](https://iglint.mustrysolutions.com/installation/) of
+the documentation.
 
 ## Quick start
 
@@ -307,7 +314,11 @@ report to a file.
 GitHub Actions, with annotations on the pull request and code scanning:
 
 ```yaml
-- run: pip install iglint
+- name: Install iglint
+  run: |
+    curl -sSfL https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz \
+      | tar -xz -C "$RUNNER_TEMP"
+    echo "$RUNNER_TEMP/iglint-v0.1.0-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
 - run: iglint check --output-format github
 - run: iglint check --output-format sarif --output-file iglint.sarif --exit-zero
 - uses: github/codeql-action/upload-sarif@v3
@@ -321,8 +332,9 @@ Azure DevOps (`##vso[task.logissue]` lines show up in the build summary):
 
 ```yaml
 - script: |
-    pip install iglint
-    iglint check --output-format azure
+    curl -sSfL https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz \
+      | tar -xz -C "$(Agent.TempDirectory)"
+    "$(Agent.TempDirectory)/iglint-v0.1.0-x86_64-unknown-linux-musl/iglint" check --output-format azure
   displayName: iglint
 ```
 
@@ -330,9 +342,10 @@ GitLab Code Quality:
 
 ```yaml
 iglint:
-  image: python:3.12
+  image: python:3.12   # any Linux image with curl
   script:
-    - pip install iglint
+    - curl -sSfL -o /tmp/iglint.tar.gz https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz
+    - tar -xzf /tmp/iglint.tar.gz -C /usr/local/bin --strip-components=1 iglint-v0.1.0-x86_64-unknown-linux-musl/iglint
     - iglint check --output-format gitlab --output-file gl-code-quality-report.json
   artifacts:
     when: always
@@ -340,12 +353,11 @@ iglint:
       codequality: gl-code-quality-report.json
 ```
 
-JUnit XML (`--output-format junit`) works with most other CI systems.
+JUnit XML (`--output-format junit`) works with most other CI systems. The
+examples download the static Linux x86_64 binary of v0.1.0; once the PyPI
+wheel is published, `pip install iglint==0.1.0` does the same.
 
 ## pre-commit
-
-The `rev: v0.1.0` below is the planned first release tag; until it exists,
-use a commit hash.
 
 ```yaml
 # .pre-commit-config.yaml
@@ -372,7 +384,8 @@ repos:
 ```
 
 These hooks build iglint from source on first use, which needs a Rust
-toolchain. To use the PyPI wheel instead (once 0.1.0 is published):
+toolchain. Once the PyPI wheel is published (planned, not yet), a local
+hook can use it instead:
 
 ```yaml
 repos:

@@ -7,13 +7,58 @@ from 0.1.0 on.
 
 ## [Unreleased]
 
-Nothing has been released yet: no version is tagged or published (no
-GitHub release, PyPI wheel or VS Code package). 0.1.0, planned as the
-first public release, will hold the features listed under [0.1.0] below
-and the changes listed here.
+## [0.1.0] - 2026-10-25
 
-### Changed
+First public release.
 
+### Added
+
+- Linter for Ignition 8.3 projects on disk: Perspective views, Jython 2.7
+  scripts (project library, gateway and session events, WebDev, tag events,
+  scripts embedded in views), expressions, style classes, page configuration,
+  session properties, named queries, resource manifests and gateway tag
+  resources.
+- More than 100 rules in ten categories (`VIEW`, `NAME`, `BIND`, `SCR`,
+  `REF`, `PERF`, `SEC`, `A11Y`, `STYLE`, `TAG`), with cross-resource checks
+  over the whole project and its parent projects. Reference in
+  [docs/rules](docs/rules/README.md), generated from the rule metadata.
+- Jython 2.7 parser, semantic model and expression parser tested against the
+  parsers shipped in the Ignition 8.3.3 image; `system.*`, expression
+  function and Perspective component facts generated from a real gateway.
+- Safe and unsafe auto-fixes (`--fix`, `--unsafe-fixes`, `--diff`) that only
+  change the bytes they fix.
+- Configuration in `iglint.toml`, `.iglint.toml` or `[tool.iglint]` in
+  `pyproject.toml`: rule selection, per-rule severity, options and excludes,
+  `[[overrides]]`, `strict`.
+- Script suppression comments (`# iglint: ignore[...]`,
+  `# iglint: ignore-file[...]`) and a baseline file
+  (`iglint baseline`, `--prune-baseline`) that is portable across platforms.
+- Output formats: text, concise, grouped, JSON, JSON lines, SARIF, GitHub
+  Actions, Azure DevOps, GitLab Code Quality, JUnit and pylint.
+- ign-lint 0.6.4 compatibility: `iglint ign-lint` (or the binary called as
+  `ign-lint`) with ign-lint's arguments and output, `rule_config.json` and
+  whitelist support, an equivalent for every ign-lint rule, and
+  `iglint migrate` to convert the configuration.
+- Result cache and parallel checking.
+- Language server (`iglint server`) and a VS Code extension.
+- Distribution as prebuilt binaries and VS Code packages attached to the
+  GitHub release, and pre-commit hooks. The release workflow also builds a
+  PyPI wheel (`pip install iglint`); it is not published to PyPI yet.
+
+### Changes during development
+
+The entries below record what changed during development and review,
+before the first release; all of it is part of 0.1.0.
+
+#### Changed
+
+- Documentation for the first release: the README, installation, CI and
+  pre-commit pages install the binaries attached to the GitHub release
+  (the CI examples download the pinned v0.1.0 Linux binary); the PyPI
+  wheel is described as planned, not published; the documentation site is
+  published at https://iglint.mustrysolutions.com/. The release workflow
+  publishes to PyPI only when the repository variable `PYPI_PUBLISH` is
+  `true`.
 - Language server edits (review round 34, Opus nits 2 and 3): a client
   that supports `workspace.workspaceEdit.documentChanges` gets every edit
   (quick fixes, "fix all", the fix-all command, suppressions) as a
@@ -91,7 +136,7 @@ and the changes listed here.
   library functions keep being reported, but their fix is unsafe; only
   findings the view proves on its own keep the safe fix.
 
-### Added
+#### Added
 
 - `[fix] vetted-system-functions` and `[fix] vetted-expression-functions`
   (default empty): `system.*` paths and expression functions of
@@ -155,7 +200,7 @@ and the changes listed here.
 - `SCR900` fixes pylint's `trailing-whitespace` like ign-lint's
   `PylintScriptRule` (every script line `rstrip()`ed).
 
-### Fixed
+#### Fixed
 
 - Language server and a byte order mark the editor keeps (review round
   35, Opus minor): positions on the first line of a file that starts
@@ -1621,39 +1666,5 @@ and the changes listed here.
   new rule `VIEW007 invalid-utf8` reports the invalid bytes (Ignition
   replaces them with U+FFFD), and such files get no fixes.
 
-## [0.1.0] - unreleased
-
-Planned first public release; not tagged or published yet.
-
-### Added
-
-- Linter for Ignition 8.3 projects on disk: Perspective views, Jython 2.7
-  scripts (project library, gateway and session events, WebDev, tag events,
-  scripts embedded in views), expressions, style classes, page configuration,
-  session properties, named queries, resource manifests and gateway tag
-  resources.
-- More than 100 rules in ten categories (`VIEW`, `NAME`, `BIND`, `SCR`,
-  `REF`, `PERF`, `SEC`, `A11Y`, `STYLE`, `TAG`), with cross-resource checks
-  over the whole project and its parent projects. Reference in
-  [docs/rules](docs/rules/README.md), generated from the rule metadata.
-- Jython 2.7 parser, semantic model and expression parser tested against the
-  parsers shipped in the Ignition 8.3.3 image; `system.*`, expression
-  function and Perspective component facts generated from a real gateway.
-- Safe and unsafe auto-fixes (`--fix`, `--unsafe-fixes`, `--diff`) that only
-  change the bytes they fix.
-- Configuration in `iglint.toml`, `.iglint.toml` or `[tool.iglint]` in
-  `pyproject.toml`: rule selection, per-rule severity, options and excludes,
-  `[[overrides]]`, `strict`.
-- Script suppression comments (`# iglint: ignore[...]`,
-  `# iglint: ignore-file[...]`) and a baseline file
-  (`iglint baseline`, `--prune-baseline`) that is portable across platforms.
-- Output formats: text, concise, grouped, JSON, JSON lines, SARIF, GitHub
-  Actions, Azure DevOps, GitLab Code Quality, JUnit and pylint.
-- ign-lint 0.6.4 compatibility: `iglint ign-lint` (or the binary called as
-  `ign-lint`) with ign-lint's arguments and output, `rule_config.json` and
-  whitelist support, an equivalent for every ign-lint rule, and
-  `iglint migrate` to convert the configuration.
-- Result cache and parallel checking.
-- Language server (`iglint server`) and a VS Code extension.
-- Distribution as prebuilt binaries, a PyPI wheel (`pip install iglint`),
-  pre-commit hooks and VS Code packages.
+[Unreleased]: https://github.com/Mustry-Solutions/iglint/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Mustry-Solutions/iglint/releases/tag/v0.1.0
