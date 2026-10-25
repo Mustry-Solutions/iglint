@@ -40,7 +40,7 @@ jobs:
       # Windows: no dependency on the Visual C++ runtime.
       RUSTFLAGS: ${{ contains(matrix.target, 'windows') && '-C target-feature=+crt-static' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: rustup toolchain install
       - run: rustup target add ${{ matrix.target }}
       - name: Install musl tools
@@ -72,14 +72,14 @@ jobs:
           if command -v sha256sum > /dev/null; then sum=(sha256sum); else sum=(shasum -a 256); fi
           (cd dist && "${sum[@]}" "$archive" > "$archive.sha256")
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: binary-${{ matrix.target }}
           path: |
             dist/${{ steps.package.outputs.archive }}
             dist/${{ steps.package.outputs.archive }}.sha256
       # The plain binary, for the VS Code packages.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: vscode-bin-${{ matrix.vscode }}
           path: target/${{ matrix.target }}/release/iglint${{ contains(matrix.target, 'windows') && '.exe' || '' }}
@@ -91,7 +91,9 @@ jobs:
       matrix:
         include:
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, manylinux: auto }
-          - { os: ubuntu-latest, target: aarch64-unknown-linux-gnu, manylinux: auto }
+          # Built on an ARM runner: the manylinux2014 cross-compiling image's
+          # GCC is too old for mimalloc (`-Werror=date-time`).
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, manylinux: auto }
           - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, manylinux: musllinux_1_2 }
           - { os: ubuntu-latest, target: aarch64-unknown-linux-musl, manylinux: musllinux_1_2 }
           - { os: macos-latest, target: x86_64-apple-darwin, manylinux: "" }
@@ -99,7 +101,7 @@ jobs:
           - { os: windows-latest, target: x86_64-pc-windows-msvc, manylinux: "" }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Commit for `iglint --version`
         shell: bash
         run: |
@@ -110,7 +112,7 @@ jobs:
           target: ${{ matrix.target }}
           manylinux: ${{ matrix.manylinux || 'auto' }}
           args: --release --locked --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: wheel-${{ matrix.target }}-${{ matrix.manylinux || 'native' }}
           path: dist/*.whl
@@ -119,12 +121,12 @@ jobs:
     name: source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: PyO3/maturin-action@v1
         with:
           command: sdist
           args: --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: sdist
           path: dist/*.tar.gz
@@ -137,14 +139,14 @@ jobs:
       run:
         working-directory: editors/vscode
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: editors/vscode/package-lock.json
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: vscode-bin-*
           path: vscode-bin
@@ -167,7 +169,7 @@ jobs:
             npx --yes @vscode/vsce@3 package --target "$platform" \
               -o "../../dist/iglint-vscode-${GITHUB_REF_NAME}-${platform}.vsix"
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: vscode
           path: dist/*.vsix
@@ -180,8 +182,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
       - name: Create a draft release with every artifact
@@ -211,7 +213,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: "{wheel-*,sdist}"
           path: dist

@@ -65,7 +65,7 @@ impl ResourceRule for UnusedNamedQuery {
             && (covered_by_prefix(
                 &index.dynamic_references(project).named_queries,
                 &resource.path,
-            ) || super::has_unmodelled_scripts(cx.workspace(), project))
+            ) || index.has_unmodelled_scripts(project))
         {
             return;
         }

@@ -1888,6 +1888,10 @@ fn git(cwd: &std::path::Path, args: &[&str]) {
             "init.defaultBranch=main",
             "-c",
             "commit.gpgsign=false",
+            // Git for Windows checks files out with CRLF otherwise, and
+            // the documents the test opens would differ from the disk.
+            "-c",
+            "core.autocrlf=false",
         ])
         .args(args)
         .output()
@@ -1947,16 +1951,21 @@ fn a_linked_work_tree_below_the_folder_is_its_own_workspace() {
             .find(|d| d.code == Some(lsp_types::NumberOrString::String("SCR102".into())))
             .unwrap_or_else(|| panic!("{published:#?}"))
             .range;
-        let fixes: Vec<CodeAction> = code_actions(
+        let all = code_actions(
             &mut client,
             &uri,
             range,
             Some(vec![CodeActionKind::QUICKFIX]),
-        )
-        .into_iter()
-        .filter(|a| a.title.starts_with("SCR102") && !a.title.contains("suppress"))
-        .collect();
-        assert!(!fixes.is_empty(), "{fixes:#?}");
+        );
+        let fixes: Vec<&CodeAction> = all
+            .iter()
+            .filter(|a| a.title.starts_with("SCR102") && !a.title.contains("suppress"))
+            .collect();
+        assert!(
+            !fixes.is_empty(),
+            "{} {all:#?} {published:#?}",
+            path.display()
+        );
         for fix in &fixes {
             assert_eq!(
                 fix.title

@@ -12,6 +12,18 @@ fn iglint(dir: &std::path::Path) -> Command {
     command
 }
 
+/// A temporary directory whose path has no symbolic links (on macOS the
+/// temporary directory `/var/folders/...` is a link into `/private/var`),
+/// for tests that compare paths iglint prints with paths below the
+/// directory: a process started in a directory sees it with its links
+/// resolved, and cannot know the spelling the test used.
+fn resolved_tempdir() -> tempfile::TempDir {
+    let temp = std::env::temp_dir();
+    #[cfg(unix)]
+    let temp = temp.canonicalize().unwrap();
+    tempfile::tempdir_in(temp).unwrap()
+}
+
 #[test]
 fn clean_project_exits_0() {
     let dir = tempfile::tempdir().unwrap();
@@ -1999,7 +2011,7 @@ fn directories_without_lintable_files_say_so() {
 /// `import os`) and a gateway collection whose tag `T` has a value change
 /// script `tag_script`.
 fn closed_world_repository(tag_script: &str) -> tempfile::TempDir {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = resolved_tempdir();
     let write = |rel: &str, text: &str| {
         let path = dir.path().join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -2295,7 +2307,7 @@ const CONTENTS: &[(&str, &str, &str)] = &[
 ];
 
 fn write_layout(layout: &Layout, module: &str, tag_script: &str) -> tempfile::TempDir {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = resolved_tempdir();
     let write = |rel: &str, text: &str| {
         let path = dir.path().join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -2438,6 +2450,18 @@ fn make_submodule(top: &std::path::Path, inner: &str) {
     assert!(top.join(inner).join(".git").is_file());
 }
 
+/// `path` with `/` between components on every platform, as the findings
+/// of [`findings`] show paths (iglint prints `/`, and on Windows a path
+/// joined in a test mixes both).
+fn shown(path: &std::path::Path) -> String {
+    let text = path.display().to_string();
+    if cfg!(windows) {
+        text.replace('\\', "/")
+    } else {
+        text
+    }
+}
+
 /// The findings of a JSON run, one line each, with paths made absolute
 /// (relative ones are relative to `cwd`): file, code, position, message,
 /// fix applicability and the reason with its site.
@@ -2449,11 +2473,8 @@ fn findings(out: &std::process::Output, cwd: &std::path::Path) -> Vec<String> {
             String::from_utf8_lossy(&out.stderr)
         )
     });
-    let absolute = |p: &serde_json::Value| {
-        p.as_str()
-            .map(|p| cwd.join(p).display().to_string())
-            .unwrap_or_default()
-    };
+    let absolute =
+        |p: &serde_json::Value| p.as_str().map(|p| shown(&cwd.join(p))).unwrap_or_default();
     let mut found: Vec<String> = v
         .as_array()
         .unwrap()
@@ -2510,8 +2531,7 @@ fn single_file_runs_match_the_root_run(
     let files = fixture_files(top, skip.as_deref());
     if let Some(wt) = &skip {
         assert!(
-            all.iter()
-                .all(|f| !f.starts_with(&wt.display().to_string())),
+            all.iter().all(|f| !f.starts_with(&shown(wt))),
             "{}: the main checkout's run reports files of the linked work tree: {all:#?}",
             layout.name
         );
@@ -2520,7 +2540,7 @@ fn single_file_runs_match_the_root_run(
         let rel = file.strip_prefix(top).unwrap();
         let expected: Vec<&String> = all
             .iter()
-            .filter(|f| f.starts_with(&format!("{} ", file.display())))
+            .filter(|f| f.starts_with(&format!("{} ", shown(file))))
             .collect();
         for (cwd, path) in [
             (top, rel.to_path_buf()),
@@ -2617,20 +2637,20 @@ fn linked_worktree_runs_match_own_repository(
         std::fs::copy(file, &to).unwrap();
     }
     std::fs::create_dir_all(own.path().join(".git")).unwrap();
-    let own_prefix = own.path().display().to_string();
-    let wt_prefix = wt.display().to_string();
+    let own_prefix = shown(own.path());
+    let wt_prefix = shown(wt);
     let all: Vec<String> = check_json(own.path(), None)
         .into_iter()
         .map(|f| f.replace(&own_prefix, &wt_prefix))
         .collect();
     let elsewhere = tempfile::tempdir().unwrap();
     let mut failures = Vec::new();
-    let shown = format!("{} (work tree), {expect}: {all:#?}", layout.name);
+    let context = format!("{} (work tree), {expect}: {all:#?}", layout.name);
     for file in &files {
         let rel = file.strip_prefix(wt).unwrap();
         let expected: Vec<String> = all
             .iter()
-            .filter(|f| f.starts_with(&format!("{} ", file.display())))
+            .filter(|f| f.starts_with(&format!("{} ", shown(file))))
             .cloned()
             .collect();
         for (cwd, path) in [
@@ -2651,7 +2671,7 @@ fn linked_worktree_runs_match_own_repository(
     }
     let expect = expect.to_owned();
     move || {
-        assert_expected(&all, &expect, &shown);
+        assert_expected(&all, &expect, &context);
         assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 }
@@ -2790,6 +2810,7 @@ fn unusual_project_and_collection_directories_are_linted() {
 
 /// The findings of a JSON run as (file, code, applicability, reason,
 /// message).
+#[cfg(unix)]
 fn all_fixes(out: &std::process::Output) -> Vec<(String, String, String, String, String)> {
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap_or_else(|_| {
         panic!(
@@ -2946,6 +2967,7 @@ fn symbolic_links_to_directories_are_not_followed() {
 }
 
 /// Every file below `dir` (through no links), sorted.
+#[cfg(unix)]
 fn walk_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut files = Vec::new();
     let mut stack = vec![dir.to_path_buf()];
@@ -3005,8 +3027,11 @@ fn linked_file_repository() -> tempfile::TempDir {
     dir
 }
 
+#[cfg(unix)]
 const LINKED_MODULE: &str = "import math\nimport os\n\ndef f():\n    return math.pi\n";
+#[cfg(unix)]
 const LINKED_P: &str = "projects/P/ignition/script-python/lib/a/code.py";
+#[cfg(unix)]
 const LINKED_Q: &str = "projects/Q/ignition/script-python/lib/a/code.py";
 
 /// Reviewer round 16 B1: the gateway reads a library `code.py` that is a
@@ -3402,6 +3427,8 @@ fn files_below_skipped_directories_get_a_root_that_reaches_them() {
             .output()
             .unwrap();
         let text = String::from_utf8_lossy(&out.stdout);
+        // `node_modules/pkg` with the platform's separators.
+        let pkg: std::path::PathBuf = pkg.components().collect();
         assert!(
             text.contains(&format!("Workspace root: {}\n", pkg.display())),
             "{text}"
@@ -3466,6 +3493,73 @@ fn fixes_that_need_the_closed_world_are_unsafe_without_a_root() {
         .output()
         .unwrap();
     assert_eq!(scr102_fixes(&out), [("safe".to_owned(), String::new())]);
+}
+
+/// The working directory has its symbolic links resolved (the operating
+/// system gives no other spelling), while a path given on the command line
+/// may go through a link: on macOS every temporary directory does
+/// (`/var` is a link to `/private/var`), and so does a checkout reached
+/// through a linked directory. The working directory that holds the
+/// project is still the workspace root, and the fix stays safe.
+#[cfg(unix)]
+#[test]
+fn the_working_directory_is_a_root_through_symbolic_links() {
+    let dir = resolved_tempdir();
+    let real = dir.path().join("real");
+    let project = real.join("lone/A");
+    std::fs::create_dir_all(project.join("ignition/script-python/m")).unwrap();
+    std::fs::write(
+        project.join("project.json"),
+        r#"{"title": "A", "enabled": true, "inheritable": false}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("ignition/script-python/m/resource.json"),
+        r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("ignition/script-python/m/code.py"),
+        CLOSED_WORLD_MODULE,
+    )
+    .unwrap();
+    let link = dir.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let module = link.join("lone/A/ignition/script-python/m/code.py");
+    for cwd in [real.join("lone"), link.join("lone")] {
+        let out = iglint(&cwd)
+            .args([
+                "check",
+                "--no-cache",
+                "--select",
+                "SCR102",
+                "--output-format",
+                "json",
+            ])
+            .arg(&module)
+            .output()
+            .unwrap();
+        assert_eq!(
+            scr102_fixes(&out),
+            [("safe".to_owned(), String::new())],
+            "from {}",
+            cwd.display()
+        );
+        let out = iglint(&cwd)
+            .args(["check", "--no-cache", "--show-settings"])
+            .arg(&module)
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            text.contains(&format!(
+                "Workspace root: {}\n",
+                link.join("lone").display()
+            )),
+            "from {}: {text}",
+            cwd.display()
+        );
+    }
 }
 
 /// Review round 14: with lone CR line ends, Jython numbers lines by `\n`

@@ -449,7 +449,7 @@ fn removal_is_pure(cx: &Checker<'_, '_>, model: &SemanticModel<'_>, binding: Bin
     let shadowed = || match cx.project_index() {
         Some((index, project)) => {
             let (globals, complete) = index.script_library_globals(project);
-            !complete || globals.contains(&top)
+            !complete || globals.contains(top)
         }
         None => true,
     };

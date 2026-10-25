@@ -38,7 +38,23 @@ impl<'a> Visitor<'a> for RangeCheck {
     }
 }
 
+/// Parses `source` and walks the tree, on a thread with the stack the
+/// linter gives the code that walks trees (`iglint_linter::stack`): the
+/// walks recurse, and a test thread's 2 MiB stack holds about 2,000 levels
+/// in a debug build on Linux, fewer on macOS (larger frames). Parsing
+/// itself works on any stack.
 fn exercise(source: &str) {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn_scoped(scope, || exercise_here(source))
+            .unwrap()
+            .join()
+            .unwrap();
+    });
+}
+
+fn exercise_here(source: &str) {
     let parsed = iglint_python::parse_module(source);
     let len = TextSize::of(source);
     RangeCheck { len }.visit_module(&parsed.module);

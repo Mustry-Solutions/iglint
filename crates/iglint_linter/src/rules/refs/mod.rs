@@ -102,35 +102,9 @@ pub(crate) fn all_library_references_known(
 ) -> bool {
     !(ws.project(project).inheritable()
         || !ws.project(project).inheritance.complete
-        || has_unmodelled_scripts(ws, project)
+        || index.has_unmodelled_scripts(project)
         || index.module_escapes(project, module)
-        || index
-            .dynamic_references(project)
-            .library
-            .iter()
-            .any(String::is_empty))
-}
-
-pub(crate) fn has_unmodelled_scripts(ws: &Workspace, project: ProjectId) -> bool {
-    ws.effective_resources(Container::Project(project))
-        .into_iter()
-        .chain(
-            ws.resources
-                .iter()
-                .filter(|r| matches!(r.container, Container::Collection(_)) && !r.manifest.missing)
-                .map(|r| r.id),
-        )
-        .any(|r| {
-            matches!(
-                ws.resource(r).kind,
-                ResourceKind::VisionWindow
-                    | ResourceKind::VisionTemplate
-                    | ResourceKind::Report
-                    | ResourceKind::AlarmPipeline
-                    | ResourceKind::SfcChart
-                    | ResourceKind::EventStream
-            )
-        })
+        || index.any_library_name_reached_dynamically(project))
 }
 
 /// The effective resource of `kind` whose path equals `path` ignoring

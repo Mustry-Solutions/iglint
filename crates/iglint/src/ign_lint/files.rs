@@ -5,12 +5,13 @@ use std::collections::BTreeSet;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use iglint_linter::discovery::absolute;
+use iglint_linter::discovery::{absolute, slash_path};
 
 /// Python `glob.glob(pattern, recursive=True)` relative to `cwd`: `**` spans
 /// directories, wildcards do not match a leading `.`. Results are sorted
 /// (Python returns them in directory order) and returned as written: relative
-/// to `cwd` for relative patterns.
+/// to `cwd` for relative patterns. Components are separated by `/` on every
+/// platform, like every path iglint shows or writes to a whitelist.
 pub fn python_glob(pattern: &str, cwd: &Path) -> Vec<String> {
     let options = glob::MatchOptions {
         case_sensitive: true,
@@ -30,13 +31,12 @@ pub fn python_glob(pattern: &str, cwd: &Path) -> Vec<String> {
     let mut out: Vec<String> = paths
         .filter_map(Result::ok)
         .map(|path| {
-            if relative {
-                path.strip_prefix(cwd)
-                    .map(|p| p.to_string_lossy().into_owned())
-                    .unwrap_or_else(|_| path.to_string_lossy().into_owned())
+            let shown = if relative {
+                path.strip_prefix(cwd).unwrap_or(&path)
             } else {
-                path.to_string_lossy().into_owned()
-            }
+                &path
+            };
+            slash_path(shown)
         })
         .collect();
     out.sort();

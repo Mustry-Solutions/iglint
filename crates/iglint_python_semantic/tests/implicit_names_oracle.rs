@@ -83,6 +83,7 @@ fn model_of(source: &str, module_has_name: bool, f: impl FnOnce(&SemanticModel<'
     assert!(parsed.errors.is_empty(), "{source}: {:?}", parsed.errors);
     let options = SemanticOptions {
         injected: vec!["system", "fpmi", "sys", "pkg", "runAction"],
+        sorted_injected: &[],
         unknown_globals: false,
         module_has_name,
     };

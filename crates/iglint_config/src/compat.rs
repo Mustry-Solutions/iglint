@@ -912,15 +912,13 @@ mod tests {
 
     #[test]
     fn whitelist_lines() {
-        let list = parse_whitelist(
-            "# comment\n\n  a/view.json  \nb/../c/view.json\n",
-            Path::new("/repo"),
-        );
+        let base = Path::new(if cfg!(windows) { r"C:\repo" } else { "/repo" });
+        let list = parse_whitelist("# comment\n\n  a/view.json  \nb/../c/view.json\n", base);
         assert_eq!(
             list,
             vec![
-                PathBuf::from("/repo/a/view.json"),
-                PathBuf::from("/repo/c/view.json")
+                base.join("a").join("view.json"),
+                base.join("c").join("view.json")
             ]
         );
     }

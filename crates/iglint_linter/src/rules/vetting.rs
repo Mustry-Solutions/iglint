@@ -54,12 +54,7 @@ pub(crate) fn unknown_code_at(
         };
     };
     let (globals, complete) = index.script_library_globals(project);
-    if !complete
-        || unknown
-            .vetted_imports
-            .iter()
-            .any(|r| globals.contains(&r.as_str()))
-    {
+    if !complete || unknown.vetted_imports.iter().any(|r| globals.contains(r)) {
         return Some(UnknownAt::Library);
     }
     let mut seen = FxHashSet::default();
@@ -206,6 +201,7 @@ pub(crate) fn unit_reason(cx: &Checker<'_, '_>) -> Option<UnsafeReason> {
                 &parsed.module,
                 &iglint_python_semantic::SemanticOptions {
                     injected: script.implicit_globals().collect(),
+                    sorted_injected: &[],
                     unknown_globals: false,
                     module_has_name: script.has_module_name(),
                 },
@@ -277,7 +273,7 @@ fn module_vetted(
         && symbols
             .library_names
             .iter()
-            .filter(|n| globals.contains(&n.split('.').next().unwrap_or(n)))
+            .filter(|n| globals.contains(n.split('.').next().unwrap_or(n)))
             .all(|name| library_vetted(index, project, name, false, seen))
 }
 

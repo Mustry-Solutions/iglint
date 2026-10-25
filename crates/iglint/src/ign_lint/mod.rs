@@ -32,7 +32,7 @@ use std::time::{Instant, SystemTime};
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use iglint_config::compat::{self, CompatMode, CompatSettings, RuleConfig, ign_lint_rule};
 use iglint_linter::diagnostic::Applicability;
-use iglint_linter::discovery::absolute;
+use iglint_linter::discovery::{absolute, slash_path};
 use iglint_linter::engine::{self, CheckOptions, CheckResult, FixMode};
 use iglint_linter::{Diagnostic, RuleCode, Severity};
 use serde_json::{Value, json};
@@ -557,7 +557,7 @@ fn run_inner(
                 writeln!(
                     io.stderr,
                     "ERROR: Invalid JSON in {}: {message}",
-                    file.absolute.display()
+                    slash_path(&file.absolute)
                 )?;
                 failed = true;
                 continue;
@@ -578,7 +578,7 @@ fn run_inner(
             writeln!(
                 io.stderr,
                 "ERROR: Failed to lint {}: {message}",
-                file.absolute.display()
+                slash_path(&file.absolute)
             )?;
             failed = true;
             continue;
@@ -717,14 +717,15 @@ fn create_parent(path: &Path) -> io::Result<()> {
     }
 }
 
-/// A report path as the user wrote it, or the batch path next to it.
+/// A report path as the user wrote it, or the batch path next to it, with
+/// `/` between components like every path iglint shows.
 fn shown(cwd: &Path, actual: &Path, given: &str) -> String {
     if Path::new(given).is_absolute() {
-        return actual.display().to_string();
+        return slash_path(actual);
     }
     actual
         .strip_prefix(cwd)
-        .map(|p| p.display().to_string())
+        .map(slash_path)
         .unwrap_or_else(|_| given.to_owned())
 }
 
@@ -935,11 +936,7 @@ fn print_proposed_fixes(
         writeln!(out, "    {}", fix.message)?;
         writeln!(out, "    Operations:")?;
         for edit in &fix.edits {
-            let shown_path = edit
-                .path
-                .strip_prefix(cwd)
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|_| edit.path.display().to_string());
+            let shown_path = slash_path(edit.path.strip_prefix(cwd).unwrap_or(&edit.path));
             let (old, location) = if edit.path == diagnostic.file.path() {
                 let text = diagnostic.file.text();
                 let old = text
@@ -1131,7 +1128,11 @@ fn write_debug_output(
             "model" => "Model",
             _ => "Statistics",
         };
-        writeln!(out, "   - {label}: {}", relative_dir.join(name).display())?;
+        writeln!(
+            out,
+            "   - {label}: {}",
+            slash_path(&relative_dir.join(name))
+        )?;
     }
     Ok(())
 }

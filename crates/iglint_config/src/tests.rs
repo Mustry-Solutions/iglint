@@ -33,8 +33,10 @@ fn load_toml(text: &str) -> Result<Configuration, String> {
     write(dir.path(), "iglint.toml", text);
     load(&options(dir.path()), &REGISTRY).map_err(|e| {
         // Paths differ per run; keep the file name only.
-        e.to_string()
-            .replace(&format!("{}/", dir.path().display()), "")
+        e.to_string().replace(
+            &format!("{}{}", dir.path().display(), std::path::MAIN_SEPARATOR),
+            "",
+        )
     })
 }
 

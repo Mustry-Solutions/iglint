@@ -368,7 +368,7 @@ impl ScriptRule for Pylint {
         let script = unit.script;
         let mut reports = Vec::new();
         {
-            let (mut injected, unknown_globals) = injected_names(cx, script);
+            let (mut injected, library, unknown_globals) = injected_names(cx, script);
             if script.has_module_name() {
                 // SCR101 reports a `__package__` that no import binds
                 // (the semantic model knows where imports bind it).
@@ -379,6 +379,7 @@ impl ScriptRule for Pylint {
                     m,
                     unit,
                     &injected,
+                    library,
                     unknown_globals,
                     found.syntax_rule_enabled,
                 ) {
@@ -606,10 +607,15 @@ fn keep(
     m: &Message,
     unit: &ScriptUnit<'_, '_>,
     injected: &[&str],
+    library: &[String],
     unknown_globals: bool,
     syntax_rule_enabled: bool,
 ) -> bool {
-    let known = |name: &str| injected.contains(&name) || iglint_stubs::is_jython_builtin(name);
+    let known = |name: &str| {
+        injected.contains(&name)
+            || library.binary_search_by(|n| n.as_str().cmp(name)).is_ok()
+            || iglint_stubs::is_jython_builtin(name)
+    };
     match m.symbol.as_str() {
         "syntax-error" => !syntax_rule_enabled && !unit.parsed.errors.is_empty(),
         "undefined-variable" => !unknown_globals && quoted(&m.text).is_none_or(|name| !known(name)),

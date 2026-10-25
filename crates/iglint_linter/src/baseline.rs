@@ -391,8 +391,15 @@ mod tests {
         ..RuleMeta::DEFAULT
     };
 
+    /// `/repo/<rel>`, an absolute path on every platform.
+    fn repo(rel: &str) -> PathBuf {
+        let root = if cfg!(windows) { r"C:\repo" } else { "/repo" };
+        let root = PathBuf::from(root);
+        if rel.is_empty() { root } else { root.join(rel) }
+    }
+
     fn settings() -> BaselineOrigin {
-        BaselineOrigin::at(PathBuf::from("/repo"))
+        BaselineOrigin::at(repo(""))
     }
 
     fn diagnostic(file: &SourceFile, start: u32, end: u32) -> Diagnostic {
@@ -407,13 +414,13 @@ mod tests {
 
     #[test]
     fn entries_outside_the_scope_are_kept() {
-        let file = SourceFile::new("/repo/a/x.py", "foo\n");
+        let file = SourceFile::new(repo("a/x.py"), "foo\n");
         let settings = settings();
         let previous = Baseline::from_diagnostics(
             &settings,
             &[
                 diagnostic(&file, 0, 3),
-                diagnostic(&SourceFile::new("/repo/b/y.py", "bar\n"), 0, 3),
+                diagnostic(&SourceFile::new(repo("b/y.py"), "bar\n"), 0, 3),
             ],
         );
         let rewritten = Baseline::from_diagnostics(&settings, &[])
@@ -424,7 +431,7 @@ mod tests {
 
     #[test]
     fn identical_findings_share_an_entry_and_match_by_count() {
-        let file = SourceFile::new("/repo/a/x.py", "foo\nfoo\nbar\n");
+        let file = SourceFile::new(repo("a/x.py"), "foo\nfoo\nbar\n");
         let settings = settings();
         let diagnostics = vec![diagnostic(&file, 0, 3), diagnostic(&file, 4, 7)];
         let baseline = Baseline::from_diagnostics(&settings, &diagnostics);
@@ -446,8 +453,8 @@ mod tests {
     #[test]
     fn fingerprints_survive_line_moves() {
         let settings = settings();
-        let before = SourceFile::new("/repo/x.py", "foo\n");
-        let after = SourceFile::new("/repo/x.py", "\n\nfoo\n");
+        let before = SourceFile::new(repo("x.py"), "foo\n");
+        let after = SourceFile::new(repo("x.py"), "\n\nfoo\n");
         let baseline = Baseline::from_diagnostics(&settings, &[diagnostic(&before, 0, 3)]);
         let matched = baseline.filter(&settings, vec![diagnostic(&after, 2, 5)]);
         assert_eq!(matched.suppressed, 1);
@@ -457,8 +464,8 @@ mod tests {
     #[test]
     fn round_trip_is_sorted_and_stable() {
         let settings = settings();
-        let a = SourceFile::new("/repo/b.py", "x");
-        let b = SourceFile::new("/repo/a.py", "y");
+        let a = SourceFile::new(repo("b.py"), "x");
+        let b = SourceFile::new(repo("a.py"), "y");
         let baseline =
             Baseline::from_diagnostics(&settings, &[diagnostic(&a, 0, 1), diagnostic(&b, 0, 1)]);
         let json = baseline.to_json();
