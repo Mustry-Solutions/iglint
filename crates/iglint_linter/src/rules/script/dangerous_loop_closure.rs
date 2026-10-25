@@ -48,7 +48,8 @@ count. So does a generator: calling a generator function (a `def` or
 `lambda` with `yield`) runs none of its body, and a generator expression
 runs when it is consumed, unless it is consumed where it is written: as
 the iterable of a builtin that consumes it (`sum`, `any`, `all`, `list`,
-`tuple`, `set`, `dict`, `sorted`, a single argument of `min` or `max`,
+`tuple`, `set`, `dict`, `sorted`, a single argument of `min` or `max`
+(not with `*args` that may add another: `max(g, *rest)` may return `g`),
 the sequences of `map`, `filter`, `reduce` and `zip`, `''.join`), of a
 `for` statement or of a list, set or dict comprehension. A generator
 function whose every call is consumed that way (`total += sum(h())`)
@@ -191,14 +192,18 @@ fn calls_argument(name: &str, arg: Arg<'_>) -> bool {
 /// `min` and `max` given one positional argument (with more they compare,
 /// and may return, the arguments themselves), the sequences of `filter`,
 /// `reduce`, `map` and `zip`. `enumerate`, `iter` and `reversed` keep it;
-/// `dict(k=g)` and `sum(x, g)` keep `g`.
-fn consumes_argument(name: &str, arg: Arg<'_>, positional: usize) -> bool {
+/// `dict(k=g)` and `sum(x, g)` keep `g`. `positional` is `None` when
+/// `*args` may add positional arguments (review round 27, Codex:
+/// `max(g, *[None])` compares `g` with `None` and returns `g`); `**kwargs`
+/// adds keywords only. The other cases do not depend on the count: the
+/// written arguments come first, so their positions are fixed.
+fn consumes_argument(name: &str, arg: Arg<'_>, positional: Option<usize>) -> bool {
     match (name, arg) {
         (
             "all" | "any" | "dict" | "frozenset" | "list" | "set" | "sorted" | "sum" | "tuple",
             Arg::At(0),
         ) => true,
-        ("min" | "max", Arg::At(0)) => positional == 1,
+        ("min" | "max", Arg::At(0)) => positional == Some(1),
         ("filter" | "reduce", Arg::At(1)) => true,
         ("map", Arg::At(i)) => i >= 1,
         ("zip", Arg::At(_)) => true,
@@ -252,7 +257,14 @@ fn run_during_call(
         {
             invoked.insert(l.range);
         }
-        if consumes_argument(name, arg, c.args.len()) {
+        // `*args` adds its items: known for a literal tuple or list.
+        let positional = match c.starargs.as_deref() {
+            None => Some(c.args.len()),
+            Some(Expr::Tuple(t)) => Some(c.args.len() + t.elts.len()),
+            Some(Expr::List(l)) => Some(c.args.len() + l.elts.len()),
+            Some(_) => None,
+        };
+        if consumes_argument(name, arg, positional) {
             consumed.insert(value.range());
         }
     }
@@ -985,6 +997,11 @@ mod tests {
             ("out.append(dict(a=(v * t for v in [1])))", &["t"][..]),
             ("out.append(sum([1], (v * t for v in [1])))", &["t"][..]),
             ("out.append(enumerate(v * t for v in [1]))", &["t"][..]),
+            // Review round 27 (Codex): `*args` may add positional
+            // arguments (Jython: `[[2], [2], [2]]`).
+            ("out.append(max((v * t for v in [1]), *[None]))", &["t"][..]),
+            ("out.append(min((v * t for v in [1]), *rest))", &["t"][..]),
+            ("out.append(max((v * t for v in [1]), None))", &["t"][..]),
         ] {
             let code = format!("out = []\nfor t in range(3):\n    {body}\n");
             let d = library("m", &code).lint(&["SCR120"]);
@@ -1004,6 +1021,11 @@ mod tests {
             "out.append(zip([1], (v * t for v in [1])))",
             "out.append(dict((v, t) for v in [1]))",
             "out.append(', '.join(str(v * t) for v in [1]))",
+            // Nothing added: one positional argument (Jython: `[0, 1, 2]`).
+            "out.append(max((v * t for v in [1]), *()))",
+            "out.append(max((v * t for v in [1]), **{}))",
+            "out.append(sum((v * t for v in [1]), *[0]))",
+            "out.append(sorted((v * t for v in [1]), *[None]))",
         ] {
             let code = format!("out = []\nfor t in range(3):\n    {body}\n");
             let d = library("m", &code).lint(&["SCR120"]);
