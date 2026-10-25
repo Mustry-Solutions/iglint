@@ -12,6 +12,18 @@ fn iglint(dir: &std::path::Path) -> Command {
     command
 }
 
+/// A temporary directory whose path has no symbolic links (on macOS the
+/// temporary directory `/var/folders/...` is a link into `/private/var`),
+/// for tests that compare paths iglint prints with paths below the
+/// directory: a process started in a directory sees it with its links
+/// resolved, and cannot know the spelling the test used.
+fn resolved_tempdir() -> tempfile::TempDir {
+    let temp = std::env::temp_dir();
+    #[cfg(unix)]
+    let temp = temp.canonicalize().unwrap();
+    tempfile::tempdir_in(temp).unwrap()
+}
+
 #[test]
 fn clean_project_exits_0() {
     let dir = tempfile::tempdir().unwrap();
@@ -1999,7 +2011,7 @@ fn directories_without_lintable_files_say_so() {
 /// `import os`) and a gateway collection whose tag `T` has a value change
 /// script `tag_script`.
 fn closed_world_repository(tag_script: &str) -> tempfile::TempDir {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = resolved_tempdir();
     let write = |rel: &str, text: &str| {
         let path = dir.path().join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -2295,7 +2307,7 @@ const CONTENTS: &[(&str, &str, &str)] = &[
 ];
 
 fn write_layout(layout: &Layout, module: &str, tag_script: &str) -> tempfile::TempDir {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = resolved_tempdir();
     let write = |rel: &str, text: &str| {
         let path = dir.path().join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -3466,6 +3478,73 @@ fn fixes_that_need_the_closed_world_are_unsafe_without_a_root() {
         .output()
         .unwrap();
     assert_eq!(scr102_fixes(&out), [("safe".to_owned(), String::new())]);
+}
+
+/// The working directory has its symbolic links resolved (the operating
+/// system gives no other spelling), while a path given on the command line
+/// may go through a link: on macOS every temporary directory does
+/// (`/var` is a link to `/private/var`), and so does a checkout reached
+/// through a linked directory. The working directory that holds the
+/// project is still the workspace root, and the fix stays safe.
+#[cfg(unix)]
+#[test]
+fn the_working_directory_is_a_root_through_symbolic_links() {
+    let dir = resolved_tempdir();
+    let real = dir.path().join("real");
+    let project = real.join("lone/A");
+    std::fs::create_dir_all(project.join("ignition/script-python/m")).unwrap();
+    std::fs::write(
+        project.join("project.json"),
+        r#"{"title": "A", "enabled": true, "inheritable": false}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("ignition/script-python/m/resource.json"),
+        r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("ignition/script-python/m/code.py"),
+        CLOSED_WORLD_MODULE,
+    )
+    .unwrap();
+    let link = dir.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let module = link.join("lone/A/ignition/script-python/m/code.py");
+    for cwd in [real.join("lone"), link.join("lone")] {
+        let out = iglint(&cwd)
+            .args([
+                "check",
+                "--no-cache",
+                "--select",
+                "SCR102",
+                "--output-format",
+                "json",
+            ])
+            .arg(&module)
+            .output()
+            .unwrap();
+        assert_eq!(
+            scr102_fixes(&out),
+            [("safe".to_owned(), String::new())],
+            "from {}",
+            cwd.display()
+        );
+        let out = iglint(&cwd)
+            .args(["check", "--no-cache", "--show-settings"])
+            .arg(&module)
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            text.contains(&format!(
+                "Workspace root: {}\n",
+                link.join("lone").display()
+            )),
+            "from {}: {text}",
+            cwd.display()
+        );
+    }
 }
 
 /// Review round 14: with lone CR line ends, Jython numbers lines by `\n`

@@ -460,8 +460,22 @@ pub fn workspace_roots(settings: &ProjectSettings, paths: &[PathBuf]) -> Workspa
     let mut roots: Vec<PathBuf> = Vec::new();
     // Git work tree -> whether a project or collection lies below it.
     let mut git_holds: HashMap<PathBuf, bool> = HashMap::new();
+    let canonical_configured = configured
+        .as_deref()
+        .and_then(|d| std::fs::canonicalize(d).ok());
+    let canonical_cwd = cwd.as_deref().and_then(|d| std::fs::canonicalize(d).ok());
     for path in paths {
         let path = absolute(path);
+        // The configuration directory and the working directory as `path`
+        // spells them: through the same symbolic links (the working
+        // directory has its links resolved, a path given on the command
+        // line or by an editor may not).
+        let configured = configured
+            .as_deref()
+            .map(|d| same_directory_above(&path, d, canonical_configured.as_deref()));
+        let cwd = cwd
+            .as_deref()
+            .map(|d| same_directory_above(&path, d, canonical_cwd.as_deref()));
         let container = enclosing_container(&path);
         // A candidate must contain the path, lie outside its container and
         // reach the container in the workspace walk: a root whose walk
@@ -548,6 +562,26 @@ pub fn workspace_roots(settings: &ProjectSettings, paths: &[PathBuf]) -> Workspa
     }
     out.roots = kept;
     out
+}
+
+/// `dir` as spelled in `path`: `dir` itself when `path` lies below it,
+/// else the ancestor of `path` that is the same directory as `dir` through
+/// symbolic links (`canonical_dir` is `dir` with its links resolved), and
+/// `dir` when there is none. On macOS the temporary directories
+/// (`/var/folders/...`) are links into `/private/var`; the working
+/// directory always has its links resolved.
+fn same_directory_above(path: &Path, dir: &Path, canonical_dir: Option<&Path>) -> PathBuf {
+    if path.starts_with(dir) {
+        return dir.to_path_buf();
+    }
+    canonical_dir
+        .filter(|c| std::fs::canonicalize(path).is_ok_and(|p| p.starts_with(c)))
+        .and_then(|c| {
+            path.ancestors()
+                .find(|a| std::fs::canonicalize(a).is_ok_and(|a| a == c))
+        })
+        .unwrap_or(dir)
+        .to_path_buf()
 }
 
 /// Whether `dir` holds an Ignition layout with a container in it: a
