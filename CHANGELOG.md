@@ -152,8 +152,9 @@ from 0.1.0 on.
   edits on resolve; for other clients one run computes the edit of every
   quick fix in the list (reused for at most a second while no
   notification arrives and the disk is unchanged). Cost (release build,
-  private project, 3,143 files): resolving a fix takes FIXLAT; listing
-  code actions LISTLAT; typing is unchanged.
+  private project, 3,143 files): resolving a fix takes 143 ms median
+  (169 ms p95), listing code actions 16 ms median; typing is unchanged
+  (largest library modules 19.4 ms median, 23.0 ms p95).
 - The language server did not show findings of rules a configuration
   enables only for some files (an `[[overrides]]` entry for
   `**/view.json`, as migrated ign-lint configurations have) in views with
