@@ -128,6 +128,35 @@ from 0.1.0 on.
 
 ### Fixed
 
+- The language server offered stale safe fixes when a file it read was
+  outside the workspace folder or changed without a notification (review
+  round 31, blocker, Opus and Codex; since round 24 for changes on
+  disk). A folder opened on `projects/child` reads its parent project
+  `projects/base` too, but the editor text of an open `base` script, and
+  watched-file notifications for it, reached only the folder that
+  publishes it; nested and overlapping folders (`[W, W/.../lib]`,
+  `[R, R/.../users]`) had the same gap; and a change on disk that no
+  notification reported (`git pull`, another editor) was never seen. So
+  a code action on `lib.util` offered the safe removal of an `import
+  json` that the edited script now uses (also fix all, resolve and the
+  fix-all command). Now every live workspace whose index holds an open
+  document gets its text (on open, change, close, folder addition,
+  removal and reload; tracked per workspace), watched-file changes go to
+  every workspace that holds or may hold the file, the server watches
+  the directories of each workspace outside the folders (relative
+  patterns when the client supports them, else absolute globs), and
+  before any fix is computed the server compares every file and
+  directory of the workspace with what it read (size, times, identity;
+  contents when the stamp is within 2 s of the read), reads changed
+  files again and discovers the folder again when files or directories
+  were added or removed or the configuration changed. Cost (release build):
+  0.2 ms median on 3,005 generated files and 1,510 directories, 0.5 ms
+  (p95 0.9 ms) on the private project's 4,262 files and 2,470
+  directories; a code action with fixes there takes 36 ms median.
+- `docs/rules/REF002.md` says that a use behind `hasattr` (read, delete
+  or augmented assignment) is reported like any other while no code
+  creates the name (review round 31, nit); the three forms are tested
+  together.
 - A star import of a module named through another module's import was
   not followed by a further star import (review round 30, blocker; new
   in round 29): with `m0` doing `from lib import exports`, `m1` doing

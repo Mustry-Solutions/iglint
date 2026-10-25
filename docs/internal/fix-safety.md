@@ -2337,6 +2337,98 @@ every preferred fix is safe in a fresh check of the editor's texts and
 "fix all" equals a fresh `--fix`; 9 sequences by default, 60 run;
 fails on the round 29 code).
 
+Review round 31 (B1, Opus and Codex): the invariant is that **a safe
+fix the server offers or applies equals what a fresh `iglint check` of
+the folder, run on the editor's current texts and the current disk,
+offers**. Round 30 gave the editor's text only to the folder that
+publishes a document, but a folder's live workspace indexes the whole
+discovered workspace (a folder on `projects/child` reads the parent
+project `projects/base`; nested folders `[W, W/.../lib]` and overlapping
+ones `[R, R/.../users]` each index the files of the other). An unsaved
+edit of a `base` script that now reads `lib.util.json`, made in the
+editor, saved, or only on disk, left the child folder's `lib.util`
+with a preferred safe removal of `import json`. Three changes:
+
+* **Overlays are per live workspace.** Every open document has a
+  generation, and each folder records which generation of which
+  document its live workspace has (`Folder::applied`).
+  `Server::reconcile` gives a live workspace the text of every open
+  document its index holds (`LiveWorkspace::indexes`) or that its folder
+  publishes, and the disk text again for documents closed since; it runs
+  before every fix computation (`sync_documents`), after every analysis
+  (`flush`), on close, and when a folder is added, made for a file, or
+  discovered again.
+* **Disk changes reach every workspace.** A watched-file change goes to
+  every folder whose live workspace holds the file or may hold a new one
+  (`LiveWorkspace::may_index`: below a directory discovery read), and the
+  server watches the directories of each workspace outside the folders
+  (`LiveWorkspace::watched_directories`, as `RelativePattern`s when the
+  client supports them, else absolute globs; a directory whose path a
+  glob would misread is not watched).
+* **Fixes do not trust notifications.** Clients without dynamic
+  registration, changes outside the editor and `git checkout` send
+  nothing, or send it late. Before any fix computation (a code action
+  with a fix in range or fix all, `codeAction/resolve`, the fix-all
+  command) the server calls `LiveWorkspace::refresh_from_disk` on the
+  folder computing it. Discovery records every directory it read with
+  a digest of what it saw (`Workspace::directories`: the subdirectories
+  and container entries of walked directories, every kept entry inside
+  containers, and for directories it skips by name, linked work trees
+  and parent project directories whether they are containers, work trees
+  or links), and the live workspace keeps a stamp of every file and
+  directory (size, modification time, change time, device and inode on
+  Unix; creation time elsewhere). An entry whose stamp is unchanged is
+  trusted; otherwise a directory is listed again and its digest compared,
+  a data file is read again and compared. An entry dated within 2 s of
+  its read (`TIMESTAMP_SLACK`: a write in the same timestamp tick, coarse
+  file systems) is racy and compared by content on every refresh until a
+  later stamp settles it, as Git does for its index; the stamps are
+  taken after the reads, so a change between read and stamp is always
+  racy. Changed data files (except those with editor text) are read
+  again and their resources summarised again, with their dependents
+  checked again; a directory whose digest changed, a manifest whose text
+  changed, or a file that disappeared means discovery may find something
+  else, and the folder is discovered again (`DiskChange::Structure`). A
+  file the configuration could come from (the configuration file, and
+  each configuration name in the folder and every directory above it)
+  that changed reloads the folder too. Cost in a release build
+  (`latency.rs`, `fix_request_latency` and the ignored
+  `private_corpus_fix_request_latency`): 0.2 ms median when nothing
+  changed (3,005 generated files, 1,510 directories), 0.5 ms median and
+  0.9 ms p95 on a private project (4,262 files, 2,470 directories),
+  where a code action over a whole file with fixes takes 36 ms median.
+
+What this does not see: a change above the discovered roots that would
+choose other workspace roots (a new `projects/` directory or Git work
+tree around the folder), a configuration rewrite of the same size within
+one modification-time tick, and on Windows a rewrite between the read
+and the stamp that keeps size, modification and creation time. Watched
+files (when the client sends them) and a reload of the folder (a change
+of its configuration, or reopening it) cover them.
+
+Tests: `a_parent_project_outside_the_folder_gets_the_editor_text`
+(edit, save, close; close unsaved brings the removal back),
+`changes_on_disk_without_notifications_reach_fixes` (the parent's module,
+the folder's own, a new module with and without watchers, the
+configuration), `every_live_workspace_gets_the_editor_text` (Codex's
+overlapping folders and nested folders with every run trigger; parent
+and child folders at once), `a_folder_added_later_gets_the_editor_text`,
+`watches_workspace_directories_outside_the_folder`; in `live`,
+`refreshing_from_disk_matches_a_new_workspace` (random rewrites,
+same-size rewrites dated back, touches, new and removed modules; after
+each refresh the findings and fixes equal those of a new live workspace,
+the conservative behaviour) and `stamps_tell_changes_once_files_settle`;
+in `iglint_project`, `directory_records_tell_every_change_discovery_sees`
+(every change that makes discovery find something else changes a
+digest); and `fixes_match_a_fresh_check_in_every_folder_layout`
+(`consistency.rs`: a child project folder, a directory inside the
+project, nested folders, a folder added after documents were opened;
+typing, saves, closes and disk changes with and without notifications;
+every preferred quick fix is safe in a fresh check of the folder that
+publishes the file and fix all equals its `--fix`; 3 sequences per
+layout by default, 40 run with 4,021 code action requests; fails on
+the round 30 code).
+
 Re-checking the files an edit may affect (every published file, after
 an edit of a library module) goes 128 files at a time with one index
 and stops when a message arrives (`LiveWorkspace::check_until`); what is

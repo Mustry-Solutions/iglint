@@ -507,25 +507,34 @@ fn refresh_cost(root: &Path, rounds: usize) -> (usize, usize, Stats) {
     (files, directories, stats(samples))
 }
 
-/// Code actions on the first line of `path`, which has a fix: the time of
-/// each request, including the check of the disk, the fresh check and the
-/// fix.
-fn code_action_latency(client: &mut Client, path: &Path, rounds: usize) -> Stats {
+/// Code actions over the whole of `path`: the time of each request,
+/// including the check of the disk, the fresh check and every fix, and
+/// whether a fix was offered (`None` when none was).
+fn code_action_latency(client: &mut Client, path: &Path, rounds: usize) -> Option<Stats> {
     let text = std::fs::read_to_string(path).unwrap();
     let uri = client.open(path, &text);
     client.diagnostics(&uri, Some(1));
+    let mut offered = false;
     let samples = (0..rounds)
         .map(|_| {
             let start = Instant::now();
-            client.request_raw(
+            let actions = client.request_raw(
                 "textDocument/codeAction",
-                json!({"textDocument": {"uri": uri}, "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 11}}, "context": {"diagnostics": []}}),
+                json!({"textDocument": {"uri": uri}, "range": {"start": {"line": 0, "character": 0}, "end": {"line": 100000, "character": 0}}, "context": {"diagnostics": []}}),
             );
-            start.elapsed()
+            let elapsed = start.elapsed();
+            offered |= actions
+                .as_array()
+                .is_some_and(|a| a.iter().any(|a| a.get("edit").is_some() && !a["title"].as_str().unwrap_or("").contains("suppress")));
+            elapsed
         })
         .collect();
+    client.notify(
+        "textDocument/didClose",
+        json!({"textDocument": {"uri": uri}}),
+    );
     client.drain();
-    stats(samples)
+    offered.then(|| stats(samples))
 }
 
 fn ms(d: Duration) -> f64 {
@@ -552,7 +561,7 @@ fn fix_request_latency() {
         ms(refresh.max)
     );
     let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
-    let s = code_action_latency(&mut client, &path, 15);
+    let s = code_action_latency(&mut client, &path, 15).expect("a fix");
     println!(
         "code action with a fix: median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
         ms(s.median),
@@ -607,13 +616,38 @@ fn private_corpus_fix_request_latency() {
     modules.sort();
     let mut client = Client::start(Some(&corpus), json!({"debounceMs": 0}));
     let mut all = Vec::new();
-    for (_, path) in modules.iter().rev().take(5) {
-        let s = code_action_latency(&mut client, path, 10);
-        all.extend([s.median, s.p95, s.max]);
+    // The largest library modules and views that offer a fix.
+    let mut views: Vec<(u64, PathBuf)> = Vec::new();
+    let mut stack = vec![corpus.clone()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.file_name().is_some_and(|n| n == "view.json") {
+                views.push((entry.metadata().map(|m| m.len()).unwrap_or(0), path));
+            }
+        }
+    }
+    views.sort();
+    for list in [&modules, &views] {
+        let mut measured = 0;
+        for (_, path) in list.iter().rev() {
+            if measured == 5 {
+                break;
+            }
+            if let Some(s) = code_action_latency(&mut client, path, 10) {
+                all.extend([s.median, s.p95, s.max]);
+                measured += 1;
+            }
+        }
     }
     let s = stats(all);
     println!(
-        "code actions on the 5 largest library modules: median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
+        "code actions with fixes on the largest library modules and views (whole file): median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
         ms(s.median),
         ms(s.p95),
         ms(s.max)
