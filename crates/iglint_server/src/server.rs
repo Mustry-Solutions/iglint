@@ -611,11 +611,10 @@ impl Server {
             .filter(|(_, d)| d.dirty)
             .map(|(u, _)| u.clone())
             .collect();
-        if dirty.is_empty() && self.folders.iter().all(|f| f.pending.is_empty()) {
+        if dirty.is_empty() && !self.folders.iter().any(Folder::has_pending) {
             return;
         }
         // The edited documents first, then what depends on them.
-        let mut checks: FxHashMap<usize, BTreeSet<PathBuf>> = FxHashMap::default();
         for uri in dirty {
             let Some(doc) = self.documents.get_mut(&uri) else {
                 continue;
@@ -629,7 +628,6 @@ impl Server {
             let (result, dependents) = self.folders[i].live.update(&path, text);
             let elapsed = start.elapsed();
             self.publish_result(i, result);
-            self.folders[i].pending.remove(&path);
             self.log(
                 MessageType::LOG,
                 format!(
@@ -638,21 +636,15 @@ impl Server {
                     elapsed.as_secs_f64() * 1000.0
                 ),
             );
-            let mut extra = BTreeSet::new();
-            self.add_dependents(i, dependents, &mut extra);
-            checks.entry(i).or_default().extend(extra);
+            self.add_pending(i, dependents);
         }
         if self.deadline.is_some_and(|d| d <= Instant::now()) {
             self.deadline = None;
         }
         for i in 0..self.folders.len() {
-            let pending = std::mem::take(&mut self.folders[i].pending);
-            if !pending.is_empty() {
-                checks.entry(i).or_default().extend(pending);
+            if self.folders[i].has_pending() {
+                self.check_pending(i, true);
             }
-        }
-        for (i, paths) in checks {
-            self.check_and_publish(i, paths);
         }
     }
 
@@ -666,8 +658,11 @@ impl Server {
             return;
         };
         let i = self.folder_for(&path);
-        if self.folders[i].pending.remove(&path) {
-            self.check_and_publish_all(i, BTreeSet::from([path]));
+        let folder = &self.folders[i];
+        if (folder.pending_all && self.documents.contains_key(uri))
+            || folder.pending.contains(&path)
+        {
+            self.check_paths(i, vec![path], false);
         }
     }
 
@@ -693,47 +688,69 @@ impl Server {
             let text: Arc<str> = Arc::from(doc.text.as_str());
             let i = self.folder_for(&path);
             let dependents = self.folders[i].live.set_text(&path, Some(text));
-            let mut extra = BTreeSet::new();
-            self.add_dependents(i, dependents, &mut extra);
-            extra.remove(&path);
-            self.folders[i].pending.extend(extra);
+            self.add_pending(i, dependents);
+        }
+    }
+
+    /// Checks and publishes every published file.
+    fn publish_all(&mut self) {
+        for i in 0..self.folders.len() {
+            self.folders[i].pending_all = true;
+            self.check_pending(i, true);
         }
     }
 
     /// Checks everything pending now, without stopping for messages.
     fn finish_pending(&mut self) {
         for i in 0..self.folders.len() {
-            let pending = std::mem::take(&mut self.folders[i].pending);
-            if !pending.is_empty() {
-                self.check_and_publish_all(i, pending);
+            if self.folders[i].has_pending() {
+                self.check_pending(i, false);
             }
         }
     }
 
-    fn publish_all(&mut self) {
-        for i in 0..self.folders.len() {
-            let paths: BTreeSet<PathBuf> = self.published_paths(i).into_iter().collect();
-            self.check_and_publish(i, paths);
+    /// Adds the published files among `dependents` to those pending.
+    fn add_pending(&mut self, i: usize, dependents: Dependents) {
+        match dependents {
+            Dependents::None => {}
+            Dependents::Files(files) => {
+                for f in files {
+                    if self.is_published(i, &f) {
+                        self.folders[i].pending.push(f);
+                    }
+                }
+            }
+            Dependents::All => self.folders[i].pending_all = true,
         }
+    }
+
+    /// Checks and publishes what is pending in folder `i`.
+    fn check_pending(&mut self, i: usize, interruptible: bool) {
+        let mut paths = if std::mem::take(&mut self.folders[i].pending_all) {
+            self.folders[i].pending.clear();
+            self.published_paths(i)
+        } else {
+            std::mem::take(&mut self.folders[i].pending)
+        };
+        // Usually sorted already (what a check left).
+        paths.sort();
+        paths.dedup();
+        self.check_paths(i, paths, interruptible);
     }
 
     /// Checks and publishes `paths`, stopping when a message arrives: what
     /// is left becomes pending, checked on the next run.
     fn check_and_publish(&mut self, i: usize, paths: BTreeSet<PathBuf>) {
-        self.check_and_publish_until(i, paths, true);
+        self.check_paths(i, paths.into_iter().collect(), true);
     }
 
-    /// [`Server::check_and_publish`] without stopping.
-    fn check_and_publish_all(&mut self, i: usize, paths: BTreeSet<PathBuf>) {
-        self.check_and_publish_until(i, paths, false);
-    }
-
-    fn check_and_publish_until(&mut self, i: usize, paths: BTreeSet<PathBuf>, interruptible: bool) {
+    /// Checks and publishes `paths` (sorted), when `interruptible` stopping
+    /// when a message arrives: the rest is pending.
+    fn check_paths(&mut self, i: usize, paths: Vec<PathBuf>, interruptible: bool) {
         if paths.is_empty() {
             return;
         }
         let start = Instant::now();
-        let paths: Vec<PathBuf> = paths.into_iter().collect();
         let receiver = self.receiver.clone();
         let stop = move || interruptible && !receiver.is_empty();
         let (results, rest) = self.folders[i].live.check_until(&paths, &stop);

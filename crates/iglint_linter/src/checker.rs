@@ -109,16 +109,23 @@ impl UnitCache {
             let Some(view) = data.view() else {
                 return Vec::new();
             };
+            use rayon::prelude::*;
             let provider = crate::script_facts::provider();
             let parsed = self.parsed_scripts(data);
-            let mut out = Vec::new();
-            for (index, ((file, script), parsed)) in
-                data.scripts().into_iter().zip(parsed).enumerate()
-            {
-                let unit = ScriptUnit::new(file, script, parsed, index);
-                provider.property_accesses(&unit, view, &mut out);
-            }
-            out
+            // In parallel, in script order (review round 30, as the parse).
+            let scripts = data.scripts();
+            let per_script: Vec<Vec<PropertyAccess>> = scripts
+                .par_iter()
+                .zip(parsed.par_iter())
+                .enumerate()
+                .map(|(index, ((file, script), parsed))| {
+                    let unit = ScriptUnit::new(*file, script, parsed, index);
+                    let mut out = Vec::new();
+                    provider.property_accesses(&unit, view, &mut out);
+                    out
+                })
+                .collect();
+            per_script.into_iter().flatten().collect()
         })
     }
 }

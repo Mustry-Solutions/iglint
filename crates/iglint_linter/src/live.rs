@@ -435,8 +435,8 @@ impl LiveWorkspace {
         paths: &[PathBuf],
         stop: &dyn Fn() -> bool,
     ) -> (Vec<FileDiagnostics>, Vec<PathBuf>) {
-        /// About 10 ms of work in an optimised build.
-        const CHUNK: usize = 64;
+        /// About 15 ms of work in an optimised build on a 3,000-file project.
+        const CHUNK: usize = 128;
         let summaries = std::mem::take(&mut self.summaries);
         let index = crate::analyze::build_index(
             &self.ws,
@@ -1375,6 +1375,68 @@ mod tests {
             live.set_text(&m1, Some(Arc::from("def x():\n    return 2\n"))),
             Dependents::All
         );
+    }
+
+    /// Review round 30 (Opus minor 1): checking a few files at a time with
+    /// one index, stopping anywhere and checking the rest later, gives the
+    /// findings one check of every file gives.
+    #[test]
+    fn checks_in_parts_match_one_check() {
+        use crate::rules::script::testing::{library, with_library};
+        let mut f = with_library(
+            library(
+                "lib/util",
+                "import json\nimport os\ndef f():\n    return 1\n",
+            ),
+            "m1",
+            "from lib import util\n",
+        );
+        for i in 0..150 {
+            f = with_library(
+                f,
+                &format!("u{i}"),
+                &format!(
+                    "import sys\ndef g{i}(n):\n    return m1.util.json.dumps({i}) + lib.util.nothere{}\n",
+                    i % 3
+                ),
+            );
+        }
+        let root = absolute(f.root());
+        let settings =
+            crate::rules::test_support::settings(&root, &[("SCR102", ""), ("REF002", "")]);
+        let mut live = LiveWorkspace::new(settings, vec![root.clone()]);
+        let mut paths = live.lintable_files();
+        paths.sort();
+        let key = |all: &[FileDiagnostics]| -> Vec<(PathBuf, Vec<String>)> {
+            all.iter()
+                .map(|f| {
+                    (
+                        f.path.clone(),
+                        f.diagnostics
+                            .iter()
+                            .map(|d| {
+                                format!("{} {:?} {} {:?}", d.rule.code(), d.range, d.message, d.fix)
+                            })
+                            .collect(),
+                    )
+                })
+                .collect()
+        };
+        let whole = key(&live.check(&paths));
+        assert!(paths.len() > 300 && whole.iter().any(|(_, d)| !d.is_empty()));
+        let (all, rest) = live.check_until(&paths, &|| false);
+        assert!(rest.is_empty());
+        assert_eq!(key(&all), whole);
+        for stop_after in [0, 1, 2, 4] {
+            let calls = std::cell::Cell::new(0);
+            let (mut parts, rest) = live.check_until(&paths, &|| {
+                calls.set(calls.get() + 1);
+                calls.get() > stop_after
+            });
+            assert_eq!(parts.len() + rest.len(), paths.len());
+            parts.extend(live.check(&rest));
+            assert_eq!(key(&parts), whole, "stopped after {stop_after}");
+        }
     }
 
     /// Review round 17 (Opus): a file of a project that the workspace

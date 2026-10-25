@@ -185,21 +185,30 @@ pub(crate) fn unread_reason(
 /// the unit's own first script that uses some, else the closed-world
 /// rule. `None` when neither applies.
 pub(crate) fn unit_reason(cx: &Checker<'_, '_>) -> Option<UnsafeReason> {
-    for ((file, script), parsed) in cx.unit().data.scripts().iter().zip(cx.parsed_scripts()) {
-        if !parsed.errors.is_empty() {
-            continue;
-        }
-        let model = SemanticModel::build(
-            &parsed.module,
-            &iglint_python_semantic::SemanticOptions {
-                injected: script.implicit_globals().collect(),
-                unknown_globals: false,
-                module_has_name: script.has_module_name(),
-            },
-        );
-        if let Some(at) = unknown_code_at(cx, &model, &parsed.module.body) {
-            return Some(script_reason(cx, *file, script, at));
-        }
+    use rayon::prelude::*;
+    // In parallel, the first script in order (review round 30: a view with
+    // two thousand scripts took 20 ms one after the other, in the language
+    // server's time to publish an edit).
+    let scripts = cx.unit().data.scripts();
+    let found = scripts
+        .par_iter()
+        .zip(cx.parsed_scripts().par_iter())
+        .find_map_first(|((file, script), parsed)| {
+            if !parsed.errors.is_empty() {
+                return None;
+            }
+            let model = SemanticModel::build(
+                &parsed.module,
+                &iglint_python_semantic::SemanticOptions {
+                    injected: script.implicit_globals().collect(),
+                    unknown_globals: false,
+                    module_has_name: script.has_module_name(),
+                },
+            );
+            unknown_code_at(cx, &model, &parsed.module.body).map(|at| (*file, *script, at))
+        });
+    if let Some((file, script, at)) = found {
+        return Some(script_reason(cx, file, script, at));
     }
     workspace_has_unknown_code(cx).then(|| workspace_reason(cx))
 }

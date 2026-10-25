@@ -35,8 +35,10 @@ pub struct Folder {
     /// Published files whose findings may have changed and that are not
     /// checked again yet: dependents of editor text given to the live
     /// workspace before the run trigger fired, and what a check left when
-    /// a message arrived (review round 30).
-    pub pending: std::collections::BTreeSet<PathBuf>,
+    /// a message arrived (review round 30). Possibly with repeats.
+    pub pending: Vec<PathBuf>,
+    /// Every published file is pending (cheaper than listing them).
+    pub pending_all: bool,
 }
 
 impl Folder {
@@ -110,8 +112,14 @@ impl Folder {
             notices,
             adhoc: false,
             files: None,
-            pending: Default::default(),
+            pending: Vec::new(),
+            pending_all: false,
         }
+    }
+
+    /// Whether files wait to be checked again.
+    pub fn has_pending(&self) -> bool {
+        self.pending_all || !self.pending.is_empty()
     }
 
     /// Every file a check of the folder would lint.

@@ -1237,7 +1237,61 @@ pub(crate) fn add_script_references(
         ModelData::View { view, .. } => Some(view),
         _ => None,
     };
-    for (index, ((file, script), parsed)) in scripts.into_iter().zip(parsed).enumerate() {
+    // The scripts of a view in parallel, each into a summary of its own,
+    // added in script order (review round 30: a view with two thousand
+    // scripts took 33 ms one after the other, in the language server's
+    // time to publish an edit). A script only adds references, so the
+    // result is the same ([`add_script_references_in_order`]); a library
+    // module (whose script sets the module's symbols) runs as before.
+    let library = scripts
+        .iter()
+        .any(|(_, s)| s.kind == iglint_project::ScriptKind::LibraryModule);
+    if library || scripts.len() < 2 {
+        for (index, ((file, script), parsed)) in scripts.into_iter().zip(parsed).enumerate() {
+            let unit = ScriptUnit::new(file, script, parsed, index);
+            facts.summarize(&unit, view, ctx, summary);
+        }
+        return;
+    }
+    use rayon::prelude::*;
+    let resource = summary.resource;
+    let parts: Vec<iglint_project::summary::References> = scripts
+        .par_iter()
+        .zip(parsed.par_iter())
+        .enumerate()
+        .map(|(index, ((file, script), parsed))| {
+            let unit = ScriptUnit::new(*file, script, parsed, index);
+            let mut part = ResourceSummary {
+                resource,
+                valid: true,
+                facts: iglint_project::summary::Facts::None,
+                references: Default::default(),
+            };
+            facts.summarize(&unit, view, ctx, &mut part);
+            part.references
+        })
+        .collect();
+    for references in parts {
+        summary.references.extend(references);
+    }
+}
+
+/// [`add_script_references`] one script after the other, as before review
+/// round 30 (the reference of its differential test).
+#[cfg(test)]
+pub(crate) fn add_script_references_in_order(
+    data: &ModelData<'_>,
+    cache: &UnitCache,
+    ctx: &crate::script_facts::FactsContext<'_>,
+    summary: &mut ResourceSummary,
+) {
+    let facts = crate::script_facts::provider();
+    let parsed = cache.parsed_scripts(data);
+    let view = match data {
+        ModelData::View { view, .. } => Some(view),
+        _ => None,
+    };
+    for (index, ((file, script), parsed)) in data.scripts().into_iter().zip(parsed).enumerate() {
         let unit = ScriptUnit::new(file, script, parsed, index);
         facts.summarize(&unit, view, ctx, summary);
     }
@@ -1556,4 +1610,151 @@ fn summaries_hash(summaries: &[Option<ResourceSummary>]) -> u64 {
 pub fn member_key_range(object: &Value<'_>, key: &str) -> Option<TextRange> {
     let member = object.as_object()?.member(key)?;
     Some(member.key.range())
+}
+
+/// Review round 30 (Opus minor 1): the scripts of a view are summarised,
+/// their property accesses found and their vetting judged in parallel. On
+/// generated views full of what each step records (library references,
+/// stores and values, code that is not vetted, file reads, frame reads,
+/// messages, named queries, Perspective calls, scripts that do not parse,
+/// dynamic keys), the parallel results are those of one script after the
+/// other, as before.
+#[cfg(test)]
+mod parallel_tests {
+    use super::*;
+    use crate::rules::test_support::Fixture;
+
+    const SNIPPETS: &[&str] = &[
+        r"\tlib.util.f(self)",
+        r"\texec 'x = 1'",
+        r"\topen('/tmp/x').read()",
+        r"\tsystem.perspective.print(self.view.custom.foo)",
+        r"\tx = self.getSibling('B1').custom.bar",
+        r"\tsystem.db.runNamedQuery('q', {})",
+        r"\tdef f(:",
+        r"\tsystem.util.sendMessage('p', 'm', {'a': 1})",
+        r"\tgetattr(self.custom, 'x' + str(1))",
+        r"\timport json\n\tlib.m.g()",
+        r"\tself.view.custom.foo = 1",
+        r"\tv = lib.a.b\n\tv.x = 1",
+        r"\tlib.util.h = 5\n\tdel lib.util.k",
+        r"\tself.view.custom[self.custom.k] = 2",
+        r"\tlocals()",
+        r"\tsystem.nothere.call()",
+        r"\tfrom lib.util import *",
+        r"\tlib.two.k(self.parent)",
+    ];
+
+    /// SplitMix64.
+    struct Rng(u64);
+
+    impl Rng {
+        fn below(&mut self, n: usize) -> usize {
+            self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
+            let mut z = self.0;
+            z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+            usize::try_from((z ^ (z >> 31)) % n as u64).unwrap_or(0)
+        }
+    }
+
+    /// A view whose button `B<i>` runs `scripts[i]`, one component a line,
+    /// with an unread custom property `unused` on the view.
+    fn view(scripts: &[&str]) -> String {
+        let children: Vec<String> = scripts
+            .iter()
+            .enumerate()
+            .map(|(i, s)| {
+                format!(
+                    r#"{{"meta": {{"name": "B{i}"}}, "type": "ia.input.button", "custom": {{"bar": {i}, "k": "foo"}}, "events": {{"component": {{"onActionPerformed": {{"type": "script", "scope": "G", "config": {{"script": "{s}"}}}}}}}}}}"#
+                )
+            })
+            .collect();
+        format!(
+            "{{\"custom\": {{\"foo\": 1, \"unused\": 2}}, \"params\": {{}},\n\"root\": {{\"meta\": {{\"name\": \"root\"}}, \"type\": \"ia.container.flex\", \"children\": [\n{}\n]}}}}\n",
+            children.join(",\n")
+        )
+    }
+
+    #[test]
+    fn parallel_script_steps_match_one_after_the_other() {
+        let mut rng = Rng(30);
+        let mut vetted = 0;
+        let mut named = 0;
+        for round in 0..60 {
+            let n = 2 + rng.below(40);
+            // Every other round, only what keeps `unused` unread, with code
+            // that is not vetted in some scripts.
+            let plain = [0, 3, 4, 5, 7, 10, 15, 15];
+            let scripts: Vec<&str> = (0..n)
+                .map(|_| match round % 2 {
+                    0 => SNIPPETS[rng.below(SNIPPETS.len())],
+                    _ => SNIPPETS[plain[rng.below(plain.len())]],
+                })
+                .collect();
+            let f = Fixture::new().with_view("V", &view(&scripts)).resource(
+                "projects/p/ignition/script-python/lib/util",
+                &[("code.py", "def f(c):\n    return c.custom.bar\n")],
+            );
+            let ws = Workspace::discover(&[f.root().join("projects")]);
+            let rid = ws
+                .resources
+                .iter()
+                .find(|r| r.kind == iglint_project::ResourceKind::View)
+                .expect("view")
+                .id;
+            let loaded = ws.load_resource(rid);
+            let model = build_model(&ws, &loaded);
+            let ctx = crate::script_facts::FactsContext {
+                project: Some("p"),
+                projects: &["p"],
+                module: None,
+            };
+            // Summaries.
+            let cache = UnitCache::default();
+            let mut parallel = iglint_project::summarize(&model);
+            let mut in_order = parallel.clone();
+            add_script_references(&model.data, &cache, &ctx, &mut parallel);
+            add_script_references_in_order(&model.data, &cache, &ctx, &mut in_order);
+            assert_eq!(parallel, in_order, "round {round}: {scripts:?}");
+            // Property accesses.
+            let accesses = cache.property_accesses(&model.data).to_vec();
+            let view = model.data.view().expect("view");
+            let mut expected = Vec::new();
+            let provider = crate::script_facts::provider();
+            for (index, ((file, script), parsed)) in model
+                .data
+                .scripts()
+                .into_iter()
+                .zip(cache.parsed_scripts(&model.data))
+                .enumerate()
+            {
+                let unit = ScriptUnit::new(file, script, parsed, index);
+                provider.property_accesses(&unit, view, &mut expected);
+            }
+            assert_eq!(accesses, expected, "round {round}: {scripts:?}");
+            // Vetting: the reason names the first script in order with code
+            // that is not vetted.
+            let found = f.lint(&["VIEW015"]);
+            // Unless a script may read every property.
+            let Some(unused) = found.iter().find(|d| d.message.contains("`unused`")) else {
+                continue;
+            };
+            vetted += 1;
+            let first = scripts
+                .iter()
+                .position(|s| s.contains("system.nothere"))
+                .map(|i| i as u32 + 3);
+            let reason = unused.fix.as_ref().and_then(|f| f.unsafe_reason.as_ref());
+            if let Some(line) = first {
+                let site = reason
+                    .filter(|r| r.message.contains("not vetted") && !r.workspace)
+                    .and_then(|r| r.site.as_ref())
+                    .unwrap_or_else(|| panic!("round {round}: {reason:?} {scripts:?}"));
+                assert_eq!(site.line, line, "round {round}: {scripts:?}");
+                named += 1;
+            }
+        }
+        assert!(vetted > 10 && named > 5, "{vetted} {named}");
+    }
 }
