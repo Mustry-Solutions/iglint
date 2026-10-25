@@ -1145,10 +1145,20 @@ fn dependents(
 /// `refs` without what [`dependents`] follows precisely: the views, named
 /// queries, style classes and library paths a resource names, and what
 /// only its own findings use (pages, tag paths, historian providers,
-/// databases).
+/// databases); and without the places of the sites it names (typing moves
+/// them; a site only explains another file's unsafe fix, whose finding a
+/// quick fix checks again before it applies).
 fn without_named(
     refs: &iglint_project::summary::References,
 ) -> iglint_project::summary::References {
+    use iglint_project::summary::UnknownSite;
+    let place = |s: &UnknownSite| UnknownSite {
+        range: TextRange::default(),
+        ..s.clone()
+    };
+    let places = |list: &[(String, UnknownSite)]| -> Vec<(String, UnknownSite)> {
+        list.iter().map(|(n, s)| (n.clone(), place(s))).collect()
+    };
     iglint_project::summary::References {
         views: Vec::new(),
         style_classes: Vec::new(),
@@ -1158,6 +1168,24 @@ fn without_named(
         library: Vec::new(),
         history_providers: Vec::new(),
         databases: Vec::new(),
+        unknown_site: refs.unknown_site.as_ref().map(place),
+        file_read_site: refs.file_read_site.as_ref().map(place),
+        library_changes: places(&refs.library_changes),
+        library_values: places(&refs.library_values),
+        unvetted_imports: places(&refs.unvetted_imports),
+        unvetted_names: refs
+            .unvetted_names
+            .iter()
+            .map(|(n, s)| (n.clone(), place(s)))
+            .collect(),
+        perspective_calls: refs
+            .perspective_calls
+            .iter()
+            .map(|c| iglint_project::summary::PerspectiveCall {
+                site: place(&c.site),
+                ..c.clone()
+            })
+            .collect(),
         ..refs.clone()
     }
 }
