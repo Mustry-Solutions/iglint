@@ -2653,6 +2653,64 @@ and stops when a message arrives (`LiveWorkspace::check_until`); what is
 left is pending (review round 30, Opus minor 1). This changes when
 findings are published, not what a fix is computed from.
 
+#### Encodings, refused overlays and edits (review round 34)
+
+Round 34 found four smaller gaps, none of which needed a change to what a
+fix is computed from:
+
+* **Byte order marks and other encodings** (Opus minor). VS Code leaves a
+  leading UTF-8 byte order mark out of a document's text and writes it
+  back on save; iglint and Ignition read it (a script that starts with
+  one does not compile: `SCR001`). The comparison of the other open
+  documents with the disk compared bytes, so a file with a mark, open
+  and unchanged, withheld every fix for as long as it was open; and the
+  target's text without the mark was overlaid, so the file showed no
+  `SCR001` and got fixes `iglint check` does not make. Now another open
+  document has no unsaved changes when its bytes are its text, also after
+  a leading mark the text lacks, or, for bytes that are not valid UTF-8,
+  when they decode to the text as iglint reads them
+  (`iglint_text::decode_utf8`); a file that is not valid UTF-8 and whose
+  text is not what iglint reads from it withholds fixes with a reason
+  that says so (whether it has unsaved changes cannot be told: the editor
+  decoded it its own way). The target gets no fix when its file starts
+  with a mark (or its text with U+FEFF) or is not valid UTF-8: edits
+  computed on what iglint reads would not fit the editor's text, and the
+  editor's text would not be what saving writes. What is shown follows
+  `iglint check`: the live workspace gets the editor's text with the mark
+  put back (`fresh::as_saved`), and positions on the first line of a file
+  that starts with one are given after it (`convert::source_range`,
+  `source_offset`), as editors show the text. Known limit (display only):
+  an editor that keeps U+FEFF in a document's text sees first-line
+  positions one character early.
+* **A refused overlay counted as used** (Codex minor).
+  `analyze::apply_overlay` refused the target's text when some file that
+  is the target did not take it (a manifest, which discovery reads from
+  disk), but the later step that records linted files outside resources
+  whose text came from the overlay added the target back when the file
+  itself took it: a view that is also the project's manifest through a
+  hard link, edited unsaved to change the parent, got a `VIEW015` fix
+  computed with the old parent. The refused entries are now kept through
+  that step.
+* **Resolve without an edit** (Opus nit 2). `codeAction/resolve` that
+  makes no edit (another document changed since the list, the check
+  failed, the fix no longer applies) returns the action disabled with the
+  reason when the client supports `disabledSupport`.
+* **Versioned edits** (Opus nit 3). Clients that support
+  `workspace.workspaceEdit.documentChanges` get every edit (quick fixes,
+  "fix all", the fix-all command, suppressions) as a `TextDocumentEdit`
+  for the version of the open document it was computed for (no version
+  for a file that is not open), so the client refuses it if the document
+  changed; other clients get `changes`.
+
+Tests: in `lsp.rs`, `a_file_with_a_byte_order_mark_shows_scr001_and_gets_no_fix`,
+`byte_order_marks_and_other_encodings_of_open_documents`,
+`a_view_that_is_also_the_manifest_gets_no_fix_from_unsaved_text` (the
+Codex repro), `a_resolved_fix_without_edit_is_disabled_with_the_reason`
+and `edits_carry_the_document_version_when_the_client_takes_it`, each
+with the client kinds it concerns; the first three fail on the round 33
+code. `consistency.rs` takes versioned edits in every other sequence and
+checks that each carries the version of the document it was asked for.
+
 ## Dynamic code: audit of every safe fix
 
 Code that reads names without writing them can invalidate a fix. The

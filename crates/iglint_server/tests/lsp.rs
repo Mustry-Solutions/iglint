@@ -3513,3 +3513,337 @@ fn a_view_that_is_also_the_manifest_gets_no_fix_from_unsaved_text() {
         client.shutdown();
     }
 }
+
+/// Review round 34 (Opus minor): VS Code leaves a leading byte order mark
+/// out of a document's text and writes it back on save. A library module
+/// starting with one shows `SCR001` as `iglint check` reports it (Ignition
+/// does not compile it), with positions in the editor's text, and gets no
+/// fix, as from `iglint check`; before, the editor's text was linted
+/// without the mark: no `SCR001`, and a safe fix. A view starting with
+/// one (which `iglint check` fixes) gets no fix either, and the reason
+/// says why: the edits would be computed on another text than the
+/// editor's.
+#[test]
+fn a_file_with_a_byte_order_mark_shows_scr001_and_gets_no_fix() {
+    const UTIL: &str = "import json\ndef f():\n    return 1\n";
+    const VIEW: &str = r#"{"custom": {"foo": 1}, "root": {"type": "ia.container.flex", "meta": {"name": "root"}}}"#;
+    for capabilities in three_clients() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        let paths = library(&root, &[("lib/util", &format!("\u{feff}{UTIL}"))]);
+        write(
+            &root,
+            "iglint.toml",
+            "select = [\"SCR001\", \"SCR102\", \"VIEW015\"]\n",
+        );
+        let views = "projects/p/com.inductiveautomation.perspective/views";
+        write(&root, &format!("{views}/V/resource.json"), MANIFEST);
+        let view = write(
+            &root,
+            &format!("{views}/V/view.json"),
+            &format!("\u{feff}{VIEW}"),
+        );
+        let mut client =
+            Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+        let uri = client.open(&paths[0], UTIL);
+        let shown = client.diagnostics(&uri, Some(1));
+        assert_eq!(codes(&shown), ["SCR001", "SCR102"], "{shown:#?}");
+        let at = |code: &str| {
+            shown
+                .diagnostics
+                .iter()
+                .find(|d| d.code == Some(lsp_types::NumberOrString::String(code.to_owned())))
+                .unwrap()
+                .range
+        };
+        assert_eq!(
+            at("SCR001"),
+            Range::new(Position::new(0, 0), Position::new(0, 0))
+        );
+        assert_eq!(
+            at("SCR102"),
+            Range::new(Position::new(0, 7), Position::new(0, 11))
+        );
+        assert!(
+            code_actions(&mut client, &uri, full_range(), None)
+                .iter()
+                .all(|a| a.title.contains("suppress")),
+        );
+        // The view: no fix, and why.
+        let view_uri = client.open(&view, VIEW);
+        let shown = client.diagnostics(&view_uri, Some(1));
+        assert_eq!(codes(&shown), ["VIEW015"], "{shown:#?}");
+        let fixes = view015_edits(&mut client, &view_uri, VIEW);
+        assert_eq!(fixes, Vec::<String>::new());
+        let reasons: Vec<String> = code_actions(&mut client, &view_uri, full_range(), None)
+            .into_iter()
+            .filter_map(|a| a.disabled.map(|d| d.reason))
+            .collect();
+        assert_eq!(
+            !reasons.is_empty(),
+            shows_disabled(&capabilities),
+            "{reasons:?}"
+        );
+        assert!(
+            reasons.iter().all(|r| r.contains("byte order mark")),
+            "{reasons:?}"
+        );
+        client.notify(
+            DidCloseTextDocument::METHOD,
+            json!({"textDocument": {"uri": view_uri}}),
+        );
+        // The hover finds the finding at the editor's position.
+        let hover = client
+            .request::<HoverRequest>(HoverParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier { uri: uri.clone() },
+                    position: Position::new(0, 8),
+                },
+                work_done_progress_params: Default::default(),
+            })
+            .expect("a hover");
+        let HoverContents::Markup(markup) = hover.contents else {
+            panic!("{hover:?}");
+        };
+        assert!(markup.value.contains("SCR102"), "{}", markup.value);
+        // Saved without the mark: the fixes.
+        std::fs::write(&paths[0], UTIL).unwrap();
+        client.notify(
+            lsp_types::notification::DidSaveTextDocument::METHOD,
+            json!({"textDocument": {"uri": uri}}),
+        );
+        notify_changed(&client, &paths[0]);
+        assert!(!safe_removals(&mut client, &uri, UTIL, "import json").is_empty());
+        std::fs::write(&view, VIEW).unwrap();
+        notify_changed(&client, &view);
+        let view_uri = client.open(&view, VIEW);
+        assert_eq!(view015_edits(&mut client, &view_uri, VIEW).len(), 1);
+        client.shutdown();
+    }
+}
+
+/// Review round 34 (Opus minor): another open document whose file starts
+/// with a byte order mark the editor hides has no unsaved changes, so it
+/// does not withhold fixes of other files (before, it did as long as it
+/// was open). A file that is not valid UTF-8 withholds them, with a reason
+/// that says so, unless its text is what iglint reads from it; such a
+/// file gets no fix itself.
+#[test]
+fn byte_order_marks_and_other_encodings_of_open_documents() {
+    const A: &str = "import json\ndef f():\n    return 1\n";
+    const C: &str = "def h():\n    return 1\n";
+    for capabilities in three_clients() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        let paths = library(&root, &[("a", A), ("c", &format!("\u{feff}{C}")), ("d", C)]);
+        let mut client =
+            Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+        let uri = client.open(&paths[0], A);
+        client.diagnostics(&uri, Some(1));
+        let c_uri = client.open(&paths[1], C);
+        assert!(!safe_removals(&mut client, &uri, A, "import json").is_empty());
+        assert!(disabled_reasons(&mut client, &uri).is_empty());
+        // Unsaved changes still count.
+        client.replace_all(&c_uri, 2, "def h():\n    return 2\n");
+        assert_eq!(
+            safe_removals(&mut client, &uri, A, "import json"),
+            Vec::<String>::new()
+        );
+        client.notify(
+            DidCloseTextDocument::METHOD,
+            json!({"textDocument": {"uri": c_uri}}),
+        );
+        // `d` in Latin-1 on disk, open as an editor decodes it as UTF-8.
+        std::fs::write(&paths[2], b"def h():\n    return '\xe9'\n").unwrap();
+        notify_changed(&client, &paths[2]);
+        let d_uri = client.open(&paths[2], "def h():\n    return '\u{fffd}'\n");
+        assert_eq!(
+            safe_removals(&mut client, &uri, A, "import json"),
+            Vec::<String>::new()
+        );
+        let reasons = disabled_reasons(&mut client, &uri);
+        assert_eq!(
+            !reasons.is_empty(),
+            shows_disabled(&capabilities),
+            "{reasons:?}"
+        );
+        assert!(
+            reasons.iter().all(|r| r.contains("not valid UTF-8")),
+            "{reasons:?}"
+        );
+        // The text as iglint reads the file: nothing unsaved.
+        client.replace_all(&d_uri, 2, "def h():\n    return '?'\n");
+        assert!(!safe_removals(&mut client, &uri, A, "import json").is_empty());
+        client.notify(
+            DidCloseTextDocument::METHOD,
+            json!({"textDocument": {"uri": d_uri}}),
+        );
+        // The target itself not valid UTF-8: no fix.
+        let latin = b"import json\n# caf\xe9\ndef f():\n    return 1\n";
+        std::fs::write(&paths[0], latin).unwrap();
+        notify_changed(&client, &paths[0]);
+        let text = "import json\n# caf\u{fffd}\ndef f():\n    return 1\n";
+        client.replace_all(&uri, 2, text);
+        assert_eq!(
+            safe_removals(&mut client, &uri, text, "import json"),
+            Vec::<String>::new()
+        );
+        let reasons = disabled_reasons(&mut client, &uri);
+        assert_eq!(
+            !reasons.is_empty(),
+            shows_disabled(&capabilities),
+            "{reasons:?}"
+        );
+        assert!(
+            reasons
+                .iter()
+                .all(|r| r.contains("This file is not valid UTF-8")),
+            "{reasons:?}"
+        );
+        client.shutdown();
+    }
+}
+
+/// Review round 34 (Opus nit 2): a quick fix or "fix all" listed, then
+/// resolved after another document got unsaved changes, gives no edit;
+/// a client that shows disabled actions gets the action disabled, with
+/// the reason.
+#[test]
+fn a_resolved_fix_without_edit_is_disabled_with_the_reason() {
+    const A: &str = "import json\ndef f():\n    return 1\n";
+    const C: &str = "def h():\n    return 1\n";
+    for capabilities in [client_capabilities(), disabled_client()] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        let paths = library(&root, &[("a", A), ("c", C)]);
+        let mut client =
+            Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+        let uri = client.open(&paths[0], A);
+        client.diagnostics(&uri, Some(1));
+        let c_uri = client.open(&paths[1], C);
+        let actions: Vec<CodeAction> = code_actions(&mut client, &uri, full_range(), None)
+            .into_iter()
+            .filter(|a| a.data.is_some())
+            .collect();
+        assert_eq!(actions.len(), 2, "{actions:#?}");
+        client.replace_all(&c_uri, 2, "def h():\n    return 2\n");
+        for action in actions {
+            let resolved = client.request::<CodeActionResolveRequest>(action);
+            assert!(resolved.edit.is_none(), "{resolved:#?}");
+            if shows_disabled(&capabilities) {
+                assert_eq!(
+                    resolved.disabled.map(|d| d.reason).as_deref(),
+                    Some(OTHERS_MODIFIED)
+                );
+                assert!(resolved.data.is_none() && resolved.is_preferred.is_none());
+            } else {
+                assert!(resolved.disabled.is_none());
+            }
+        }
+        client.shutdown();
+    }
+}
+
+/// Client capabilities with `workspace.workspaceEdit.documentChanges`.
+fn versioned_client() -> lsp_types::ClientCapabilities {
+    let mut c = client_capabilities();
+    c.workspace.as_mut().unwrap().workspace_edit =
+        Some(lsp_types::WorkspaceEditClientCapabilities {
+            document_changes: Some(true),
+            ..Default::default()
+        });
+    c
+}
+
+/// The text edits of `edit` for `uri`, with the version they are for
+/// (`documentChanges`), or `None` as the version (`changes`).
+fn versioned_edits(
+    edit: &lsp_types::WorkspaceEdit,
+    uri: &Url,
+) -> (Option<Option<i32>>, Vec<lsp_types::TextEdit>) {
+    match &edit.document_changes {
+        Some(lsp_types::DocumentChanges::Edits(changes)) => {
+            assert!(edit.changes.is_none());
+            let change = changes
+                .iter()
+                .find(|c| c.text_document.uri == *uri)
+                .expect("an edit of the document");
+            let edits = change
+                .edits
+                .iter()
+                .map(|e| match e {
+                    lsp_types::OneOf::Left(e) => e.clone(),
+                    lsp_types::OneOf::Right(e) => e.text_edit.clone(),
+                })
+                .collect();
+            (Some(change.text_document.version), edits)
+        }
+        Some(other) => panic!("{other:?}"),
+        None => (None, edit.changes.as_ref().unwrap()[uri].clone()),
+    }
+}
+
+/// Review round 34 (Opus nit 3): a client that takes `documentChanges`
+/// gets every edit (quick fix, "fix all", the fix-all command, a
+/// suppression) as a text document edit for the version of the document
+/// it was computed for; a file that is not open, with no version. Other
+/// clients get `changes`.
+#[test]
+fn edits_carry_the_document_version_when_the_client_takes_it() {
+    const A: &str = "import json\ndef f():\n    return 1\n";
+    for versioned in [true, false] {
+        let capabilities = if versioned {
+            versioned_client()
+        } else {
+            client_capabilities()
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        let paths = library(&root, &[("a", A), ("b", A)]);
+        let mut client = Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities);
+        let uri = client.open(&paths[0], A);
+        client.diagnostics(&uri, Some(1));
+        let text = "import json\ndef f():\n    return 2\n";
+        client.replace_all(&uri, 7, text);
+        client.diagnostics(&uri, Some(7));
+        let mut kinds = Vec::new();
+        for action in code_actions(&mut client, &uri, full_range(), None) {
+            let action = if action.edit.is_none() && action.data.is_some() {
+                client.request::<CodeActionResolveRequest>(action)
+            } else {
+                action
+            };
+            let (version, edits) = versioned_edits(action.edit.as_ref().unwrap(), &uri);
+            assert_eq!(version, versioned.then_some(Some(7)), "{}", action.title);
+            assert_ne!(apply(text, &edits), text);
+            kinds.push(action.title);
+        }
+        assert_eq!(kinds.len(), 3, "{kinds:?}");
+        // The fix-all command, for the open document and for `b`, which
+        // is not open (`a` saved first).
+        std::fs::write(&paths[0], text).unwrap();
+        client.notify(
+            lsp_types::notification::DidSaveTextDocument::METHOD,
+            json!({"textDocument": {"uri": uri}}),
+        );
+        for (target, version) in [(&paths[0], Some(7)), (&paths[1], None)] {
+            let target_uri = Url::from_file_path(target).unwrap();
+            client.inbox.clear();
+            let applied = client.request_raw(
+                "workspace/executeCommand",
+                json!({"command": "iglint.applyFixAll", "arguments": [target_uri.as_str()]}),
+            );
+            assert_eq!(applied, json!(true));
+            let edit = client.wait_for(|m| match m {
+                Message::Request(r) if r.method == ApplyWorkspaceEdit::METHOD => {
+                    serde_json::from_value::<lsp_types::ApplyWorkspaceEditParams>(r.params.clone())
+                        .ok()
+                }
+                _ => None,
+            });
+            let (got, _) = versioned_edits(&edit.edit, &target_uri);
+            assert_eq!(got, versioned.then_some(version));
+        }
+        client.shutdown();
+    }
+}

@@ -374,8 +374,11 @@ hover. Every fix it applies is computed when you pick it by a fresh
 saving the file you fix, so it is the fix the command line would make.
 While any other open file has unsaved changes, no fix is computed: save
 the other files first (editors that show disabled code actions, such as
-VS Code, say so). The server does not run pylint: `SCR900` findings
-come from `iglint check` only. The VS Code extension in
+VS Code, say so). Nor is one computed for a file that starts with a byte
+order mark or is not valid UTF-8. The findings shown while you type leave
+out pylint (`SCR900`): the server does not run pylint for them, and
+`iglint check` reports them. The fresh check behind a fix runs pylint
+when the configuration selects `SCR900`, as `iglint check --fix` does. The VS Code extension in
 [editors/vscode](editors/vscode) runs it; other editors can start
 `iglint server` directly.
 

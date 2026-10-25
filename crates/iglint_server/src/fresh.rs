@@ -20,7 +20,9 @@
 //! several names with different texts, or its editor text differs from
 //! the disk and the run could not use it (a manifest, which discovery
 //! reads, a configuration or baseline file, a file that is not on disk),
-//! no fix is computed ([`Withheld`]).
+//! or its file starts with a byte order mark or is not valid UTF-8 (round
+//! 34: the editor shows another text than iglint reads), no fix is
+//! computed ([`Withheld`]).
 //!
 //! [`LiveWorkspace`]: iglint_linter::live::LiveWorkspace
 
@@ -132,13 +134,13 @@ impl Fresh {
 
 impl Server {
     /// A fresh run for `path` in the folder that publishes it, with the
-    /// fix `wanted` (see the module docs). `None` when no fix may be
-    /// computed now (the configuration or the baseline cannot be read, an
-    /// open document's text cannot be used, the file cannot be linted).
-    /// Diagnostics that differ from what is published are published again,
-    /// and a live workspace that disagrees with the fresh run is
-    /// discovered again.
-    pub fn fresh(&mut self, path: &Path, wanted: &FixWanted) -> Option<Fresh> {
+    /// fix `wanted` (see the module docs). An error, with the reason for
+    /// the user, when no fix may be computed now (the configuration or
+    /// the baseline cannot be read, an open document's text cannot be
+    /// used, the file cannot be linted). Diagnostics that differ from what
+    /// is published are published again, and a live workspace that
+    /// disagrees with the fresh run is discovered again.
+    pub fn fresh(&mut self, path: &Path, wanted: &FixWanted) -> Result<Fresh, &'static str> {
         let start = Instant::now();
         let path = absolute(path);
         let target = match self.withheld(&path) {
@@ -148,7 +150,7 @@ impl Server {
                     MessageType::INFO,
                     format!("iglint: no fix for {}: {}", path.display(), withheld.detail),
                 );
-                return None;
+                return Err(withheld.reason);
             }
         };
         let i = self.folder_for(&path);
@@ -162,7 +164,7 @@ impl Server {
                     MessageType::INFO,
                     format!("iglint: no fix for {}: {reason}", path.display()),
                 );
-                return None;
+                return Err(NO_FIX_CHECK);
             }
         };
         self.log(
@@ -176,7 +178,7 @@ impl Server {
         if let Some(diagnostics) = &fresh.diagnostics {
             self.heal(i, &path, diagnostics);
         }
-        Some(fresh)
+        Ok(fresh)
     }
 
     /// Whether a fix of `path` may be computed now: when every open
@@ -209,13 +211,48 @@ impl Server {
                     }
                     _ => target = Some(text),
                 }
-            } else if !std::fs::read(&at).is_ok_and(|bytes| bytes == text.as_bytes()) {
+            } else {
+                match on_disk(&at, text) {
+                    OnDisk::Same => {}
+                    OnDisk::Different => {
+                        return Err(Withheld {
+                            reason: WITHHELD_OTHERS,
+                            detail: format!(
+                                "the editor text of {} differs from the file on disk",
+                                at.display()
+                            ),
+                        });
+                    }
+                    OnDisk::NotUtf8 => {
+                        return Err(Withheld {
+                            reason: WITHHELD_OTHER_NOT_UTF8,
+                            detail: format!(
+                                "{} is not valid UTF-8 on disk, so its editor text cannot be compared with the file",
+                                at.display()
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+        // The target itself (review round 34, Opus minor): an editor hides
+        // a leading byte order mark (iglint and Ignition do not: a script
+        // starting with one does not compile) and writes it back on save,
+        // and it shows a file that is not valid UTF-8 in some encoding
+        // iglint cannot know; edits computed on what iglint reads would
+        // not fit the editor's text, and an overlay of the editor's text
+        // would not be what saving writes. No fix for such a file.
+        if let Ok(bytes) = std::fs::read(&path) {
+            if bytes.starts_with(BOM) || target.is_some_and(|t| t.starts_with('\u{feff}')) {
                 return Err(Withheld {
-                    reason: WITHHELD_OTHERS,
-                    detail: format!(
-                        "the editor text of {} differs from the file on disk",
-                        at.display()
-                    ),
+                    reason: WITHHELD_BOM,
+                    detail: format!("{} starts with a byte order mark", path.display()),
+                });
+            }
+            if std::str::from_utf8(&bytes).is_err() {
+                return Err(Withheld {
+                    reason: WITHHELD_NOT_UTF8,
+                    detail: format!("{} is not valid UTF-8 on disk", path.display()),
                 });
             }
         }
@@ -292,7 +329,83 @@ pub struct Withheld {
     pub detail: String,
 }
 
+/// Why a fix gives no edit: the check that computes it failed.
+pub const NO_FIX_CHECK: &str =
+    "iglint could not check the file to compute the fix; see the iglint output";
+/// Why a fix gives no edit: the check no longer makes it (the file or the
+/// workspace changed since the fixes were listed).
+pub const NO_FIX_STALE: &str = "This fix no longer applies; the file or the workspace changed";
 pub const WITHHELD_OTHERS: &str = "Save the other modified files to apply iglint fixes";
+pub const WITHHELD_OTHER_NOT_UTF8: &str =
+    "Another open file is not valid UTF-8; save it as UTF-8 or close it to apply iglint fixes";
+pub const WITHHELD_BOM: &str = "This file starts with a byte order mark, which the editor hides; save it as UTF-8 without BOM to apply iglint fixes";
+pub const WITHHELD_NOT_UTF8: &str =
+    "This file is not valid UTF-8; save it as UTF-8 to apply iglint fixes";
+
+/// The UTF-8 byte order mark.
+pub const BOM: &[u8] = b"\xEF\xBB\xBF";
+
+/// How an open document's editor text compares with its file on disk.
+#[derive(Debug, PartialEq, Eq)]
+enum OnDisk {
+    /// Saving the document would write the file's bytes again.
+    Same,
+    /// The document has unsaved changes (or the file is missing).
+    Different,
+    /// The file is not valid UTF-8 and the editor's text is not what
+    /// iglint reads from it: the editor decoded it its own way, and
+    /// whether it has unsaved changes cannot be told.
+    NotUtf8,
+}
+
+/// Compares the editor text of an open document with its file: the same
+/// when the bytes are the text, also after a leading byte order mark that
+/// the editor hides (VS Code leaves it out of the text and writes it back
+/// on save), or when the bytes are not valid UTF-8 and decode to the text
+/// as iglint reads them ([`iglint_text::decode_utf8`]).
+fn on_disk(path: &Path, text: &str) -> OnDisk {
+    let Ok(bytes) = std::fs::read(path) else {
+        return OnDisk::Different;
+    };
+    if bytes == text.as_bytes() {
+        return OnDisk::Same;
+    }
+    let body = match bytes.strip_prefix(BOM) {
+        Some(rest) if !text.starts_with('\u{feff}') => rest,
+        _ => &bytes[..],
+    };
+    if body == text.as_bytes() {
+        return OnDisk::Same;
+    }
+    if std::str::from_utf8(body).is_ok() {
+        return OnDisk::Different;
+    }
+    if iglint_text::decode_utf8(body.to_vec()).0 == text {
+        OnDisk::Same
+    } else {
+        OnDisk::NotUtf8
+    }
+}
+
+/// The text saving `text` to `path` gives the file as iglint reads it: a
+/// byte order mark the file starts with is put back when the editor's
+/// text lacks it (for what is shown; no fix is computed for such a file).
+pub fn as_saved(path: &Path, text: &str) -> Arc<str> {
+    use std::io::Read;
+    if text.starts_with('\u{feff}') {
+        return Arc::from(text);
+    }
+    let mut start = [0u8; 3];
+    let bom = std::fs::File::open(path)
+        .and_then(|mut f| f.read_exact(&mut start))
+        .is_ok()
+        && start == BOM;
+    if bom {
+        Arc::from(format!("\u{feff}{text}"))
+    } else {
+        Arc::from(text)
+    }
+}
 pub const WITHHELD_ALIASES: &str = "This file is open more than once with different texts; save or close one to apply iglint fixes";
 
 /// What identifies a file on disk through links: device and inode on

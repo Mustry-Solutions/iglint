@@ -82,6 +82,9 @@ pub(crate) struct Server {
     /// The client shows disabled code actions with their reason
     /// (`codeAction.disabledSupport`).
     pub disabled_support: bool,
+    /// The client takes workspace edits as `documentChanges`, with the
+    /// version of each document (`workspace.workspaceEdit.documentChanges`).
+    pub document_changes: bool,
     watch_registration: bool,
     /// The client takes watchers relative to a base URI.
     relative_patterns: bool,
@@ -126,6 +129,13 @@ impl Server {
                 .as_ref()
                 .and_then(|t| t.code_action.as_ref())
                 .and_then(|c| c.disabled_support)
+                .unwrap_or(false),
+            document_changes: params
+                .capabilities
+                .workspace
+                .as_ref()
+                .and_then(|w| w.workspace_edit.as_ref())
+                .and_then(|e| e.document_changes)
                 .unwrap_or(false),
             watch_registration: params
                 .capabilities
@@ -657,7 +667,7 @@ impl Server {
                 self.documents
                     .values()
                     .find(|d| d.path == path && d.generation == g)
-                    .map(|d| Arc::from(d.text.as_str()))
+                    .map(|d| crate::fresh::as_saved(&path, &d.text))
             });
             let dependents = self.folders[i].live.set_text(&path, text);
             match generation {
@@ -791,7 +801,7 @@ impl Server {
             doc.dirty = false;
             let generation = doc.generation;
             let path = doc.path.clone();
-            let text: Arc<str> = Arc::from(doc.text.as_str());
+            let text = crate::fresh::as_saved(&path, &doc.text);
             let i = self.folder_for(&path);
             let start = Instant::now();
             let (result, dependents) = if self.folders[i].applied.get(&path) == Some(&generation) {

@@ -17,11 +17,14 @@ findings with `# iglint: ignore[CODE]`, and **iglint: Fix All Auto-Fixable
 Problems** (or `"editor.codeActionsOnSave": {"source.fixAll.iglint": "explicit"}`)
 fixes a whole file. A fix is computed when you pick it, by a fresh
 `iglint check --fix` on the disk as it would be after saving the file you
-fix. While any other open file has unsaved changes, iglint's fixes are
-shown disabled ("Save the other modified files to apply iglint fixes")
-and fix-all on save does nothing; save the other files first. Hover a
-problem for the rule's documentation. pylint findings (`SCR900`) are not
-shown in the editor; `iglint check` reports them.
+fix. While any other open Ignition file (a file this extension sends to
+the server: views, manifests, resource and tag files, scripts) has unsaved
+changes, iglint's fixes are shown disabled ("Save the other modified files
+to apply iglint fixes") and fix-all on save does nothing; save the other
+files first. Files that start with a byte order mark (which the editor
+hides) or are not valid UTF-8 get no fixes; the disabled fix says why.
+Hover a problem for the rule's documentation. pylint findings (`SCR900`)
+are not shown in the editor; `iglint check` reports them.
 
 ## Requirements
 

@@ -61,8 +61,27 @@ pub fn offset(index: &LineIndex, text: &str, position: Position) -> TextSize {
 
 /// `r` in the editor's lines: the Language Server Protocol ends a line at
 /// a lone `\r` too (where iglint's own output follows Jython's numbering).
+/// A leading byte order mark is not part of the editor's text (editors
+/// hide it), so positions on the first line come after it.
 pub fn source_range(file: &SourceFile, r: TextRange) -> Range {
-    range(file.protocol_line_index(), file.text(), r)
+    let mut range = range(file.protocol_line_index(), file.text(), r);
+    if file.text().starts_with('\u{feff}') {
+        for p in [&mut range.start, &mut range.end] {
+            if p.line == 0 {
+                p.character = p.character.saturating_sub(1);
+            }
+        }
+    }
+    range
+}
+
+/// The offset in a file's `text` of an editor position (see
+/// [`source_range`] for a leading byte order mark).
+pub fn source_offset(index: &LineIndex, text: &str, mut position: Position) -> TextSize {
+    if position.line == 0 && text.starts_with('\u{feff}') {
+        position.character += 1;
+    }
+    offset(index, text, position)
 }
 
 pub fn severity(severity: Severity) -> DiagnosticSeverity {
@@ -228,6 +247,40 @@ mod tests {
             ),
             TextSize::new(6)
         );
+    }
+
+    /// A leading byte order mark is hidden by editors: positions on the
+    /// first line come after it, other lines are as they are.
+    #[test]
+    fn positions_after_a_byte_order_mark() {
+        let file = SourceFile::new("m.py", "\u{feff}import json\nx = 1\n");
+        let r = |a: u32, b: u32| source_range(&file, TextRange::new(a.into(), b.into()));
+        assert_eq!(
+            r(0, 3),
+            Range::new(Position::new(0, 0), Position::new(0, 0))
+        );
+        assert_eq!(
+            r(10, 14),
+            Range::new(Position::new(0, 7), Position::new(0, 11))
+        );
+        assert_eq!(
+            r(15, 16),
+            Range::new(Position::new(1, 0), Position::new(1, 1))
+        );
+        let text = file.text();
+        let index = LineIndex::new(text);
+        assert_eq!(
+            source_offset(&index, text, Position::new(0, 7)),
+            TextSize::new(10)
+        );
+        assert_eq!(
+            source_offset(&index, text, Position::new(1, 1)),
+            TextSize::new(16)
+        );
+        // Without a mark, as before.
+        let plain = SourceFile::new("m.py", "import json\n");
+        let range = source_range(&plain, TextRange::new(7u32.into(), 11u32.into()));
+        assert_eq!(range, Range::new(Position::new(0, 7), Position::new(0, 11)));
     }
 
     #[test]

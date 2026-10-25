@@ -9,13 +9,14 @@ use iglint_text::LineIndex;
 use lsp_types::request::ApplyWorkspaceEdit;
 use lsp_types::{
     ApplyWorkspaceEditParams, CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams,
-    ExecuteCommandParams, Hover, HoverContents, HoverParams, MarkupContent, MarkupKind, Range,
-    TextEdit, Url, WorkspaceEdit,
+    DocumentChanges, ExecuteCommandParams, Hover, HoverContents, HoverParams, MarkupContent,
+    MarkupKind, OneOf, OptionalVersionedTextDocumentIdentifier, Range, TextDocumentEdit, TextEdit,
+    Url, WorkspaceEdit,
 };
 use serde_json::{Value, json};
 
 use crate::convert::{self, path_of, uri_of};
-use crate::fresh::{FindingKey, FixWanted};
+use crate::fresh::{FindingKey, FixWanted, NO_FIX_STALE};
 use crate::server::{COMMAND_FIX_ALL, COMMAND_RULE_DOCS, FIX_ALL_KIND, Server};
 
 impl Server {
@@ -80,8 +81,8 @@ impl Server {
         // round 33, M1: only those).
         let eager = if quick_fixes && !self.resolve_support && withheld.is_none() {
             match self.fresh(&path, &FixWanted::Keys(keys)) {
-                Some(fresh) => Some(fresh),
-                None => return Some(actions),
+                Ok(fresh) => Some(fresh),
+                Err(_) => return Some(actions),
             }
         } else {
             None
@@ -142,7 +143,7 @@ impl Server {
                         // not make is not offered.
                         action.edit = eager
                             .as_ref()
-                            .and_then(|fresh| self.document_edit(&uri, fresh.fix_of(&key)));
+                            .and_then(|fresh| self.document_edit(&uri, fresh.fix_of(&key)).ok());
                         if action.edit.is_some() {
                             actions.push(CodeActionOrCommand::CodeAction(action));
                         }
@@ -183,7 +184,7 @@ impl Server {
                 return Some(actions);
             }
             if !self.resolve_support {
-                action.edit = self.fix_all_edit(&uri);
+                action.edit = self.fix_all_edit(&uri).ok();
                 if action.edit.is_none() {
                     return Some(actions);
                 }
@@ -195,7 +196,8 @@ impl Server {
 
     /// `codeAction/resolve`: the edit of a quick fix or of "fix all", from
     /// a fresh check ([`crate::fresh`]); none when that check does not
-    /// make the fix.
+    /// make the fix, and then, for clients that show disabled actions, the
+    /// action disabled with the reason (review round 34, Opus nit 2).
     pub fn resolve_code_action(&mut self, mut action: CodeAction) -> CodeAction {
         if action.edit.is_some() {
             return action;
@@ -207,25 +209,40 @@ impl Server {
         else {
             return action;
         };
-        match data.get("fix") {
-            Some(key) => {
-                if let (Ok(key), Some(path)) = (
-                    serde_json::from_value::<FindingKey>(key.clone()),
-                    path_of(&uri),
-                ) {
-                    action.edit = self.quick_fix_edit(&uri, &path, &key);
-                }
+        let edit = match data.get("fix") {
+            Some(key) => match (
+                serde_json::from_value::<FindingKey>(key.clone()),
+                path_of(&uri),
+            ) {
+                (Ok(key), Some(path)) => self.quick_fix_edit(&uri, &path, &key),
+                _ => return action,
+            },
+            None => self.fix_all_edit(&uri),
+        };
+        match edit {
+            Ok(edit) => action.edit = Some(edit),
+            Err(reason) if self.disabled_support => {
+                action.disabled = Some(lsp_types::CodeActionDisabled {
+                    reason: reason.to_owned(),
+                });
+                action.is_preferred = None;
+                action.data = None;
             }
-            None => action.edit = self.fix_all_edit(&uri),
+            Err(_) => {}
         }
         action
     }
 
     /// Whether the published findings of `uri` were computed from the text
-    /// the editor has now (fix ranges are byte offsets into that text).
+    /// the editor has now (fix ranges are byte offsets into that text), or
+    /// from it with the byte order mark the editor hides
+    /// ([`crate::fresh::as_saved`]).
     fn is_current(&self, uri: &Url, diagnostics: &[Diagnostic]) -> bool {
         match (self.documents.get(uri), diagnostics.first()) {
-            (Some(doc), Some(d)) => d.file.text() == doc.text,
+            (Some(doc), Some(d)) => {
+                let text = d.file.text();
+                text == doc.text || text.strip_prefix('\u{feff}') == Some(doc.text.as_str())
+            }
             _ => true,
         }
     }
@@ -244,9 +261,10 @@ impl Server {
     }
 
     /// The edit of "fix all" for a document, from a fresh `--fix`
-    /// ([`crate::fresh`]): one replacement of the part that changes.
-    pub fn fix_all_edit(&mut self, uri: &Url) -> Option<WorkspaceEdit> {
-        let path = path_of(uri)?;
+    /// ([`crate::fresh`]): one replacement of the part that changes; or why
+    /// there is none.
+    pub fn fix_all_edit(&mut self, uri: &Url) -> Result<WorkspaceEdit, &'static str> {
+        let path = path_of(uri).ok_or(NO_FIX_STALE)?;
         self.sync_documents();
         self.flush_document(uri);
         let wanted = FixWanted::All {
@@ -257,13 +275,13 @@ impl Server {
     }
 
     /// The edit of the quick fix of the finding `key`, from a fresh check
-    /// ([`crate::fresh`]) (`codeAction/resolve`).
+    /// ([`crate::fresh`]) (`codeAction/resolve`); or why there is none.
     fn quick_fix_edit(
         &mut self,
         uri: &Url,
         path: &Path,
         key: &FindingKey,
-    ) -> Option<WorkspaceEdit> {
+    ) -> Result<WorkspaceEdit, &'static str> {
         self.sync_documents();
         self.flush_document(uri);
         let fresh = self.fresh(path, &FixWanted::One(key.clone()))?;
@@ -271,29 +289,55 @@ impl Server {
     }
 
     /// The edit that turns the text a fresh run linted into its fixed
-    /// text, while the document still has that text.
+    /// text, while the document still has that text: for the version of
+    /// the document it was computed for, when the client takes versioned
+    /// edits (review round 34, Opus nit 3).
     fn document_edit(
         &self,
         uri: &Url,
         fixed: Option<(iglint_linter::SourceFile, String)>,
-    ) -> Option<WorkspaceEdit> {
-        let (original, fixed) = fixed?;
-        if let Some(doc) = self.documents.get(uri)
-            && doc.text != original.text()
-        {
-            return None;
-        }
+    ) -> Result<WorkspaceEdit, &'static str> {
+        let (original, fixed) = fixed.ok_or(NO_FIX_STALE)?;
+        let version = match self.documents.get(uri) {
+            Some(doc) if doc.text != original.text() => return Err(NO_FIX_STALE),
+            Some(doc) => Some(doc.version),
+            None => None,
+        };
         let (range, content) = convert::minimal_edit(original.text(), &fixed);
-        Some(WorkspaceEdit {
-            changes: Some(HashMap::from([(
-                uri.clone(),
-                vec![TextEdit {
-                    range: convert::source_range(&original, range),
-                    new_text: content,
-                }],
-            )])),
-            ..WorkspaceEdit::default()
-        })
+        let edit = TextEdit {
+            range: convert::source_range(&original, range),
+            new_text: content,
+        };
+        Ok(self.edit_of(vec![(uri.clone(), version, vec![edit])]))
+    }
+
+    /// A workspace edit of text edits per document (with the version of
+    /// the document they were computed for, `None` for a file that is not
+    /// open): `documentChanges` when the client supports them, `changes`
+    /// otherwise.
+    fn edit_of(&self, edits: Vec<(Url, Option<i32>, Vec<TextEdit>)>) -> WorkspaceEdit {
+        if self.document_changes {
+            let changes = edits
+                .into_iter()
+                .map(|(uri, version, edits)| TextDocumentEdit {
+                    text_document: OptionalVersionedTextDocumentIdentifier { uri, version },
+                    edits: edits.into_iter().map(OneOf::Left).collect(),
+                })
+                .collect();
+            WorkspaceEdit {
+                document_changes: Some(DocumentChanges::Edits(changes)),
+                ..WorkspaceEdit::default()
+            }
+        } else {
+            let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+            for (uri, _, edits) in edits {
+                changes.entry(uri).or_default().extend(edits);
+            }
+            WorkspaceEdit {
+                changes: Some(changes),
+                ..WorkspaceEdit::default()
+            }
+        }
     }
 
     /// Checks `path` again with the live workspace; when the findings
@@ -318,26 +362,39 @@ impl Server {
         !same
     }
 
-    /// Fix edits as a workspace edit, against the current text of each file.
+    /// Fix edits as a workspace edit, against the current text of each
+    /// file (for an open document, the version that has that text; none
+    /// when the document has another text).
     fn workspace_edit(&self, folder: usize, edits: &[FileEdit]) -> Option<WorkspaceEdit> {
-        let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+        let mut out: Vec<(Url, Option<i32>, Vec<TextEdit>)> = Vec::new();
         for e in edits {
             let source = self.folders[folder].live.source(&e.path)?;
             if e.edit.range.end().to_usize() > source.text().len() {
                 return None;
             }
-            changes
-                .entry(uri_of(&iglint_linter::discovery::absolute(&e.path))?)
-                .or_default()
-                .push(TextEdit {
-                    range: convert::source_range(&source, e.edit.range),
-                    new_text: e.edit.content.clone(),
-                });
+            let path = iglint_linter::discovery::absolute(&e.path);
+            let open = self.documents.iter().find(|(_, d)| d.path == path);
+            let (uri, version) = match open {
+                Some((uri, doc)) => {
+                    let text = source.text();
+                    if text != doc.text && text.strip_prefix('\u{feff}') != Some(doc.text.as_str())
+                    {
+                        return None;
+                    }
+                    (uri.clone(), Some(doc.version))
+                }
+                None => (uri_of(&path)?, None),
+            };
+            let edit = TextEdit {
+                range: convert::source_range(&source, e.edit.range),
+                new_text: e.edit.content.clone(),
+            };
+            match out.iter_mut().find(|(u, _, _)| *u == uri) {
+                Some((_, _, edits)) => edits.push(edit),
+                None => out.push((uri, version, vec![edit])),
+            }
         }
-        Some(WorkspaceEdit {
-            changes: Some(changes),
-            ..WorkspaceEdit::default()
-        })
+        Some(self.edit_of(out))
     }
 
     pub fn hover(&mut self, params: HoverParams) -> Option<Hover> {
@@ -352,7 +409,7 @@ impl Server {
             return None;
         }
         let index = LineIndex::new(text);
-        let offset = convert::offset(&index, text, position);
+        let offset = convert::source_offset(&index, text, position);
         let mut sections: Vec<String> = Vec::new();
         let mut range: Option<Range> = None;
         let mut seen: Vec<RuleCode> = Vec::new();
@@ -401,14 +458,14 @@ impl Server {
                     return Value::Null;
                 };
                 match self.fix_all_edit(&uri) {
-                    Some(edit) => {
+                    Ok(edit) => {
                         self.request::<ApplyWorkspaceEdit>(ApplyWorkspaceEditParams {
                             label: Some("iglint: fix all".to_owned()),
                             edit,
                         });
                         Value::Bool(true)
                     }
-                    None => Value::Bool(false),
+                    Err(_) => Value::Bool(false),
                 }
             }
             COMMAND_RULE_DOCS => {

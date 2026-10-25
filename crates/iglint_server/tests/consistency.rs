@@ -1288,6 +1288,19 @@ fn applied_safe_fixes_equal_a_fresh_cli_run() {
         } else {
             lsp_types::ClientCapabilities::default()
         };
+        // Every other sequence takes versioned edits (`documentChanges`,
+        // review round 34), chosen without drawing from `rng`.
+        let versioned = seed % 2 == 0;
+        let mut capabilities = capabilities;
+        if versioned {
+            capabilities
+                .workspace
+                .get_or_insert_with(Default::default)
+                .workspace_edit = Some(lsp_types::WorkspaceEditClientCapabilities {
+                document_changes: Some(true),
+                ..Default::default()
+            });
+        }
         let dir = tempfile::tempdir().unwrap();
         let top = iglint_linter::discovery::absolute(dir.path());
         let ws = top.join("ws");
@@ -1685,12 +1698,38 @@ fn applied_safe_fixes_equal_a_fresh_cli_run() {
                 } else {
                     action
                 };
-                let Some(edits) = action
-                    .edit
-                    .as_ref()
-                    .and_then(|e| e.changes.as_ref())
-                    .and_then(|c| c.get(&uri))
-                else {
+                let edits: Option<Vec<lsp_types::TextEdit>> =
+                    action
+                        .edit
+                        .as_ref()
+                        .and_then(|e| match &e.document_changes {
+                            Some(lsp_types::DocumentChanges::Edits(changes)) => {
+                                assert!(versioned && e.changes.is_none(), "{context}");
+                                let change = changes.iter().find(|c| c.text_document.uri == uri)?;
+                                assert_eq!(
+                                    change.text_document.version,
+                                    Some(version),
+                                    "{context}: {} for another version",
+                                    action.title
+                                );
+                                Some(
+                                    change
+                                        .edits
+                                        .iter()
+                                        .map(|e| match e {
+                                            lsp_types::OneOf::Left(e) => e.clone(),
+                                            lsp_types::OneOf::Right(e) => e.text_edit.clone(),
+                                        })
+                                        .collect(),
+                                )
+                            }
+                            Some(other) => panic!("{context}: {other:?}"),
+                            None => {
+                                assert!(!versioned, "{context}: unversioned edit");
+                                e.changes.as_ref()?.get(&uri).cloned()
+                            }
+                        });
+                let Some(edits) = edits.as_deref() else {
                     if quick && safe {
                         withheld += 1;
                     }
