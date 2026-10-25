@@ -73,6 +73,23 @@ pub(crate) fn external_use(cx: &crate::checker::Checker<'_, '_>, name: &str) -> 
     }
 }
 
+/// Whether a resource of the project (or of a project inheriting from it)
+/// assigns the top-level `name` of the library module being checked, or
+/// deletes it, through any path ([`iglint_project::ProjectIndex::library_name_stored`]:
+/// `lib.util.json = 5`, `m0.util.json = 5` with `m0` importing `lib.util`,
+/// `setattr(lib.util, 'json', 5)`). A store replaces the binding, so a fix
+/// that removes or changes it is not known to keep what runs (review
+/// round 29). Fails closed: an unknown context counts as a store.
+pub(crate) fn name_stored_elsewhere(cx: &crate::checker::Checker<'_, '_>, name: &str) -> bool {
+    let (Some((index, project)), Some(resource)) = (cx.project_index(), cx.resource()) else {
+        return true;
+    };
+    let dotted = format!("{}.{name}", resource.path.replace('/', "."));
+    std::iter::once(project)
+        .chain(cx.workspace().project_descendants(project))
+        .any(|p| index.library_name_stored(p, &dotted))
+}
+
 /// Whether every reference to the top-level names of library `module` is
 /// visible in the index (no dynamic access, no unknown users).
 pub(crate) fn all_library_references_known(

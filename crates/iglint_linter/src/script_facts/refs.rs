@@ -835,6 +835,15 @@ impl Chains<'_, '_, '_, '_> {
                         // `m.__dict__ = d`, `m.f.__code__ = c`.
                         self.record(e, Role::Value);
                     } else if let Some(q) = self.dotted(e) {
+                        // `del m.x` needs the binding (without it, a
+                        // `KeyError` on 8.3.3) and `m.x += 1` reads it
+                        // first (review round 29): uses of the name, like
+                        // `getattr(m, 'x')`. A plain store replaces it.
+                        match a.ctx {
+                            ExprContext::Del => self.record(e, Role::Base),
+                            ExprContext::AugStore => self.record(e, Role::Value),
+                            _ => {}
+                        }
                         self.changed(e, &a.value);
                         self.store(q);
                     }

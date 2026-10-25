@@ -379,6 +379,12 @@ enum ChainExpect {
     Arity,
     /// May read any name of these modules.
     Value(Vec<String>),
+    /// Replaces these names (`module.name`; review round 29): `REF002`
+    /// and `REF003` stay silent, and no safe fix removes their imports.
+    Stores(Vec<String>),
+    /// The case named, with the import it relies on removed: Jython's
+    /// record differs (what the import is needed for).
+    Without(String),
 }
 
 /// A case of `chains.cases`: name, expectation, modules (`dotted`, code)
@@ -400,6 +406,8 @@ fn chains() -> Vec<Chain> {
             "missing" => ChainExpect::Missing,
             "arity" => ChainExpect::Arity,
             "value" => ChainExpect::Value(targets),
+            "stores" => ChainExpect::Stores(targets),
+            "without" => ChainExpect::Without(targets.join(" ")),
             other => panic!("{name}: expectation {other}"),
         };
         let mut modules: Vec<(String, String)> = Vec::new();
@@ -419,12 +427,14 @@ fn chains() -> Vec<Chain> {
 }
 
 /// Every chain through library imports counts what it uses, and reports
-/// what Jython reports (review round 28), from a script, a tag and a view.
+/// what Jython reports (review rounds 28 and 29: also deletes, augmented
+/// assignments and stores through paths, and `__all__` changes), from a
+/// script, a tag and a view.
 #[test]
 fn every_chain_through_library_imports_counts() {
     let records = records();
     let cases = chains();
-    assert!(cases.len() >= 35, "{}", cases.len());
+    assert!(cases.len() >= 80, "{}", cases.len());
     let mut failures = Vec::new();
     for (name, expect, modules, expression) in &cases {
         let (_, record) = records
@@ -435,9 +445,19 @@ fn every_chain_through_library_imports_counts() {
         let measured = match expect {
             ChainExpect::Missing => record == "raised AttributeError",
             ChainExpect::Arity => record == "raised TypeError",
+            ChainExpect::Without(with) => {
+                let (_, other) = records
+                    .iter()
+                    .find(|(n, _)| n == with)
+                    .expect("oracle record of the case with the import");
+                other.first().is_some_and(|o| o != record)
+            }
             _ => record.starts_with("ok "),
         };
         assert!(measured, "{name}: oracle says {record}");
+        if matches!(expect, ChainExpect::Without(_)) {
+            continue;
+        }
         let library = |f| {
             modules.iter().fold(f, |f, (m, code)| {
                 with_library(f, &m.replace('.', "/"), code)
@@ -495,6 +515,20 @@ fn every_chain_through_library_imports_counts() {
                 }
                 ChainExpect::Missing => reported("REF002"),
                 ChainExpect::Arity => reported("REF003"),
+                ChainExpect::Stores(names) => {
+                    !reported("REF002")
+                        && !reported("REF003")
+                        && names.iter().all(|t| {
+                            let (m, n) = split(t);
+                            !in_module("SCR102", &m).iter().any(|d| {
+                                d.message.contains(&n)
+                                    && d.fix
+                                        .as_ref()
+                                        .is_some_and(|f| f.applicability == Applicability::Safe)
+                            })
+                        })
+                }
+                ChainExpect::Without(_) => true,
                 ChainExpect::Value(modules) => {
                     !reported("REF002")
                         && modules.iter().all(|m| {

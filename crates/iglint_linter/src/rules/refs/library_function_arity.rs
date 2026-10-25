@@ -157,6 +157,29 @@ mod tests {
         );
     }
 
+    /// Review round 29 (M1): a function replaced through another library
+    /// module's import is not the definition any more, on either side of
+    /// the import (`m0.util.f = lambda a, b: 5` then `lib.util.f(1, 2)`
+    /// returns 5 on 8.3.3, `chains.cases`).
+    #[test]
+    fn functions_replaced_through_library_imports_are_not_checked() {
+        for (store, call) in [
+            ("m0.util.fmt = r", "core.util.fmt(1, 2, 3)"),
+            ("core.util.fmt = r", "m0.util.fmt(1, 2, 3)"),
+            (
+                "m0.util.fmt.func_code = r.func_code",
+                "core.util.fmt(1, 2, 3)",
+            ),
+        ] {
+            let f = with_library(
+                with_library(library("core/util", UTIL), "m0", "from core import util\n"),
+                "app/main",
+                &format!("def go(r):\n    {store}\n    return {call}\n"),
+            );
+            assert!(f.lint(&["REF003"]).is_empty(), "{store}; {call}");
+        }
+    }
+
     #[test]
     fn wrong_calls() {
         let f = with_library(

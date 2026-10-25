@@ -299,6 +299,38 @@ mod tests {
         assert_eq!(flagged(&f.lint(&["REF002"])), vec!["extra"]);
     }
 
+    /// Review round 29 (M1): a store through another library module's
+    /// import lands in the import's target, and a store of the target
+    /// counts for the paths through the import (`m0.util.h = f` and then
+    /// `lib.util.h()` returns what was stored on 8.3.3, `chains.cases`).
+    #[test]
+    fn stores_through_library_imports_are_not_missing() {
+        for (store, read) in [
+            ("m0.util.h = lambda: 1", "core.util.h()"),
+            ("m0.m1.util.h = 1", "core.util.h"),
+            ("core.util.h = 1", "m0.util.h"),
+            ("core.util.h = 1", "m0.m1.util.h"),
+            ("m0.util.h = 1", "m0.m1.util.h"),
+            ("setattr(m0.util, 'h', 1)", "core.util.h"),
+            ("import m0.util as u\n    u.h = 1", "core.util.h"),
+        ] {
+            let f = project(library(
+                "app/main",
+                &format!("def go():\n    {store}\n    return {read}\n"),
+            ));
+            let f = with_library(f, "m0", "from core import util\nimport m1\n");
+            let f = with_library(f, "m1", "import core.util as util\n");
+            assert!(f.lint(&["REF002"]).is_empty(), "{store}; {read}");
+        }
+        // A store into another module of the chain is not one of `util`.
+        let f = project(library(
+            "app/main",
+            "def go():\n    m0.h = 1\n    return core.util.h\n",
+        ));
+        let f = with_library(f, "m0", "from core import util\n");
+        assert_eq!(flagged(&f.lint(&["REF002"])), vec!["h"]);
+    }
+
     /// Review round 28: a path through another library module's import
     /// is checked in the import's target (`m0.util.nothere` when `m0` does
     /// `from lib import util` raises AttributeError on 8.3.3), however

@@ -33,7 +33,8 @@
 //! literals are listed as constants: they never hold a function.
 
 use iglint_project::library::{
-    ModuleSymbols, Parameter, ParameterKind, Signature, Symbol, SymbolKind, VariableImport,
+    ModuleSymbols, Parameter, ParameterKind, Signature, StarExports, Symbol, SymbolKind,
+    VariableImport,
 };
 use iglint_python::ast::{Arguments, Expr, ExprContext, Module, Stmt};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
@@ -154,11 +155,33 @@ fn symbols_of(model: &SemanticModel<'_>, ast: &Module, escapes: bool) -> ModuleS
     }
 }
 
-/// The names `from module import *` binds when the module assigns
-/// `__all__` once in its own statement list, from literals; `None` when
-/// every top-level name not starting with `_` is exported.
-pub(crate) fn star_exports(model: &SemanticModel<'_>, module: &Module) -> Option<Vec<String>> {
+/// What `from module import *` binds: the names of `__all__` when the
+/// module assigns it once in its own statement list, from literals (and
+/// appends or extends it with literals at module level); every top-level
+/// name not starting with `_` when the module has no `__all__`; any name
+/// when `__all__` may hold names the code does not show (review round 29,
+/// N1: `__all__[:] = [...]`, `__all__[1] = 'json'`, `del __all__[0]`,
+/// `__all__.insert(...)`, `__all__ += [...]`, `x = __all__`, a use in a
+/// function, several or conditional bindings, code that writes the
+/// module's namespace dynamically).
+pub(crate) fn star_exports(model: &SemanticModel<'_>, module: &Module) -> StarExports {
+    if model
+        .scopes()
+        .any(|(_, s)| s.writes_globals || s.unqualified_exec.is_some())
+    {
+        return StarExports::Any;
+    }
     let all = model.scope(ScopeId::MODULE).bindings_of("__all__");
+    // The receivers of the module-level calls the model reads
+    // (`__all__.append('x')`, `__all__.extend([...])`).
+    let mut modelled = Vec::new();
+    module_level_all_calls(&module.body, &mut modelled);
+    let other_use = model
+        .references()
+        .any(|(_, r)| r.name == "__all__" && !r.is_implicit() && !modelled.contains(&r.range));
+    if all.is_empty() && !other_use {
+        return StarExports::Public;
+    }
     let unconditional_all = match all {
         [only] => model
             .binding(*only)
@@ -166,16 +189,62 @@ pub(crate) fn star_exports(model: &SemanticModel<'_>, module: &Module) -> Option
             .is_some_and(|stmt| module.body.as_ptr_range().contains(&(stmt as *const Stmt))),
         _ => false,
     };
-    (unconditional_all && !model.dunder_all_is_dynamic()).then(|| model.dunder_all().to_vec())
+    if unconditional_all && !other_use && !model.dunder_all_is_dynamic() {
+        StarExports::Listed(model.dunder_all().to_vec())
+    } else {
+        StarExports::Any
+    }
+}
+
+/// The ranges of `__all__` in module-level `__all__.append(...)` and
+/// `__all__.extend(...)` statements (also inside `if`, loops, `try` and
+/// `with` at module level), which the semantic model reads.
+fn module_level_all_calls(body: &[Stmt], out: &mut Vec<TextRange>) {
+    for stmt in body {
+        match stmt {
+            Stmt::Expr(s) => {
+                if let Expr::Call(c) = &*s.value
+                    && let Expr::Attribute(a) = &*c.func
+                    && matches!(a.attr.as_str(), "append" | "extend")
+                    && let Expr::Name(n) = &*a.value
+                    && &*n.id == "__all__"
+                {
+                    out.push(n.range);
+                }
+            }
+            Stmt::If(s) => {
+                module_level_all_calls(&s.body, out);
+                module_level_all_calls(&s.orelse, out);
+            }
+            Stmt::For(s) => {
+                module_level_all_calls(&s.body, out);
+                module_level_all_calls(&s.orelse, out);
+            }
+            Stmt::While(s) => {
+                module_level_all_calls(&s.body, out);
+                module_level_all_calls(&s.orelse, out);
+            }
+            Stmt::With(s) => module_level_all_calls(&s.body, out),
+            Stmt::TryExcept(s) => {
+                module_level_all_calls(&s.body, out);
+                for h in &s.handlers {
+                    module_level_all_calls(&h.body, out);
+                }
+                module_level_all_calls(&s.orelse, out);
+            }
+            Stmt::TryFinally(s) => {
+                module_level_all_calls(&s.body, out);
+                module_level_all_calls(&s.finalbody, out);
+            }
+            _ => {}
+        }
+    }
 }
 
 /// Whether `from module import *` binds `name` (Python 2.7), given the
 /// module's [`star_exports`].
-pub(crate) fn exported_to_star_imports(exports: Option<&[String]>, name: &str) -> bool {
-    match exports {
-        Some(names) => names.iter().any(|n| n == name),
-        None => !name.starts_with('_'),
-    }
+pub(crate) fn exported_to_star_imports(exports: &StarExports, name: &str) -> bool {
+    exports.exports(name)
 }
 
 /// An expression made of literals only (numbers, strings, `None`, `True`,

@@ -582,3 +582,913 @@ def f():
 == b
 def g(n):
     return m0.util.getDict()['json'].dumps(1)
+### del-through-import uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        del m0.util.json
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-through-import-removed without del-through-import
+== m0
+from lib import util
+== lib.util
+import os
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        del m0.util.json
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-direct uses lib.util.json
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        del lib.util.json
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-direct-removed without del-direct
+== lib.util
+import os
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        del lib.util.json
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-alias uses lib.util.json
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        import lib.util as u
+        del u.json
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-alias-removed without del-alias
+== lib.util
+import os
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        import lib.util as u
+        del u.json
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-from-package uses lib.util.json
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        from lib import util
+        del util.json
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-from-package-removed without del-from-package
+== lib.util
+import os
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        from lib import util
+        del util.json
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-two-hops uses lib.util.json
+== m0
+import m1
+== m1
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        del m0.m1.util.json
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-two-hops-removed without del-two-hops
+== m0
+import m1
+== m1
+from lib import util
+== lib.util
+import os
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        del m0.m1.util.json
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-tuple uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        del m0.util.json, n
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-tuple-removed without del-tuple
+== m0
+from lib import util
+== lib.util
+import os
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        del m0.util.json, n
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-list uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        del [n, m0.util.json]
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### del-list-removed without del-list
+== m0
+from lib import util
+== lib.util
+import os
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        del [n, m0.util.json]
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### augassign-through-import uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        m0.util.json += 1
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### augassign-through-import-removed without augassign-through-import
+== m0
+from lib import util
+== lib.util
+import os
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        m0.util.json += 1
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### augassign-direct uses lib.util.json
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        lib.util.json += 1
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### augassign-direct-removed without augassign-direct
+== lib.util
+import os
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        lib.util.json += 1
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### augassign-alias uses lib.util.json
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        import lib.util as u
+        u.json += 1
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### augassign-alias-removed without augassign-alias
+== lib.util
+import os
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        import lib.util as u
+        u.json += 1
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### augassign-two-hops uses lib.util.json
+== m0
+import m1
+== m1
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        m0.m1.util.json += 1
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### augassign-two-hops-removed without augassign-two-hops
+== m0
+import m1
+== m1
+from lib import util
+== lib.util
+import os
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        m0.m1.util.json += 1
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### store-through-import stores lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        m0.util.json = 5
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### store-direct stores lib.util.json
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        lib.util.json = 5
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### store-for-target stores lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        for m0.util.json in [1]: pass
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### store-except-target stores lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        try:
+            raise KeyError()
+        except KeyError, m0.util.json:
+            pass
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### store-tuple-target stores lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    try:
+        m0.util.json, n = 1, 2
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+    return 'done'
+### store-then-call stores
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    m0.util.h = lambda: 'stored'
+    return lib.util.h()
+### store-replaces-arity stores
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    m0.util.f = lambda a, b: 5
+    return lib.util.f(1, 2)
+### store-read-through-chain stores
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    lib.util.h = lambda: 'stored'
+    return m0.util.h()
+### global-del uses lib.util.json
+== lib.util
+import json
+def f():
+    return 1
+def k():
+    global json
+    del json
+    return 1
+== b
+def g(n):
+    try:
+        return lib.util.k()
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### global-del-removed without global-del
+== lib.util
+import os
+def f():
+    return 1
+def k():
+    global json
+    del json
+    return 1
+== b
+def g(n):
+    try:
+        return lib.util.k()
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### global-store stores lib.util.json
+== lib.util
+import json
+def f():
+    return 1
+def k():
+    global json
+    json = 5
+    return 1
+== b
+def g(n):
+    return lib.util.k()
+### star-all-slice uses lib.util.json
+== lib.util
+import json
+__all__ = ['f']
+__all__[:] = ['f', 'json']
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-slice-removed without star-all-slice
+== lib.util
+import os
+__all__ = ['f']
+__all__[:] = ['f', 'json']
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-item uses lib.util.json
+== lib.util
+import json
+__all__ = ['f', 'x']
+__all__[1] = 'json'
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-item-removed without star-all-item
+== lib.util
+import os
+__all__ = ['f', 'x']
+__all__[1] = 'json'
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-insert uses lib.util.json
+== lib.util
+import json
+__all__ = ['f']
+__all__.insert(0, 'json')
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-insert-removed without star-all-insert
+== lib.util
+import os
+__all__ = ['f']
+__all__.insert(0, 'json')
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-augassign uses lib.util.json
+== lib.util
+import json
+__all__ = ['f']
+__all__ += ['json']
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-augassign-removed without star-all-augassign
+== lib.util
+import os
+__all__ = ['f']
+__all__ += ['json']
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-alias uses lib.util.json
+== lib.util
+import json
+__all__ = ['f']
+names = __all__
+names.append('json')
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-alias-removed without star-all-alias
+== lib.util
+import os
+__all__ = ['f']
+names = __all__
+names.append('json')
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-in-function uses lib.util.json
+== lib.util
+import json
+__all__ = ['f']
+def k():
+    __all__.append('json')
+    return 1
+def f():
+    return 1
+== b
+lib.util.k()
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-in-function-removed without star-all-in-function
+== lib.util
+import os
+__all__ = ['f']
+def k():
+    __all__.append('json')
+    return 1
+def f():
+    return 1
+== b
+lib.util.k()
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-underscore uses lib.util._j
+== lib.util
+import json as _j
+__all__ = ['f']
+__all__ += ['_j']
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return _j.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-underscore-removed without star-all-underscore
+== lib.util
+import os
+__all__ = ['f']
+__all__ += ['_j']
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return _j.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'

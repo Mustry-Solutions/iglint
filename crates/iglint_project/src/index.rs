@@ -700,7 +700,9 @@ impl<'w> ProjectIndex<'w> {
                     }
                 }
                 dynamic[pid.index()].extend(&refs.dynamic);
-                stores[pid.index()].extend(refs.library_stores.iter().cloned());
+                for store in &refs.library_stores {
+                    self.record_store(pid, store, &mut stores[pid.index()]);
+                }
                 for name in &refs.library_exposed {
                     // Where the path ends, through imports: the module that
                     // defines the object.
@@ -1602,13 +1604,39 @@ impl<'w> ProjectIndex<'w> {
             .contains(&module)
     }
 
+    /// Records the store of the library name `store` (as a script wrote
+    /// it) in `stores`: as written, and where it lands through the imports
+    /// of library modules (review round 29, M1: `m0.util.h = f` with `m0`
+    /// doing `from lib import util` stores `lib.util.h`). The object the
+    /// name belongs to is resolved, not the name itself (`lib.util.h = f`
+    /// rebinds `h` of `lib.util`, not what an import `h` there leads to),
+    /// with every module on the way (`c1.a.util.h`, ..., `lib.util.h`);
+    /// a store whose path ends at a module or package (`m0.util = x`,
+    /// `m0.util.__dict__[k] = v`, `setattr(m0.util, name, v)`) counts for
+    /// every name of the module it may reach (default deny).
+    fn record_store(&self, project: ProjectId, store: &str, stores: &mut FxHashSet<String>) {
+        stores.insert(store.to_owned());
+        let path = self.resolve_library_path(project, store);
+        if matches!(
+            path.end,
+            LibraryLookup::Module { .. } | LibraryLookup::Package { .. } | LibraryLookup::Unknown
+        ) {
+            stores.extend(path.paths);
+        }
+        if let Some((object, name)) = store.rsplit_once('.') {
+            for p in self.resolve_library_path(project, object).paths {
+                stores.insert(format!("{p}.{name}"));
+            }
+        }
+    }
+
     /// Whether a resource of `project` assigns or deletes the library name
-    /// `dotted` (as written, before following imports) or a module or
-    /// package on its path (`core.util.fmt = f`, `setattr(core.util,
-    /// 'fmt', f)`, `core.util.__dict__[k] = v`).
-    /// The path is followed through imports: a store of `lib.util.f` (or
-    /// of `lib.util`) counts for `m0.util.f` when `m0` imports `lib.util`
-    /// as `util`.
+    /// `dotted` or a module or package on its path (`core.util.fmt = f`,
+    /// `setattr(core.util, 'fmt', f)`, `core.util.__dict__[k] = v`).
+    /// Paths are followed through imports both ways: a store of `lib.util.f`
+    /// (or of `lib.util`) counts for `m0.util.f` when `m0` imports
+    /// `lib.util` as `util`, and a store of `m0.util.f` counts for
+    /// `lib.util.f` ([`ProjectIndex::record_store`]).
     pub fn library_name_stored(&self, project: ProjectId, dotted: &str) -> bool {
         let stores = &self.projects[project.index()].library_stores;
         if stores.is_empty() {

@@ -563,9 +563,32 @@ impl ScriptRule for UnusedImport {
                     if star_imported(cx) && exported_to_star_imports(model, unit, b.name) {
                         return false;
                     }
+                    // A function replaces the module attribute through
+                    // `global`, like an assignment from another resource.
+                    if model
+                        .scope(ScopeId::MODULE)
+                        .bindings_of(b.name)
+                        .iter()
+                        .any(|o| model.binding(*o).site != ScopeId::MODULE)
+                    {
+                        applicability = Applicability::Unsafe;
+                        if reason.is_none() {
+                            reason = Some(UnsafeReason::new(STORED_REASON));
+                        }
+                    }
                     match external_use(cx, b.name) {
                         ExternalUse::Used => false,
-                        ExternalUse::Unused => true,
+                        ExternalUse::Unused => {
+                            // Another resource replaces the binding
+                            // (`lib.util.json = 5`, review round 29).
+                            if crate::rules::refs::name_stored_elsewhere(cx, b.name) {
+                                applicability = Applicability::Unsafe;
+                                if reason.is_none() {
+                                    reason = Some(UnsafeReason::new(STORED_REASON));
+                                }
+                            }
+                            true
+                        }
                         ExternalUse::Unknown => {
                             applicability = Applicability::Unsafe;
                             if reason.is_none() {
@@ -642,6 +665,11 @@ const IMPURE_REASON: &str = "the import is not known to succeed without side eff
 const EXTERNAL_USE_REASON: &str = "other resources may use the name as an attribute of the \
      module: library references are computed at run time, the project is inheritable or has an \
      incomplete parent chain, or the workspace has scripts iglint does not model";
+
+/// Why removing a top-level import of a library module is unsafe when code
+/// assigns the name.
+const STORED_REASON: &str = "code assigns the name as an attribute of the module, replacing \
+     what the import binds, or another scope assigns it through `global`";
 
 /// Whether `unused` holds every alias of the import statement `stmt`.
 fn removes_statement(stmt: &Stmt, unused: &[BindingId]) -> bool {
@@ -777,7 +805,7 @@ fn exported_to_star_imports(
     name: &str,
 ) -> bool {
     crate::script_facts::symbols::exported_to_star_imports(
-        crate::script_facts::symbols::star_exports(model, &unit.parsed.module).as_deref(),
+        &crate::script_facts::symbols::star_exports(model, &unit.parsed.module),
         name,
     )
 }
@@ -1411,6 +1439,176 @@ mod tests {
             .filter(|d| d.file.path().ends_with("lib/two/code.py"))
             .collect();
         assert!(d.is_empty(), "{:?}", flagged(&d));
+    }
+
+    /// Review round 29 (B1): `del lib.util.json` needs the binding (on
+    /// 8.3.3 a `KeyError` without the import) and `lib.util.json += 1` reads
+    /// it first (`TypeError` with the import, `AttributeError` without;
+    /// `chains.cases` of the library-routes oracle). Both are uses of the
+    /// name, directly, through aliases, through other modules' imports and
+    /// in tuple and list targets, from library modules and from view
+    /// scripts; the fix keeps the import.
+    #[test]
+    fn deleting_or_augmenting_a_module_name_elsewhere_uses_it() {
+        let lib = "import json\nimport os\ndef f():\n    return 1\n";
+        let forms = [
+            "del lib.util.json",
+            "del m0.util.json",
+            "del m0.m1.util.json",
+            "import lib.util as u\n    del u.json",
+            "from lib import util\n    del util.json",
+            "del m0.util.json, n",
+            "del [n, m0.util.json]",
+            "del (m0.m1.util.json,)",
+            "lib.util.json += 1",
+            "m0.util.json += 1",
+            "m0.m1.util.json -= 1",
+            "import lib.util as u\n    u.json += 1",
+            "from m0 import util\n    util.json <<= 1",
+        ];
+        for form in forms {
+            let body = format!("n = 1\n    {form}\n");
+            let modules = |f| {
+                let f = with_library(f, "lib/util", lib);
+                let f = with_library(f, "m0", "from lib import util\nimport m1\n");
+                with_library(f, "m1", "from lib import util\n")
+            };
+            for f in [
+                modules(library("user", &format!("def g():\n    {body}"))),
+                modules(view(
+                    ViewScript::Action,
+                    &format!("\t{}", body.replace("    ", "\t")),
+                )),
+            ] {
+                let d: Vec<_> = f
+                    .lint(&["SCR102"])
+                    .into_iter()
+                    .filter(|d| d.file.path().ends_with("lib/util/code.py"))
+                    .collect();
+                assert_eq!(flagged(&d), ["os"], "{form}");
+                let fixed = f.fixed(&[("SCR102", "")], true, &library_path(&f, "lib/util"));
+                assert!(fixed.contains("import json\n"), "{form}: {fixed}");
+            }
+        }
+    }
+
+    /// Review round 29 (B1): an assignment from elsewhere replaces what the
+    /// import binds (`lib.util.json = 5`, through other modules' imports, in
+    /// `for`, `except` and tuple targets, or from a function of the module
+    /// through `global`): the import may go, but not as a safe fix.
+    /// (`setattr(m0.util, 'json', 5)` uses the module as a value, which
+    /// keeps every name.)
+    #[test]
+    fn assigning_a_module_name_elsewhere_makes_the_removal_unsafe() {
+        let lib = "import json\nimport os\ndef f():\n    return 1\n";
+        for (form, own) in [
+            ("lib.util.json = 5", ""),
+            ("m0.util.json = 5", ""),
+            ("m0.m1.util.json = 5", ""),
+            ("import lib.util as u\n    u.json = 5", ""),
+            ("for m0.util.json in [1]:\n        pass", ""),
+            (
+                "try:\n        pass\n    except KeyError, m0.util.json:\n        pass",
+                "",
+            ),
+            ("m0.util.json, n = 1, 2", ""),
+            ("pass", "def k():\n    global json\n    json = 5\n"),
+        ] {
+            let f = with_library(
+                library("lib/util", &format!("{lib}{own}")),
+                "m0",
+                "from lib import util\nimport m1\n",
+            );
+            let f = with_library(f, "m1", "from lib import util\n");
+            let f = with_library(f, "user", &format!("def g():\n    {form}\n"));
+            let d: Vec<_> = f
+                .lint(&["SCR102"])
+                .into_iter()
+                .filter(|d| d.file.path().ends_with("lib/util/code.py"))
+                .collect();
+            let json: Vec<_> = d.iter().filter(|d| d.message.contains("`json`")).collect();
+            assert_eq!(json.len(), 1, "{form}: {:?}", flagged(&d));
+            let fix = json[0].fix.as_ref().expect("fix");
+            assert_eq!(
+                fix.applicability,
+                crate::diagnostic::Applicability::Unsafe,
+                "{form}"
+            );
+            assert!(
+                fix.unsafe_reason
+                    .as_ref()
+                    .is_some_and(|r| r.message.contains("assigns the name")),
+                "{form}: {:?}",
+                fix.unsafe_reason
+            );
+            // Safe fixes only: `os` goes, `json` stays.
+            let result = f.run(
+                &[("SCR102", "")],
+                crate::engine::FixMode::DiffOnly {
+                    unsafe_fixes: false,
+                },
+            );
+            let path = library_path(&f, "lib/util");
+            let fixed = &result
+                .fixed
+                .iter()
+                .find(|s| s.path == path)
+                .expect("fixed")
+                .fixed;
+            assert_eq!(
+                fixed,
+                &format!(
+                    "import json\n\n{}{own}",
+                    lib.strip_prefix("import json\nimport os\n")
+                        .expect("prefix")
+                ),
+                "{form}"
+            );
+        }
+        // Without the store, the removal is safe.
+        let f = with_library(library("lib/util", lib), "user", "def g():\n    pass\n");
+        let d = f.lint(&["SCR102"]);
+        assert_eq!(
+            applicability(&d),
+            [Some(crate::diagnostic::Applicability::Safe); 2]
+        );
+    }
+
+    /// Review round 29 (N1): `__all__` changed in a way the model does not
+    /// read (a slice or item store, `insert`, `+=`, an alias, a function)
+    /// may export any name, also one starting with `_`.
+    #[test]
+    fn changed_all_may_export_any_name() {
+        let user = "from lib.util import *\ndef g():\n    return json.dumps(f()), _j\n";
+        for all in [
+            "__all__ = ['f']\n__all__[:] = ['f', 'json', '_j']\n",
+            "__all__ = ['f', 'x', 'y']\n__all__[1] = 'json'\n__all__[2] = '_j'\n",
+            "__all__ = ['f']\n__all__.insert(0, 'json')\n__all__.insert(0, '_j')\n",
+            "__all__ = ['f']\n__all__ += ['json', '_j']\n",
+            "__all__ = ['f']\nnames = __all__\nnames.extend(['json', '_j'])\n",
+            "__all__ = ['f']\ndef k():\n    __all__.extend(['json', '_j'])\n",
+            "__all__ = ['f']\ndel __all__[0]\n__all__.extend(['f', 'json', '_j'])\n",
+            "if f:\n    __all__ = ['f']\nelse:\n    __all__ = ['f', 'json', '_j']\n",
+        ] {
+            let code = format!("import json\nimport json as _j\n{all}def f():\n    return 1\n");
+            let f = with_library(library("lib/util", &code), "user", user);
+            let d: Vec<_> = f
+                .lint(&["SCR102"])
+                .into_iter()
+                .filter(|d| d.file.path().ends_with("lib/util/code.py"))
+                .collect();
+            assert!(d.is_empty(), "{all}: {:?}", flagged(&d));
+        }
+        // A literal `__all__`, also extended with literals at module level,
+        // is read exactly.
+        let code = "import json\nimport os\n__all__ = ['f']\n__all__.append('json')\ndef f():\n    return 1\n";
+        let f = with_library(library("lib/util", code), "user", user);
+        let d: Vec<_> = f
+            .lint(&["SCR102"])
+            .into_iter()
+            .filter(|d| d.file.path().ends_with("lib/util/code.py"))
+            .collect();
+        assert_eq!(flagged(&d), ["os"]);
     }
 
     fn applicability(d: &[crate::Diagnostic]) -> Vec<Option<crate::diagnostic::Applicability>> {

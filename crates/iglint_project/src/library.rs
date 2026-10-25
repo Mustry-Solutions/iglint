@@ -213,9 +213,8 @@ pub struct ModuleSymbols {
     pub library_names: Vec<String>,
     /// The modules its module-level `from x import *` statements name.
     pub star_imports: Vec<String>,
-    /// The names `from <this module> import *` binds when `__all__` lists
-    /// them; `None`: every top-level name not starting with `_`.
-    pub star_exports: Option<Vec<String>>,
+    /// The names `from <this module> import *` binds.
+    pub star_exports: StarExports,
     /// The import bindings of top-level names that are not a
     /// [`SymbolKind::Import`] (bound several times, or possibly rebound):
     /// the name may hold the import's target.
@@ -232,6 +231,38 @@ pub struct ModuleSymbols {
     /// top-level names). Not part of the value: it ignores comparison and
     /// `Debug`, and `symbols` must not change after the first lookup.
     pub names: NameIndex,
+}
+
+/// What `from <module> import *` binds (Python 2.7), by the module's
+/// `__all__` ([`ModuleSymbols::star_exports`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum StarExports {
+    /// The module has no `__all__`: every top-level name not starting
+    /// with `_`.
+    #[default]
+    Public,
+    /// The names `__all__` lists, read exactly (one assignment of literal
+    /// names in the module's own statement list, and module-level
+    /// `append` and `extend` calls of literal names).
+    Listed(Vec<String>),
+    /// `__all__` may hold names the code does not show (review round 29,
+    /// N1): bound several times or conditionally, changed through a
+    /// subscript or slice, a method other than a literal `append` or
+    /// `extend`, an augmented assignment, an alias or from a function, or
+    /// the module writes its namespace dynamically. Default deny: any
+    /// name, also one starting with `_`.
+    Any,
+}
+
+impl StarExports {
+    /// Whether `from <module> import *` may bind `name`.
+    pub fn exports(&self, name: &str) -> bool {
+        match self {
+            StarExports::Public => !name.starts_with('_'),
+            StarExports::Listed(names) => names.iter().any(|n| n == name),
+            StarExports::Any => true,
+        }
+    }
 }
 
 /// An import binding of a top-level name that is a
@@ -936,10 +967,7 @@ impl LibraryTree {
         let segments: Vec<String> = star.split('.').map(str::to_owned).collect();
         match self.lookup(&segments, symbols).0 {
             LibraryLookup::Module { resource, .. } => match symbols(resource) {
-                Some(s) => match &s.star_exports {
-                    Some(names) => names.iter().any(|n| n == name),
-                    None => !name.starts_with('_'),
-                },
+                Some(s) => s.star_exports.exports(name),
                 None => true,
             },
             _ => true,
