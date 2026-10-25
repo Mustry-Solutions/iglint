@@ -148,6 +148,13 @@ from 0.1.0 on.
   Documented in `docs/internal/fix-safety.md`, "Paths through library
   imports"; oracle replay, property test (400 generated libraries) and
   generated end-to-end chains.
+- SCR120 did not count the items of a literal `*args` as arguments
+  (review round 28, Codex minor): `max(*((v * t for v in [1]),))` in a
+  loop was reported, though `max` consumes the generator (Jython prints
+  `[0, 1, 2]`), and so was `map(*(lambda x: x * t, [1]))`. They are now
+  arguments at their positions; `max(*(g, None))` and
+  `max(*(lambda: t, lambda: t))` are still reported (measured with
+  `oracle/run-oracle.sh --run`).
 - A `runScript` target written as a dotted name was never analysed as
   code (review round 27, blocker; since round 8). Measured with
   Ignition 8.3.3's own `ScriptFunction` and Perspective's

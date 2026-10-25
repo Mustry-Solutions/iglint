@@ -49,8 +49,9 @@ count. So does a generator: calling a generator function (a `def` or
 runs when it is consumed, unless it is consumed where it is written: as
 the iterable of a builtin that consumes it (`sum`, `any`, `all`, `list`,
 `tuple`, `set`, `dict`, `sorted`, a single argument of `min` or `max`
-(not with `*args` that may add another: `max(g, *rest)` may return `g`),
-the sequences of `map`, `filter`, `reduce` and `zip`, `''.join`), of a
+(not with `*args` that may add another: `max(g, *rest)` may return `g`;
+the items of a literal `*args` are arguments at their positions,
+`max(*(g,))` consumes `g`), the sequences of `map`, `filter`, `reduce` and `zip`, `''.join`), of a
 `for` statement or of a list, set or dict comprehension. A generator
 function whose every call is consumed that way (`total += sum(h())`)
 is not reported either.
@@ -241,9 +242,21 @@ fn run_during_call(
         }
         _ => return,
     };
+    // `*args` adds its items after the written positional arguments:
+    // known for a literal tuple or list (review round 28, Codex:
+    // `max(*((v * t for v in [1]),))` consumes the generator, Jython:
+    // `[0, 1, 2]`).
+    let unpacked: Option<&[Expr]> = match c.starargs.as_deref() {
+        None => Some(&[]),
+        Some(Expr::Tuple(t)) => Some(&t.elts),
+        Some(Expr::List(l)) => Some(&l.elts),
+        Some(_) => None,
+    };
+    let positional = unpacked.map(|u| c.args.len() + u.len());
     let args = c
         .args
         .iter()
+        .chain(unpacked.unwrap_or_default())
         .enumerate()
         .map(|(i, a)| (Arg::At(i), a))
         .chain(
@@ -257,13 +270,6 @@ fn run_during_call(
         {
             invoked.insert(l.range);
         }
-        // `*args` adds its items: known for a literal tuple or list.
-        let positional = match c.starargs.as_deref() {
-            None => Some(c.args.len()),
-            Some(Expr::Tuple(t)) => Some(c.args.len() + t.elts.len()),
-            Some(Expr::List(l)) => Some(c.args.len() + l.elts.len()),
-            Some(_) => None,
-        };
         if consumes_argument(name, arg, positional) {
             consumed.insert(value.range());
         }
@@ -1002,6 +1008,19 @@ mod tests {
             ("out.append(max((v * t for v in [1]), *[None]))", &["t"][..]),
             ("out.append(min((v * t for v in [1]), *rest))", &["t"][..]),
             ("out.append(max((v * t for v in [1]), None))", &["t"][..]),
+            // Review round 28 (Codex): the items of a literal `*args` are
+            // arguments at their positions (Jython: `[[2], [2], [2]]`,
+            // `[2, 2, 2]` for the lambdas).
+            ("out.append(max(*((v * t for v in [1]), None)))", &["t"][..]),
+            (
+                "out.append(max((v * t for v in [1]), *((v * t for v in [2]),)))",
+                &["t", "t"][..],
+            ),
+            (
+                "out.append(enumerate(*((v * t for v in [1]),)))",
+                &["t"][..],
+            ),
+            ("out.append(max(*(lambda: t, lambda: t)))", &["t", "t"][..]),
         ] {
             let code = format!("out = []\nfor t in range(3):\n    {body}\n");
             let d = library("m", &code).lint(&["SCR120"]);
@@ -1026,6 +1045,15 @@ mod tests {
             "out.append(max((v * t for v in [1]), **{}))",
             "out.append(sum((v * t for v in [1]), *[0]))",
             "out.append(sorted((v * t for v in [1]), *[None]))",
+            // Review round 28 (Codex): consumed through a literal `*args`
+            // (Jython: `[0, 1, 2]`, `[[0], [1], [2]]`).
+            "out.append(max(*((v * t for v in [1]),)))",
+            "out.append(max(*[(v * t for v in [1])]))",
+            "out.append(min(*((v * t for v in [1]),)))",
+            "out.append(sum(*((v * t for v in [1]),)))",
+            "out.append(sorted(*((v * t for v in [1]),)))",
+            "out.append(list(*((v * t for v in [1]),)))",
+            "out.append(map(*(lambda x: x * t, [1])))",
         ] {
             let code = format!("out = []\nfor t in range(3):\n    {body}\n");
             let d = library("m", &code).lint(&["SCR120"]);
