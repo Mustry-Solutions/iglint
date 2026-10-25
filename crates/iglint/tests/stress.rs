@@ -1916,11 +1916,24 @@ fn unicode(rng: &mut Rng, slot: Slot) -> String {
         if out.is_empty() || out == "." || out == ".." {
             out.insert(0, '\u{e9}');
         }
+        if !file_system_holds(&out) {
+            return unicode(rng, slot);
+        }
     }
     if slot == Slot::Comment {
         out = out.replace(['\u{2028}', '\u{85}'], "\u{e9}");
     }
     out
+}
+
+/// Whether the file system of the temporary directory can hold a file
+/// named `name` (APFS refuses some code points with "Illegal byte
+/// sequence"; a gateway on it cannot have such a resource either).
+fn file_system_holds(name: &str) -> bool {
+    let path = std::env::temp_dir().join(format!("iglint-{}-{name}", std::process::id()));
+    let holds = std::fs::create_dir(&path).is_ok();
+    let _ = std::fs::remove_dir(&path);
+    holds
 }
 
 /// `text` with a generated string inserted at a random character boundary

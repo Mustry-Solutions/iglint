@@ -45,10 +45,7 @@ type Finding = (String, String, u32, u32, String, String);
 fn key(d: &iglint_linter::Diagnostic, root: &Path) -> Finding {
     let path = absolute(d.file.path());
     (
-        path.strip_prefix(root)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .into_owned(),
+        iglint_linter::discovery::slash_path(path.strip_prefix(root).unwrap_or(&path)),
         d.rule.code().to_owned(),
         d.range.start().to_u32(),
         d.range.end().to_u32(),

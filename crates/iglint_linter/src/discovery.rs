@@ -871,6 +871,10 @@ mod tests {
 
     #[test]
     fn absolute_normalises() {
-        assert_eq!(absolute(Path::new("/a/./b/../c")), PathBuf::from("/a/c"));
+        let root = if cfg!(windows) { r"C:\" } else { "/" };
+        assert_eq!(
+            absolute(&Path::new(root).join("a/./b/../c")),
+            Path::new(root).join("a").join("c")
+        );
     }
 }

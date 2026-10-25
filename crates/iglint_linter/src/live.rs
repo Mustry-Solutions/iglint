@@ -101,7 +101,9 @@ struct Stamp {
     len: u64,
     modified: Option<SystemTime>,
     /// The inode change time on Unix (which no tool can set back), the
-    /// creation time elsewhere.
+    /// creation time elsewhere (Windows has a change time too, but the
+    /// standard library does not read it): there a rewrite in place that
+    /// keeps the size and sets the modification time back is not seen.
     changed: Option<SystemTime>,
     /// Device and inode on Unix.
     identity: (u64, u64),
@@ -1998,6 +2000,12 @@ mod tests {
             ("def g():\n    return lib.util.json.dumps(2)\n", 0),
             ("def g():\n    return 1\n", 1),
         ] {
+            // Only Unix has a change time (see `Stamp::changed`): elsewhere
+            // a rewrite in place of the same size, dated back, does not
+            // show in the stamp.
+            if cfg!(not(unix)) && text.ends_with("dumps(2)\n") {
+                continue;
+            }
             rewrite(text, how);
             match live.refresh_from_disk() {
                 DiskChange::Files { changed, .. } => assert_eq!(changed, vec![b.clone()]),
