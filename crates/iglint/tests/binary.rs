@@ -388,6 +388,88 @@ fn unsafe_fixes_name_the_code_that_makes_them_unsafe() {
     assert_eq!(reason(&run("json"))["location"]["row"], 3);
 }
 
+/// Review round 30 (Opus nit 3): the reason of an unsafe removal that a
+/// store elsewhere makes unsafe (`lib.util.json = 1` in a view script)
+/// names the store, in JSON, text and SARIF, also from the cache, and
+/// follows it when it moves.
+#[test]
+fn store_reasons_name_the_store() {
+    let dir = tempfile::tempdir().unwrap();
+    let write = |rel: &str, text: &str| {
+        let path = dir.path().join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        "p/project.json",
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    );
+    write(
+        "p/ignition/script-python/lib/util/resource.json",
+        r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+    );
+    write(
+        "p/ignition/script-python/lib/util/code.py",
+        "import json\ndef f():\n    return 1\n",
+    );
+    let view = "p/com.inductiveautomation.perspective/views/V";
+    write(
+        &format!("{view}/resource.json"),
+        r#"{"scope": "G", "version": 1, "files": ["view.json"]}"#,
+    );
+    let script = |s: &str| {
+        format!(
+            "{{\"root\": {{\"meta\": {{\"name\": \"root\"}}, \"type\": \"ia.container.flex\", \"children\": [\n{{\"meta\": {{\"name\": \"B\"}}, \"type\": \"ia.input.button\", \"events\": {{\"component\": {{\"onActionPerformed\": {{\"type\": \"script\", \"scope\": \"G\", \"config\": {{\"script\": \"{s}\"}}}}}}}}}}]}}}}\n"
+        )
+    };
+    write(
+        &format!("{view}/view.json"),
+        &script("\\tlib.util.json = 1"),
+    );
+    let run = |format: &str| -> String {
+        let out = iglint(dir.path())
+            .args([
+                "--select",
+                "SCR102",
+                "--cache-dir",
+                "cache",
+                "--output-format",
+                format,
+            ])
+            .output()
+            .unwrap();
+        String::from_utf8(out.stdout).unwrap()
+    };
+    let reason = |json: &str| -> serde_json::Value {
+        let v: serde_json::Value = serde_json::from_str(json).unwrap();
+        v[0]["fix"]["unsafe_reason"].clone()
+    };
+    let first = run("json");
+    let r = reason(&first);
+    assert_eq!(r["what"], "lib.util.json", "{first}");
+    assert_eq!(r["filename"], format!("{view}/view.json"));
+    assert_eq!(r["location"]["row"], 2);
+    assert_eq!(run("json"), first, "from the cache");
+    assert!(
+        run("text").contains(&format!("`lib.util.json` at {view}/view.json:2:")),
+        "{}",
+        run("text")
+    );
+    let sarif: serde_json::Value = serde_json::from_str(&run("sarif")).unwrap();
+    let related = &sarif["runs"][0]["results"][0]["relatedLocations"][0];
+    assert_eq!(
+        related["physicalLocation"]["artifactLocation"]["uri"],
+        format!("{view}/view.json")
+    );
+    assert_eq!(related["physicalLocation"]["region"]["startLine"], 2);
+    // The store moves to another line: named there.
+    write(
+        &format!("{view}/view.json"),
+        &format!("\n{}", script("\\tlib.util.json = 1")),
+    );
+    assert_eq!(reason(&run("json"))["location"]["row"], 3);
+}
+
 /// Reviewer round 9 (Opus) blocker, through the binary: view `B` reads
 /// view `A`'s custom property `foo` through `self.page.views`; `--fix`
 /// must not delete it, `--fix --unsafe-fixes` may, and the JSON output

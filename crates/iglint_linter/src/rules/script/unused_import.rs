@@ -535,6 +535,7 @@ impl ScriptRule for UnusedImport {
                                     .to_owned(),
                                 site: None,
                                 workspace: false,
+                                store: None,
                             });
                         }
                         if let Some(at) = crate::rules::vetting::unknown_code_at(cx, model, body) {
@@ -577,15 +578,24 @@ impl ScriptRule for UnusedImport {
                     }
                     // A function replaces the module attribute through
                     // `global`, like an assignment from another resource.
-                    if model
+                    if let Some(other) = model
                         .scope(ScopeId::MODULE)
                         .bindings_of(b.name)
                         .iter()
-                        .any(|o| model.binding(*o).site != ScopeId::MODULE)
+                        .find(|o| model.binding(**o).site != ScopeId::MODULE)
                     {
                         applicability = Applicability::Unsafe;
                         if reason.is_none() {
-                            reason = Some(UnsafeReason::new(STORED_REASON));
+                            // Named at the binding in the function
+                            // (review round 30, Opus nit 3).
+                            let mut r = crate::rules::vetting::script_reason(
+                                cx,
+                                unit.file,
+                                unit.script,
+                                crate::rules::vetting::UnknownAt::Here(model.binding(*other).range),
+                            );
+                            r.message = STORED_REASON.to_owned();
+                            reason = Some(r);
                         }
                     }
                     match external_use(cx, b.name) {
@@ -596,7 +606,14 @@ impl ScriptRule for UnusedImport {
                             if crate::rules::refs::name_stored_elsewhere(cx, b.name) {
                                 applicability = Applicability::Unsafe;
                                 if reason.is_none() {
-                                    reason = Some(UnsafeReason::new(STORED_REASON));
+                                    // Named at the first store, filled in
+                                    // after the cache (review round 30,
+                                    // Opus nit 3).
+                                    let mut r = UnsafeReason::new(STORED_REASON);
+                                    r.store = cx.resource().map(|res| {
+                                        format!("{}.{}", res.path.replace('/', "."), b.name)
+                                    });
+                                    reason = Some(r);
                                 }
                             }
                             true
@@ -626,6 +643,7 @@ impl ScriptRule for UnusedImport {
                     message,
                     site: None,
                     workspace: false,
+                    store: None,
                 });
             }
             let names: Vec<&str> = unused
@@ -1610,6 +1628,29 @@ mod tests {
                 "{form}: {:?}",
                 fix.unsafe_reason
             );
+            // The reason names the store, in the resource that stores or
+            // in the module's function (review round 30, Opus nit 3).
+            let site = fix
+                .unsafe_reason
+                .as_ref()
+                .and_then(|r| r.site.as_ref())
+                .unwrap_or_else(|| panic!("{form}: no site"));
+            let line_of = |text: &str, needle: &str| {
+                text.lines().position(|l| l.contains(needle)).expect("line") as u32 + 1
+            };
+            let (file, line) = if own.is_empty() {
+                let user = format!("def g():\n    {form}\n");
+                ("user/code.py", line_of(&user, ".json"))
+            } else {
+                (
+                    "lib/util/code.py",
+                    line_of(&format!("{lib}{own}"), "json = 5"),
+                )
+            };
+            assert!(
+                site.path.ends_with(file) && site.line == line && !site.what.is_empty(),
+                "{form}: {site:?}"
+            );
             // Safe fixes only: `os` goes, `json` stays.
             let result = f.run(
                 &[("SCR102", "")],
@@ -1634,6 +1675,25 @@ mod tests {
                 "{form}"
             );
         }
+        // From a view script (the Opus repro of review round 30, nit 3):
+        // the site is in the view.
+        let f = with_library(
+            view(ViewScript::Action, "\tlib.util.json = 1"),
+            "lib/util",
+            lib,
+        );
+        let d = f.lint(&["SCR102"]);
+        let site = d
+            .iter()
+            .find(|d| d.message.contains("`json`"))
+            .and_then(|d| d.fix.as_ref())
+            .and_then(|f| f.unsafe_reason.as_ref())
+            .and_then(|r| r.site.as_ref())
+            .unwrap_or_else(|| panic!("{d:#?}"));
+        assert!(
+            site.path.ends_with("view.json") && site.what == "lib.util.json",
+            "{site:?}"
+        );
         // Without the store, the removal is safe.
         let f = with_library(library("lib/util", lib), "user", "def g():\n    pass\n");
         let d = f.lint(&["SCR102"]);

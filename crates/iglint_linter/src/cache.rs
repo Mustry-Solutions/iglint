@@ -131,6 +131,8 @@ struct CachedReason {
     site: Option<(u32, u32, String)>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     workspace: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    store: Option<String>,
 }
 
 pub(crate) struct Cache {
@@ -306,9 +308,10 @@ fn store(d: &Diagnostic, file: &SourceFile) -> Option<CachedDiagnostic> {
                     site: r
                         .site
                         .as_ref()
-                        .filter(|s| !r.workspace && s.path == file.path())
+                        .filter(|s| !r.workspace && r.store.is_none() && s.path == file.path())
                         .map(|s| (s.line, s.column, s.what.clone())),
                     workspace: r.workspace,
+                    store: r.store.clone(),
                 }),
             })
         }
@@ -396,6 +399,7 @@ fn restore(
                     what: what.clone(),
                 }),
                 workspace: r.workspace,
+                store: r.store.clone(),
             }),
             layout: fix.layout,
         });

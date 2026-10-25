@@ -119,6 +119,10 @@ struct ProjectData {
     /// Library names that resources this project sees assign or delete
     /// (`References::library_stores`).
     library_stores: FxHashSet<String>,
+    /// Where each of `library_stores` is first stored (by file path and
+    /// offset), when the script layer placed it (review round 30, Opus
+    /// nit 3: the reason of an unsafe fix names it).
+    library_store_sites: FxHashMap<String, UnknownSite>,
     /// Library modules whose names code may rebind through an object it
     /// receives (`References::library_exposed`).
     exposed_modules: FxHashSet<ResourceId>,
@@ -525,6 +529,7 @@ impl<'w> ProjectIndex<'w> {
         let mut escaped: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut value_modules: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut stores: Vec<FxHashSet<String>> = vec![FxHashSet::default(); n];
+        let mut store_sites: Vec<FxHashMap<String, UnknownSite>> = vec![FxHashMap::default(); n];
         let mut exposed: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut star_imported: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut unknown_code: Vec<bool> = vec![false; n];
@@ -722,7 +727,25 @@ impl<'w> ProjectIndex<'w> {
                 }
                 dynamic[pid.index()].extend(&refs.dynamic);
                 for store in &refs.library_stores {
-                    self.record_store(pid, store, &mut stores[pid.index()]);
+                    // The change the store makes (to the object it stores
+                    // into), recorded with it, holds its site.
+                    let site = refs
+                        .library_changes
+                        .iter()
+                        .find(|(o, _)| {
+                            store == o
+                                || store
+                                    .strip_prefix(o.as_str())
+                                    .is_some_and(|r| r.starts_with('.'))
+                        })
+                        .map(|(_, site)| site);
+                    self.record_store(
+                        pid,
+                        store,
+                        &mut stores[pid.index()],
+                        site,
+                        &mut store_sites[pid.index()],
+                    );
                 }
                 for name in &refs.library_exposed {
                     // Where the path ends, through imports: the module that
@@ -855,6 +878,7 @@ impl<'w> ProjectIndex<'w> {
             p.escaped_modules = std::mem::take(&mut escaped[i]);
             p.value_modules = std::mem::take(&mut value_modules[i]);
             p.library_stores = std::mem::take(&mut stores[i]);
+            p.library_store_sites = std::mem::take(&mut store_sites[i]);
             p.exposed_modules = std::mem::take(&mut exposed[i]);
             p.star_imported_modules = std::mem::take(&mut star_imported[i]);
             p.unknown_code = unknown_code[i];
@@ -1635,20 +1659,67 @@ impl<'w> ProjectIndex<'w> {
     /// a store whose path ends at a module or package (`m0.util = x`,
     /// `m0.util.__dict__[k] = v`, `setattr(m0.util, name, v)`) counts for
     /// every name of the module it may reach (default deny).
-    fn record_store(&self, project: ProjectId, store: &str, stores: &mut FxHashSet<String>) {
-        stores.insert(store.to_owned());
+    fn record_store(
+        &self,
+        project: ProjectId,
+        store: &str,
+        stores: &mut FxHashSet<String>,
+        site: Option<&UnknownSite>,
+        sites: &mut FxHashMap<String, UnknownSite>,
+    ) {
+        let mut keys: Vec<String> = vec![store.to_owned()];
         let path = self.resolve_library_path(project, store);
         if matches!(
             path.end,
             LibraryLookup::Module { .. } | LibraryLookup::Package { .. } | LibraryLookup::Unknown
         ) {
-            stores.extend(path.paths);
+            keys.extend(path.paths);
         }
         if let Some((object, name)) = store.rsplit_once('.') {
             for p in self.resolve_library_path(project, object).paths {
-                stores.insert(format!("{p}.{name}"));
+                keys.push(format!("{p}.{name}"));
             }
         }
+        let order = |s: &UnknownSite| (self.ws.file(s.file).path.clone(), s.range.start());
+        for key in keys {
+            if let Some(site) = site.filter(|s| s.file != UnknownSite::DETACHED) {
+                let better = sites.get(&key).is_none_or(|old| order(site) < order(old));
+                if better {
+                    sites.insert(key.clone(), site.clone());
+                }
+            }
+            stores.insert(key);
+        }
+    }
+
+    /// Where the first store that [`ProjectIndex::library_name_stored`]
+    /// finds for `dotted` is, if the script layer placed it.
+    pub fn library_store_site(&self, project: ProjectId, dotted: &str) -> Option<&UnknownSite> {
+        let p = &self.projects[project.index()];
+        if p.library_stores.is_empty() {
+            return None;
+        }
+        let order = |s: &UnknownSite| (self.ws.file(s.file).path.clone(), s.range.start());
+        let mut best: Option<&UnknownSite> = None;
+        let mut consider = |dotted: &str| {
+            let mut prefix = dotted;
+            loop {
+                if let Some(site) = p.library_store_sites.get(prefix)
+                    && best.is_none_or(|b| order(site) < order(b))
+                {
+                    best = Some(site);
+                }
+                match prefix.rsplit_once('.') {
+                    Some((head, _)) => prefix = head,
+                    None => return,
+                }
+            }
+        };
+        consider(dotted);
+        for path in self.resolve_library_path(project, dotted).paths {
+            consider(&path);
+        }
+        best
     }
 
     /// Whether a resource of `project` assigns or deletes the library name

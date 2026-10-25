@@ -197,6 +197,11 @@ pub struct UnsafeReason {
     /// in another file and is filled in after the cache, from the current
     /// project index.
     pub workspace: bool,
+    /// The site is the first store of this library name (`lib.util.json`)
+    /// in the project and those inheriting from it, which may be in
+    /// another file: filled in after the cache, from the current project
+    /// index (review round 30, Opus nit 3).
+    pub store: Option<String>,
 }
 
 /// A location named by an [`UnsafeReason`].
@@ -217,6 +222,7 @@ impl UnsafeReason {
             message: message.into(),
             site: None,
             workspace: false,
+            store: None,
         }
     }
 

@@ -693,6 +693,7 @@ pub(crate) fn analyze_with(
             std::slice::from_mut(&mut d),
             first_unknown.as_ref(),
         );
+        crate::rules::vetting::complete_store_reasons(std::slice::from_mut(&mut d), &index, &table);
         let same_settings = || {
             d.severity_from_options
                 && origin.and_then(|o| targets[o].settings.rule(d.rule)) == Some(rule_settings)
@@ -1166,6 +1167,7 @@ pub(crate) fn run_phase(
     if let Some(index) = index {
         let site = crate::rules::vetting::first_unknown_site(index, unit.files);
         crate::rules::vetting::complete_reasons(&mut out[start..], site.as_ref());
+        crate::rules::vetting::complete_store_reasons(&mut out[start..], index, unit.files);
     }
 }
 

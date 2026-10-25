@@ -103,6 +103,7 @@ pub(crate) fn script_reason(
                 message: "the script uses code that is not vetted".to_owned(),
                 site,
                 workspace: false,
+                store: None,
             }
         }
         UnknownAt::Library => UnsafeReason {
@@ -111,6 +112,7 @@ pub(crate) fn script_reason(
                 .to_owned(),
             site: None,
             workspace: true,
+            store: None,
         },
     }
 }
@@ -143,6 +145,7 @@ pub(crate) fn workspace_reason(cx: &Checker<'_, '_>) -> UnsafeReason {
             message: CLOSED_WORLD_UNKNOWN.to_owned(),
             site: None,
             workspace: false,
+            store: None,
         };
     }
     if let Some(unread) = cx.index().and_then(|index| index.unread_directory()) {
@@ -150,6 +153,7 @@ pub(crate) fn workspace_reason(cx: &Checker<'_, '_>) -> UnsafeReason {
             message: unread_reason("closed world unknown", unread),
             site: None,
             workspace: false,
+            store: None,
         };
     }
     UnsafeReason {
@@ -158,6 +162,7 @@ pub(crate) fn workspace_reason(cx: &Checker<'_, '_>) -> UnsafeReason {
             .to_owned(),
         site: None,
         workspace: true,
+        store: None,
     }
 }
 
@@ -325,6 +330,55 @@ pub(crate) fn complete_reasons(diagnostics: &mut [Diagnostic], site: Option<&Rea
     }
 }
 
+/// Fills in the site of store reasons ([`UnsafeReason::store`]) that have
+/// none: the first store of the name in the project of the finding's file
+/// and those inheriting from it (review round 30, Opus nit 3).
+pub(crate) fn complete_store_reasons(
+    diagnostics: &mut [Diagnostic],
+    index: &ProjectIndex<'_>,
+    files: &crate::checker::FileTable,
+) {
+    let ws = index.workspace();
+    for d in diagnostics {
+        let Some(reason) = d.fix.as_mut().and_then(|f| f.unsafe_reason.as_mut()) else {
+            continue;
+        };
+        let (Some(dotted), None) = (&reason.store, &reason.site) else {
+            continue;
+        };
+        let Some(project) = ws
+            .file_by_path(d.file.path())
+            .and_then(|f| f.resource)
+            .and_then(|r| match ws.resource(r).container {
+                iglint_project::Container::Project(p) => Some(p),
+                iglint_project::Container::Collection(_) => None,
+            })
+        else {
+            continue;
+        };
+        let order = |s: &iglint_project::summary::UnknownSite| {
+            (ws.file(s.file).path.clone(), s.range.start())
+        };
+        let site = std::iter::once(project)
+            .chain(ws.project_descendants(project))
+            .filter_map(|p| index.library_store_site(p, dotted))
+            .min_by_key(|s| order(s));
+        let Some(site) = site else { continue };
+        let Some(source) = files.get(site.file) else {
+            continue;
+        };
+        let at = source
+            .line_index()
+            .line_column(site.range.start(), source.text());
+        reason.site = Some(ReasonSite {
+            path: source.path().to_path_buf(),
+            line: at.line,
+            column: at.column,
+            what: site.what.clone(),
+        });
+    }
+}
+
 /// Withholds fixes of files that other paths share, before the file-read
 /// gate ([`gate_file_reads`] runs it first, so it runs on every path that
 /// reports or applies fixes, and `assume-scripts-do-not-read-workspace-files`
@@ -379,6 +433,7 @@ pub(crate) fn gate_shared_files(diagnostics: &mut [Diagnostic], ws: &iglint_proj
                 message: reason,
                 site: None,
                 workspace: false,
+                store: None,
             });
         }
     }
@@ -485,6 +540,7 @@ pub(crate) fn gate_file_reads(
                 },
                 site: site.clone(),
                 workspace: true,
+                store: None,
             });
         }
     }

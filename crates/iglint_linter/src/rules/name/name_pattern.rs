@@ -1378,6 +1378,7 @@ fn reason_at(cx: &Checker<'_, '_>, file: FileId, range: TextRange, message: &str
         message: message.to_owned(),
         site,
         workspace: false,
+        store: None,
     }
 }
 
