@@ -308,10 +308,11 @@ fn invalid_json_is_reported_and_the_run_continues() {
     ]);
     let run = run_in(dir.path(), &[]);
     assert_eq!(run.status, ExitStatus::Failure);
-    let abs = dir.path().join("a/view.json");
+    // Shown with `/` between components on every platform.
+    let abs = iglint_linter::discovery::slash_path(&dir.path().join("a/view.json"));
     assert!(
         run.stderr
-            .starts_with(&format!("ERROR: Invalid JSON in {}: ", abs.display())),
+            .starts_with(&format!("ERROR: Invalid JSON in {abs}: ")),
         "{}",
         run.stderr
     );
