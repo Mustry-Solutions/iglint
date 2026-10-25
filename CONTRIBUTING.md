@@ -231,7 +231,7 @@ model or the driver.
    `editors/vscode/package.json`, and move the "Unreleased" changelog entries
    under the new version.
 2. Tag the commit `vX.Y.Z` and push the tag. The release workflow builds the
-   binaries, wheels, source distribution and VS Code packages and attaches them
-   to a draft GitHub release. Check the draft and publish it by hand. The
+   binaries, wheels, source distribution and VS Code extension, and attaches
+   the binary archives, `SHA256SUMS` and the VSIX to a draft GitHub release. Check the draft and publish it by hand. The
    wheels are published to PyPI only when the repository variable
    `PYPI_PUBLISH` is `true` (see the top of `.github/workflows/release.yml`).

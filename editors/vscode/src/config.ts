@@ -43,12 +43,13 @@ export function serverSettings(settings: Settings): ServerSettings {
 /** What the resolver may look at, injected for tests. */
 export interface Environment {
   platform: NodeJS.Platform;
+  arch: string;
   /** `PATH`. */
   pathVariable: string;
   home: string;
   /** First workspace folder, if any. */
   workspaceFolder?: string;
-  /** Directory of the extension (holds `bundled/`). */
+  /** Directory of the extension (holds `bundled/<platform>-<arch>/`). */
   extensionPath: string;
   isFile: (file: string) => boolean;
 }
@@ -60,7 +61,8 @@ export function executableName(platform: NodeJS.Platform): string {
 /**
  * The `iglint` binary to run: `iglint.path` when set (with
  * `${workspaceFolder}` and `~` expanded, relative to the workspace folder),
- * else the bundled binary, else the first `iglint` on `PATH`. Returns
+ * else the binary bundled for this platform and architecture, else the
+ * first `iglint` on `PATH`. Returns
  * `undefined` when nothing is found.
  */
 export function resolveServerPath(configured: string, env: Environment): string | undefined {
@@ -75,7 +77,7 @@ export function resolveServerPath(configured: string, env: Environment): string 
     }
     return expanded;
   }
-  const bundled = p.join(env.extensionPath, "bundled", executableName(env.platform));
+  const bundled = p.join(env.extensionPath, "bundled", `${env.platform}-${env.arch}`, executableName(env.platform));
   if (env.isFile(bundled)) {
     return bundled;
   }

@@ -28,8 +28,8 @@ are not shown in the editor; `iglint check` reports them.
 
 ## Requirements
 
-An `iglint` binary: bundled with platform builds of the extension, found on
-`PATH`, or set with `iglint.path`. Configuration comes from `iglint.toml`
+An `iglint` binary: bundled with the extension for Linux (x64, arm64), macOS
+and Windows (x64), found on `PATH`, or set with `iglint.path`. Configuration comes from `iglint.toml`
 (or `[tool.iglint]` in `pyproject.toml`) and is reloaded when it changes.
 
 ## Settings

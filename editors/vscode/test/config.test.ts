@@ -6,6 +6,7 @@ import { Environment, needsRestart, readSettings, resolveServerPath, serverSetti
 function env(files: string[], overrides: Partial<Environment> = {}): Environment {
   return {
     platform: "linux",
+    arch: "x64",
     pathVariable: "/usr/local/bin:/usr/bin",
     home: "/home/me",
     workspaceFolder: "/work/plant",
@@ -22,9 +23,12 @@ test("configured path wins, with expansion", () => {
   assert.equal(resolveServerPath("tools/iglint", env([])), "/work/plant/tools/iglint");
 });
 
-test("bundled binary before PATH", () => {
-  const e = env(["/ext/bundled/iglint", "/usr/bin/iglint"]);
-  assert.equal(resolveServerPath("", e), "/ext/bundled/iglint");
+test("bundled binary for this platform before PATH", () => {
+  const bundled = ["/ext/bundled/linux-arm64/iglint", "/ext/bundled/linux-x64/iglint", "/usr/bin/iglint"];
+  assert.equal(resolveServerPath("", env(bundled)), "/ext/bundled/linux-x64/iglint");
+  assert.equal(resolveServerPath("", env(bundled, { arch: "arm64" })), "/ext/bundled/linux-arm64/iglint");
+  // No binary for this platform: PATH.
+  assert.equal(resolveServerPath("", env(bundled, { platform: "darwin" })), "/usr/bin/iglint");
 });
 
 test("first iglint on PATH", () => {

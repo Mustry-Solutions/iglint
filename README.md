@@ -44,15 +44,16 @@ Benchmarks against ign-lint and how to reproduce them are in
 
 ## Installation
 
-* Prebuilt binaries for Linux (x86_64, aarch64; static musl), macOS (x86_64,
-  aarch64) and Windows (x86_64) are attached to every
-  [GitHub release](https://github.com/Mustry-Solutions/iglint/releases),
-  each with a `.sha256` checksum. Unpack the archive and put `iglint` (or
-  `iglint.exe`) on your `PATH`:
+* Prebuilt binaries are attached to every
+  [GitHub release](https://github.com/Mustry-Solutions/iglint/releases):
+  `iglint-linux-x64.tar.gz`, `iglint-linux-arm64.tar.gz` (static, any
+  distribution), `iglint-macos.tar.gz` (Intel and Apple silicon) and
+  `iglint-windows-x64.zip`, with their checksums in `SHA256SUMS`. Unpack the
+  archive and put `iglint` (or `iglint.exe`) on your `PATH`:
 
   ```sh
-  curl -sSfL https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz | tar -xz
-  sudo install iglint-v0.1.0-x86_64-unknown-linux-musl/iglint /usr/local/bin/
+  curl -sSfL https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-linux-x64.tar.gz | tar -xz
+  sudo install iglint-linux-x64/iglint /usr/local/bin/
   ```
 
 * With Cargo (Rust 1.90 or newer):
@@ -64,11 +65,10 @@ Benchmarks against ign-lint and how to reproduce them are in
   ```
 
 * The VS Code extension is attached to the releases as well, as one VSIX
-  per platform (with the binary inside) and one that uses `iglint` from
-  `PATH`:
+  with the binary for every platform inside:
 
   ```sh
-  code --install-extension iglint-vscode-v0.1.0-linux-x64.vsix
+  code --install-extension iglint-vscode.vsix
   ```
 
 * A PyPI wheel with the binary and no Python code is planned but not
@@ -316,9 +316,9 @@ GitHub Actions, with annotations on the pull request and code scanning:
 ```yaml
 - name: Install iglint
   run: |
-    curl -sSfL https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz \
+    curl -sSfL https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-linux-x64.tar.gz \
       | tar -xz -C "$RUNNER_TEMP"
-    echo "$RUNNER_TEMP/iglint-v0.1.0-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+    echo "$RUNNER_TEMP/iglint-linux-x64" >> "$GITHUB_PATH"
 - run: iglint check --output-format github
 - run: iglint check --output-format sarif --output-file iglint.sarif --exit-zero
 - uses: github/codeql-action/upload-sarif@v3
@@ -332,9 +332,9 @@ Azure DevOps (`##vso[task.logissue]` lines show up in the build summary):
 
 ```yaml
 - script: |
-    curl -sSfL https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz \
+    curl -sSfL https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-linux-x64.tar.gz \
       | tar -xz -C "$(Agent.TempDirectory)"
-    "$(Agent.TempDirectory)/iglint-v0.1.0-x86_64-unknown-linux-musl/iglint" check --output-format azure
+    "$(Agent.TempDirectory)/iglint-linux-x64/iglint" check --output-format azure
   displayName: iglint
 ```
 
@@ -344,8 +344,8 @@ GitLab Code Quality:
 iglint:
   image: python:3.12   # any Linux image with curl
   script:
-    - curl -sSfL -o /tmp/iglint.tar.gz https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz
-    - tar -xzf /tmp/iglint.tar.gz -C /usr/local/bin --strip-components=1 iglint-v0.1.0-x86_64-unknown-linux-musl/iglint
+    - curl -sSfL -o /tmp/iglint.tar.gz https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-linux-x64.tar.gz
+    - tar -xzf /tmp/iglint.tar.gz -C /usr/local/bin --strip-components=1 iglint-linux-x64/iglint
     - iglint check --output-format gitlab --output-file gl-code-quality-report.json
   artifacts:
     when: always
