@@ -148,7 +148,7 @@ fn reaches_from_value(name: &str) -> bool {
 /// The library object (a module or a package) whose own member a dotted
 /// name reaches ([`LibraryTree::object_member`]): code that reads it may
 /// read and change everything in the object.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum LibraryObject {
     Module {
         resource: ResourceId,
@@ -213,6 +213,12 @@ pub struct ModuleSymbols {
     pub library_names: Vec<String>,
     /// The modules its module-level `from x import *` statements name.
     pub star_imports: Vec<String>,
+    /// The module is [`ModuleSymbols::dynamic`] only because of
+    /// module-level `from x import *` statements of absolute modules
+    /// (no `exec`, namespace writes or frame routes, no relative star
+    /// import): a name it does not bind can only come from the modules
+    /// [`ModuleSymbols::star_imports`] names.
+    pub names_from_stars_only: bool,
     /// The names `from <this module> import *` binds.
     pub star_exports: StarExports,
     /// The import bindings of top-level names that are not a
@@ -645,11 +651,524 @@ struct Walk<'i> {
     ambiguous: bool,
     /// Inside a branch through a [`VariableImport`].
     side: usize,
+    /// What `modules` and `values` hold, to keep each once.
+    module_set: rustc_hash::FxHashSet<ResourceId>,
+    value_set: rustc_hash::FxHashSet<LibraryObject>,
 }
 
-fn push_unique(list: &mut Vec<ResourceId>, resource: ResourceId) {
-    if !list.contains(&resource) {
-        list.push(resource);
+impl Walk<'_> {
+    /// Adds a module whose names the path reads, once.
+    fn module(&mut self, resource: ResourceId) {
+        if self.module_set.insert(resource) {
+            self.modules.push(resource);
+        }
+    }
+
+    /// Adds an object the path may reach but not follow, once (a path
+    /// through many star imports reaches the same ones again and again).
+    fn value(&mut self, object: LibraryObject) {
+        if !self.value_set.contains(&object) {
+            self.value_set.insert(object.clone());
+            self.values.push(object);
+        }
+    }
+}
+
+/// What [`LibraryTree::resolve_path_with`] keeps between paths resolved
+/// with the same symbols (review round 29, M2): the star-import graph of
+/// the library, which modules may provide a name through star imports,
+/// where a name a module does not bind may come from, and the object each
+/// import target names. None of it depends on the path that asks.
+/// Thread-safe: the project index keeps one per project and symbols view.
+#[derive(Default)]
+pub struct ResolveMemo {
+    graph: std::sync::OnceLock<StarGraph>,
+    /// By name: the modules that bind it, and those that may get it through
+    /// star imports.
+    names: std::sync::Mutex<FxHashMap<String, std::sync::Arc<NameStars>>>,
+    /// By module and name: where the name may come from.
+    reach: std::sync::Mutex<FxHashMap<(usize, String), std::sync::Arc<StarReach>>>,
+    objects: std::sync::Mutex<FxHashMap<String, Option<LibraryObject>>>,
+    /// By name and star-imported module: [`LibraryTree::star_lookup`].
+    star_lookups:
+        std::sync::Mutex<FxHashMap<String, FxHashMap<String, std::sync::Arc<StarLookup>>>>,
+}
+
+/// What `from <star> import *` brings of a name
+/// ([`LibraryTree::star_lookup`]).
+#[derive(Debug)]
+enum StarLookup {
+    /// The module does not export it.
+    Nothing,
+    /// Look the name up in the star-imported module.
+    Itself,
+    /// The module only passes on what its own star imports bring: where
+    /// the name may come from in it.
+    Via {
+        module: usize,
+        reach: std::sync::Arc<StarReach>,
+    },
+}
+
+impl std::fmt::Debug for ResolveMemo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ResolveMemo")
+    }
+}
+
+/// A set of modules by their index in [`StarGraph`], allocated as it grows
+/// (most names are bound by few modules, if any).
+#[derive(Clone, Debug, Default)]
+struct ModuleSet(Vec<u64>);
+
+impl ModuleSet {
+    fn contains(&self, i: usize) -> bool {
+        self.0.get(i / 64).is_some_and(|w| w & (1 << (i % 64)) != 0)
+    }
+
+    /// Adds `i`; whether it was new.
+    fn insert(&mut self, i: usize) -> bool {
+        let (word, bit) = (i / 64, 1u64 << (i % 64));
+        if self.0.len() <= word {
+            self.0.resize(word + 1, 0);
+        }
+        let new = self.0[word] & bit == 0;
+        self.0[word] |= bit;
+        new
+    }
+
+    fn remove(&mut self, i: usize) {
+        if let Some(w) = self.0.get_mut(i / 64) {
+            *w &= !(1u64 << (i % 64));
+        }
+    }
+
+    fn union(&mut self, other: &ModuleSet) {
+        if self.0.len() < other.0.len() {
+            self.0.resize(other.0.len(), 0);
+        }
+        for (a, b) in self.0.iter_mut().zip(&other.0) {
+            *a |= *b;
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.iter().all(|w| *w == 0)
+    }
+
+    fn iter(&self) -> impl Iterator<Item = usize> + '_ {
+        self.0.iter().enumerate().flat_map(|(w, bits)| {
+            (0..64)
+                .filter(move |b| bits & (1u64 << b) != 0)
+                .map(move |b| w * 64 + b)
+        })
+    }
+}
+
+/// The library's modules and their star imports of library modules.
+#[derive(Debug, Default)]
+struct StarGraph {
+    resources: Vec<ResourceId>,
+    dotted: Vec<String>,
+    by_resource: FxHashMap<ResourceId, usize>,
+    /// What `from <module> import *` binds, by module.
+    exports: Vec<StarExports>,
+    /// Each module's module-level star imports of library paths, in order:
+    /// the path as written and the module it names, when it names one.
+    stars: Vec<Vec<(String, Option<usize>)>>,
+    /// The modules star-importing each module.
+    importers: Vec<Vec<usize>>,
+    /// Modules whose names are not known: no symbols, or dynamic otherwise
+    /// than by star imports of library modules (`exec`, namespace writes,
+    /// frame routes, a star import of a module outside the library).
+    unknown: ModuleSet,
+    /// Modules that may get names from an unknown module through star
+    /// imports (whatever the name).
+    reach_unknown: ModuleSet,
+    /// By name, the modules that bind it.
+    binders: FxHashMap<String, Vec<usize>>,
+}
+
+/// For one name: the modules that bind it and the modules whose star
+/// imports may bring it (a module that does not bind it, is dynamic only
+/// by star imports, and star-imports one that binds it or brings it, and
+/// whose `__all__` passes it on).
+#[derive(Debug)]
+struct NameStars {
+    binds: ModuleSet,
+    brings: ModuleSet,
+    /// A cycle of star imports that pass the name on was met: each
+    /// module's answer is searched on its own ([`StarGraph::reach`]).
+    cyclic: std::sync::atomic::AtomicBool,
+    /// Where the name may come from in a module that passes it on, for
+    /// star imports without cycles ([`StarGraph::reach_acyclic`]).
+    kept: std::sync::Mutex<FxHashMap<usize, std::sync::Arc<Sources>>>,
+}
+
+/// Where a name may come from in a module ([`NameStars::kept`]).
+#[derive(Clone, Debug)]
+struct Sources {
+    places: ModuleSet,
+    other: Vec<String>,
+    through: ModuleSet,
+}
+
+/// Where a name a module does not bind may come from through its star
+/// imports ([`ResolveMemo::reach`]).
+#[derive(Debug, Default)]
+struct StarReach {
+    /// The star-imported modules that bind the name or whose names are not
+    /// known, and star imports of library paths that are not modules: the
+    /// path continues in each.
+    places: Vec<String>,
+    /// The modules on the way, which only pass the name on: their
+    /// namespaces are read.
+    through: Vec<ResourceId>,
+    /// Both as sets.
+    sources: Option<Sources>,
+}
+
+impl StarReach {
+    fn is_empty(&self) -> bool {
+        self.places.is_empty() && self.through.is_empty()
+    }
+}
+
+impl ResolveMemo {
+    fn graph<'i>(
+        &self,
+        tree: &LibraryTree,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+    ) -> &StarGraph {
+        self.graph.get_or_init(|| StarGraph::build(tree, symbols))
+    }
+
+    fn name(&self, graph: &StarGraph, name: &str) -> std::sync::Arc<NameStars> {
+        if let Some(known) = self.names.lock().expect("memo").get(name) {
+            return known.clone();
+        }
+        let facts = std::sync::Arc::new(graph.name_stars(name));
+        self.names
+            .lock()
+            .expect("memo")
+            .insert(name.to_owned(), facts.clone());
+        facts
+    }
+
+    /// Where `name`, which the module `resource` does not bind, may come
+    /// from through its star imports.
+    fn reach<'i>(
+        &self,
+        tree: &LibraryTree,
+        resource: ResourceId,
+        name: &str,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+    ) -> std::sync::Arc<StarReach> {
+        let graph = self.graph(tree, symbols);
+        let Some(&root) = graph.by_resource.get(&resource) else {
+            return Default::default();
+        };
+        let key = (root, name.to_owned());
+        if let Some(known) = self.reach.lock().expect("memo").get(&key) {
+            return known.clone();
+        }
+        let facts = self.name(graph, name);
+        let reach = std::sync::Arc::new(graph.reach(root, name, &facts));
+        self.reach.lock().expect("memo").insert(key, reach.clone());
+        reach
+    }
+
+    /// [`LibraryTree::object_of`], kept.
+    fn object_of<'i>(
+        &self,
+        tree: &LibraryTree,
+        dotted: &str,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+    ) -> Option<LibraryObject> {
+        if let Some(object) = self.objects.lock().expect("memo").get(dotted) {
+            return object.clone();
+        }
+        let object = tree.object_of(dotted, symbols);
+        self.objects
+            .lock()
+            .expect("memo")
+            .insert(dotted.to_owned(), object.clone());
+        object
+    }
+}
+
+impl StarGraph {
+    fn build<'i>(
+        tree: &LibraryTree,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+    ) -> Self {
+        let mut g = StarGraph::default();
+        for (dotted, resource) in tree.modules() {
+            g.by_resource.insert(resource, g.resources.len());
+            g.resources.push(resource);
+            g.dotted.push(dotted.to_owned());
+        }
+        let n = g.resources.len();
+        g.importers = vec![Vec::new(); n];
+        for i in 0..n {
+            let Some(syms) = symbols(g.resources[i]) else {
+                g.unknown.insert(i);
+                g.exports.push(StarExports::Any);
+                g.stars.push(Vec::new());
+                continue;
+            };
+            g.exports.push(syms.star_exports.clone());
+            for symbol in &syms.symbols {
+                let list = g.binders.entry(symbol.name.clone()).or_default();
+                if list.last() != Some(&i) {
+                    list.push(i);
+                }
+            }
+            let mut foreign = false;
+            let mut stars = Vec::new();
+            for star in &syms.star_imports {
+                if !tree.is_library_path(star) {
+                    foreign = true;
+                    continue;
+                }
+                let segments: Vec<String> = star.split('.').map(str::to_owned).collect();
+                let target = match tree.lookup(&segments, symbols).0 {
+                    LibraryLookup::Module { resource, .. } => g.by_resource.get(&resource).copied(),
+                    _ => None,
+                };
+                stars.push((star.clone(), target));
+            }
+            if syms.dynamic && (foreign || !syms.names_from_stars_only) {
+                g.unknown.insert(i);
+            }
+            g.stars.push(stars);
+        }
+        for i in 0..n {
+            for (_, target) in &g.stars[i] {
+                // Modules are visited in order: `i` is last when present.
+                if let Some(t) = *target
+                    && g.importers[t].last() != Some(&i)
+                {
+                    g.importers[t].push(i);
+                }
+            }
+        }
+        // Whatever the name, a module may get it from an unknown module it
+        // star-imports, directly or not (export lists are not consulted:
+        // more than may happen).
+        let mut work: Vec<usize> = (0..n).filter(|i| g.unknown.contains(*i)).collect();
+        while let Some(m) = work.pop() {
+            for &i in &g.importers[m] {
+                if !g.unknown.contains(i) && g.reach_unknown.insert(i) {
+                    work.push(i);
+                }
+            }
+        }
+        g
+    }
+
+    fn name_stars(&self, name: &str) -> NameStars {
+        let mut binds = ModuleSet::default();
+        let mut brings = ModuleSet::default();
+        let mut work: Vec<usize> = Vec::new();
+        for &i in self.binders.get(name).into_iter().flatten() {
+            binds.insert(i);
+            work.push(i);
+        }
+        while let Some(m) = work.pop() {
+            if !self.exports[m].exports(name) {
+                continue;
+            }
+            for &i in &self.importers[m] {
+                if !binds.contains(i) && !self.unknown.contains(i) && brings.insert(i) {
+                    work.push(i);
+                }
+            }
+        }
+        NameStars {
+            binds,
+            brings,
+            cyclic: Default::default(),
+            kept: Default::default(),
+        }
+    }
+
+    /// How the star import `star` (naming `target`) of a module may bring
+    /// `name`: as a place where the path continues (it binds the name, its
+    /// names are not known, or it is not a module), as a module that passes
+    /// it on, or not at all.
+    fn star_kind(&self, target: Option<usize>, name: &str, facts: &NameStars) -> StarKind {
+        let Some(t) = target else {
+            return StarKind::Other;
+        };
+        if !self.exports[t].exports(name) {
+            StarKind::None
+        } else if facts.binds.contains(t) || self.unknown.contains(t) {
+            StarKind::Place(t)
+        } else if facts.brings.contains(t) || self.reach_unknown.contains(t) {
+            StarKind::Through(t)
+        } else {
+            StarKind::None
+        }
+    }
+
+    /// Where `name` may come from in the module `root`, which does not
+    /// bind it: every module its star imports reach, through modules that
+    /// pass it on, that binds it or whose names are not known (the path
+    /// continues there); a module that can neither provide it nor pass it
+    /// on is not followed (review round 29, M2). Every such module is
+    /// found, also around cycles of star imports (a name may come from any
+    /// module of the cycle, whatever the order they load in).
+    fn reach(&self, root: usize, name: &str, facts: &NameStars) -> StarReach {
+        let sources = if facts.cyclic.load(std::sync::atomic::Ordering::Relaxed) {
+            None
+        } else {
+            self.reach_acyclic(root, name, facts)
+        };
+        let sources = sources.unwrap_or_else(|| {
+            facts
+                .cyclic
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+            self.reach_search(root, name, facts)
+        });
+        StarReach {
+            places: sources
+                .places
+                .iter()
+                .map(|i| self.dotted[i].clone())
+                .chain(sources.other.iter().cloned())
+                .collect(),
+            through: sources.through.iter().map(|i| self.resources[i]).collect(),
+            sources: (!sources.places.is_empty()
+                || !sources.through.is_empty()
+                || !sources.other.is_empty())
+            .then_some(sources),
+        }
+    }
+
+    /// [`StarGraph::reach`] by a search from `root` alone.
+    fn reach_search(&self, root: usize, name: &str, facts: &NameStars) -> Sources {
+        let mut out = Sources {
+            places: ModuleSet::default(),
+            other: Vec::new(),
+            through: ModuleSet::default(),
+        };
+        let mut visited = ModuleSet::default();
+        visited.insert(root);
+        let mut work = vec![root];
+        while let Some(m) = work.pop() {
+            for (star, target) in &self.stars[m] {
+                match self.star_kind(*target, name, facts) {
+                    StarKind::Other => {
+                        if !out.other.contains(star) {
+                            out.other.push(star.clone());
+                        }
+                    }
+                    StarKind::Place(t) => {
+                        out.places.insert(t);
+                    }
+                    StarKind::Through(t) => {
+                        if visited.insert(t) {
+                            out.through.insert(t);
+                            work.push(t);
+                        }
+                    }
+                    StarKind::None => {}
+                }
+            }
+        }
+        out
+    }
+
+    /// [`StarGraph::reach`] from the answers of the modules `root`'s star
+    /// imports pass the name on through, kept per module ([`NameStars::kept`]):
+    /// a library where every module star-imports every earlier one is
+    /// answered in time about linear in its star imports. `None` when a
+    /// cycle of such modules is met (nothing found on the way is kept).
+    fn reach_acyclic(&self, root: usize, name: &str, facts: &NameStars) -> Option<Sources> {
+        let mut local: FxHashMap<usize, Sources> = FxHashMap::default();
+        let mut gray = ModuleSet::default();
+        let kept = |m: usize| facts.kept.lock().expect("memo").get(&m).cloned();
+        // Post-order over the modules that pass the name on: (module, next
+        // star to look at, what it reaches so far).
+        let new = || Sources {
+            places: ModuleSet::default(),
+            other: Vec::new(),
+            through: ModuleSet::default(),
+        };
+        let mut stack: Vec<(usize, usize, Sources)> = vec![(root, 0, new())];
+        gray.insert(root);
+        while let Some((m, next, sources)) = stack.last_mut() {
+            let m = *m;
+            let Some((star, target)) = self.stars[m].get(*next) else {
+                let (m, _, done) = stack.pop().expect("frame");
+                gray.remove(m);
+                match stack.last_mut() {
+                    Some((_, _, parent)) => {
+                        parent.through.insert(m);
+                        merge(parent, &done);
+                        local.insert(m, done);
+                    }
+                    None => {
+                        let mut keep = facts.kept.lock().expect("memo");
+                        for (k, v) in local {
+                            keep.insert(k, std::sync::Arc::new(v));
+                        }
+                        return Some(done);
+                    }
+                }
+                continue;
+            };
+            *next += 1;
+            match self.star_kind(*target, name, facts) {
+                StarKind::Other => {
+                    if !sources.other.contains(star) {
+                        sources.other.push(star.clone());
+                    }
+                }
+                StarKind::Place(t) => {
+                    sources.places.insert(t);
+                }
+                StarKind::Through(t) => {
+                    if gray.contains(t) {
+                        return None;
+                    }
+                    if let Some(done) = local.get(&t) {
+                        let done = done.clone();
+                        sources.through.insert(t);
+                        merge(sources, &done);
+                    } else if let Some(done) = kept(t) {
+                        sources.through.insert(t);
+                        merge(sources, &done);
+                    } else {
+                        gray.insert(t);
+                        stack.push((t, 0, new()));
+                    }
+                }
+                StarKind::None => {}
+            }
+        }
+        None
+    }
+}
+
+/// How a star import may bring a name ([`StarGraph::star_kind`]).
+enum StarKind {
+    /// Not a module of the library (a package, a missing module).
+    Other,
+    Place(usize),
+    Through(usize),
+    None,
+}
+
+/// Adds what `from` reaches to `into`.
+fn merge(into: &mut Sources, from: &Sources) {
+    into.places.union(&from.places);
+    into.through.union(&from.through);
+    for o in &from.other {
+        if !into.other.contains(o) {
+            into.other.push(o.clone());
+        }
     }
 }
 
@@ -786,8 +1305,14 @@ impl LibraryTree {
     ///   import's target counts as used as a value
     ///   ([`LibraryPath::values`]);
     /// * a name a module with dynamic names does not bind, when the module
-    ///   star-imports library modules: the path continues in each of them
-    ///   (the name may come from any), and the end is unknown;
+    ///   star-imports library modules: the path continues in every module
+    ///   its star imports reach, directly or through modules that only
+    ///   pass the name on, that binds the name or whose names are not known
+    ///   (the name may come from any), the modules on the way are read, and
+    ///   the end is unknown; a module that can neither provide the name nor
+    ///   pass it on is not followed (review round 29, M2: the old search
+    ///   followed every star import that may export the name, up to
+    ///   [`MAX_IMPORT_HOPS`] of them, again for every path);
     /// * an import that leads back to a path already followed (a cycle),
     ///   or more than [`MAX_IMPORT_HOPS`] imports: the module and the
     ///   import's target count as used as values, and the end is unknown.
@@ -796,11 +1321,22 @@ impl LibraryTree {
         dotted: &str,
         symbols: impl Fn(ResourceId) -> Option<&'i ModuleSymbols>,
     ) -> LibraryPath<'i> {
+        self.resolve_path_with(dotted, &symbols, &ResolveMemo::default())
+    }
+
+    /// [`LibraryTree::resolve_path`] keeping answers in `memo`, which must
+    /// only ever see the same `symbols` (review round 29, M2).
+    pub fn resolve_path_with<'i>(
+        &self,
+        dotted: &str,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+        memo: &ResolveMemo,
+    ) -> LibraryPath<'i> {
         let segments: Vec<String> = dotted.split('.').map(str::to_owned).collect();
         let written = segments.len();
         let mut walk = Walk::default();
         walk.seen.insert(dotted.to_owned());
-        self.walk(segments, written, &symbols, &mut walk);
+        self.walk(segments, written, symbols, &mut walk, memo);
         let main: Vec<&End<'i>> = walk.ends.iter().filter(|e| !e.side).collect();
         let end = match (walk.ambiguous, main.as_slice()) {
             (false, [only]) => remap(only, written),
@@ -825,6 +1361,7 @@ impl LibraryTree {
         shared: usize,
         symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
         w: &mut Walk<'i>,
+        memo: &ResolveMemo,
     ) {
         let (lookup, dynamic_miss) = self.lookup(&segments, symbols);
         match &lookup {
@@ -833,7 +1370,7 @@ impl LibraryTree {
                 symbol,
                 rest,
             } => {
-                push_unique(&mut w.modules, resource);
+                w.module(resource);
                 w.names.push((resource, symbol));
                 let at = segments.len() - rest - 1;
                 let tail = &segments[at + 1..];
@@ -842,7 +1379,8 @@ impl LibraryTree {
                         target: Some(target),
                     } if self.is_library_path(target) => {
                         let module = segments[..at].join(".");
-                        self.follow(resource, module, target, tail, shared.min(rest), symbols, w);
+                        let shared = shared.min(rest);
+                        self.follow(resource, &module, target, tail, shared, symbols, w, memo);
                         return;
                     }
                     SymbolKind::Variable => {
@@ -853,10 +1391,10 @@ impl LibraryTree {
                         let module = segments[..at].join(".");
                         for import in imports {
                             if import.several
-                                && let Some(object) = self.object_of(&import.target, symbols)
+                                && let Some(object) = memo.object_of(self, &import.target, symbols)
                             {
                                 // Default deny: the name may hold it.
-                                w.values.push(object);
+                                w.value(object);
                             }
                             // What the path reads if the name holds it; the
                             // path itself ends at the variable.
@@ -865,12 +1403,13 @@ impl LibraryTree {
                             let shared = shared.min(rest);
                             self.follow(
                                 resource,
-                                module.clone(),
+                                &module,
                                 &import.target,
                                 tail,
                                 shared,
                                 symbols,
                                 w,
+                                memo,
                             );
                             w.side -= 1;
                             w.ambiguous = ambiguous;
@@ -881,25 +1420,22 @@ impl LibraryTree {
             }
             &LibraryLookup::Module { resource, .. }
             | &LibraryLookup::MissingAttribute { resource, .. } => {
-                push_unique(&mut w.modules, resource);
+                w.module(resource);
             }
             LibraryLookup::Unknown => {
                 if let Some((resource, at)) = dynamic_miss {
-                    push_unique(&mut w.modules, resource);
-                    let stars: Vec<&String> = symbols(resource)
-                        .into_iter()
-                        .flat_map(|s| &s.star_imports)
-                        .filter(|s| {
-                            self.is_library_path(s) && self.exports(s, &segments[at], symbols)
-                        })
-                        .collect();
-                    if !stars.is_empty() {
+                    w.module(resource);
+                    let reach = memo.reach(self, resource, &segments[at], symbols);
+                    if !reach.is_empty() {
                         w.ambiguous = true;
+                        for &through in &reach.through {
+                            w.module(through);
+                        }
                         let module = segments[..at].join(".");
                         let tail = &segments[at..];
-                        for star in stars {
+                        for place in &reach.places {
                             let shared = shared.min(tail.len());
-                            self.follow(resource, module.clone(), star, tail, shared, symbols, w);
+                            self.follow(resource, &module, place, tail, shared, symbols, w, memo);
                         }
                     }
                 }
@@ -921,39 +1457,175 @@ impl LibraryTree {
     fn follow<'i>(
         &self,
         resource: ResourceId,
-        module: String,
+        module: &str,
         target: &str,
         tail: &[String],
         shared: usize,
         symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
         w: &mut Walk<'i>,
+        memo: &ResolveMemo,
     ) {
+        // The bound first: past it, no path is built (review round 29, M2).
+        let fresh = w.followed < MAX_IMPORT_HOPS && {
+            let mut key = String::with_capacity(
+                target.len() + tail.iter().map(|t| t.len() + 1).sum::<usize>(),
+            );
+            key.push_str(target);
+            for t in tail {
+                key.push('.');
+                key.push_str(t);
+            }
+            match w.seen.contains(&key) {
+                true => false,
+                false => {
+                    w.seen.insert(key.clone());
+                    w.paths.push(key);
+                    true
+                }
+            }
+        };
+        if !fresh {
+            // Default deny: what the path reaches is not known.
+            w.ambiguous = true;
+            w.value(LibraryObject::Module {
+                resource,
+                dotted: module.to_owned(),
+            });
+            if let Some(object) = memo.object_of(self, target, symbols) {
+                w.value(object);
+            }
+            return;
+        }
         let next: Vec<String> = target
             .split('.')
             .map(str::to_owned)
             .chain(tail.iter().cloned())
             .collect();
-        let key = next.join(".");
-        if w.followed >= MAX_IMPORT_HOPS || !w.seen.insert(key.clone()) {
-            // Default deny: what the path reaches is not known.
-            w.ambiguous = true;
-            w.values.push(LibraryObject::Module {
-                resource,
-                dotted: module,
-            });
-            if let Some(object) = self.object_of(target, symbols) {
-                w.values.push(object);
-            }
-            return;
-        }
         w.followed += 1;
-        w.paths.push(key);
         w.hops.push(Hop {
             resource,
-            module,
+            module: module.to_owned(),
             tail: tail.to_vec(),
         });
-        self.walk(next, shared, symbols, w);
+        self.walk(next, shared, symbols, w, memo);
+    }
+
+    /// Where `name` may come from through the star imports `stars` of a
+    /// script that does not bind it (review round 29, M2): the places to
+    /// look the name up in, star-imported modules first, and the modules
+    /// on the way, each once (a module star-importing every earlier one
+    /// took time cubic in their number when each star import was looked up
+    /// on its own).
+    pub fn star_imports<'i>(
+        &self,
+        stars: &[String],
+        name: &str,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+        memo: &ResolveMemo,
+    ) -> (Vec<String>, Vec<ResourceId>) {
+        let mut itself: Vec<String> = Vec::new();
+        let mut via: Option<Sources> = None;
+        let mut through: Vec<ResourceId> = Vec::new();
+        for star in stars {
+            match &*self.star_lookup(star, name, symbols, memo) {
+                StarLookup::Nothing => {}
+                StarLookup::Itself => {
+                    if !itself.contains(star) {
+                        itself.push(star.clone());
+                    }
+                }
+                StarLookup::Via { module, reach } => {
+                    let all = via.get_or_insert_with(|| Sources {
+                        places: ModuleSet::default(),
+                        other: Vec::new(),
+                        through: ModuleSet::default(),
+                    });
+                    if let Some(found) = &reach.sources {
+                        merge(all, found);
+                    }
+                    all.through.insert(*module);
+                }
+            }
+        }
+        let mut places = itself;
+        if let Some(all) = via {
+            let graph = memo.graph(self, symbols);
+            for p in all
+                .places
+                .iter()
+                .map(|i| &graph.dotted[i])
+                .chain(&all.other)
+            {
+                if !places.contains(p) {
+                    places.push(p.clone());
+                }
+            }
+            through.extend(all.through.iter().map(|i| graph.resources[i]));
+        }
+        (places, through)
+    }
+
+    /// What `from <star> import *` brings of `name` (review round 29, M2):
+    /// nothing when `star` does not export it ([`LibraryTree::exports`]);
+    /// when `star` is a module of the library that does not bind `name`
+    /// but passes on what its own star imports bring, that module;
+    /// otherwise `star` itself is where to look.
+    fn star_lookup<'i>(
+        &self,
+        star: &str,
+        name: &str,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+        memo: &ResolveMemo,
+    ) -> std::sync::Arc<StarLookup> {
+        if let Some(known) = memo
+            .star_lookups
+            .lock()
+            .expect("memo")
+            .get(name)
+            .and_then(|m| m.get(star))
+        {
+            return known.clone();
+        }
+        let lookup = std::sync::Arc::new(self.star_lookup_uncached(star, name, symbols, memo));
+        memo.star_lookups
+            .lock()
+            .expect("memo")
+            .entry(name.to_owned())
+            .or_default()
+            .insert(star.to_owned(), lookup.clone());
+        lookup
+    }
+
+    fn star_lookup_uncached<'i>(
+        &self,
+        star: &str,
+        name: &str,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+        memo: &ResolveMemo,
+    ) -> StarLookup {
+        if !self.exports(star, name, symbols) {
+            return StarLookup::Nothing;
+        }
+        let segments: Vec<String> = star.split('.').map(str::to_owned).collect();
+        let LibraryLookup::Module { resource, .. } = self.lookup(&segments, symbols).0 else {
+            return StarLookup::Itself;
+        };
+        let graph = memo.graph(self, symbols);
+        let Some(&t) = graph.by_resource.get(&resource) else {
+            return StarLookup::Itself;
+        };
+        let facts = memo.name(graph, name);
+        match graph.star_kind(Some(t), name, &facts) {
+            StarKind::Through(_) => {}
+            // Neither binds the name nor passes it on: it does not come
+            // from there.
+            StarKind::None => return StarLookup::Nothing,
+            StarKind::Place(_) | StarKind::Other => return StarLookup::Itself,
+        }
+        StarLookup::Via {
+            module: t,
+            reach: memo.reach(self, resource, name, symbols),
+        }
     }
 
     /// Whether `from <star> import *` may bind `name`: the library module
@@ -1285,6 +1957,199 @@ impl LibraryTree {
     }
 }
 
+/// The resolver as of review round 28, before the memo of round 29 (M2):
+/// the reference the memoised one must agree with.
+#[cfg(test)]
+pub(crate) mod reference {
+    use super::*;
+
+    fn push_unique(list: &mut Vec<ResourceId>, resource: ResourceId) {
+        if !list.contains(&resource) {
+            list.push(resource);
+        }
+    }
+
+    impl LibraryTree {
+        pub(super) fn reference_resolve_path<'i>(
+            &self,
+            dotted: &str,
+            symbols: impl Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+        ) -> LibraryPath<'i> {
+            let segments: Vec<String> = dotted.split('.').map(str::to_owned).collect();
+            let written = segments.len();
+            let mut walk = Walk::default();
+            walk.seen.insert(dotted.to_owned());
+            self.reference_walk(segments, written, &symbols, &mut walk);
+            let main: Vec<&End<'i>> = walk.ends.iter().filter(|e| !e.side).collect();
+            let end = match (walk.ambiguous, main.as_slice()) {
+                (false, [only]) => remap(only, written),
+                _ => LibraryLookup::Unknown,
+            };
+            LibraryPath {
+                end,
+                names: walk.names,
+                modules: walk.modules,
+                paths: walk.paths,
+                values: walk.values,
+                ends: walk.ends,
+                hops: walk.hops,
+            }
+        }
+
+        fn reference_walk<'i>(
+            &self,
+            segments: Vec<String>,
+            shared: usize,
+            symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+            w: &mut Walk<'i>,
+        ) {
+            let (lookup, dynamic_miss) = self.lookup(&segments, symbols);
+            match &lookup {
+                &LibraryLookup::Symbol {
+                    resource,
+                    symbol,
+                    rest,
+                } => {
+                    push_unique(&mut w.modules, resource);
+                    w.names.push((resource, symbol));
+                    let at = segments.len() - rest - 1;
+                    let tail = &segments[at + 1..];
+                    match &symbol.kind {
+                        SymbolKind::Import {
+                            target: Some(target),
+                        } if self.is_library_path(target) => {
+                            let module = segments[..at].join(".");
+                            self.reference_follow(
+                                resource,
+                                module,
+                                target,
+                                tail,
+                                shared.min(rest),
+                                symbols,
+                                w,
+                            );
+                            return;
+                        }
+                        SymbolKind::Variable => {
+                            let imports = symbols(resource)
+                                .into_iter()
+                                .flat_map(|s| &s.variable_imports)
+                                .filter(|i| {
+                                    i.name == symbol.name && self.is_library_path(&i.target)
+                                });
+                            let module = segments[..at].join(".");
+                            for import in imports {
+                                if import.several
+                                    && let Some(object) = self.object_of(&import.target, symbols)
+                                {
+                                    // Default deny: the name may hold it.
+                                    w.values.push(object);
+                                }
+                                // What the path reads if the name holds it; the
+                                // path itself ends at the variable.
+                                let ambiguous = w.ambiguous;
+                                w.side += 1;
+                                let shared = shared.min(rest);
+                                self.reference_follow(
+                                    resource,
+                                    module.clone(),
+                                    &import.target,
+                                    tail,
+                                    shared,
+                                    symbols,
+                                    w,
+                                );
+                                w.side -= 1;
+                                w.ambiguous = ambiguous;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                &LibraryLookup::Module { resource, .. }
+                | &LibraryLookup::MissingAttribute { resource, .. } => {
+                    push_unique(&mut w.modules, resource);
+                }
+                LibraryLookup::Unknown => {
+                    if let Some((resource, at)) = dynamic_miss {
+                        push_unique(&mut w.modules, resource);
+                        let stars: Vec<&String> = symbols(resource)
+                            .into_iter()
+                            .flat_map(|s| &s.star_imports)
+                            .filter(|s| {
+                                self.is_library_path(s) && self.exports(s, &segments[at], symbols)
+                            })
+                            .collect();
+                        if !stars.is_empty() {
+                            w.ambiguous = true;
+                            let module = segments[..at].join(".");
+                            let tail = &segments[at..];
+                            for star in stars {
+                                let shared = shared.min(tail.len());
+                                self.reference_follow(
+                                    resource,
+                                    module.clone(),
+                                    star,
+                                    tail,
+                                    shared,
+                                    symbols,
+                                    w,
+                                );
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+            w.ends.push(End {
+                lookup,
+                path: segments,
+                shared,
+                side: w.side > 0,
+            });
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn reference_follow<'i>(
+            &self,
+            resource: ResourceId,
+            module: String,
+            target: &str,
+            tail: &[String],
+            shared: usize,
+            symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+            w: &mut Walk<'i>,
+        ) {
+            let next: Vec<String> = target
+                .split('.')
+                .map(str::to_owned)
+                .chain(tail.iter().cloned())
+                .collect();
+            let key = next.join(".");
+            if w.followed >= MAX_IMPORT_HOPS || !w.seen.insert(key.clone()) {
+                // Default deny: what the path reaches is not known.
+                w.ambiguous = true;
+                w.values.push(LibraryObject::Module {
+                    resource,
+                    dotted: module,
+                });
+                if let Some(object) = self.object_of(target, symbols) {
+                    w.values.push(object);
+                }
+                return;
+            }
+            w.followed += 1;
+            w.paths.push(key);
+            w.hops.push(Hop {
+                resource,
+                module,
+                tail: tail.to_vec(),
+            });
+            self.reference_walk(next, shared, symbols, w);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1295,6 +2160,178 @@ mod tests {
             kind: SymbolKind::Function(Signature::default()),
             range: TextRange::default(),
         }
+    }
+
+    /// The resolver of review round 29 (M2), on generated libraries with
+    /// imports, star imports (chains, diamonds, every earlier module, hubs,
+    /// cycles), names bound several times and dynamic modules, for paths
+    /// asked in any order: one memo for every path gives what a new memo
+    /// for each gives (what the memo keeps does not depend on the path that
+    /// asks); a path that meets no star import is what the resolver of
+    /// round 28 ([`reference`]) gives, objects it reaches again kept once;
+    /// through star imports, the end is unknown in both, and every name
+    /// the old resolver found is found (it stopped after 64 star-imported
+    /// modules, and on modules it reached twice).
+    #[test]
+    fn memoised_paths_match_the_reference_resolver() {
+        fn dedup(values: &[LibraryObject]) -> Vec<LibraryObject> {
+            let mut out: Vec<LibraryObject> = Vec::new();
+            for v in values {
+                if !out.contains(v) {
+                    out.push(v.clone());
+                }
+            }
+            out
+        }
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = move |n: usize| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % n as u64) as usize
+        };
+        // Whether the lookup of `path` misses in a module with star imports.
+        fn lookup_star<'i>(
+            tree: &LibraryTree,
+            path: &[String],
+            symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+        ) -> bool {
+            tree.lookup(path, symbols)
+                .1
+                .is_some_and(|(r, _)| symbols(r).is_some_and(|s| !s.star_imports.is_empty()))
+        }
+        let mut checked = 0;
+        let mut stars = 0;
+        for round in 0..60 {
+            let n = 3 + next(14);
+            let names: Vec<String> = (0..n)
+                .map(|i| match i % 3 {
+                    0 => format!("m{i}"),
+                    1 => format!("p.m{i}"),
+                    _ => format!("p.q.m{i}"),
+                })
+                .collect();
+            let paths: Vec<String> = names.iter().map(|m| m.replace('.', "/")).collect();
+            let tree = LibraryTree::new(
+                paths
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| (p.as_str(), ResourceId(i as u32))),
+            );
+            let mut modules: Vec<ModuleSymbols> = Vec::new();
+            for i in 0..n {
+                let mut m = ModuleSymbols::default();
+                for k in 0..next(4) {
+                    m.symbols.push(Symbol {
+                        name: format!("f{}", next(5) + k),
+                        kind: SymbolKind::Function(Signature::default()),
+                        range: TextRange::default(),
+                    });
+                }
+                for _ in 0..next(3) {
+                    let t = &names[next(n)];
+                    let target = match next(3) {
+                        0 => t.clone(),
+                        1 => format!("{t}.f{}", next(5)),
+                        _ => "json".to_owned(),
+                    };
+                    m.symbols.push(Symbol {
+                        name: format!("a{}", next(4)),
+                        kind: SymbolKind::Import {
+                            target: Some(target),
+                        },
+                        range: TextRange::default(),
+                    });
+                }
+                let stars = match round % 4 {
+                    // Every earlier module.
+                    0 => (0..i).collect::<Vec<_>>(),
+                    // A few others, cycles included.
+                    1 => (0..next(4)).map(|_| next(n)).collect(),
+                    // Two hubs.
+                    2 => vec![0, 1].into_iter().filter(|h| *h != i).collect(),
+                    // The previous few.
+                    _ => (i.saturating_sub(3)..i).collect(),
+                };
+                for s in stars {
+                    m.star_imports.push(names[s].clone());
+                }
+                m.dynamic = !m.star_imports.is_empty() || next(6) == 0;
+                if next(5) == 0 {
+                    m.symbols.push(Symbol {
+                        name: "v".into(),
+                        kind: SymbolKind::Variable,
+                        range: TextRange::default(),
+                    });
+                    m.variable_imports.push(VariableImport {
+                        name: "v".into(),
+                        target: names[next(n)].clone(),
+                        several: next(2) == 0,
+                    });
+                }
+                if next(4) == 0 {
+                    m.star_exports = StarExports::Listed(vec![format!("f{}", next(5))]);
+                }
+                modules.push(m);
+            }
+            let lookup = |r: ResourceId| modules.get(r.0 as usize);
+            let mut memo = ResolveMemo::default();
+            let mut queries: Vec<String> = Vec::new();
+            for m in &names {
+                for tail in ["f0", "f1.x", "a0.f2", "a1.a2.f0", "v.f1", "nope", "a3"] {
+                    queries.push(format!("{m}.{tail}"));
+                }
+            }
+            queries.push("p".into());
+            queries.push("p.q".into());
+            for _ in 0..2 {
+                for q in &queries {
+                    let new = tree.resolve_path_with(q, &lookup, &memo);
+                    let alone = tree.resolve_path_with(q, &lookup, &ResolveMemo::default());
+                    assert_eq!(new, alone, "{q}");
+                    let old = tree.reference_resolve_path(q, lookup);
+                    let starred = |p: &LibraryPath<'_>, main: bool| {
+                        p.ends.iter().any(|e| {
+                            (!main || !e.side)
+                                && e.lookup == LibraryLookup::Unknown
+                                && lookup_star(&tree, &e.path, &lookup)
+                        })
+                    };
+                    if starred(&old, false) {
+                        if starred(&old, true) {
+                            assert_eq!(new.end, LibraryLookup::Unknown, "{q}");
+                            assert_eq!(old.end, LibraryLookup::Unknown, "{q}");
+                        } else {
+                            assert_eq!(new.end, old.end, "{q}");
+                        }
+                        for (r, symbol) in &old.names {
+                            assert!(
+                                new.names
+                                    .iter()
+                                    .any(|(r2, s2)| r2 == r && s2.name == symbol.name),
+                                "{q}: {}",
+                                symbol.name
+                            );
+                        }
+                        stars += 1;
+                    } else {
+                        assert_eq!(new.end, old.end, "{q}");
+                        assert_eq!(new.names, old.names, "{q}");
+                        assert_eq!(new.modules, old.modules, "{q}");
+                        assert_eq!(new.paths, old.paths, "{q}");
+                        assert_eq!(new.values, dedup(&old.values), "{q}");
+                        assert_eq!(new.ends, old.ends, "{q}");
+                        assert_eq!(new.hops, old.hops, "{q}");
+                    }
+                    checked += 1;
+                }
+                // The other way round, with a new memo.
+                memo = ResolveMemo::default();
+                queries.reverse();
+            }
+        }
+        assert!(checked > 5_000, "{checked}");
+        assert!(stars > 1_000, "{stars}");
     }
 
     #[test]

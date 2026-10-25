@@ -286,6 +286,10 @@ fn workspace(root: &Path) -> Workspace {
 fn symbols(spec: &Spec) -> ModuleSymbols {
     let mut out = ModuleSymbols {
         dynamic: spec.star.is_some(),
+        // The script layer's flag for a module dynamic only by its star
+        // import (review round 29, M2: such a module passes on what the
+        // star-imported module binds, nothing else).
+        names_from_stars_only: spec.star.is_some(),
         star_imports: spec.star.iter().cloned().collect(),
         ..ModuleSymbols::default()
     };

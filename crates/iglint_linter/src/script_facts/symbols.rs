@@ -147,6 +147,11 @@ fn symbols_of(model: &SemanticModel<'_>, ast: &Module, escapes: bool) -> ModuleS
         imports: unknown.imports.into_iter().map(|(name, _)| name).collect(),
         system: unknown.system.into_iter().map(|(path, _)| path).collect(),
         library_names: super::access::library_names_used(model, &ast.body),
+        // Dynamic only because of absolute star imports: a name the module
+        // does not bind can only come from the modules they name.
+        names_from_stars_only: dynamic
+            && !rebinds.anything
+            && rebinds.star_imports.len() == rebinds.star_modules.len(),
         star_imports: rebinds.star_modules,
         star_exports: star_exports(model, ast),
         variable_imports,

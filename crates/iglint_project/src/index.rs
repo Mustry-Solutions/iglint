@@ -6,7 +6,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::ids::{ProjectId, ResourceId};
 use crate::kinds::{EventScriptKind, MODULE_IGNITION, MODULE_PERSPECTIVE, ResourceKind};
 use crate::library::{
-    LibraryLookup, LibraryObject, LibraryPath, LibraryTree, ModuleSymbols, SymbolKind,
+    LibraryLookup, LibraryObject, LibraryPath, LibraryTree, ModuleSymbols, ResolveMemo, SymbolKind,
 };
 use crate::perspective::match_page_url;
 use crate::summary::{
@@ -129,6 +129,9 @@ struct ProjectData {
     complete: bool,
     inheritable: bool,
     descendants: Vec<ProjectId>,
+    /// What resolving library paths keeps, for fixes and for findings
+    /// (review round 29, M2).
+    resolved: [ResolveMemo; 2],
 }
 
 /// One UDT definition.
@@ -566,21 +569,40 @@ impl<'w> ProjectIndex<'w> {
                 // the script star-imports library modules and `name` is
                 // not a library name, in each of them (the name may come
                 // from any).
-                let star_paths = |name: &String| -> Vec<String> {
+                //
+                // A star-imported module that only passes the name on from
+                // its own star imports is replaced by the places the name
+                // may come from (review round 29, M2: a module
+                // star-importing every earlier one looked each name up in
+                // all of them, each passing it on from all of theirs), and
+                // the modules on the way are read.
+                let resolved = &self.projects[pid.index()].resolved[0];
+                let mut through: FxHashSet<ResourceId> = FxHashSet::default();
+                let mut star_paths = |name: &String| {
                     if refs.library_star_imports.is_empty()
                         || library.is_global(name.split('.').next().unwrap_or(""))
                     {
                         return Vec::new();
                     }
                     let first = name.split('.').next().unwrap_or("");
-                    refs.library_star_imports
-                        .iter()
-                        .filter(|m| library.exports(m, first, &symbols))
-                        .map(|m| format!("{m}.{name}"))
-                        .collect()
+                    let (places, on_the_way) =
+                        library.star_imports(&refs.library_star_imports, first, &symbols, resolved);
+                    through.extend(on_the_way);
+                    places
+                        .into_iter()
+                        .map(|p| format!("{p}.{name}"))
+                        .collect::<Vec<_>>()
                 };
+                let mut starred: Vec<(&String, Vec<String>)> = Vec::new();
                 for name in &refs.library {
-                    for dotted in std::iter::once(name.clone()).chain(star_paths(name)) {
+                    starred.push((name, star_paths(name)));
+                }
+                // The modules on the way read the name.
+                for module in through {
+                    *usage.entry(module).or_default() += 1;
+                }
+                for (name, star) in starred {
+                    for dotted in std::iter::once(name.clone()).chain(star) {
                         let path = self.resolve_library_path(pid, &dotted);
                         credit(
                             &path,
@@ -1805,10 +1827,13 @@ impl<'w> ProjectIndex<'w> {
         findings: bool,
     ) -> LibraryPath<'_> {
         let data = &self.projects[project.index()];
-        let mut path = data.library.resolve_path(dotted, |r| {
+        let symbols = |r: ResourceId| {
             self.module_symbols(r)
                 .map(|s| if findings { s.for_findings() } else { s })
-        });
+        };
+        let mut path =
+            data.library
+                .resolve_path_with(dotted, &symbols, &data.resolved[usize::from(findings)]);
         if !data.complete
             && matches!(
                 path.end,

@@ -1358,6 +1358,143 @@ fn library_modules_take_linear_time_in_their_names() {
     }
 }
 
+/// Review round 29 (M2): library modules that star-import other library
+/// modules. Every name a module did not bind was looked up in every
+/// star-imported module that may export it, and on from there, up to 64
+/// modules per path, and every consumer resolved the same paths again:
+/// 1,000 modules each star-importing the ten before took 22 s (with names
+/// bound nowhere 69 s), 150 modules each star-importing every earlier one
+/// minutes. Where a name may come from through star imports is now found
+/// once per module and name, over the star imports that can bring it.
+/// Each shape takes well under a second, and growing it four times takes
+/// at most six times as long.
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
+)]
+fn star_imports_between_library_modules_take_linear_time() {
+    let args = [
+        "--no-cache",
+        "--select",
+        "ALL",
+        "--ignore",
+        "SCR900",
+        "--exit-zero",
+    ];
+    /// `n` modules; module `i` star-imports those `stars(i)` names, calls
+    /// a function of each and reads `undefined` names bound nowhere.
+    fn library(
+        n: usize,
+        stars: &dyn Fn(usize) -> Vec<String>,
+        undefined: usize,
+    ) -> tempfile::TempDir {
+        let dir = project();
+        let add = |name: &str, code: &str| {
+            write(
+                dir.path(),
+                &format!("projects/p/ignition/script-python/{name}/code.py"),
+                code,
+            );
+            write(
+                dir.path(),
+                &format!("projects/p/ignition/script-python/{name}/resource.json"),
+                MANIFEST,
+            );
+        };
+        for h in 0..6 {
+            add(
+                &format!("hub{h}"),
+                &format!("import json\ndef f_hub{h}():\n    return json.dumps({h})\n"),
+            );
+        }
+        for i in 0..n {
+            let stars = stars(i);
+            let mut code: String = stars
+                .iter()
+                .map(|s| format!("from {s} import *\n"))
+                .collect();
+            code.push_str(&format!("import os\ndef f{i}():\n"));
+            for u in 0..undefined {
+                code.push_str(&format!("    y{u} = u{i}_{u}\n"));
+            }
+            for s in &stars {
+                // `m5` defines `f5`, `hub2` defines `f_hub2`.
+                let function = match s.strip_prefix('m') {
+                    Some(i) => format!("f{i}"),
+                    None => format!("f_{s}"),
+                };
+                code.push_str(&format!("    x = {function}()\n"));
+            }
+            code.push_str("    return 1\n");
+            add(&format!("m{i}"), &code);
+        }
+        let calls: Vec<String> = (0..n)
+            .step_by((n / 50).max(1))
+            .map(|i| format!("m{i}.f{i}()"))
+            .collect();
+        add(
+            "user",
+            &format!("def g():\n    return {}\n", calls.join(" + ")),
+        );
+        dir
+    }
+    let previous = |k: usize| {
+        move |i: usize| {
+            (i.saturating_sub(k)..i)
+                .map(|j| format!("m{j}"))
+                .collect::<Vec<_>>()
+        }
+    };
+    let every = |i: usize| (0..i).map(|j| format!("m{j}")).collect::<Vec<_>>();
+    let hubs = |_: usize| (0..6).map(|h| format!("hub{h}")).collect::<Vec<_>>();
+    type Build = Box<dyn Fn(usize) -> tempfile::TempDir>;
+    let shapes: [(&str, usize, Build); 4] = [
+        (
+            "each the ten before",
+            1_000,
+            Box::new(move |n| library(n, &previous(10), 0)),
+        ),
+        (
+            "each the ten before, names bound nowhere",
+            1_000,
+            Box::new(move |n| library(n, &previous(10), 10)),
+        ),
+        (
+            "each every earlier one",
+            150,
+            Box::new(move |n| library(n, &every, 0)),
+        ),
+        (
+            "each six hubs",
+            1_000,
+            Box::new(move |n| library(n, &hubs, 0)),
+        ),
+    ];
+    for (name, n, build) in shapes {
+        // Four times the input: four times the modules, or twice the
+        // modules when each star-imports every earlier one. There each of
+        // the `n` names a module reads is looked for in its `n` star
+        // imports, `n` cubed in all for an input of `n` squared: four
+        // times the input may take eight times as long, not sixteen.
+        let (grown, factor) = if n == 150 { (2 * n, 10) } else { (4 * n, 6) };
+        let (small, large) = (build(n), build(grown));
+        let (t_small, t_large) = (
+            check_time(small.path(), &args),
+            check_time(large.path(), &args),
+        );
+        eprintln!("star imports, {name}: {n} {t_small:?}, {grown} {t_large:?}");
+        assert!(
+            t_small < Duration::from_millis(750),
+            "{name}: {n}: {t_small:?}"
+        );
+        assert!(
+            t_large < t_small * factor + Duration::from_millis(300),
+            "{name}: {n}: {t_small:?}, {grown}: {t_large:?}"
+        );
+    }
+}
+
 /// A change of a file's text.
 type Change = dyn Fn(&str) -> String;
 
