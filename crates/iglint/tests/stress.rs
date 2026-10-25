@@ -1811,6 +1811,15 @@ fn unicode(rng: &mut Rng, slot: Slot) -> String {
     }
     if slot == Slot::Name {
         out = out.replace('/', "");
+        // Windows file names hold no `:`, `*` or `?` and do not end in a
+        // dot or a space (the file system cannot hold them, so neither can
+        // a gateway's or a checkout's).
+        if cfg!(windows) {
+            out = out
+                .replace([':', '*', '?'], "")
+                .trim_end_matches(['.', ' '])
+                .to_owned();
+        }
         if out.is_empty() || out == "." || out == ".." {
             out.insert(0, '\u{e9}');
         }

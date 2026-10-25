@@ -709,8 +709,10 @@ mod tests {
     fn apply(tool: &str, old: &str, patch: &str) -> Option<Result<String, String>> {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("a.py"), old).unwrap();
+        // `core.autocrlf` off: Git for Windows turns it on, and `git apply`
+        // would then write `\r\n` where the patch has `\n`.
         let args: &[&str] = match tool {
-            "git" => &["apply", "--unidiff-zero", "-"],
+            "git" => &["-c", "core.autocrlf=false", "apply", "--unidiff-zero", "-"],
             _ => &["-p1", "-s", "-t", "--binary"],
         };
         let mut child = std::process::Command::new(tool)
