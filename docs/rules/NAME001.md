@@ -117,29 +117,29 @@ Use instead:
 
 ## Options
 
-* `convention`: one of `PascalCase`, `camelCase`, `snake_case`,
+* `convention` (unset by default): one of `PascalCase`, `camelCase`, `snake_case`,
   `kebab-case`, `SCREAMING_SNAKE_CASE`, `Title Case`, `lower case`. Unset
   means PascalCase without suggestions.
-* `custom-pattern`: a regular expression (matched at the start of the name,
+* `custom-pattern` (unset by default): a regular expression (matched at the start of the name,
   like Python's `re.match`) that replaces the convention's pattern.
-* `suggestion-convention`: the convention suggestions are written in, when
+* `suggestion-convention` (unset by default): the convention suggestions are written in, when
   it differs from `convention` (for example with a `custom-pattern`).
-* `target-node-types`: node types to check: `component`, `property`,
+* `target-node-types` (unset by default): node types to check: `component`, `property`,
   `message_handler`, `custom_method`. Defaults to the keys of `per-type`, or
   `["component"]`.
-* `per-type`: a table from node type to overrides of `convention`,
+* `per-type` (default `{}`): a table from node type to overrides of `convention`,
   `pattern`, `pattern_description`, `suggestion_convention`, `min_length`,
   `max_length`, `forbidden_names`, `skip_names`, `severity` and
   `allow_numbers`.
-* `allow-numbers`: whether convention patterns accept digits.
-* `min-length`, `max-length`: length limits (characters).
-* `forbidden-names`: names that are always reported.
-* `skip-names`: names never checked; giving a list replaces the default
+* `allow-numbers` (default `true`): whether convention patterns accept digits.
+* `min-length` (default `1`), `max-length` (unset by default): length limits (characters).
+* `forbidden-names` (default `[]`): names that are always reported.
+* `skip-names` (default `["root"]`): names never checked; giving a list replaces the default
   `["root"]`.
-* `allowed-abbreviations`: extra abbreviations; an abbreviation written in
+* `allowed-abbreviations` (default `[]`): extra abbreviations; an abbreviation written in
   capitals as a whole word is accepted where the convention writes words
   differently (`read_API_data` in snake_case, `API Key` in Title Case).
-* `auto-detect-abbreviations`: also use the built-in list (`API`, `HTTP`,
+* `auto-detect-abbreviations` (default `true`): also use the built-in list (`API`, `HTTP`,
   `ID`, `URL`, ...).
 
 ## ign-lint

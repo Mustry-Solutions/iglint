@@ -52,8 +52,8 @@ Use instead:
 
 ## Options
 
-* `expected-persistent`: `true` or `false`; unset disables the rule.
-* `exempt-binding-types`: binding types that are not checked: `expr`,
+* `expected-persistent` (unset by default): `true` or `false`; unset disables the rule.
+* `exempt-binding-types` (default `["tag"]`): binding types that are not checked: `expr`,
   `expr-struct`, `property`, `query`, `tag` (every tag mode), `tag.direct`,
   `tag.indirect`, `tag.expression`, and the other registered types
   (`tag-history`, `http`). Default `["tag"]`; `[]` checks everything.

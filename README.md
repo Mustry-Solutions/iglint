@@ -43,13 +43,8 @@ Benchmarks against ign-lint and how to reproduce them are in
 
 ## Installation
 
-From PyPI (a wheel with the binary, no Python code):
-
-```sh
-pip install iglint      # or: uv tool install iglint / pipx install iglint
-```
-
-With Cargo (Rust 1.90 or newer):
+No version has been released yet. Until 0.1.0, the first public release,
+build iglint with Cargo (Rust 1.90 or newer):
 
 ```sh
 cargo install --locked --git https://github.com/Mustry-Solutions/iglint iglint
@@ -57,18 +52,28 @@ cargo install --locked --git https://github.com/Mustry-Solutions/iglint iglint
 cargo install --locked --path crates/iglint
 ```
 
-Prebuilt binaries for Linux (x86_64, aarch64; static musl), macOS (x86_64,
-aarch64) and Windows (x86_64) are attached to every
-[GitHub release](https://github.com/Mustry-Solutions/iglint/releases).
+Planned for 0.1.0 (the release workflow builds them; nothing is published
+yet):
 
-The VS Code extension is attached to the releases as well, as one VSIX per
-platform (with the binary inside) and one that uses `iglint` from `PATH`:
+* a PyPI wheel with the binary and no Python code:
 
-```sh
-code --install-extension iglint-vscode-v0.1.0-linux-x64.vsix
-```
+  ```sh
+  pip install iglint      # or: uv tool install iglint / pipx install iglint
+  ```
 
-Check the installation with `iglint --version`.
+* prebuilt binaries for Linux (x86_64, aarch64; static musl), macOS (x86_64,
+  aarch64) and Windows (x86_64), attached to every
+  [GitHub release](https://github.com/Mustry-Solutions/iglint/releases);
+* the VS Code extension, attached to the releases as well, as one VSIX per
+  platform (with the binary inside) and one that uses `iglint` from `PATH`:
+
+  ```sh
+  code --install-extension iglint-vscode-v0.1.0-linux-x64.vsix
+  ```
+
+Check the installation with `iglint --version`. The CI examples below
+install the PyPI wheel; until it is published, install with Cargo
+instead.
 
 ## Quick start
 
@@ -115,12 +120,20 @@ the default rule set runs. Every key is optional:
 
 ```toml
 # iglint.toml
+# extend = "../shared/iglint.toml"    # build on another configuration file
 # select = ["ALL"]                    # replace the default set
 extend-select = ["NAME001", "REF011"]  # opt-in rules, on top of the defaults
 ignore = ["A11Y"]                      # codes, prefixes, names or categories
+# unfixable = ["NAME001"]             # report, but never apply these fixes
 exclude = ["projects/Sandbox/**"]      # never lint these paths
+# extend-exclude = ["projects/Old/**"] # add to the excludes of `extend`
 strict = false                         # also report dynamic references
 baseline = "ci/iglint-baseline.json"   # default: .iglint-baseline.json, if present
+# projects = ["../shared/projects/Base"]           # more of the workspace
+# gateways = ["../gateway/data/config/resources"]
+# respect-gitignore = true            # skip files Git ignores
+# cache-dir = ".iglint_cache"         # default: .iglint_cache in the root
+# output-format = "text"
 
 [rules.BIND004]                        # or [rules.polling-interval]
 minimum-interval = 5000
@@ -145,8 +158,31 @@ severity = { SCR = "info" }
 ```
 
 * `select` replaces the default set, `extend-select` adds to it, `ignore`
-  removes rules. Selectors are rule codes (`SCR101`), names
-  (`undefined-name`), code prefixes (`SCR1`), categories (`SCR`) or `ALL`.
+  (or its alias `extend-ignore`) removes rules. Selectors are rule codes
+  (`SCR101`), names (`undefined-name`), code prefixes (`SCR1`), categories
+  (`SCR`) or `ALL`.
+* `extend` names another configuration file (a TOML file with these keys,
+  or a `pyproject.toml` with `[tool.iglint]`), relative to this one, that
+  this file builds on; it may extend another in turn (a cycle is an
+  error). The base is read first: a key this file sets wins, the
+  `select`/`ignore` lists of each file apply in order (base first),
+  `[rules.*]` tables are merged per rule and `[[overrides]]` are added.
+* `exclude` replaces the excludes of an extended file, `extend-exclude`
+  adds to them.
+* `unfixable` (selectors, default none): findings of these rules are
+  still reported, but their fixes are never applied (`--fix`, the
+  editor).
+* `projects` and `gateways` (paths relative to the configuration file,
+  default none): more project directories and gateway configuration
+  trees for the workspace. They are analysed with the rest (parent
+  projects, references, the safety of fixes) but only linted when you
+  name them on the command line.
+* `respect-gitignore` (default `true`): skip files that `.gitignore`,
+  `.ignore` and Git's excludes ignore. Ignored files still count for the
+  workspace analysis; they are only not reported.
+* `cache-dir` (default `.iglint_cache` in the root): where the result
+  cache lives; `--cache-dir` overrides it and `--no-cache` turns the
+  cache off.
 * `[rules.<code or name>]` sets `severity`, `enabled`, a per-rule `exclude`
   and the rule's options (see each rule's page).
 * `[[overrides]]` apply other settings to the files matching `files`.
@@ -308,6 +344,9 @@ JUnit XML (`--output-format junit`) works with most other CI systems.
 
 ## pre-commit
 
+The `rev: v0.1.0` below is the planned first release tag; until it exists,
+use a commit hash.
+
 ```yaml
 # .pre-commit-config.yaml
 repos:
@@ -333,7 +372,7 @@ repos:
 ```
 
 These hooks build iglint from source on first use, which needs a Rust
-toolchain. To use the PyPI wheel instead:
+toolchain. To use the PyPI wheel instead (once 0.1.0 is published):
 
 ```yaml
 repos:

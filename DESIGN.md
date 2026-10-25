@@ -90,8 +90,10 @@ the default set, whether it can fix, an options schema and Markdown docs with
 
 Categories: `VIEW` (view structure), `NAME` (naming), `BIND` (bindings and
 expressions), `SCR` (script correctness), `REF` (cross-resource references),
-`PERF`, `SEC`, `A11Y`, `STYLE`, `TAG`, `COMPAT` (ign-lint compatible rules
-that have no better home).
+`PERF`, `SEC`, `A11Y`, `STYLE`, `TAG`. Rules that correspond to an ign-lint
+check live in the category of what they check (`iglint migrate` and a
+legacy `rule_config.json` map ign-lint's rules to them); there is no
+separate compatibility category.
 
 Rules are visitors over typed contexts (view, component, property, binding,
 expression, script, project index, resource). The driver collects all

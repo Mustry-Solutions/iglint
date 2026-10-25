@@ -53,7 +53,7 @@ pub fn rule_markdown(rule: RuleCode) -> String {
     }
     if !meta.explanation.is_empty() {
         out.push('\n');
-        out.push_str(meta.explanation.trim_end());
+        out.push_str(meta.documented_explanation().trim_end());
         out.push('\n');
     }
     if !meta.options.is_empty() {
@@ -101,7 +101,7 @@ fn rule_json(rule: RuleCode) -> serde_json::Value {
             "description": o.description,
         })).collect::<Vec<_>>(),
         "ign_lint_names": meta.ign_lint_names,
-        "explanation": meta.explanation,
+        "explanation": meta.documented_explanation(),
     })
 }
 

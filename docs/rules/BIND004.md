@@ -54,7 +54,7 @@ dateFormat(now(10000), "HH:mm:ss")
 
 ## Options
 
-* `minimum-interval`: the smallest allowed poll rate in milliseconds.
+* `minimum-interval` (default `10000`): the smallest allowed poll rate in milliseconds.
 
 ## ign-lint
 

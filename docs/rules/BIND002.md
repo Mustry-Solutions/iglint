@@ -47,7 +47,7 @@ dateFormat(now(0), "yyyy-MM-dd")
 
 ## Options
 
-* `extra-functions`: names of additional functions provided by modules
+* `extra-functions` (default `[]`): names of additional functions provided by modules
   (case-insensitive). Listing a function here only silences this rule: an
   expression function that Ignition 8.3 does not register may run code
   (Vision's `objectScript` runs Python), so it still keeps the safe fixes

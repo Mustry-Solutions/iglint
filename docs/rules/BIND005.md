@@ -69,8 +69,8 @@ Use instead:
 
 ## Options
 
-* `validate-expressions`: check references in expressions.
-* `validate-property-bindings`: check property binding paths.
+* `validate-expressions` (default `true`): check references in expressions.
+* `validate-property-bindings` (default `true`): check property binding paths.
 
 ## ign-lint
 

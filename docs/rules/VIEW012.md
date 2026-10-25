@@ -45,9 +45,9 @@ Use instead:
 
 ## Options
 
-* `expected-access`: `PUBLIC`, `PROTECTED` or `PRIVATE` (case-insensitive).
+* `expected-access` (unset by default): `PUBLIC`, `PROTECTED` or `PRIVATE` (case-insensitive).
   Unset: the rule reports nothing.
-* `exempt-props`: patterns (`*` and `?` wildcards, everything else literal)
+* `exempt-props` (default `[]`): patterns (`*` and `?` wildcards, everything else literal)
   matched against the property name, `custom.<name>` and the full ign-lint
   path (`root.root.children[0].Card.custom.x`).
 

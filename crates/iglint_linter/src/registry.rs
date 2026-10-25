@@ -191,6 +191,65 @@ impl RuleMeta {
         self.options.iter().find(|o| o.name == name)
     }
 
+    /// [`RuleMeta::explanation`] with the default of every option named at
+    /// the start of a bullet of its `## Options` section, from
+    /// [`OptionMeta::default`]: `` * `max-depth`: ... `` becomes
+    /// `` * `max-depth` (default `12`): ... ``. A bullet that states the
+    /// default itself (`` * `max-depth` (default `12`): ``) is kept as it
+    /// is; a test checks that it states the metadata's.
+    pub fn documented_explanation(&self) -> String {
+        let mut out = String::with_capacity(self.explanation.len() + 64);
+        let mut in_options = false;
+        for line in self.explanation.split_inclusive('\n') {
+            let bare = line.trim_end_matches(['\n', '\r']);
+            if bare.starts_with("## ") {
+                in_options = bare == "## Options";
+            }
+            match self.option_bullet(line).filter(|_| in_options) {
+                Some((names, rest)) if !rest.starts_with(" (") => {
+                    out.push_str("* ");
+                    for (k, name) in names.iter().enumerate() {
+                        if k > 0 {
+                            out.push_str(", ");
+                        }
+                        out.push('`');
+                        out.push_str(name);
+                        out.push('`');
+                        if let Some(option) = self.option(name) {
+                            match option.default.trim() {
+                                "" | "none" => out.push_str(" (unset by default)"),
+                                default => {
+                                    out.push_str(" (default `");
+                                    out.push_str(default);
+                                    out.push_str("`)");
+                                }
+                            }
+                        }
+                    }
+                    out.push_str(rest);
+                }
+                _ => out.push_str(line),
+            }
+        }
+        out
+    }
+
+    /// The option names a bullet starts with (`` * `a`, `b`: ... ``) and
+    /// the rest of the line.
+    pub fn option_bullet<'l>(&self, line: &'l str) -> Option<(Vec<&'l str>, &'l str)> {
+        let mut rest = line.strip_prefix("* ")?;
+        let mut names = Vec::new();
+        while let Some((name, after)) = rest.strip_prefix('`').and_then(|r| r.split_once('`')) {
+            names.push(name);
+            rest = after;
+            match rest.strip_prefix(", ") {
+                Some(r) if r.starts_with('`') => rest = r,
+                _ => break,
+            }
+        }
+        (!names.is_empty()).then_some((names, rest))
+    }
+
     /// The iglint option an ign-lint kwarg maps to, if any.
     pub fn option_for_ign_lint_kwarg(&self, kwarg: &str) -> Option<&'static str> {
         self.ign_lint_option_map

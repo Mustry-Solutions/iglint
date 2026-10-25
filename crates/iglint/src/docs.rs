@@ -68,7 +68,7 @@ pub fn rule_page(rule: RuleCode) -> String {
     out.push_str(&format!("| ign-lint equivalent | {ign_lint} |\n"));
     if !meta.explanation.is_empty() {
         out.push('\n');
-        out.push_str(meta.explanation.trim_end());
+        out.push_str(meta.documented_explanation().trim_end());
         out.push('\n');
     }
     if !meta.options.is_empty() {

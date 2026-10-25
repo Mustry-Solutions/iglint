@@ -7,6 +7,11 @@ from 0.1.0 on.
 
 ## [Unreleased]
 
+Nothing has been released yet: no version is tagged or published (no
+GitHub release, PyPI wheel or VS Code package). 0.1.0, planned as the
+first public release, will hold the features listed under [0.1.0] below
+and the changes listed here.
+
 ### Changed
 
 - Language server latency (review round 30, minor): after an edit, the
@@ -1568,9 +1573,9 @@ from 0.1.0 on.
   new rule `VIEW007 invalid-utf8` reports the invalid bytes (Ignition
   replaces them with U+FFFD), and such files get no fixes.
 
-## [0.1.0]
+## [0.1.0] - unreleased
 
-First public release.
+Planned first public release; not tagged or published yet.
 
 ### Added
 
@@ -1604,6 +1609,3 @@ First public release.
 - Language server (`iglint server`) and a VS Code extension.
 - Distribution as prebuilt binaries, a PyPI wheel (`pip install iglint`),
   pre-commit hooks and VS Code packages.
-
-[Unreleased]: https://github.com/Mustry-Solutions/iglint/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/Mustry-Solutions/iglint/releases/tag/v0.1.0

@@ -48,7 +48,7 @@ Use instead: bind `Total.props.text` to `{view.custom.total}` and write
 
 ## Options
 
-* `forbidden-patterns`: the patterns to report, in ign-lint's notation:
+* `forbidden-patterns` (default `[".getSibling(", ".getParent(", ".getChild(", ".getChildren(", "self.parent.", "self.children.", "self.parent)", "self.children)", "self.parent,", "self.children,", "self.parent\n", "self.children\n", "self.parent\r", "self.children\r", "../", "./"]`): the patterns to report, in ign-lint's notation:
   `.getSibling(`, `.getParent(`, `.getChild(`, `.getChildren(`,
   `self.parent.` (and the other `self.parent` forms), `self.children.`
   (and its other forms), `../` (paths going up) and `./` (paths relative to

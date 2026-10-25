@@ -476,7 +476,7 @@ impl Server {
                         rule.code(),
                         rule.name(),
                         rule.meta().summary,
-                        rule.meta().explanation
+                        rule.meta().documented_explanation()
                     )),
                     None => Value::Null,
                 }
@@ -492,7 +492,7 @@ fn rule_docs(rule: RuleCode, url: &str) -> String {
     format!(
         "{}\n\n{}\n\n[Rule documentation]({url})",
         meta.summary,
-        meta.explanation.trim()
+        meta.documented_explanation().trim()
     )
 }
 
