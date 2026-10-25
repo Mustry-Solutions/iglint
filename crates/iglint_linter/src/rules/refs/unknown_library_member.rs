@@ -23,7 +23,12 @@ Resolves every use of the project script library in scripts against the
 library the project sees (its own modules and inherited ones):
 attribute chains such as `core.util.fmt(...)`, chains through aliases
 (`u = core.util`, `from core.util import fmt`) and `import` statements.
-It reports:
+Paths through another library module's import continue in the module
+the import leads to: `m0.util.nope` is checked in `lib.util` when `m0`
+does `from lib import util` or `import lib.util as util`, and so is
+`m0.lib.util.nope` when `m0` does `import lib.util` (which binds `lib`),
+at any depth (measured with Ignition's ScriptManager on 8.3.3). It
+reports:
 
 * a package without the module (`core.nope` where `core/` has no `nope`);
 * a module without the attribute (`core.util.nope` where `core/util/code.py`
@@ -44,7 +49,10 @@ reads or writes a frame's or a module's names by itself such as
 first hop, such as a `.type` Java member or `getattr` with a computed
 name, does not count, see `docs/internal/fix-safety.md`, "Frame routes:
 findings and fixes"), modules
-that do not parse, uses inside a `try` that catches `AttributeError`,
+that do not parse, paths through a name the module binds otherwise too
+(`try: from lib import util` / `except: util = None`), through a star
+import or around a cycle of imports, uses inside a `try` that catches
+`AttributeError`,
 `ImportError`, `NameError` or `Exception`, dunder attributes, the members
 of Ignition's library module and package objects that the module does
 not bind (`core.util.dict`, `core.util.getName()`, `core.clear()`; see
@@ -289,6 +297,67 @@ mod tests {
         ));
         let f = with_library(f, "app/setup", "core.util.other = 1\n");
         assert_eq!(flagged(&f.lint(&["REF002"])), vec!["extra"]);
+    }
+
+    /// Review round 28: a path through another library module's import
+    /// is checked in the import's target (`m0.util.nothere` when `m0` does
+    /// `from lib import util` raises AttributeError on 8.3.3), however
+    /// long the chain; through a name bound otherwise too, or a cycle,
+    /// nothing is reported.
+    #[test]
+    fn names_reached_through_library_imports() {
+        let lib = |f| with_library(f, "lib/util", "import json\ndef f():\n    return 1\n");
+        let mut chain = Fixture::new();
+        for i in 0..10 {
+            chain = with_library(
+                chain,
+                &format!("c{i}"),
+                &format!("import c{} as a\n", i + 1),
+            );
+        }
+        let chain = with_library(chain, "c10", "from lib import util\n");
+        for (f, path) in [
+            (
+                with_library(Fixture::new(), "m0", "from lib import util\n"),
+                "m0.util",
+            ),
+            (
+                with_library(Fixture::new(), "m0", "import lib.util as util\n"),
+                "m0.util",
+            ),
+            (
+                with_library(Fixture::new(), "m0", "import lib.util\n"),
+                "m0.lib.util",
+            ),
+            (chain, "c0.a.a.a.a.a.a.a.a.a.a.util"),
+        ] {
+            let f = with_library(
+                lib(f),
+                "app/main",
+                &format!(
+                    "def go():\n    {path}.f()\n    {path}.json.dumps(1)\n    {path}.nothere()\n"
+                ),
+            );
+            let d = f.lint(&["REF002"]);
+            assert_eq!(flagged(&d), vec!["nothere"], "{path}");
+            assert_eq!(
+                messages(&d),
+                vec![format!("Module `{path}` has no attribute `nothere`")]
+            );
+        }
+        for (m0, m1) in [
+            (
+                "try:\n    from lib import util\nexcept ImportError:\n    util = None\n",
+                "",
+            ),
+            ("from m1 import *\n", "from lib import util\n"),
+            ("from m1 import util\n", "from m0 import util\n"),
+        ] {
+            let f = with_library(with_library(lib(Fixture::new()), "m0", m0), "m1", m1);
+            let f = with_library(f, "app/main", "def go():\n    m0.util.nothere()\n");
+            let d = f.lint(&["REF002"]);
+            assert!(!flagged(&d).contains(&"nothere".to_owned()), "{m0}");
+        }
     }
 
     #[test]

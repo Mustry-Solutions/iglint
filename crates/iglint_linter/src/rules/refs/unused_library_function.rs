@@ -20,8 +20,10 @@ pub static META: RuleMeta = RuleMeta {
 Reports top-level functions of project library modules that nothing in
 the project references: no script (views, event scripts, tag event
 scripts of the gateway, other library modules, the module itself) uses
-`core.util.fn`, `from core.util import fn` or an alias of it, and no
-expression calls `runScript("core.util.fn")`.
+`core.util.fn`, `from core.util import fn` or an alias of it, also
+through another library module's import (`m0.util.fn` when `m0` does
+`from core import util`), and no expression calls
+`runScript("core.util.fn")`.
 
 The rule stays silent for a module whose names may be reached in ways
 that cannot be followed: the module (or its package) used as a value
@@ -120,6 +122,34 @@ mod tests {
                 "propConfig": {"props.text": {"binding": {"type": "expr", "config": {"expression": "runScript('core.util.by_expression')"}}}}}}"#,
         );
         assert_eq!(flagged(&f.lint(&["REF012"])), vec!["unused"]);
+    }
+
+    /// Review round 28: a function reached through another library
+    /// module's import is referenced (`m0.util.used()` when `m0` does
+    /// `from lib import util`), at any depth and from `runScript`.
+    #[test]
+    fn functions_reached_through_library_imports() {
+        let f = with_library(
+            with_library(
+                library(
+                    "lib/util",
+                    "def used():\n    pass\ndef by_expression():\n    pass\ndef unused():\n    pass\n",
+                ),
+                "m0",
+                "import m1 as a\n",
+            ),
+            "m1",
+            "from lib import util\n",
+        );
+        let f = with_library(f, "app/main", "def go():\n    return m0.a.util.used()\n");
+        let f = f.with_view(
+            "Expr",
+            r#"{"root": {"type": "ia.display.label", "meta": {"name": "root"}, "props": {"text": ""},
+                "propConfig": {"props.text": {"binding": {"type": "expr", "config": {"expression": "runScript('m0.a.util.by_expression')"}}}}}}"#,
+        );
+        let mut found = flagged(&f.lint(&["REF012"]));
+        found.retain(|n| n != "go");
+        assert_eq!(found, vec!["unused"]);
     }
 
     /// Review round 26 (M1): a script that does not parse is code being

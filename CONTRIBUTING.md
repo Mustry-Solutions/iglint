@@ -168,7 +168,8 @@ To record new outputs (needs Docker):
   function, method, class, instance and generator objects, and what each
   route of `crates/iglint_linter/tests/fixtures/library-routes/*.cases`
   does (scripts in a library module, `runScript` expressions through
-  Ignition's own function factory); `rules::refs::library_routes`
+  Ignition's own function factory, and in `chains.cases` paths through
+  the imports of libraries each case defines); `rules::refs::library_routes`
   replays it. `stubs-gen/code_functions.py` lists the expression
   function classes of the image that can run Python.
 * `oracle/format-spec.sh all OUT` records Jython's verdict on every

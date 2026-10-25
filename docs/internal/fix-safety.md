@@ -958,6 +958,99 @@ vetted or reads a frame or a file keeps it unsafe;
 `library_object_members_match_the_oracle` that the member tables are the
 measured ones.
 
+### Paths through library imports
+
+Review round 28 (Opus, blocker; present since the first index): when a
+script reached a module through another library module's import
+(`m0.util.json` where `m0` does `from lib import util`), the index
+counted the use of `m0.util` only and never followed the import into
+`lib.util`, so `lib.util`'s `json` looked unused and `SCR102` removed
+`import json` as safe; the caller then failed with `AttributeError`.
+`REF012` reported functions only reached that way and `REF002` missed
+`m0.util.nothere()`. Some consumers followed such imports on their own
+(`library_exposed`, `LibraryTree::object_member`, the shared-object
+reach, `VIEW015`'s call following, each with its own bound of 8) and
+others did not (usage counts, `REF002`, `REF003`, stores, rebinding,
+vetting, the language server's dependencies), so they disagreed.
+
+Measured with Ignition's ScriptManager on 8.3.3
+(`crates/iglint_linter/tests/fixtures/library-routes/chains.cases`, 38
+chains, `oracle/run-oracle.sh --library-routes`): a library module's
+import of another library module, package or name binds that object
+(`from lib import util` with `lib` a `ScriptPackage`, `import lib.util as
+util`, `import lib.util`, which binds `lib`, `import m1`, `import m1 as
+a`, a `global` import in a function), and attribute paths, imports in
+other modules (`from m0 import util`, `from m0.util import json`,
+`import m0.util.json`, `from m0.util import *`) and `runScript` targets
+resolve through it, through chains of 12 and 70 imports and through
+cycles of module objects (`m0.m1.m0.m1.util.json`). A cycle of names
+(`from m1 import x` in `m0`, `from m0 import x` in `m1`) raises
+`ImportError`; relative imports raise `ImportError` in library modules.
+
+There is now one resolver of dotted library paths,
+`LibraryTree::resolve_path` (`ProjectIndex::resolve_library_path`), and
+every consumer uses it: usage, symbol and external symbol counts (every
+name a path reads, the imports on the way and the name where it ends),
+values (`LibraryTree::value_objects`, judged where the path ends, and the
+module of an import followed when the rest of the path names a value
+attribute), dynamic library references, exposed names, star imports,
+the shared-object reach, stores (`library_name_stored` checks the path in
+each import's target too), rebinding (`library_name_rebound` checks every
+module on the way), `REF002`, `REF003`, `REF012`, `SCR102`'s closed-world
+checks, `VIEW015`'s call following (also for a module's own imports by
+bare name), vetting (every module on the way runs) and the language
+server's dependencies. `LibraryTree::resolve` is the end of that path.
+Default deny where a path cannot be followed with certainty:
+
+* a name a module binds once by an import is that object or unbound, and
+  is followed (conditionally or in `try` too);
+* a name it binds several times, or rebinds in a way its bindings show
+  (`try: from lib import util` / `except: util = None`, a later star
+  import), is a variable: the path ends there, what it reads through each
+  import is counted, and each import's target counts as used as a value
+  (`symbols::VariableImport`); a name only code run from strings or
+  frames may rebind (the module's fix view makes every name a variable)
+  is followed for counting without the value use (such code is unknown
+  code, or records what it binds);
+* a name a module with dynamic names does not bind, when the module
+  star-imports library modules that may export it (`__all__` or no
+  leading `_`): the path continues in each, and its end is unknown;
+  likewise, in a script with star imports of library modules, a name that
+  is not a library name is also looked up in each;
+* an import that leads back to a path already followed, or more than
+  `MAX_IMPORT_HOPS` (64) imports: the module and the import's target are
+  used as values and the end is unknown.
+
+A miss inside an import's own target (`from lib import nope`) is unknown
+for the paths through it (the import is reported where it is written);
+segment indexes are those of the path as written (`Module m0.util has no
+attribute nothere`).
+
+Two holes of the same class were closed with it: a library module used as
+a value now makes every library module it imports (by import, a variable
+import or a star import) used as a value too, transitively, and exposure
+likewise (`h.get().x.json`, where `get` returns `lib.util` and `lib.util`
+imports `lib2 as x`, left `lib2`'s `json` removable as safe); and a name
+that may hold a module from outside the library through an ambiguous
+binding (`try: import json as j` / `except: j = None`) reaches a shared
+object (`del m0.j.dumps` in another module is unknown code), as a single
+import already did.
+
+Tests: the oracle replay `every_chain_through_library_imports_counts`
+(each chain from a script, and the `runScript` ones from a tag and a
+view: what the path uses keeps its import and function, `AttributeError`
+and `TypeError` are reported by `REF002` and `REF003`, what a path may
+reach but not follow keeps no safe fix); the property test
+`library_paths_resolve_like_jython` (`iglint_project`, 400 generated
+libraries with imports, aliases, packages, names, star imports,
+ambiguous names and cycles, and paths through them, against a model of
+the resolution: every name read is counted, and `resolve_library`,
+`resolve_library_path` and `LibraryTree::resolve` agree with each other
+and with the model where it is certain); `generated_import_chains_resolve_like_jython`
+(160 generated chains of 1 to 12 imports of every form, linted end to
+end); and per-rule tests for `SCR102`, `REF002`, `REF003`, `REF012` and
+`VIEW015`.
+
 ### Closed world
 
 The Ignition runtime is shared across every project and gateway-scoped

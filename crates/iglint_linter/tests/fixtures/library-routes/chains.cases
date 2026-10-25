@@ -1,0 +1,584 @@
+### from-package uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.util.json.dumps(1)
+### import-as uses lib.util.json
+== m0
+import lib.util as util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.util.json.dumps(1)
+### import-dotted uses lib.util.json
+== m0
+import lib.util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.lib.util.json.dumps(1)
+### import-package uses lib.util.json
+== m0
+import lib
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.lib.util.json.dumps(1)
+### import-module uses lib.util.json
+== m0
+import m1
+== m1
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.m1.util.json.dumps(1)
+### import-module-as uses lib.util.json
+== m0
+import m1 as a
+== m1
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.a.util.json.dumps(1)
+### from-module-in-function uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    from m0 import util
+    return util.json.dumps(1)
+### from-module-at-top uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+from m0 import util
+def g(n):
+    return util.json.dumps(1)
+### from-through-import uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    from m0.util import json
+    return json.dumps(1)
+### import-through-import uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    import m0.util.json
+    return 1
+### reexported-name uses lib.util.json
+== m0
+from lib.util import json
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.json.dumps(1)
+### global-import uses lib.util.json
+== m0
+def init():
+    global util
+    from lib import util
+init()
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.util.json.dumps(1)
+### twelve-hops uses lib.util.json
+== m0
+import m1 as a
+== m1
+import m2 as a
+== m2
+import m3 as a
+== m3
+import m4 as a
+== m4
+import m5 as a
+== m5
+import m6 as a
+== m6
+import m7 as a
+== m7
+import m8 as a
+== m8
+import m9 as a
+== m9
+import m10 as a
+== m10
+import m11 as a
+== m11
+import m12 as a
+== m12
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.a.a.a.a.a.a.a.a.a.a.a.a.util.json.dumps(1)
+### seventy-hops value lib.util
+== m0
+import m1 as a
+== m1
+import m2 as a
+== m2
+import m3 as a
+== m3
+import m4 as a
+== m4
+import m5 as a
+== m5
+import m6 as a
+== m6
+import m7 as a
+== m7
+import m8 as a
+== m8
+import m9 as a
+== m9
+import m10 as a
+== m10
+import m11 as a
+== m11
+import m12 as a
+== m12
+import m13 as a
+== m13
+import m14 as a
+== m14
+import m15 as a
+== m15
+import m16 as a
+== m16
+import m17 as a
+== m17
+import m18 as a
+== m18
+import m19 as a
+== m19
+import m20 as a
+== m20
+import m21 as a
+== m21
+import m22 as a
+== m22
+import m23 as a
+== m23
+import m24 as a
+== m24
+import m25 as a
+== m25
+import m26 as a
+== m26
+import m27 as a
+== m27
+import m28 as a
+== m28
+import m29 as a
+== m29
+import m30 as a
+== m30
+import m31 as a
+== m31
+import m32 as a
+== m32
+import m33 as a
+== m33
+import m34 as a
+== m34
+import m35 as a
+== m35
+import m36 as a
+== m36
+import m37 as a
+== m37
+import m38 as a
+== m38
+import m39 as a
+== m39
+import m40 as a
+== m40
+import m41 as a
+== m41
+import m42 as a
+== m42
+import m43 as a
+== m43
+import m44 as a
+== m44
+import m45 as a
+== m45
+import m46 as a
+== m46
+import m47 as a
+== m47
+import m48 as a
+== m48
+import m49 as a
+== m49
+import m50 as a
+== m50
+import m51 as a
+== m51
+import m52 as a
+== m52
+import m53 as a
+== m53
+import m54 as a
+== m54
+import m55 as a
+== m55
+import m56 as a
+== m56
+import m57 as a
+== m57
+import m58 as a
+== m58
+import m59 as a
+== m59
+import m60 as a
+== m60
+import m61 as a
+== m61
+import m62 as a
+== m62
+import m63 as a
+== m63
+import m64 as a
+== m64
+import m65 as a
+== m65
+import m66 as a
+== m66
+import m67 as a
+== m67
+import m68 as a
+== m68
+import m69 as a
+== m69
+import m70 as a
+== m70
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.util.json.dumps(1)
+### cycle uses lib.util.json
+== m0
+import m1
+== m1
+import m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.m1.m0.m1.util.json.dumps(1)
+### star-in-module uses lib.util.json
+== m0
+from m1 import *
+== m1
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.util.json.dumps(1)
+### star-in-user uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+from m0 import *
+def g(n):
+    return util.json.dumps(1)
+### star-through-import uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+from m0.util import *
+def g(n):
+    return json.dumps(1)
+### star-of-target uses lib.util.json
+== m0
+from lib.util import *
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.json.dumps(1)
+### hop-as-value uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    x = m0.util
+    return x.json.dumps(1)
+### getattr-through-import uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return getattr(m0.util, 'json').dumps(1)
+### runscript uses lib.util.json
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== runScript
+runScript("m0.util.json.dumps", 0, 1)
+### runscript-chain uses lib.util.json
+== m0
+import m1 as a
+== m1
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== runScript
+runScript("m0.a.util.json.dumps", 0, 1)
+### call-through-import calls lib.util.f
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.util.f()
+### call-reexported calls lib.util.f
+== m0
+from lib.util import f
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.f()
+### call-chain calls lib.util.f
+== m0
+import m1
+== m1
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.m1.util.f()
+### runscript-call calls lib.util.f
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== runScript
+runScript("m0.util.f", 0)
+### missing-through-import missing
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.util.nothere()
+### missing-through-chain missing
+== m0
+import m1 as a
+== m1
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.a.util.nothere
+### arity-through-import arity
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.util.f(1)
+### try-import value lib.util
+== m0
+try:
+    from lib import util
+except ImportError:
+    util = None
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.util.json.dumps(1)
+### either-import value lib.util lib2
+== m0
+if system:
+    from lib import util
+else:
+    import lib2 as util
+== lib.util
+import json
+def f():
+    return 1
+== lib2
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.util.json.dumps(1)
+### held-module-imports value lib2
+== lib.util
+import lib2 as x
+== lib2
+import json
+def f():
+    return 1
+== h
+def get():
+    return lib.util
+== b
+def g(n):
+    return h.get().x.json.dumps(1)
+### held-hop-imports value lib2
+== m0
+from lib import util
+== lib.util
+import lib2 as x
+== lib2
+import json
+def f():
+    return 1
+== b
+def g(n):
+    v = m0.util
+    return v.x.json.dumps(1)
+### star-held-imports uses lib2.json
+== m0
+from lib.util import *
+== lib.util
+import lib2 as x
+== lib2
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.x.json.dumps(1)
+### func-globals-through-import value lib.util
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.util.f.func_globals['json'].dumps(1)
+### dict-through-import value lib.util
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.util.__dict__['json'].dumps(1)
+### member-through-import value lib.util
+== m0
+from lib import util
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    return m0.util.getDict()['json'].dumps(1)

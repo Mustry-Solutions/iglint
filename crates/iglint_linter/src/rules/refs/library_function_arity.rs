@@ -22,7 +22,9 @@ Checks calls of project library functions (`core.util.fmt(...)`, through
 aliases and `from core.util import fmt`, and a module's calls of its own
 top-level functions) against the function's signature: too few or too
 many positional arguments, unknown keyword arguments and arguments passed
-twice.
+twice. A call through another library module's import (`m0.util.fmt()`
+when `m0` does `from core import util`, at any depth) is checked against
+the function the import leads to.
 
 Only plain functions are checked: a name defined more than once in its
 module (conditional definitions, redefinitions, `global` assignments), a
@@ -131,6 +133,29 @@ mod tests {
     };
 
     const UTIL: &str = "def fmt(value, digits=2):\n    return value\ndef anything(*a, **k):\n    pass\ndef kw(a, **k):\n    pass\nif X:\n    def twice(a): pass\nelse:\n    def twice(a, b): pass\n@deco\ndef wrapped(a):\n    pass\nclass K(object):\n    def __init__(self, a): pass\n";
+
+    /// Review round 28: calls through another library module's import
+    /// are checked against the function they reach (`TypeError` on 8.3.3).
+    #[test]
+    fn calls_through_library_imports() {
+        let f = with_library(
+            with_library(
+                library("core/util", UTIL),
+                "m0",
+                "from core import util\nimport core.util as u\nfrom core.util import fmt\n",
+            ),
+            "app/main",
+            "def go():\n    m0.util.fmt()\n    m0.u.fmt(1, 2, 3)\n    m0.fmt(digit=1)\n    m0.util.fmt(1)\n",
+        );
+        assert_eq!(
+            messages(&f.lint(&["REF003"])),
+            vec![
+                "`m0.util.fmt` requires 1 argument, the call passes 0",
+                "`m0.u.fmt` accepts at most 2 arguments positionally, the call passes 3",
+                "`m0.fmt` has no parameter `digit`",
+            ]
+        );
+    }
 
     #[test]
     fn wrong_calls() {

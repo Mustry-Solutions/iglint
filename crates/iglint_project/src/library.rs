@@ -159,6 +159,15 @@ pub enum LibraryObject {
     },
 }
 
+impl LibraryObject {
+    /// The dotted name of the module or package.
+    pub fn dotted(&self) -> &str {
+        match self {
+            LibraryObject::Module { dotted, .. } | LibraryObject::Package { dotted } => dotted,
+        }
+    }
+}
+
 /// Whether `name` is a member of a library module object.
 fn module_member(name: &str) -> bool {
     MODULE_OBJECT_MEMBERS.contains(&name) || is_special_attribute(name)
@@ -202,6 +211,15 @@ pub struct ModuleSymbols {
     pub system: Vec<String>,
     /// Dotted names the module uses that may be library names.
     pub library_names: Vec<String>,
+    /// The modules its module-level `from x import *` statements name.
+    pub star_imports: Vec<String>,
+    /// The names `from <this module> import *` binds when `__all__` lists
+    /// them; `None`: every top-level name not starting with `_`.
+    pub star_exports: Option<Vec<String>>,
+    /// The import bindings of top-level names that are not a
+    /// [`SymbolKind::Import`] (bound several times, or possibly rebound):
+    /// the name may hold the import's target.
+    pub variable_imports: Vec<VariableImport>,
     /// The symbols for findings, when they differ: the module has an
     /// escape route that does not observe names by itself (a reflective
     /// Java member such as `.type`), which makes every name a variable and
@@ -214,6 +232,23 @@ pub struct ModuleSymbols {
     /// top-level names). Not part of the value: it ignores comparison and
     /// `Debug`, and `symbols` must not change after the first lookup.
     pub names: NameIndex,
+}
+
+/// An import binding of a top-level name that is a
+/// [`SymbolKind::Variable`] ([`ModuleSymbols::variable_imports`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VariableImport {
+    pub name: String,
+    /// The dotted source of the import (`lib.util` for `from lib import
+    /// util`).
+    pub target: String,
+    /// The module binds the name otherwise too, or rebinds it in a way
+    /// its bindings show (`try: from lib import util` / `except: util =
+    /// None`, a later star import): what the name holds is not known. When
+    /// false, the import is the name's only binding and only code the
+    /// module runs from strings or reaches through frames may rebind it
+    /// (such code is unknown code, or records what it binds).
+    pub several: bool,
 }
 
 /// See [`ModuleSymbols::names`].
@@ -503,6 +538,115 @@ pub enum LibraryLookup<'i> {
     Unknown,
 }
 
+/// How many imports of library modules one path follows
+/// ([`LibraryTree::resolve_path`]); beyond, what the path reaches counts as
+/// used as a value.
+pub const MAX_IMPORT_HOPS: usize = 64;
+
+/// A dotted library path resolved through the imports of library modules
+/// ([`LibraryTree::resolve_path`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LibraryPath<'i> {
+    /// Where the path ends. Segment indexes count in the path as written;
+    /// a miss inside an import's own target (`from lib import nope`) is
+    /// `Unknown` here (the import is reported where it is written).
+    /// `Unknown` when the path may end in several places.
+    pub end: LibraryLookup<'i>,
+    /// Every top-level name of a module the path uses, in order: the names
+    /// of the imports it follows (`m0.util` for `m0.util.json`) and the
+    /// name where it ends (`json` of `lib.util`), in every place it may
+    /// continue.
+    pub names: Vec<(ResourceId, &'i Symbol)>,
+    /// Every module whose names the path reads (it runs their code).
+    pub modules: Vec<ResourceId>,
+    /// The path in the target of each import followed (`lib.util.json`),
+    /// for facts kept by the path as written (stores).
+    pub paths: Vec<String>,
+    /// The library objects the path may reach but cannot follow: they count
+    /// as used as values (default deny).
+    pub values: Vec<LibraryObject>,
+    ends: Vec<End<'i>>,
+    hops: Vec<Hop>,
+}
+
+impl<'i> LibraryPath<'i> {
+    /// Every place where the path may end (one, unless a module with
+    /// dynamic names star-imports others), and what a variable that may
+    /// hold an import's target leads to, each with the path in the module
+    /// where it ends.
+    pub fn ends(&self) -> impl Iterator<Item = (&LibraryLookup<'i>, &[String])> {
+        self.ends.iter().map(|e| (&e.lookup, e.path.as_slice()))
+    }
+}
+
+/// A place where a path ends: the lookup and the path in that module.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct End<'i> {
+    lookup: LibraryLookup<'i>,
+    path: Vec<String>,
+    /// How many trailing segments of `path` are the path as written.
+    shared: usize,
+    /// Reached through a variable that may hold an import's target
+    /// ([`VariableImport`]): what the path may read, not where it ends.
+    side: bool,
+}
+
+/// An import a path followed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Hop {
+    /// The module that binds the name, and its dotted name.
+    resource: ResourceId,
+    module: String,
+    /// The segments after the name.
+    tail: Vec<String>,
+}
+
+#[derive(Default)]
+struct Walk<'i> {
+    names: Vec<(ResourceId, &'i Symbol)>,
+    modules: Vec<ResourceId>,
+    paths: Vec<String>,
+    values: Vec<LibraryObject>,
+    ends: Vec<End<'i>>,
+    hops: Vec<Hop>,
+    followed: usize,
+    seen: rustc_hash::FxHashSet<String>,
+    ambiguous: bool,
+    /// Inside a branch through a [`VariableImport`].
+    side: usize,
+}
+
+fn push_unique(list: &mut Vec<ResourceId>, resource: ResourceId) {
+    if !list.contains(&resource) {
+        list.push(resource);
+    }
+}
+
+/// The lookup where a path ends, with segment indexes in the path as
+/// written (`written` segments, of which the last `end.shared` are the
+/// last of `end.path`).
+fn remap<'i>(end: &End<'i>, written: usize) -> LibraryLookup<'i> {
+    let len = end.path.len();
+    let map = |index: usize| (index >= len - end.shared).then(|| written - (len - index));
+    match end.lookup.clone() {
+        LibraryLookup::Missing { index, parent } => {
+            map(index).map_or(LibraryLookup::Unknown, |index| LibraryLookup::Missing {
+                index,
+                parent,
+            })
+        }
+        LibraryLookup::HiddenByModule { index, module } => map(index)
+            .map_or(LibraryLookup::Unknown, |index| {
+                LibraryLookup::HiddenByModule { index, module }
+            }),
+        LibraryLookup::MissingAttribute { index, resource } => map(index)
+            .map_or(LibraryLookup::Unknown, |index| {
+                LibraryLookup::MissingAttribute { index, resource }
+            }),
+        other => other,
+    }
+}
+
 #[derive(Debug, Default)]
 struct Node {
     dotted: String,
@@ -575,29 +719,291 @@ impl LibraryTree {
             .filter_map(|n| n.resource.map(|r| (n.dotted.as_str(), r)))
     }
 
-    /// Resolves `pkg.mod.func...`. `symbols` returns the summary of a module
-    /// resource, if known.
+    /// Where `pkg.mod.func...` ends, through the imports of library
+    /// modules ([`LibraryTree::resolve_path`]). `symbols` returns the
+    /// summary of a module resource, if known.
     pub fn resolve<'i>(
         &self,
         dotted: &str,
         symbols: impl Fn(ResourceId) -> Option<&'i ModuleSymbols>,
     ) -> LibraryLookup<'i> {
-        let segments: Vec<&str> = dotted.split('.').collect();
-        let Some(&root) = segments.first().and_then(|s| self.roots.get(*s)) else {
-            return LibraryLookup::NotLibrary;
+        self.resolve_path(dotted, symbols).end
+    }
+
+    /// The resolver of dotted library paths (review round 28: every
+    /// consumer goes through it, so that none credits a use, judges a
+    /// value or reports a miss on a path another follows differently).
+    ///
+    /// A path is looked up segment by segment from a top-level package; at
+    /// a module, the segment is one of its top-level names. A name the
+    /// module binds once by an import of another library module, package
+    /// or name (`import lib.util as util`, `from lib import util`, `import
+    /// m1`, `import lib.util`, which binds `lib`) is that object or unbound
+    /// (measured on 8.3.3: Ignition's `ProjectScriptModule` and
+    /// `ScriptPackage` objects resolve such chains, `m0.util.json` for
+    /// `from lib import util` in `m0`), so the rest of the path continues
+    /// in the import's target: `m0.util.json` ends at `json` of
+    /// `lib.util`, and both `m0.util` and `lib.util.json` are names the
+    /// path uses. Default deny where the path cannot be followed with
+    /// certainty:
+    ///
+    /// * a name the module binds through imports of library objects but
+    ///   that is a [`SymbolKind::Variable`] ([`VariableImport`]): the path
+    ///   ends at the variable, and what it reads through each import is
+    ///   counted; when the module binds the name otherwise too or rebinds
+    ///   it (`try: from lib import util` / `except: util = None`), each
+    ///   import's target counts as used as a value
+    ///   ([`LibraryPath::values`]);
+    /// * a name a module with dynamic names does not bind, when the module
+    ///   star-imports library modules: the path continues in each of them
+    ///   (the name may come from any), and the end is unknown;
+    /// * an import that leads back to a path already followed (a cycle),
+    ///   or more than [`MAX_IMPORT_HOPS`] imports: the module and the
+    ///   import's target count as used as values, and the end is unknown.
+    pub fn resolve_path<'i>(
+        &self,
+        dotted: &str,
+        symbols: impl Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+    ) -> LibraryPath<'i> {
+        let segments: Vec<String> = dotted.split('.').map(str::to_owned).collect();
+        let written = segments.len();
+        let mut walk = Walk::default();
+        walk.seen.insert(dotted.to_owned());
+        self.walk(segments, written, &symbols, &mut walk);
+        let main: Vec<&End<'i>> = walk.ends.iter().filter(|e| !e.side).collect();
+        let end = match (walk.ambiguous, main.as_slice()) {
+            (false, [only]) => remap(only, written),
+            _ => LibraryLookup::Unknown,
+        };
+        LibraryPath {
+            end,
+            names: walk.names,
+            modules: walk.modules,
+            paths: walk.paths,
+            values: walk.values,
+            ends: walk.ends,
+            hops: walk.hops,
+        }
+    }
+
+    /// One step of [`LibraryTree::resolve_path`]: looks `segments` up and
+    /// follows what can be followed.
+    fn walk<'i>(
+        &self,
+        segments: Vec<String>,
+        shared: usize,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+        w: &mut Walk<'i>,
+    ) {
+        let (lookup, dynamic_miss) = self.lookup(&segments, symbols);
+        match &lookup {
+            &LibraryLookup::Symbol {
+                resource,
+                symbol,
+                rest,
+            } => {
+                push_unique(&mut w.modules, resource);
+                w.names.push((resource, symbol));
+                let at = segments.len() - rest - 1;
+                let tail = &segments[at + 1..];
+                match &symbol.kind {
+                    SymbolKind::Import {
+                        target: Some(target),
+                    } if self.is_library_path(target) => {
+                        let module = segments[..at].join(".");
+                        self.follow(resource, module, target, tail, shared.min(rest), symbols, w);
+                        return;
+                    }
+                    SymbolKind::Variable => {
+                        let imports = symbols(resource)
+                            .into_iter()
+                            .flat_map(|s| &s.variable_imports)
+                            .filter(|i| i.name == symbol.name && self.is_library_path(&i.target));
+                        let module = segments[..at].join(".");
+                        for import in imports {
+                            if import.several
+                                && let Some(object) = self.object_of(&import.target, symbols)
+                            {
+                                // Default deny: the name may hold it.
+                                w.values.push(object);
+                            }
+                            // What the path reads if the name holds it; the
+                            // path itself ends at the variable.
+                            let ambiguous = w.ambiguous;
+                            w.side += 1;
+                            let shared = shared.min(rest);
+                            self.follow(
+                                resource,
+                                module.clone(),
+                                &import.target,
+                                tail,
+                                shared,
+                                symbols,
+                                w,
+                            );
+                            w.side -= 1;
+                            w.ambiguous = ambiguous;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            &LibraryLookup::Module { resource, .. }
+            | &LibraryLookup::MissingAttribute { resource, .. } => {
+                push_unique(&mut w.modules, resource);
+            }
+            LibraryLookup::Unknown => {
+                if let Some((resource, at)) = dynamic_miss {
+                    push_unique(&mut w.modules, resource);
+                    let stars: Vec<&String> = symbols(resource)
+                        .into_iter()
+                        .flat_map(|s| &s.star_imports)
+                        .filter(|s| {
+                            self.is_library_path(s) && self.exports(s, &segments[at], symbols)
+                        })
+                        .collect();
+                    if !stars.is_empty() {
+                        w.ambiguous = true;
+                        let module = segments[..at].join(".");
+                        let tail = &segments[at..];
+                        for star in stars {
+                            let shared = shared.min(tail.len());
+                            self.follow(resource, module.clone(), star, tail, shared, symbols, w);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        w.ends.push(End {
+            lookup,
+            path: segments,
+            shared,
+            side: w.side > 0,
+        });
+    }
+
+    /// Continues a path in `target` (an import of the module `resource`,
+    /// dotted `module`) with the segments `tail`, unless that path was
+    /// already followed or the bound is reached.
+    #[allow(clippy::too_many_arguments)]
+    fn follow<'i>(
+        &self,
+        resource: ResourceId,
+        module: String,
+        target: &str,
+        tail: &[String],
+        shared: usize,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+        w: &mut Walk<'i>,
+    ) {
+        let next: Vec<String> = target
+            .split('.')
+            .map(str::to_owned)
+            .chain(tail.iter().cloned())
+            .collect();
+        let key = next.join(".");
+        if w.followed >= MAX_IMPORT_HOPS || !w.seen.insert(key.clone()) {
+            // Default deny: what the path reaches is not known.
+            w.ambiguous = true;
+            w.values.push(LibraryObject::Module {
+                resource,
+                dotted: module,
+            });
+            if let Some(object) = self.object_of(target, symbols) {
+                w.values.push(object);
+            }
+            return;
+        }
+        w.followed += 1;
+        w.paths.push(key);
+        w.hops.push(Hop {
+            resource,
+            module,
+            tail: tail.to_vec(),
+        });
+        self.walk(next, shared, symbols, w);
+    }
+
+    /// Whether `from <star> import *` may bind `name`: the library module
+    /// `star` exports it, or what `star` is is not known.
+    pub fn exports<'i>(
+        &self,
+        star: &str,
+        name: &str,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+    ) -> bool {
+        let segments: Vec<String> = star.split('.').map(str::to_owned).collect();
+        match self.lookup(&segments, symbols).0 {
+            LibraryLookup::Module { resource, .. } => match symbols(resource) {
+                Some(s) => match &s.star_exports {
+                    Some(names) => names.iter().any(|n| n == name),
+                    None => !name.starts_with('_'),
+                },
+                None => true,
+            },
+            _ => true,
+        }
+    }
+
+    /// Whether `dotted` starts with a top-level library name (an import
+    /// that stays in the library; relative imports do not).
+    fn is_library_path(&self, dotted: &str) -> bool {
+        dotted
+            .split('.')
+            .next()
+            .is_some_and(|root| self.roots.contains_key(root))
+    }
+
+    /// The library object that holds what `dotted` names, without following
+    /// imports: the module or package itself, or the module of a name.
+    fn object_of<'i>(
+        &self,
+        dotted: &str,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+    ) -> Option<LibraryObject> {
+        let segments: Vec<String> = dotted.split('.').map(str::to_owned).collect();
+        let module = |resource, at: usize| LibraryObject::Module {
+            resource,
+            dotted: segments[..at].join("."),
+        };
+        match self.lookup(&segments, symbols).0 {
+            LibraryLookup::Module { resource, dotted } => {
+                Some(LibraryObject::Module { resource, dotted })
+            }
+            LibraryLookup::Package { dotted } => Some(LibraryObject::Package { dotted }),
+            LibraryLookup::Symbol { resource, rest, .. } => {
+                Some(module(resource, segments.len() - rest - 1))
+            }
+            LibraryLookup::MissingAttribute { resource, index } => Some(module(resource, index)),
+            _ => None,
+        }
+    }
+
+    /// Looks `segments` up without following imports. The second value is
+    /// the module and segment index where a module with dynamic names did
+    /// not bind the segment (the lookup is then `Unknown`).
+    fn lookup<'i>(
+        &self,
+        segments: &[String],
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+    ) -> (LibraryLookup<'i>, Option<(ResourceId, usize)>) {
+        let Some(&root) = segments.first().and_then(|s| self.roots.get(s.as_str())) else {
+            return (LibraryLookup::NotLibrary, None);
         };
         let mut at = root;
         for (i, seg) in segments.iter().enumerate().skip(1) {
+            let seg = seg.as_str();
             let node = &self.nodes[at];
             if let Some(resource) = node.resource {
-                return match symbols(resource) {
+                let lookup = match symbols(resource) {
                     Some(syms) => match syms.get(seg) {
                         Some(symbol) => LibraryLookup::Symbol {
                             resource,
                             symbol,
                             rest: segments.len() - i - 1,
                         },
-                        None if node.children.contains_key(*seg) => LibraryLookup::HiddenByModule {
+                        None if node.children.contains_key(seg) => LibraryLookup::HiddenByModule {
                             index: i,
                             module: node.dotted.clone(),
                         },
@@ -605,30 +1011,38 @@ impl LibraryTree {
                         // `m.__dict__`): it exists, and what it reaches is
                         // not a name of the module.
                         None if module_member(seg) || dunder(seg) => LibraryLookup::Unknown,
-                        None if syms.dynamic => LibraryLookup::Unknown,
+                        None if syms.dynamic => {
+                            return (LibraryLookup::Unknown, Some((resource, i)));
+                        }
                         None => LibraryLookup::MissingAttribute { index: i, resource },
                     },
-                    None if node.children.contains_key(*seg) => LibraryLookup::HiddenByModule {
+                    None if node.children.contains_key(seg) => LibraryLookup::HiddenByModule {
                         index: i,
                         module: node.dotted.clone(),
                     },
                     None => LibraryLookup::Unknown,
                 };
+                return (lookup, None);
             }
-            match node.children.get(*seg) {
+            match node.children.get(seg) {
                 Some(&child) => at = child,
                 // A member of the package object (`pkg.dict`, `pkg.clear`).
-                None if package_member(seg) || dunder(seg) => return LibraryLookup::Unknown,
+                None if package_member(seg) || dunder(seg) => {
+                    return (LibraryLookup::Unknown, None);
+                }
                 None => {
-                    return LibraryLookup::Missing {
-                        index: i,
-                        parent: node.dotted.clone(),
-                    };
+                    return (
+                        LibraryLookup::Missing {
+                            index: i,
+                            parent: node.dotted.clone(),
+                        },
+                        None,
+                    );
                 }
             }
         }
         let node = &self.nodes[at];
-        match node.resource {
+        let lookup = match node.resource {
             Some(resource) => LibraryLookup::Module {
                 resource,
                 dotted: node.dotted.clone(),
@@ -636,14 +1050,27 @@ impl LibraryTree {
             None => LibraryLookup::Package {
                 dotted: node.dotted.clone(),
             },
-        }
+        };
+        (lookup, None)
     }
 
-    /// The module or package that a use of `dotted` may hand out as a
-    /// value, if any: code that reads it may read and change everything in
-    /// the object. Default deny over every segment of the path (review
-    /// round 27; every source of dotted references goes through here:
-    /// scripts, `runScript` targets, expressions, imports):
+    /// The first module or package that a use of `dotted` may hand out as
+    /// a value ([`LibraryTree::value_objects`]), if any.
+    pub fn object_member<'i>(
+        &self,
+        dotted: &str,
+        symbols: impl Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+    ) -> Option<LibraryObject> {
+        let path = self.resolve_path(dotted, &symbols);
+        self.value_objects(&path, &symbols).into_iter().next()
+    }
+
+    /// The modules and packages that a use of the resolved `path` may hand
+    /// out as values: code that reads one may read and change everything
+    /// in it. Default deny over every segment of the path (review round
+    /// 27; every source of dotted references goes through here: scripts,
+    /// `runScript` targets, expressions, imports), judged where the path
+    /// ends (in the module an import led to):
     ///
     /// * right after a module, a member of Ignition's module object
     ///   ([`MODULE_OBJECT_MEMBERS`]) or a special attribute
@@ -663,25 +1090,48 @@ impl LibraryTree {
     ///   ([`reaches_from_value`]: `m.C.meth.im_func`, `m.logger.__class__`,
     ///   `m.handler.func_globals`); when the module's names are not known,
     ///   a member of the library objects too ([`is_value_attribute`]);
-    /// * after an import of another library module or package, the same
-    ///   for the rest of the path in that module.
-    pub fn object_member<'i>(
+    /// * when nothing where the path ends counts, the module of an import
+    ///   the path followed, when the rest of the path after it names a
+    ///   value attribute ([`is_value_attribute`]).
+    ///
+    /// The objects the path cannot follow ([`LibraryPath::values`]) are
+    /// not included.
+    pub fn value_objects<'i>(
         &self,
-        dotted: &str,
-        symbols: impl Fn(ResourceId) -> Option<&'i ModuleSymbols>,
-    ) -> Option<LibraryObject> {
-        self.value_use(dotted, &symbols, 0)
+        path: &LibraryPath<'i>,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+    ) -> Vec<LibraryObject> {
+        let mut out: Vec<LibraryObject> = Vec::new();
+        for end in &path.ends {
+            if let Some(object) = self.judge(&end.path, symbols)
+                && !out.contains(&object)
+            {
+                out.push(object);
+            }
+        }
+        if out.is_empty() {
+            for hop in path.hops.iter().rev() {
+                if hop.tail.iter().any(|s| is_value_attribute(s)) {
+                    out.push(LibraryObject::Module {
+                        resource: hop.resource,
+                        dotted: hop.module.clone(),
+                    });
+                    break;
+                }
+            }
+        }
+        out
     }
 
-    fn value_use<'i>(
+    /// [`LibraryTree::value_objects`] where a path ends.
+    fn judge<'i>(
         &self,
-        dotted: &str,
+        segments: &[String],
         symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
-        depth: usize,
     ) -> Option<LibraryObject> {
-        let segments: Vec<&str> = dotted.split('.').collect();
-        let mut at = *self.roots.get(*segments.first()?)?;
-        for (i, &seg) in segments.iter().enumerate().skip(1) {
+        let mut at = *self.roots.get(segments.first()?.as_str())?;
+        for (i, seg) in segments.iter().enumerate().skip(1) {
+            let seg = seg.as_str();
             let node = &self.nodes[at];
             let rest = &segments[i + 1..];
             if let Some(resource) = node.resource {
@@ -700,7 +1150,7 @@ impl LibraryTree {
                     // may hold anything when the module's names are not
                     // known.
                     let known = syms.is_some_and(|s| !s.dynamic);
-                    let further = |s: &&str| {
+                    let further = |s: &String| {
                         if known {
                             reaches_from_value(s)
                         } else {
@@ -712,17 +1162,8 @@ impl LibraryTree {
                 return match &symbol.kind {
                     SymbolKind::Function(_) => rest
                         .iter()
-                        .any(|s| !HARMLESS_ATTRIBUTES.contains(s))
+                        .any(|s| !HARMLESS_ATTRIBUTES.contains(&s.as_str()))
                         .then(module),
-                    SymbolKind::Import {
-                        target: Some(target),
-                    } if depth < 8 && self.roots.contains_key(target.split('.').next()?) => {
-                        let next: Vec<&str> = std::iter::once(target.as_str())
-                            .chain(rest.iter().copied())
-                            .collect();
-                        self.value_use(&next.join("."), symbols, depth + 1)
-                            .or_else(|| rest.iter().any(|s| is_value_attribute(s)).then(module))
-                    }
                     // A variable bound only to literals holds a plain value
                     // (`CACHE = {}`: `m.CACHE.clear` is the dict's method):
                     // only its special attributes count.
@@ -731,6 +1172,8 @@ impl LibraryTree {
                     {
                         rest.iter().any(|s| is_special_attribute(s)).then(module)
                     }
+                    // An import the path did not follow (of a module outside
+                    // the library, or beyond the bound) is a value too.
                     SymbolKind::Class | SymbolKind::Variable | SymbolKind::Import { .. } => {
                         rest.iter().any(|s| reaches_from_value(s)).then(module)
                     }
@@ -747,6 +1190,51 @@ impl LibraryTree {
             }
         }
         None
+    }
+
+    /// The library objects a module's namespace may hold through its
+    /// imports: whoever holds the module as a value reaches them
+    /// (`m.util.json` when `m` imports `lib.util` as `util`). Names it
+    /// imports from library modules count by their module.
+    pub fn imported_objects<'i>(
+        &self,
+        module: &ModuleSymbols,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+    ) -> Vec<LibraryObject> {
+        let targets = module
+            .symbols
+            .iter()
+            .filter_map(|s| match &s.kind {
+                SymbolKind::Import { target: Some(t) } => Some(t.as_str()),
+                _ => None,
+            })
+            .chain(module.variable_imports.iter().map(|i| i.target.as_str()))
+            .chain(module.star_imports.iter().map(String::as_str));
+        let mut out = Vec::new();
+        for target in targets {
+            if self.is_library_path(target)
+                && let Some(object) = self.object_of(target, symbols)
+                && !out.contains(&object)
+            {
+                out.push(object);
+            }
+        }
+        out
+    }
+
+    /// The modules of a library object: the module, or every module below
+    /// the package.
+    pub fn object_modules(&self, object: &LibraryObject) -> Vec<ResourceId> {
+        match object {
+            LibraryObject::Module { resource, .. } => vec![*resource],
+            LibraryObject::Package { dotted } => {
+                let prefix = format!("{dotted}.");
+                self.modules()
+                    .filter(|(m, _)| m.starts_with(&prefix))
+                    .map(|(_, r)| r)
+                    .collect()
+            }
+        }
     }
 
     /// Modules whose own `code.py` hides child modules: `(module, hidden
@@ -944,6 +1432,172 @@ mod tests {
         ] {
             assert_eq!(tree.object_member(dotted, lookup), expected, "{dotted}");
         }
+    }
+
+    /// Review round 28: one resolver follows the imports of library
+    /// modules, records every name it reads on the way, keeps segment
+    /// indexes in the path as written, and denies by default where it
+    /// cannot follow.
+    #[test]
+    fn paths_follow_library_imports() {
+        let mut modules: Vec<(String, ResourceId)> = vec![
+            ("lib/util".into(), ResourceId(0)),
+            ("m0".into(), ResourceId(1)),
+            ("m1".into(), ResourceId(2)),
+            ("s".into(), ResourceId(3)),
+            ("v".into(), ResourceId(4)),
+        ];
+        for i in 0..=MAX_IMPORT_HOPS + 1 {
+            modules.push((format!("c{i}"), ResourceId(10 + i as u32)));
+        }
+        let tree = LibraryTree::new(modules.iter().map(|(p, r)| (p.as_str(), *r)));
+        let symbol = |name: &str, kind: SymbolKind| Symbol {
+            name: name.into(),
+            kind,
+            range: TextRange::default(),
+        };
+        let import = |name: &str, target: &str| {
+            symbol(
+                name,
+                SymbolKind::Import {
+                    target: Some(target.into()),
+                },
+            )
+        };
+        let util = ModuleSymbols {
+            symbols: vec![import("json", "json"), sym("f")],
+            ..ModuleSymbols::default()
+        };
+        let m0 = ModuleSymbols {
+            symbols: vec![import("util", "lib.util"), import("x", "m1.x")],
+            ..ModuleSymbols::default()
+        };
+        let m1 = ModuleSymbols {
+            symbols: vec![import("m0", "m0"), import("x", "m0.x")],
+            ..ModuleSymbols::default()
+        };
+        let s = ModuleSymbols {
+            dynamic: true,
+            star_imports: vec!["m0".into()],
+            ..ModuleSymbols::default()
+        };
+        let v = ModuleSymbols {
+            symbols: vec![symbol("util", SymbolKind::Variable)],
+            variable_imports: vec![VariableImport {
+                name: "util".into(),
+                target: "lib.util".into(),
+                several: true,
+            }],
+            ..ModuleSymbols::default()
+        };
+        let chain: Vec<ModuleSymbols> = (0..=MAX_IMPORT_HOPS + 1)
+            .map(|i| ModuleSymbols {
+                symbols: vec![
+                    import("a", &format!("c{}", i + 1)),
+                    import("util", "lib.util"),
+                ],
+                ..ModuleSymbols::default()
+            })
+            .collect();
+        let lookup = |r: ResourceId| match r.0 {
+            0 => Some(&util),
+            1 => Some(&m0),
+            2 => Some(&m1),
+            3 => Some(&s),
+            4 => Some(&v),
+            n => chain.get(n as usize - 10),
+        };
+        let names = |p: &LibraryPath<'_>| -> Vec<(u32, String)> {
+            p.names.iter().map(|(r, s)| (r.0, s.name.clone())).collect()
+        };
+        let module = |r: u32, dotted: &str| LibraryObject::Module {
+            resource: ResourceId(r),
+            dotted: dotted.into(),
+        };
+
+        let p = tree.resolve_path("m0.util.json.dumps", lookup);
+        assert!(matches!(
+            p.end,
+            LibraryLookup::Symbol { resource: ResourceId(0), rest: 1, symbol } if symbol.name == "json"
+        ));
+        assert_eq!(names(&p), [(1, "util".into()), (0, "json".into())]);
+        assert_eq!(p.modules, [ResourceId(1), ResourceId(0)]);
+        assert_eq!(p.paths, ["lib.util.json.dumps"]);
+        assert!(p.values.is_empty());
+        // `m0.util` itself is the module the import binds.
+        assert!(matches!(
+            tree.resolve("m0.util", lookup),
+            LibraryLookup::Module {
+                resource: ResourceId(0),
+                ..
+            }
+        ));
+        // A miss in the target, at its index in the path as written.
+        assert!(matches!(
+            tree.resolve("m0.util.nope", lookup),
+            LibraryLookup::MissingAttribute {
+                index: 2,
+                resource: ResourceId(0)
+            }
+        ));
+        // Through module objects that import each other.
+        let p = tree.resolve_path("m0.x.m0.util.f", lookup);
+        assert!(matches!(p.end, LibraryLookup::Unknown), "{:?}", p.end);
+        let p = tree.resolve_path("m1.m0.util.f", lookup);
+        assert!(matches!(
+            p.end,
+            LibraryLookup::Symbol {
+                resource: ResourceId(0),
+                rest: 0,
+                ..
+            }
+        ));
+        // A cycle of names (`m0.x` is `m1.x` is `m0.x`): unknown, and both
+        // modules count as used as values.
+        let p = tree.resolve_path("m0.x.json", lookup);
+        assert_eq!(p.end, LibraryLookup::Unknown);
+        assert!(p.values.contains(&module(1, "m0")), "{:?}", p.values);
+        assert!(p.values.contains(&module(2, "m1")), "{:?}", p.values);
+        // Longer than the bound: unknown, values.
+        let long = format!("c0{}.util.json", ".a".repeat(MAX_IMPORT_HOPS + 1));
+        let p = tree.resolve_path(&long, lookup);
+        assert_eq!(p.end, LibraryLookup::Unknown);
+        assert!(!p.values.is_empty());
+        let within = format!("c0{}.util.json", ".a".repeat(MAX_IMPORT_HOPS - 1));
+        assert!(matches!(
+            tree.resolve(&within, lookup),
+            LibraryLookup::Symbol {
+                resource: ResourceId(0),
+                ..
+            }
+        ));
+        // A star import: the name may come from the module it imports.
+        let p = tree.resolve_path("s.util.json", lookup);
+        assert_eq!(p.end, LibraryLookup::Unknown);
+        assert!(names(&p).contains(&(0, "json".into())), "{:?}", names(&p));
+        // A name with several bindings: ends there, reads through the
+        // import, and the import's target counts as used as a value.
+        let p = tree.resolve_path("v.util.json", lookup);
+        assert!(matches!(
+            p.end,
+            LibraryLookup::Symbol {
+                resource: ResourceId(4),
+                rest: 1,
+                ..
+            }
+        ));
+        assert!(names(&p).contains(&(0, "json".into())));
+        assert_eq!(p.values, [module(0, "lib.util")]);
+        // Value uses are judged where the path ends.
+        assert_eq!(
+            tree.object_member("m0.util.f.func_globals", lookup),
+            Some(module(0, "lib.util"))
+        );
+        assert_eq!(
+            tree.object_member("m0.util.dict", lookup),
+            Some(module(0, "lib.util"))
+        );
+        assert_eq!(tree.object_member("m0.util.f", lookup), None);
     }
 
     #[test]

@@ -112,6 +112,16 @@ pub fn collect(model: &SemanticModel<'_>, ctx: &FactsContext<'_>, refs: &mut Ref
     chains.visit_module(model.module);
     // Imports make names attributes of the importing module.
     for (_, b) in model.bindings() {
+        // `import m0.util.json` reads every module of the dotted name,
+        // through the imports of library modules too (measured on 8.3.3),
+        // and binds only `m0`.
+        if b.kind == BindingKind::Import
+            && let Some(alias) = b.alias
+            && alias.asname.is_none()
+            && alias.name.id.contains('.')
+        {
+            chains.refs.library.push(alias.name.id.to_string());
+        }
         if matches!(b.kind, BindingKind::FromImport | BindingKind::Import)
             && let Some(q) = &b.qualified
             && q.contains('.')

@@ -21,8 +21,8 @@ use iglint_project::index::ProjectIndex;
 use iglint_project::model::{LoadedFile, LoadedResource, ModelData};
 use iglint_project::summary::Facts;
 use iglint_project::{
-    Container, FileId, JsonDocument, LibraryLookup, ProjectId, ResourceId, ResourceKind,
-    ResourceModel, ResourceSummary, Workspace, build_model,
+    Container, FileId, JsonDocument, ProjectId, ResourceId, ResourceKind, ResourceModel,
+    ResourceSummary, Workspace, build_model,
 };
 use iglint_text::{TextEdit, TextRange, TextSize};
 use rayon::prelude::*;
@@ -1116,10 +1116,12 @@ fn references_resource(
             .style_classes
             .iter()
             .any(|c| index.style_class(project, c).resource() == Some(target)),
-        ResourceKind::ScriptLibrary => refs
-            .library
-            .iter()
-            .any(|l| library_target(index, project, l) == Some(target)),
+        ResourceKind::ScriptLibrary => refs.library.iter().any(|l| {
+            index
+                .resolve_library_path(project, l)
+                .modules
+                .contains(&target)
+        }),
         _ => false,
     }
 }
@@ -1146,19 +1148,9 @@ fn targets(
             .iter()
             .filter_map(|c| index.style_class(project, c).resource()),
     );
-    out.extend(
-        refs.library
-            .iter()
-            .filter_map(|l| library_target(index, project, l)),
-    );
-}
-
-fn library_target(index: &ProjectIndex<'_>, project: ProjectId, name: &str) -> Option<ResourceId> {
-    match index.resolve_library(project, name) {
-        LibraryLookup::Symbol { resource, .. }
-        | LibraryLookup::Module { resource, .. }
-        | LibraryLookup::MissingAttribute { resource, .. } => Some(resource),
-        _ => None,
+    // Every module whose names a library path reads, through imports.
+    for name in &refs.library {
+        out.extend(index.resolve_library_path(project, name).modules);
     }
 }
 

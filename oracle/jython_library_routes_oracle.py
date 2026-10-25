@@ -21,6 +21,14 @@
 # `PerspectiveRunScriptFunction` instead, for an element whose `str()` is
 # 'element' (its view, page and session: 'view', 'page', 'session').
 #
+# In a file whose name starts with "chains", each case brings its own
+# library: sections introduced by a line "== <dotted module>" hold the
+# code of each module, and the route is `b.g('re')` of the section `b`,
+# or the expression of a section "== runScript", evaluated like the
+# expressions above with that library (paths through the imports of
+# library modules; the header's words after the name are for the
+# linter's replay test, `every_chain_through_library_imports_counts`).
+#
 # The project library is loaded by Ignition's own ScriptManager
 # (`addProjectScriptModules`, as a gateway loads a project's library):
 # modules `m` and `pkg.m`, both `import re` and `def f(): return 1`, and
@@ -260,10 +268,11 @@ class Handler(InvocationHandler):
         raise Exception('unexpected call ' + n)
 
 
-def run_expression(text):
+def run_expression(text, modules=None):
     """Evaluates the Ignition expression `text` with the gateway's function
-    factory; `runScript` runs with the library of the routes."""
-    sm = manager([('m', SOURCE), ('pkg.m', SOURCE)])
+    factory; `runScript` runs with the library of the routes (or with
+    `modules`)."""
+    sm = manager(modules or [('m', SOURCE), ('pkg.m', SOURCE)])
     use_perspective = text.startswith('perspective:')
     if use_perspective:
         text = text[len('perspective:'):]
@@ -316,13 +325,45 @@ def split_cases(data):
     return cases
 
 
+def split_modules(body):
+    """The sections of a chain case: `(dotted module, code)` pairs, each
+    introduced by a line "== <module>"."""
+    sections = []
+    for line in body.splitlines(True):
+        if line.startswith('== '):
+            sections.append((line[3:].strip(), []))
+        elif sections:
+            sections[-1][1].append(line)
+    return [(name, ''.join(lines)) for name, lines in sections]
+
+
+def run_chain(body):
+    """A chain case: the library modules of its sections, loaded by the
+    ScriptManager; the route is `b.g('re')` (module `b`), or the
+    expression of a section "== runScript"."""
+    sections = split_modules(body)
+    modules = [(name, code) for name, code in sections if name != 'runScript']
+    expression = [code for name, code in sections if name == 'runScript']
+    if expression:
+        return run_expression(expression[0].strip(), modules)
+    sm = manager(modules)
+    try:
+        f = sm.compileFunction("def t(self, event):\n    return b.g('re')\n")
+        return 'ok ' + describe(invoke(f))
+    except (Exception, Throwable), e:
+        return 'raised ' + error_name(e)
+
+
 def main(list_file, out_file):
     records = ['### members'] + members() + object_members()
     for path in open(list_file).read().split():
         expressions = path.split('/')[-1].startswith('runscript')
+        chains = path.split('/')[-1].startswith('chains')
         for name, body in split_cases(open(path).read()):
             records.append('### ' + name)
-            if expressions:
+            if chains:
+                records.append(run_chain(body))
+            elif expressions:
                 records.append(run_expression(body.strip()))
             else:
                 b = 'def g(n):\n' + body

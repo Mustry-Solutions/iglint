@@ -33,7 +33,7 @@
 //! literals are listed as constants: they never hold a function.
 
 use iglint_project::library::{
-    ModuleSymbols, Parameter, ParameterKind, Signature, Symbol, SymbolKind,
+    ModuleSymbols, Parameter, ParameterKind, Signature, Symbol, SymbolKind, VariableImport,
 };
 use iglint_python::ast::{Arguments, Expr, ExprContext, Module, Stmt};
 use iglint_python::visitor::{Visitor, walk_expr, walk_stmt};
@@ -63,6 +63,7 @@ fn symbols_of(model: &SemanticModel<'_>, ast: &Module, escapes: bool) -> ModuleS
     let dynamic = rebinds.anything || module.star_import.is_some();
     let mut symbols = Vec::new();
     let mut constants = Vec::new();
+    let mut variable_imports = Vec::new();
     for name in module.local_names() {
         let ids = module.bindings_of(name);
         let real: Vec<_> = ids
@@ -106,6 +107,27 @@ fn symbols_of(model: &SemanticModel<'_>, ast: &Module, escapes: bool) -> ModuleS
                 _ => SymbolKind::Variable,
             }
         };
+        if !matches!(kind, SymbolKind::Import { .. }) {
+            // The name may hold what any of its imports binds; when it has
+            // other bindings, or a rebinding the module shows, nothing says
+            // which.
+            let several = real.len() > 1
+                || rebinds.attributes_set.contains(name)
+                || rebinds.star_imports.iter().any(|(star, in_loop)| {
+                    *in_loop || real.iter().any(|b| b.range.start() < star.start())
+                });
+            for b in &real {
+                if matches!(b.kind, BindingKind::Import | BindingKind::FromImport)
+                    && let Some(target) = &b.qualified
+                {
+                    variable_imports.push(VariableImport {
+                        name: (*name).to_owned(),
+                        target: target.clone(),
+                        several,
+                    });
+                }
+            }
+        }
         symbols.push(Symbol {
             name: (*name).to_owned(),
             kind,
@@ -124,8 +146,35 @@ fn symbols_of(model: &SemanticModel<'_>, ast: &Module, escapes: bool) -> ModuleS
         imports: unknown.imports.into_iter().map(|(name, _)| name).collect(),
         system: unknown.system.into_iter().map(|(path, _)| path).collect(),
         library_names: super::access::library_names_used(model, &ast.body),
+        star_imports: rebinds.star_modules,
+        star_exports: star_exports(model, ast),
+        variable_imports,
         findings: None,
         names: Default::default(),
+    }
+}
+
+/// The names `from module import *` binds when the module assigns
+/// `__all__` once in its own statement list, from literals; `None` when
+/// every top-level name not starting with `_` is exported.
+pub(crate) fn star_exports(model: &SemanticModel<'_>, module: &Module) -> Option<Vec<String>> {
+    let all = model.scope(ScopeId::MODULE).bindings_of("__all__");
+    let unconditional_all = match all {
+        [only] => model
+            .binding(*only)
+            .stmt
+            .is_some_and(|stmt| module.body.as_ptr_range().contains(&(stmt as *const Stmt))),
+        _ => false,
+    };
+    (unconditional_all && !model.dunder_all_is_dynamic()).then(|| model.dunder_all().to_vec())
+}
+
+/// Whether `from module import *` binds `name` (Python 2.7), given the
+/// module's [`star_exports`].
+pub(crate) fn exported_to_star_imports(exports: Option<&[String]>, name: &str) -> bool {
+    match exports {
+        Some(names) => names.iter().any(|n| n == name),
+        None => !name.starts_with('_'),
     }
 }
 
@@ -156,6 +205,8 @@ struct Rebinds<'a> {
     anything: bool,
     /// Module-level `from x import *`, and whether it is inside a loop.
     star_imports: Vec<(TextRange, bool)>,
+    /// The modules those statements name (absolute imports only).
+    star_modules: Vec<String>,
     /// Module-level names whose code or defaults may be replaced
     /// (`f.func_code = g.func_code`, `setattr(f, name, ...)`).
     attributes_set: FxHashSet<&'a str>,
@@ -236,6 +287,11 @@ impl<'a> Visitor<'a> for RebindVisitor<'_, 'a> {
                 if self.function_depth == 0 && i.names.iter().any(|a| a.name.as_str() == "*") =>
             {
                 self.out.star_imports.push((i.range, self.loop_depth > 0));
+                if let Some(m) = &i.module
+                    && i.level == 0
+                {
+                    self.out.star_modules.push(m.as_str().to_owned());
+                }
             }
             _ => walk_stmt(self, stmt),
         }

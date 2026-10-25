@@ -116,6 +116,38 @@ from 0.1.0 on.
 
 ### Fixed
 
+- A path through another library module's import was not followed
+  (review round 28, blocker; since the first project index): for
+  `m0.util.json.dumps(1)` where `m0` does `from lib import util`, the
+  index counted `m0.util` only, so `SCR102` removed `import json` from
+  `lib.util` as safe and the caller then failed with `AttributeError`;
+  `REF012` reported functions only reached that way and `REF002` missed
+  `m0.util.nothere()`. The same for `import lib.util as util`, `import
+  lib.util`, `import m1` and chains of any length, `from m0 import
+  util`, `from m0.util import json`, `import m0.util.json` and
+  `runScript("m0.util.json.dumps", 0, 1)`. Measured with Ignition 8.3.3's
+  ScriptManager (38 chains, `chains.cases` of the library-routes
+  oracle). There is now one resolver of dotted library paths
+  (`LibraryTree::resolve_path`), which follows library imports with a
+  bound of 64 and records every name a path reads; usage counts, values,
+  dynamic references, exposed names, star imports, the shared-object
+  reach, stores, rebinding, vetting, `REF002`, `REF003`, `REF012`,
+  `SCR102`, `VIEW015`'s call following and the language server's
+  dependencies all use it (some followed imports on their own, with a
+  bound of 8, others not at all). Default deny where a path cannot be
+  followed with certainty: a name bound several times through imports
+  makes each import's target used as a value, a missing name in a module
+  with star imports continues in each star-imported module, and a cycle
+  or the bound makes what it reaches used as a value. A library module
+  used as a value now also makes the library modules it imports used as
+  values (`get().x.json` reached a module `get` returns), and a name that
+  may hold an import from outside the library through several bindings
+  reaches a shared object (`del m0.j.dumps`). `REF003` now checks calls
+  through imports (`m0.util.fmt()`), and `REF002` reports
+  `m0.util.nothere` with its segment in the path as written.
+  Documented in `docs/internal/fix-safety.md`, "Paths through library
+  imports"; oracle replay, property test (400 generated libraries) and
+  generated end-to-end chains.
 - A `runScript` target written as a dotted name was never analysed as
   code (review round 27, blocker; since round 8). Measured with
   Ignition 8.3.3's own `ScriptFunction` and Perspective's

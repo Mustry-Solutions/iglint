@@ -68,7 +68,7 @@ pub use expression::{EmbeddedExpression, ExpressionKind};
 pub use ids::*;
 pub use index::{HandlerSite, Lookup, PageMatch, ProjectIndex, SentMessage, Vetted};
 pub use kinds::{EventScriptKind, FileKind, HttpMethod, ResourceKind, RunScope};
-pub use library::{LibraryLookup, LibraryTree, ModuleSymbols};
+pub use library::{LibraryLookup, LibraryPath, LibraryTree, ModuleSymbols};
 pub use model::{LoadedFile, LoadedResource, ModelData, ResourceModel, build_model};
 pub use script::{
     EmbeddedScript, HeaderStatus, IMPLICIT_GLOBALS, Owner, ScriptFile, ScriptKind, TagEventKind,

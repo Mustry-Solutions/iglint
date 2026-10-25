@@ -219,11 +219,15 @@ fn library_vetted(
         // A relative import.
         return false;
     }
-    match index.resolve_library(project, dotted) {
+    let path = index.resolve_library_path(project, dotted);
+    match path.end {
         LibraryLookup::Package { .. } => true,
-        LibraryLookup::Module { resource, .. } | LibraryLookup::Symbol { resource, .. } => {
-            module_vetted(index, project, resource, seen)
-        }
+        // Every module on the way runs (`m0.util.f` imports `m0`, whose
+        // import of `lib.util` runs that).
+        LibraryLookup::Module { .. } | LibraryLookup::Symbol { .. } => path
+            .modules
+            .iter()
+            .all(|&resource| module_vetted(index, project, resource, seen)),
         LibraryLookup::NotLibrary => !import,
         LibraryLookup::Missing { .. }
         | LibraryLookup::HiddenByModule { .. }

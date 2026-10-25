@@ -734,10 +734,7 @@ pub(crate) fn resolve_callee<'i>(
     if depth > 8 || callee.starts_with('.') {
         return Callee::Unknown;
     }
-    let (head, rest) = match callee.split_once('.') {
-        Some((head, rest)) => (head, Some(rest)),
-        None => (callee, None),
-    };
+    let head = callee.split_once('.').map_or(callee, |(head, _)| head);
     let library = index.library(project);
     let dotted = match context {
         None if library.is_global(head) => callee.to_owned(),
@@ -754,22 +751,13 @@ pub(crate) fn resolve_callee<'i>(
                 .path
                 .replace('/', ".");
             match symbols.get(head).map(|s| &s.kind) {
-                Some(SymbolKind::Function(_)) => format!("{module}.{callee}"),
-                // Another resource may rebind the module's name of the
-                // import (`app.views.fmt = f`).
-                Some(SymbolKind::Import { .. })
-                    if std::iter::once(project)
-                        .chain(index.workspace().project_descendants(project))
-                        .any(|p| index.library_name_rebound(p, &format!("{module}.{head}"))) =>
-                {
-                    return Callee::Unknown;
+                // The module's own function, or an import it binds: the
+                // path from the module, which the index follows through
+                // imports (review round 28) and checks for rebinding on the
+                // way (`app.views.fmt = f`).
+                Some(SymbolKind::Function(_) | SymbolKind::Import { .. }) => {
+                    format!("{module}.{callee}")
                 }
-                Some(SymbolKind::Import {
-                    target: Some(target),
-                }) => match rest {
-                    Some(rest) => format!("{target}.{rest}"),
-                    None => target.clone(),
-                },
                 Some(SymbolKind::Class) => return opaque,
                 // A literal or one of its methods (`NAMES.index(x)`).
                 Some(SymbolKind::Variable)
@@ -1224,6 +1212,62 @@ mod tests {
             &[("lib/util", util), ("lib/other", other)],
         );
         assert_eq!(paths(&d), ["view.custom.a", "view.custom.c"]);
+    }
+
+    /// Review round 28: calls through other library modules' imports are
+    /// followed by the same resolver as every other rule, with no bound
+    /// of their own: `m0.util.handle(self)` when `m0` does `from lib
+    /// import util`, and a chain of twelve `import c<i+1> as a`.
+    #[test]
+    fn library_functions_reached_through_imports_are_followed() {
+        let util = "def handle(self):\n    print self.view.custom.a\n";
+        let d = with_library(
+            "\\tm0.util.handle(self)",
+            &[("lib/util", util), ("m0", "from lib import util\n")],
+        );
+        assert_eq!(
+            paths(&d),
+            [
+                "view.custom.b",
+                "view.custom.c",
+                "root/A.custom.x",
+                "root/A.custom.y"
+            ]
+        );
+        let mut modules: Vec<(String, String)> = (0..12)
+            .map(|i| (format!("c{i}"), format!("import c{} as a\n", i + 1)))
+            .collect();
+        modules.push(("c12".into(), "from lib import util\n".into()));
+        modules.push(("lib/util".into(), util.into()));
+        let modules: Vec<(&str, &str)> = modules
+            .iter()
+            .map(|(p, c)| (p.as_str(), c.as_str()))
+            .collect();
+        let d = with_library(
+            &format!("\\tc0{}.util.handle(self)", ".a".repeat(12)),
+            &modules,
+        );
+        assert_eq!(
+            paths(&d),
+            [
+                "view.custom.b",
+                "view.custom.c",
+                "root/A.custom.x",
+                "root/A.custom.y"
+            ]
+        );
+        // A name the module binds otherwise too may be anything.
+        let d = with_library(
+            "\\tm0.util.handle(self)",
+            &[
+                ("lib/util", util),
+                (
+                    "m0",
+                    "try:\n    from lib import util\nexcept ImportError:\n    util = None\n",
+                ),
+            ],
+        );
+        assert!(d.is_empty(), "{:?}", paths(&d));
     }
 
     #[test]

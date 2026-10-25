@@ -5,7 +5,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::{ProjectId, ResourceId};
 use crate::kinds::{EventScriptKind, MODULE_IGNITION, MODULE_PERSPECTIVE, ResourceKind};
-use crate::library::{LibraryLookup, LibraryObject, LibraryTree, ModuleSymbols, SymbolKind};
+use crate::library::{
+    LibraryLookup, LibraryObject, LibraryPath, LibraryTree, ModuleSymbols, SymbolKind,
+};
 use crate::perspective::match_page_url;
 use crate::summary::{
     DynamicReferences, Facts, MessageTarget, NamedQueryFacts, ResourceSummary, SessionFacts,
@@ -258,6 +260,49 @@ impl Default for SharedMemo {
 /// Lowercases ASCII and non-ASCII letters (tag paths are case-insensitive).
 fn fold(s: &str) -> String {
     s.to_lowercase()
+}
+
+/// Counts the names and modules a library path uses
+/// ([`LibraryPath::names`], [`LibraryPath::modules`]) for a reference from
+/// resource `from`.
+fn credit(
+    path: &LibraryPath<'_>,
+    from: ResourceId,
+    usage: &mut FxHashMap<ResourceId, u32>,
+    symbol_usage: &mut FxHashMap<(ResourceId, String), u32>,
+    external_symbol_usage: &mut FxHashMap<(ResourceId, String), u32>,
+) {
+    for &module in &path.modules {
+        *usage.entry(module).or_default() += 1;
+    }
+    for (resource, symbol) in &path.names {
+        *symbol_usage
+            .entry((*resource, symbol.name.clone()))
+            .or_default() += 1;
+        if *resource != from {
+            *external_symbol_usage
+                .entry((*resource, symbol.name.clone()))
+                .or_default() += 1;
+        }
+    }
+}
+
+/// The library objects a path cannot follow ([`LibraryPath::values`])
+/// count as used as values: their names may all be read, and rebound.
+fn use_as_values(
+    library: &LibraryTree,
+    values: &[LibraryObject],
+    escaped: &mut FxHashSet<ResourceId>,
+    value_modules: &mut FxHashSet<ResourceId>,
+    exposed: &mut FxHashSet<ResourceId>,
+) {
+    for object in values {
+        for resource in library.object_modules(object) {
+            escaped.insert(resource);
+            value_modules.insert(resource);
+            exposed.insert(resource);
+        }
+    }
 }
 
 impl<'w> ProjectIndex<'w> {
@@ -515,48 +560,55 @@ impl<'w> ProjectIndex<'w> {
                         *usage.entry(t).or_default() += 1;
                     }
                 }
-                for name in &refs.library {
-                    match self.resolve_library(pid, name) {
-                        LibraryLookup::Symbol {
-                            resource, symbol, ..
-                        } => {
-                            *usage.entry(resource).or_default() += 1;
-                            *symbol_usage
-                                .entry((resource, symbol.name.clone()))
-                                .or_default() += 1;
-                            if resource != rid {
-                                *external_symbol_usage
-                                    .entry((resource, symbol.name.clone()))
-                                    .or_default() += 1;
-                            }
-                        }
-                        LibraryLookup::Module { resource, .. } => {
-                            *usage.entry(resource).or_default() += 1;
-                        }
-                        _ => {}
+                let library = &self.projects[pid.index()].library;
+                let symbols = |r: ResourceId| self.module_symbols(r);
+                // The paths a use of `name` may take: as written and, when
+                // the script star-imports library modules and `name` is
+                // not a library name, in each of them (the name may come
+                // from any).
+                let star_paths = |name: &String| -> Vec<String> {
+                    if refs.library_star_imports.is_empty()
+                        || library.is_global(name.split('.').next().unwrap_or(""))
+                    {
+                        return Vec::new();
                     }
-                    // A member of the module or package object itself
-                    // (`m.dict`, `m.getDict()`, `pkg.clear()`, `m.__dict__`;
-                    // review round 26): the object is used as a value, its
-                    // names may be read and changed through it.
-                    let library = &self.projects[pid.index()].library;
-                    match library.object_member(name, |r| self.module_symbols(r)) {
-                        Some(LibraryObject::Module { resource, dotted }) => {
-                            escaped[pid.index()].insert(resource);
-                            value_modules[pid.index()].insert(resource);
-                            stores[pid.index()].insert(dotted);
-                        }
-                        Some(LibraryObject::Package { dotted }) => {
-                            let prefix = format!("{dotted}.");
-                            for (m, resource) in library.modules() {
-                                if m.starts_with(&prefix) {
-                                    escaped[pid.index()].insert(resource);
-                                    value_modules[pid.index()].insert(resource);
-                                }
+                    let first = name.split('.').next().unwrap_or("");
+                    refs.library_star_imports
+                        .iter()
+                        .filter(|m| library.exports(m, first, &symbols))
+                        .map(|m| format!("{m}.{name}"))
+                        .collect()
+                };
+                for name in &refs.library {
+                    for dotted in std::iter::once(name.clone()).chain(star_paths(name)) {
+                        let path = self.resolve_library_path(pid, &dotted);
+                        credit(
+                            &path,
+                            rid,
+                            &mut usage,
+                            &mut symbol_usage,
+                            &mut external_symbol_usage,
+                        );
+                        // A member of the module or package object itself
+                        // (`m.dict`, `m.getDict()`, `pkg.clear()`,
+                        // `m.__dict__`; review round 26): the object is used
+                        // as a value, its names may be read and changed
+                        // through it.
+                        for object in library.value_objects(&path, &symbols) {
+                            let dotted = object.dotted().to_owned();
+                            for resource in library.object_modules(&object) {
+                                escaped[pid.index()].insert(resource);
+                                value_modules[pid.index()].insert(resource);
                             }
                             stores[pid.index()].insert(dotted);
                         }
-                        None => {}
+                        use_as_values(
+                            library,
+                            &path.values,
+                            &mut escaped[pid.index()],
+                            &mut value_modules[pid.index()],
+                            &mut exposed[pid.index()],
+                        );
                     }
                 }
                 let unvetted = refs.unvetted_imports.iter().find(|(name, _)| {
@@ -594,79 +646,107 @@ impl<'w> ProjectIndex<'w> {
                     }
                 }
                 for name in &refs.dynamic.library {
-                    let library = &self.projects[pid.index()].library;
-                    let prefix = match self.resolve_library(pid, name) {
-                        LibraryLookup::Module { resource, .. } => {
+                    if name.is_empty() {
+                        for (_, resource) in library.modules() {
                             escaped[pid.index()].insert(resource);
-                            // A star import records the module once; any
-                            // other dynamic reference is a use as a value.
-                            let star = refs
-                                .library_star_imports
-                                .iter()
-                                .filter(|m| *m == name)
-                                .count();
-                            let dynamic =
-                                refs.dynamic.library.iter().filter(|m| *m == name).count();
-                            if dynamic > star {
-                                value_modules[pid.index()].insert(resource);
-                            }
-                            continue;
                         }
-                        LibraryLookup::Package { dotted } => format!("{dotted}."),
-                        _ if name.is_empty() => String::new(),
-                        _ => continue,
-                    };
-                    for (dotted, resource) in library.modules() {
-                        if dotted.starts_with(&prefix) {
-                            escaped[pid.index()].insert(resource);
+                        continue;
+                    }
+                    let path = self.resolve_library_path(pid, name);
+                    // The names on the way are used (`from m0.util import
+                    // *` reads `util` of `m0`).
+                    credit(
+                        &path,
+                        rid,
+                        &mut usage,
+                        &mut symbol_usage,
+                        &mut external_symbol_usage,
+                    );
+                    use_as_values(
+                        library,
+                        &path.values,
+                        &mut escaped[pid.index()],
+                        &mut value_modules[pid.index()],
+                        &mut exposed[pid.index()],
+                    );
+                    for (end, _) in path.ends() {
+                        match end {
+                            LibraryLookup::Module { resource, .. } => {
+                                escaped[pid.index()].insert(*resource);
+                                // A star import records the module once;
+                                // any other dynamic reference is a use as a
+                                // value.
+                                let star = refs
+                                    .library_star_imports
+                                    .iter()
+                                    .filter(|m| *m == name)
+                                    .count();
+                                let dynamic =
+                                    refs.dynamic.library.iter().filter(|m| *m == name).count();
+                                if dynamic > star {
+                                    value_modules[pid.index()].insert(*resource);
+                                }
+                            }
+                            LibraryLookup::Package { dotted } => {
+                                let prefix = format!("{dotted}.");
+                                for (m, resource) in library.modules() {
+                                    if m.starts_with(&prefix) {
+                                        escaped[pid.index()].insert(resource);
+                                    }
+                                }
+                            }
+                            _ => {}
                         }
                     }
                 }
                 dynamic[pid.index()].extend(&refs.dynamic);
                 stores[pid.index()].extend(refs.library_stores.iter().cloned());
                 for name in &refs.library_exposed {
-                    // Through imports to the module that defines the object.
-                    let mut dotted = name.clone();
-                    for _ in 0..8 {
-                        match self.resolve_library(pid, &dotted) {
+                    // Where the path ends, through imports: the module that
+                    // defines the object.
+                    let path = self.resolve_library_path(pid, name);
+                    use_as_values(
+                        library,
+                        &path.values,
+                        &mut escaped[pid.index()],
+                        &mut value_modules[pid.index()],
+                        &mut exposed[pid.index()],
+                    );
+                    for (end, _) in path.ends() {
+                        match end {
+                            // A function or class (or a method of it)
+                            // reaches the module through `func_globals`.
+                            // A variable's value, if a function, was
+                            // itself named where it was stored.
                             LibraryLookup::Symbol {
                                 resource, symbol, ..
-                            } => match &symbol.kind {
-                                // A function or class (or a method of it)
-                                // reaches the module through `func_globals`.
-                                // A variable's value, if a function, was
-                                // itself named where it was stored.
-                                SymbolKind::Function(_) | SymbolKind::Class => {
-                                    exposed[pid.index()].insert(resource);
-                                    break;
-                                }
-                                SymbolKind::Import {
-                                    target: Some(target),
-                                } => dotted = target.clone(),
-                                _ => break,
-                            },
-                            LibraryLookup::Module { resource, .. } => {
-                                exposed[pid.index()].insert(resource);
-                                break;
+                            } if matches!(
+                                symbol.kind,
+                                SymbolKind::Function(_) | SymbolKind::Class
+                            ) =>
+                            {
+                                exposed[pid.index()].insert(*resource);
                             }
-                            LibraryLookup::Package { dotted: package } => {
-                                let prefix = format!("{package}.");
-                                let library = &self.projects[pid.index()].library;
+                            LibraryLookup::Module { resource, .. } => {
+                                exposed[pid.index()].insert(*resource);
+                            }
+                            LibraryLookup::Package { dotted } => {
+                                let prefix = format!("{dotted}.");
                                 for (m, resource) in library.modules() {
                                     if m.starts_with(&prefix) {
                                         exposed[pid.index()].insert(resource);
                                     }
                                 }
-                                break;
                             }
-                            _ => break,
+                            _ => {}
                         }
                     }
                 }
                 for name in &refs.library_star_imports {
-                    if let LibraryLookup::Module { resource, .. } = self.resolve_library(pid, name)
-                    {
-                        star_imported[pid.index()].insert(resource);
+                    for (end, _) in self.resolve_library_path(pid, name).ends() {
+                        if let LibraryLookup::Module { resource, .. } = end {
+                            star_imported[pid.index()].insert(*resource);
+                        }
                     }
                 }
                 for m in &refs.messages {
@@ -693,6 +773,39 @@ impl<'w> ProjectIndex<'w> {
                         let list = sends[t].entry(m.message_type.clone()).or_default();
                         if !list.contains(&sent_message) {
                             list.push(sent_message.clone());
+                        }
+                    }
+                }
+            }
+        }
+        // Whoever holds a library module as a value reaches what it imports
+        // (`get().util.json` when the module returned imports `lib.util` as
+        // `util`), and whoever may rebind its names may rebind theirs.
+        for (i, p) in self.projects.iter().enumerate() {
+            let symbols = |r: ResourceId| self.module_symbols(r);
+            let mut work: Vec<ResourceId> = value_modules[i].iter().copied().collect();
+            while let Some(module) = work.pop() {
+                let Some(syms) = self.module_symbols(module) else {
+                    continue;
+                };
+                for object in p.library.imported_objects(syms, &symbols) {
+                    for resource in p.library.object_modules(&object) {
+                        escaped[i].insert(resource);
+                        if value_modules[i].insert(resource) {
+                            work.push(resource);
+                        }
+                    }
+                }
+            }
+            let mut work: Vec<ResourceId> = exposed[i].iter().copied().collect();
+            while let Some(module) = work.pop() {
+                let Some(syms) = self.module_symbols(module) else {
+                    continue;
+                };
+                for object in p.library.imported_objects(syms, &symbols) {
+                    for resource in p.library.object_modules(&object) {
+                        if exposed[i].insert(resource) {
+                            work.push(resource);
                         }
                     }
                 }
@@ -1217,85 +1330,101 @@ impl<'w> ProjectIndex<'w> {
         whole: bool,
         memo: &mut SharedMemo,
     ) -> bool {
-        let mut dotted = dotted.to_owned();
-        for _ in 0..8 {
-            // A member of a module or package object (`m.dict`): whoever
-            // reads it holds the object (review round 26).
-            let library = &self.projects[project.index()].library;
-            match library.object_member(&dotted, |r| self.module_symbols(r)) {
-                Some(LibraryObject::Module { resource, .. }) => {
-                    return self.module_imports_shared(project, resource, memo);
-                }
-                Some(LibraryObject::Package { dotted: package }) => {
-                    let prefix = format!("{package}.");
-                    return library.modules().any(|(m, resource)| {
-                        m.starts_with(&prefix)
-                            && self.module_imports_shared(project, resource, memo)
-                    });
-                }
-                None => {}
-            }
-            match self.resolve_library(project, &dotted) {
-                LibraryLookup::NotLibrary
-                | LibraryLookup::Missing { .. }
-                | LibraryLookup::HiddenByModule { .. }
-                | LibraryLookup::MissingAttribute { .. } => return false,
-                LibraryLookup::Unknown => return true,
-                LibraryLookup::Module { resource, .. } => {
-                    return whole && self.module_imports_shared(project, resource, memo);
-                }
-                LibraryLookup::Package { dotted: package } => {
-                    if !whole {
-                        return false;
-                    }
-                    let prefix = format!("{package}.");
-                    let library = &self.projects[project.index()].library;
-                    return library.modules().any(|(m, resource)| {
-                        m.starts_with(&prefix)
-                            && self.module_imports_shared(project, resource, memo)
-                    });
-                }
-                LibraryLookup::Symbol {
-                    resource,
-                    symbol,
-                    rest,
-                } => match &symbol.kind {
-                    SymbolKind::Import {
-                        target: Some(target),
-                    } => {
-                        // Follow the import, with the rest of the name.
-                        let tail: Vec<&str> = dotted.split('.').collect();
-                        let rest = &tail[tail.len() - rest..];
-                        let next = std::iter::once(target.as_str())
-                            .chain(rest.iter().copied())
-                            .collect::<Vec<_>>()
-                            .join(".");
-                        if matches!(
-                            self.resolve_library(project, target),
-                            LibraryLookup::NotLibrary
-                                | LibraryLookup::Missing { .. }
-                                | LibraryLookup::HiddenByModule { .. }
-                                | LibraryLookup::MissingAttribute { .. }
-                        ) {
-                            // `import math` in the library module: a change
-                            // through it changes a shared object; a value
-                            // is one when it is the module, a Java class or
-                            // anything else than a vetted value
-                            // (`lib.os.sep` is a string).
-                            return !whole
-                                || iglint_python_semantic::vetted::holds_shared_object(&next);
-                        }
-                        dotted = next;
-                    }
-                    SymbolKind::Import { target: None } => return true,
-                    // A function, class or variable of the module: what
-                    // its attributes, instances or items hold is the
-                    // module's own code.
-                    _ => return self.module_may_hold_shared(project, resource, memo),
-                },
-            }
+        let library = &self.projects[project.index()].library;
+        let symbols = |r: ResourceId| self.module_symbols(r);
+        let path = self.resolve_library_path(project, dotted);
+        // A member of a module or package object (`m.dict`): whoever reads
+        // it holds the object (review round 26); so does whoever reaches
+        // an object the path cannot follow.
+        let objects: Vec<LibraryObject> = path
+            .values
+            .iter()
+            .cloned()
+            .chain(library.value_objects(&path, &symbols))
+            .collect();
+        if !objects.is_empty() {
+            return objects.iter().any(|object| {
+                library
+                    .object_modules(object)
+                    .into_iter()
+                    .any(|resource| self.module_imports_shared(project, resource, memo))
+            });
         }
-        true
+        path.ends()
+            .any(|(end, at)| self.end_reaches_shared(project, end, at, whole, memo))
+    }
+
+    /// [`ProjectIndex::reaches_shared_from`] for one place where a path ends
+    /// (`at`: the path in that module).
+    fn end_reaches_shared(
+        &self,
+        project: ProjectId,
+        end: &LibraryLookup<'_>,
+        at: &[String],
+        whole: bool,
+        memo: &mut SharedMemo,
+    ) -> bool {
+        let library = &self.projects[project.index()].library;
+        match end {
+            LibraryLookup::NotLibrary
+            | LibraryLookup::Missing { .. }
+            | LibraryLookup::HiddenByModule { .. }
+            | LibraryLookup::MissingAttribute { .. } => false,
+            LibraryLookup::Unknown => true,
+            LibraryLookup::Module { resource, .. } => {
+                whole && self.module_imports_shared(project, *resource, memo)
+            }
+            LibraryLookup::Package { dotted: package } => {
+                if !whole {
+                    return false;
+                }
+                let prefix = format!("{package}.");
+                library.modules().any(|(m, resource)| {
+                    m.starts_with(&prefix) && self.module_imports_shared(project, resource, memo)
+                })
+            }
+            LibraryLookup::Symbol {
+                resource,
+                symbol,
+                rest,
+            } => match &symbol.kind {
+                // The resolver followed every import of a library object it
+                // could; this one leaves the library (`import math` in the
+                // library module): a change through it changes a shared
+                // object; a value is one when it is the module, a Java class
+                // or anything else than a vetted value (`lib.os.sep` is a
+                // string).
+                SymbolKind::Import {
+                    target: Some(target),
+                } if !library.is_global(target.split('.').next().unwrap_or("")) => {
+                    let tail = &at[at.len().saturating_sub(*rest)..];
+                    let next = std::iter::once(target.as_str())
+                        .chain(tail.iter().map(String::as_str))
+                        .collect::<Vec<_>>()
+                        .join(".");
+                    !whole || iglint_python_semantic::vetted::holds_shared_object(&next)
+                }
+                SymbolKind::Import { .. } => true,
+                // A name that may hold what an import from outside the
+                // library binds (`try: import json as j` / `except: j =
+                // None`): default deny. Imports of library objects are
+                // other places the path ends.
+                SymbolKind::Variable
+                    if self.module_symbols(*resource).is_none_or(|s| {
+                        s.variable_imports.iter().any(|i| {
+                            i.name == symbol.name
+                                && !library.is_global(i.target.split('.').next().unwrap_or(""))
+                        })
+                    }) =>
+                {
+                    true
+                }
+                // A function, class or variable of the module: what
+                // its attributes, instances or items hold is the
+                // module's own code.
+                _ => self.module_may_hold_shared(project, *resource, memo),
+            },
+        }
     }
 
     /// Whether the code of the library module `module` may store an object
@@ -1371,17 +1500,22 @@ impl<'w> ProjectIndex<'w> {
         let Some(symbols) = self.module_symbols(module) else {
             return true;
         };
+        let library = |t: &str| {
+            matches!(
+                self.resolve_library(project, t),
+                LibraryLookup::Module { .. }
+                    | LibraryLookup::Package { .. }
+                    | LibraryLookup::Symbol { .. }
+            )
+        };
         let shared = symbols.dynamic
             || symbols.symbols.iter().any(|s| match &s.kind {
-                SymbolKind::Import { target: Some(t) } => !matches!(
-                    self.resolve_library(project, t),
-                    LibraryLookup::Module { .. }
-                        | LibraryLookup::Package { .. }
-                        | LibraryLookup::Symbol { .. }
-                ),
+                SymbolKind::Import { target: Some(t) } => !library(t),
                 SymbolKind::Import { target: None } => true,
                 _ => false,
-            });
+            })
+            // A name that may hold what an import binds.
+            || symbols.variable_imports.iter().any(|i| !library(&i.target));
         memo.imports.insert((project, module), shared);
         shared
     }
@@ -1472,18 +1606,32 @@ impl<'w> ProjectIndex<'w> {
     /// `dotted` (as written, before following imports) or a module or
     /// package on its path (`core.util.fmt = f`, `setattr(core.util,
     /// 'fmt', f)`, `core.util.__dict__[k] = v`).
+    /// The path is followed through imports: a store of `lib.util.f` (or
+    /// of `lib.util`) counts for `m0.util.f` when `m0` imports `lib.util`
+    /// as `util`.
     pub fn library_name_stored(&self, project: ProjectId, dotted: &str) -> bool {
         let stores = &self.projects[project.index()].library_stores;
-        let mut prefix = dotted;
-        loop {
-            if stores.contains(prefix) {
-                return true;
-            }
-            match prefix.rsplit_once('.') {
-                Some((head, _)) => prefix = head,
-                None => return false,
-            }
+        if stores.is_empty() {
+            return false;
         }
+        let stored = |dotted: &str| {
+            let mut prefix = dotted;
+            loop {
+                if stores.contains(prefix) {
+                    return true;
+                }
+                match prefix.rsplit_once('.') {
+                    Some((head, _)) => prefix = head,
+                    None => return false,
+                }
+            }
+        };
+        stored(dotted)
+            || self
+                .resolve_library_path(project, dotted)
+                .paths
+                .iter()
+                .any(|p| stored(p))
     }
 
     /// Whether the library name `dotted` (as written, before following
@@ -1502,17 +1650,20 @@ impl<'w> ProjectIndex<'w> {
         if self.library_name_stored(project, dotted) {
             return true;
         }
-        match self.resolve_library(project, dotted) {
-            LibraryLookup::Symbol { resource, .. }
-            | LibraryLookup::MissingAttribute { resource, .. }
-            | LibraryLookup::Module { resource, .. } => {
+        // Every module on the way (an escaped `m0` may have its `util`
+        // replaced), and every object the path cannot follow.
+        let path = self.resolve_library_path(project, dotted);
+        let library = &self.projects[project.index()].library;
+        path.modules
+            .iter()
+            .copied()
+            .chain(path.values.iter().flat_map(|o| library.object_modules(o)))
+            .any(|resource| {
                 self.module_escapes(project, resource)
                     || self.projects[project.index()]
                         .exposed_modules
                         .contains(&resource)
-            }
-            _ => false,
-        }
+            })
     }
 
     /// How many literal sends of a message type target a project.
@@ -1583,10 +1734,18 @@ impl<'w> ProjectIndex<'w> {
         }
     }
 
-    /// Resolves `pkg.mod.func` in a project. Missing results are `Unknown`
-    /// when the project's ancestry is incomplete.
+    /// Resolves `pkg.mod.func` in a project, through the imports of
+    /// library modules ([`LibraryTree::resolve_path`]): where it ends.
+    /// Missing results are `Unknown` when the project's ancestry is
+    /// incomplete.
     pub fn resolve_library(&self, project: ProjectId, dotted: &str) -> LibraryLookup<'_> {
         self.resolve_library_with(project, dotted, false)
+    }
+
+    /// [`ProjectIndex::resolve_library`] with everything the path uses on
+    /// the way ([`LibraryPath`]).
+    pub fn resolve_library_path(&self, project: ProjectId, dotted: &str) -> LibraryPath<'_> {
+        self.resolve_library_path_with(project, dotted, false)
     }
 
     /// [`ProjectIndex::resolve_library`] with the symbols for findings
@@ -1607,21 +1766,32 @@ impl<'w> ProjectIndex<'w> {
         dotted: &str,
         findings: bool,
     ) -> LibraryLookup<'_> {
+        self.resolve_library_path_with(project, dotted, findings)
+            .end
+    }
+
+    fn resolve_library_path_with(
+        &self,
+        project: ProjectId,
+        dotted: &str,
+        findings: bool,
+    ) -> LibraryPath<'_> {
         let data = &self.projects[project.index()];
-        let result = data.library.resolve(dotted, |r| {
+        let mut path = data.library.resolve_path(dotted, |r| {
             self.module_symbols(r)
                 .map(|s| if findings { s.for_findings() } else { s })
         });
-        match result {
-            LibraryLookup::Missing { .. }
-            | LibraryLookup::MissingAttribute { .. }
-            | LibraryLookup::NotLibrary
-                if !data.complete =>
-            {
-                LibraryLookup::Unknown
-            }
-            r => r,
+        if !data.complete
+            && matches!(
+                path.end,
+                LibraryLookup::Missing { .. }
+                    | LibraryLookup::MissingAttribute { .. }
+                    | LibraryLookup::NotLibrary
+            )
+        {
+            path.end = LibraryLookup::Unknown;
         }
+        path
     }
 
     // ---- gateway ----

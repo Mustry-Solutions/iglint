@@ -154,7 +154,12 @@ assume-scripts-do-not-read-workspace-files = true` declares that no script
 does (see `docs/internal/fix-safety.md`, "File reads").
 
 Top-level names of a library module are attributes of the module: an
-import that another resource uses as `pkg.mod.name` is not reported, nor
+import that another resource uses as `pkg.mod.name` is not reported (also
+through another library module's import: `m0.util.name` when `m0` does
+`from pkg import util`, at any depth; a module that another module's name
+may hold, `try: from pkg import util` / `except: util = None`, counts as
+used as a value, and so does every library module that a module used as a
+value imports), nor
 one that `from pkg.mod import *` in another resource binds there (every
 name not starting with `_`, or the names of `__all__`). A resource that
 reaches the module object other than by its names, with a special
@@ -771,22 +776,10 @@ fn exported_to_star_imports(
     unit: &ScriptUnit<'_, '_>,
     name: &str,
 ) -> bool {
-    let all = model.scope(ScopeId::MODULE).bindings_of("__all__");
-    let unconditional_all = match all {
-        [only] => model.binding(*only).stmt.is_some_and(|stmt| {
-            unit.parsed
-                .module
-                .body
-                .as_ptr_range()
-                .contains(&(stmt as *const Stmt))
-        }),
-        _ => false,
-    };
-    if unconditional_all && !model.dunder_all_is_dynamic() {
-        model.dunder_all().iter().any(|n| n == name)
-    } else {
-        !name.starts_with('_')
-    }
+    crate::script_facts::symbols::exported_to_star_imports(
+        crate::script_facts::symbols::star_exports(model, &unit.parsed.module).as_deref(),
+        name,
+    )
 }
 
 /// The edit that removes the unused aliases of an import statement.
@@ -1300,6 +1293,124 @@ mod tests {
             d[0].fix.as_ref().map(|f| f.applicability),
             Some(crate::diagnostic::Applicability::Safe)
         );
+    }
+
+    /// Review round 28 (blocker): a name read through another library
+    /// module's import (`m0.util.json` when `m0` does `from lib import
+    /// util`; Ignition's ScriptManager resolves it on 8.3.3) uses the
+    /// import of the module the import leads to, whatever the form of the
+    /// imports and the length of the chain; `--fix --unsafe-fixes` keeps
+    /// it.
+    #[test]
+    fn imports_read_through_other_library_modules_are_used() {
+        let lib = "import json\nimport os\n";
+        let mut chain: Vec<(String, String)> = (0..9)
+            .map(|i| (format!("c{i}"), format!("import c{} as a\n", i + 1)))
+            .collect();
+        chain.push(("c9".into(), "from lib import util\n".into()));
+        for (modules, user) in [
+            (
+                vec![("m0", "from lib import util\n")],
+                "def u():\n    return m0.util.json.dumps(1)\n",
+            ),
+            (
+                vec![("m0", "import lib.util as util\n")],
+                "def u():\n    return m0.util.json.dumps(1)\n",
+            ),
+            (
+                vec![("m0", "import lib.util\n")],
+                "def u():\n    return m0.lib.util.json.dumps(1)\n",
+            ),
+            (
+                vec![("m0", "import m1\n"), ("m1", "from lib import util\n")],
+                "def u():\n    return m0.m1.util.json.dumps(1)\n",
+            ),
+            (
+                vec![("m0", "import m1 as a\n"), ("m1", "from lib import util\n")],
+                "def u():\n    return m0.a.util.json.dumps(1)\n",
+            ),
+            (
+                vec![("m0", "from lib import util\n")],
+                "from m0 import util\ndef u():\n    return util.json.dumps(1)\n",
+            ),
+            (
+                vec![("m0", "from lib import util\n")],
+                "def u():\n    from m0.util import json\n    return json.dumps(1)\n",
+            ),
+            (
+                vec![("m0", "from lib import util\n")],
+                "def u():\n    import m0.util.json\n",
+            ),
+            (
+                vec![
+                    ("m0", "import m1\n"),
+                    ("m1", "import m0\nfrom lib import util\n"),
+                ],
+                "def u():\n    return m0.m1.m0.m1.util.json.dumps(1)\n",
+            ),
+            (
+                vec![
+                    ("m0", "from m1 import *\n"),
+                    ("m1", "from lib import util\n"),
+                ],
+                "def u():\n    return m0.util.json.dumps(1)\n",
+            ),
+            (
+                vec![("m0", "from lib import util\n")],
+                "from m0 import *\ndef u():\n    return util.json.dumps(1)\n",
+            ),
+            (
+                chain
+                    .iter()
+                    .map(|(m, c)| (m.as_str(), c.as_str()))
+                    .collect(),
+                "def u():\n    return c0.a.a.a.a.a.a.a.a.a.util.json.dumps(1)\n",
+            ),
+        ] {
+            let f = modules
+                .iter()
+                .fold(library("lib/util", lib), |f, (m, c)| with_library(f, m, c));
+            let f = with_library(f, "user", user);
+            let d: Vec<_> = f
+                .lint(&["SCR102"])
+                .into_iter()
+                .filter(|d| d.file.path().ends_with("lib/util/code.py"))
+                .collect();
+            assert_eq!(flagged(&d), ["os"], "{modules:?} {user}");
+            let fixed = f.fixed(&[("SCR102", "")], true, &library_path(&f, "lib/util"));
+            assert!(fixed.contains("import json"), "{modules:?} {user}: {fixed}");
+        }
+        // From a `runScript` target.
+        let f = with_library(library("lib/util", lib), "m0", "from lib import util\n").with_view(
+            "Expr",
+            r#"{"root": {"type": "ia.display.label", "meta": {"name": "root"}, "props": {"text": ""},
+                "propConfig": {"props.text": {"binding": {"type": "expr", "config": {"expression": "runScript(\"m0.util.json.dumps\", 0, 1)"}}}}}}"#,
+        );
+        assert_eq!(flagged(&f.lint(&["SCR102"])), ["os"]);
+        // A name bound otherwise too may hold the module: any of its names
+        // may be read, nothing is removed by a safe fix.
+        let f = with_library(
+            library("lib/util", lib),
+            "m0",
+            "try:\n    from lib import util\nexcept ImportError:\n    util = None\n",
+        );
+        let f = with_library(f, "user", "def u():\n    return m0.util.json.dumps(1)\n");
+        let d: Vec<_> = f
+            .lint(&["SCR102"])
+            .into_iter()
+            .filter(|d| d.file.path().ends_with("lib/util/code.py"))
+            .collect();
+        assert!(d.is_empty(), "{:?}", flagged(&d));
+        // Whoever holds a module as a value reaches what it imports.
+        let f = with_library(library("lib/two", lib), "lib/util", "import lib.two as x\n");
+        let f = with_library(f, "h", "def get():\n    return lib.util\n");
+        let f = with_library(f, "user", "def u():\n    return h.get().x.json.dumps(1)\n");
+        let d: Vec<_> = f
+            .lint(&["SCR102"])
+            .into_iter()
+            .filter(|d| d.file.path().ends_with("lib/two/code.py"))
+            .collect();
+        assert!(d.is_empty(), "{:?}", flagged(&d));
     }
 
     fn applicability(d: &[crate::Diagnostic]) -> Vec<Option<crate::diagnostic::Applicability>> {
