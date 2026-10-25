@@ -2311,9 +2311,9 @@ remaining documented assumption.
   found 714 programs whose behaviour the fixes changed. A sample of 303
   pairs is replayed without Docker (`replayed_sample_is_unchanged`).
   Review round 26 (M1): suppressions in scripts that do not parse are not
-  judged, so programs that do not compile get no `SCR123` fix; seed 25
-  run again on 8.3.3: 1,544 pairs changed by the fixes, no difference,
-  and the replayed sample is 248 pairs.
+  judged, so programs that do not compile get no `SCR123` fix; seeds 25
+  to 28 run again on 8.3.3: 6,208 pairs changed by the fixes, no
+  difference, and the replayed sample (seed 25) is 248 pairs.
 
 * **Import side effects.** Removing an import is safe only with positive
   evidence that the import succeeds and has no effect: a Java class
