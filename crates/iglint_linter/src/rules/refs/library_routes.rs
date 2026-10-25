@@ -375,6 +375,9 @@ enum ChainExpect {
     Calls(Vec<String>),
     /// Raises `AttributeError`: `REF002` reports it.
     Missing,
+    /// Raises `KeyError` (a delete of a missing module name; review round
+    /// 30): `REF002` reports it.
+    MissingKey,
     /// Raises `TypeError`: `REF003` reports it.
     Arity,
     /// May read any name of these modules.
@@ -404,6 +407,7 @@ fn chains() -> Vec<Chain> {
             "uses" => ChainExpect::Uses(targets),
             "calls" => ChainExpect::Calls(targets),
             "missing" => ChainExpect::Missing,
+            "missing-key" => ChainExpect::MissingKey,
             "arity" => ChainExpect::Arity,
             "value" => ChainExpect::Value(targets),
             "stores" => ChainExpect::Stores(targets),
@@ -444,6 +448,7 @@ fn every_chain_through_library_imports_counts() {
         let record = record.first().map(String::as_str).unwrap_or("");
         let measured = match expect {
             ChainExpect::Missing => record == "raised AttributeError",
+            ChainExpect::MissingKey => record == "raised KeyError",
             ChainExpect::Arity => record == "raised TypeError",
             ChainExpect::Without(with) => {
                 let (_, other) = records
@@ -513,7 +518,7 @@ fn every_chain_through_library_imports_counts() {
                 ChainExpect::Calls(names) => {
                     !reported("REF002") && names.iter().all(|t| !named("REF012", t))
                 }
-                ChainExpect::Missing => reported("REF002"),
+                ChainExpect::Missing | ChainExpect::MissingKey => reported("REF002"),
                 ChainExpect::Arity => reported("REF003"),
                 ChainExpect::Stores(names) => {
                     !reported("REF002")

@@ -1890,3 +1890,70 @@ def g(n):
         return 'TypeError'
     except NameError:
         return 'NameError'
+### nit4-del-missing missing-key
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    del lib.util.nothere
+    return 1
+### nit4-aug-missing missing
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    lib.util.nothere += 1
+    return 1
+### nit4-del-missing-chain missing-key
+== lib.util
+import json
+def f():
+    return 1
+== m0
+from lib import util
+== b
+def g(n):
+    del m0.util.nothere
+    return 1
+### nit4-aug-missing-chain missing
+== lib.util
+import json
+def f():
+    return 1
+== m0
+from lib import util
+== b
+def g(n):
+    m0.util.nothere -= 1
+    return 1
+### nit4-del-missing-package missing
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    del lib.nothere
+    return 1
+### nit4-aug-missing-package missing
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    lib.nothere += 1
+    return 1
+### nit4-del-present calls lib.util.f
+== lib.util
+import json
+def f():
+    return 1
+== b
+def g(n):
+    del lib.util.f
+    return 1

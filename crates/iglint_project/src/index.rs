@@ -123,6 +123,9 @@ struct ProjectData {
     /// offset), when the script layer placed it (review round 30, Opus
     /// nit 3: the reason of an unsafe fix names it).
     library_store_sites: FxHashMap<String, UnknownSite>,
+    /// The stores of `library_stores` that may create the name: all but
+    /// deletes and augmented assignments (`References::library_updates`).
+    library_creating_stores: FxHashSet<String>,
     /// Library modules whose names code may rebind through an object it
     /// receives (`References::library_exposed`).
     exposed_modules: FxHashSet<ResourceId>,
@@ -530,6 +533,7 @@ impl<'w> ProjectIndex<'w> {
         let mut value_modules: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut stores: Vec<FxHashSet<String>> = vec![FxHashSet::default(); n];
         let mut store_sites: Vec<FxHashMap<String, UnknownSite>> = vec![FxHashMap::default(); n];
+        let mut creating: Vec<FxHashSet<String>> = vec![FxHashSet::default(); n];
         let mut exposed: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut star_imported: Vec<FxHashSet<ResourceId>> = vec![FxHashSet::default(); n];
         let mut unknown_code: Vec<bool> = vec![false; n];
@@ -626,6 +630,7 @@ impl<'w> ProjectIndex<'w> {
                                 escaped[pid.index()].insert(resource);
                                 value_modules[pid.index()].insert(resource);
                             }
+                            creating[pid.index()].insert(dotted.clone());
                             stores[pid.index()].insert(dotted);
                         }
                         use_as_values(
@@ -726,7 +731,12 @@ impl<'w> ProjectIndex<'w> {
                     }
                 }
                 dynamic[pid.index()].extend(&refs.dynamic);
-                for store in &refs.library_stores {
+                let all_stores = refs
+                    .library_stores
+                    .iter()
+                    .map(|s| (s, true))
+                    .chain(refs.library_updates.iter().map(|s| (s, false)));
+                for (store, creates) in all_stores {
                     // The change the store makes (to the object it stores
                     // into), recorded with it, holds its site.
                     let site = refs
@@ -746,6 +756,15 @@ impl<'w> ProjectIndex<'w> {
                         site,
                         &mut store_sites[pid.index()],
                     );
+                    if creates {
+                        self.record_store(
+                            pid,
+                            store,
+                            &mut creating[pid.index()],
+                            None,
+                            &mut FxHashMap::default(),
+                        );
+                    }
                 }
                 for name in &refs.library_exposed {
                     // Where the path ends, through imports: the module that
@@ -879,6 +898,7 @@ impl<'w> ProjectIndex<'w> {
             p.value_modules = std::mem::take(&mut value_modules[i]);
             p.library_stores = std::mem::take(&mut stores[i]);
             p.library_store_sites = std::mem::take(&mut store_sites[i]);
+            p.library_creating_stores = std::mem::take(&mut creating[i]);
             p.exposed_modules = std::mem::take(&mut exposed[i]);
             p.star_imported_modules = std::mem::take(&mut star_imported[i]);
             p.unknown_code = unknown_code[i];
@@ -1730,7 +1750,25 @@ impl<'w> ProjectIndex<'w> {
     /// `lib.util` as `util`, and a store of `m0.util.f` counts for
     /// `lib.util.f` ([`ProjectIndex::record_store`]).
     pub fn library_name_stored(&self, project: ProjectId, dotted: &str) -> bool {
-        let stores = &self.projects[project.index()].library_stores;
+        self.stored_in(
+            &self.projects[project.index()].library_stores,
+            project,
+            dotted,
+        )
+    }
+
+    /// [`ProjectIndex::library_name_stored`] by a store that may create the
+    /// name: not a delete or augmented assignment, each of which raises
+    /// when the name is missing (review round 30, Opus nit 4).
+    pub fn library_name_created(&self, project: ProjectId, dotted: &str) -> bool {
+        self.stored_in(
+            &self.projects[project.index()].library_creating_stores,
+            project,
+            dotted,
+        )
+    }
+
+    fn stored_in(&self, stores: &FxHashSet<String>, project: ProjectId, dotted: &str) -> bool {
         if stores.is_empty() {
             return false;
         }

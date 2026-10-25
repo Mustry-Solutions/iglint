@@ -557,13 +557,16 @@ impl Chains<'_, '_, '_, '_> {
 
     /// Records a store to the library name `dotted`; replacing the code
     /// or defaults of a function changes the function itself.
-    fn store(&mut self, mut dotted: String) {
-        if let Some((base, attr)) = dotted.rsplit_once('.')
-            && (super::symbols::CODE_ATTRIBUTES.contains(&attr) || attr == "__dict__")
-        {
-            dotted.truncate(base.len());
-        }
+    fn store(&mut self, dotted: String) {
+        let dotted = stored_name(dotted);
         self.refs.library_stores.push(dotted);
+    }
+
+    /// Records a delete or augmented assignment of the library name
+    /// `dotted`: a store that never creates it.
+    fn update(&mut self, dotted: String) {
+        let dotted = stored_name(dotted);
+        self.refs.library_updates.push(dotted);
     }
 
     fn record(&mut self, e: &Expr, role: Role) {
@@ -845,7 +848,10 @@ impl Chains<'_, '_, '_, '_> {
                             _ => {}
                         }
                         self.changed(e, &a.value);
-                        self.store(q);
+                        match a.ctx {
+                            ExprContext::Del | ExprContext::AugStore => self.update(q),
+                            _ => self.store(q),
+                        }
                     }
                 }
             }
@@ -1006,6 +1012,17 @@ fn slice_is(slice: &Slice, key: &str) -> bool {
     matches!(slice, Slice::Index(i) if matches!(&*i.value, Expr::Str(s) if s.s.as_str() == Some(key)))
 }
 
+/// The library name a store into `dotted` changes: replacing the code or
+/// defaults of a function (or a `__dict__`) changes the function itself.
+fn stored_name(mut dotted: String) -> String {
+    if let Some((base, attr)) = dotted.rsplit_once('.')
+        && (super::symbols::CODE_ATTRIBUTES.contains(&attr) || attr == "__dict__")
+    {
+        dotted.truncate(base.len());
+    }
+    dotted
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1126,13 +1143,14 @@ mod tests {
                 "core.tags",
                 "core.a.x",
                 "core.util.fmt",
-                "core.jobs.run",
-                "core.util.LIMIT",
                 "core.b",
                 "core.c.go",
                 "self.props.text",
             ]
         );
+        // Deletes and augmented assignments never create the name
+        // (review round 30, Opus nit 4).
+        assert_eq!(r.library_updates, ["core.jobs.run", "core.util.LIMIT"]);
         let r = refs_of(
             "import sys\nsys.modules['core.util'].f = 1\nm = sys.modules.get(k)\nexec 'core.x.y = 1\\ncore.z.f()'\nv = eval('core.w.g()')\n__import__('core.v')\nexecfile('/x.py')\n",
             Some("app.main"),

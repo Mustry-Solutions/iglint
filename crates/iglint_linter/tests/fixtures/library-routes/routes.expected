@@ -728,3 +728,17 @@ ok 'NameError'
 ok '1'
 ### star-all-tuple-removed
 ok 'NameError'
+### nit4-del-missing
+raised KeyError
+### nit4-aug-missing
+raised AttributeError
+### nit4-del-missing-chain
+raised KeyError
+### nit4-aug-missing-chain
+raised AttributeError
+### nit4-del-missing-package
+raised AttributeError
+### nit4-aug-missing-package
+raised AttributeError
+### nit4-del-present
+ok 1

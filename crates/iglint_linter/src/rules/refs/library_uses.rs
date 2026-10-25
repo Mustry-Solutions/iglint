@@ -33,7 +33,8 @@ pub(crate) struct LibraryUse<'s> {
     /// The call, when the chain is called.
     pub call: Option<&'s ExprCall>,
     /// Inside a `try` whose handlers catch the error a missing name raises
-    /// (`AttributeError`, `ImportError`, `NameError`, `Exception`, bare).
+    /// (`AttributeError`, `ImportError`, `NameError`, `Exception`, bare;
+    /// for a delete also `KeyError` and `LookupError`).
     pub guarded: bool,
 }
 
@@ -55,6 +56,7 @@ pub(crate) fn library_uses<'s>(
         is_global: &|name: &str| library.is_global(name),
         module: module.as_deref(),
         guard: 0,
+        key_guard: 0,
         out: Vec::new(),
     };
     collector.visit_module(model.module);
@@ -66,6 +68,9 @@ struct Collector<'m, 's, 'f> {
     is_global: &'f dyn Fn(&str) -> bool,
     module: Option<&'f str>,
     guard: u32,
+    /// Enclosing `try` blocks that catch the `KeyError` a delete of a
+    /// missing module name raises (8.3.3).
+    key_guard: u32,
     out: Vec<LibraryUse<'s>>,
 }
 
@@ -81,7 +86,15 @@ const GUARDS: &[&str] = &[
     "Throwable",
 ];
 
+/// What a delete of a missing name of a library module raises besides
+/// (`KeyError`, measured on 8.3.3; review round 30, Opus nit 4).
+const DELETE_GUARDS: &[&str] = &["KeyError", "LookupError"];
+
 fn catches_missing_names(handlers: &[iglint_python::ast::ExceptHandler]) -> bool {
+    catches(handlers, GUARDS)
+}
+
+fn catches(handlers: &[iglint_python::ast::ExceptHandler], guards: &[&str]) -> bool {
     handlers.iter().any(|h| match h.type_.as_deref() {
         None => true,
         Some(t) => {
@@ -95,7 +108,7 @@ fn catches_missing_names(handlers: &[iglint_python::ast::ExceptHandler]) -> bool
                     Expr::Attribute(a) => a.attr.as_str(),
                     _ => return true,
                 };
-                GUARDS.contains(&last)
+                guards.contains(&last)
             })
         }
     })
@@ -143,6 +156,11 @@ impl<'s> Collector<'_, 's, '_> {
     }
 
     fn record(&mut self, e: &'s Expr, call: Option<&'s ExprCall>) {
+        self.record_use(e, call, false);
+    }
+
+    /// [`Collector::record`]; `delete`: the chain is deleted.
+    fn record_use(&mut self, e: &'s Expr, call: Option<&'s ExprCall>, delete: bool) {
         let Some(dotted) = self.dotted(e) else {
             return;
         };
@@ -161,7 +179,7 @@ impl<'s> Collector<'_, 's, '_> {
             segments,
             aliased: extra,
             call,
-            guarded: self.guard > 0,
+            guarded: self.guard > 0 || (delete && self.key_guard > 0),
         });
     }
 
@@ -186,10 +204,15 @@ impl<'s> Collector<'_, 's, '_> {
                 self.record(e, call);
             }
             Expr::Attribute(a) if is_chain(e) => {
-                if matches!(a.ctx, ExprContext::Load | ExprContext::AugLoad) {
-                    self.record(e, call);
-                } else {
-                    self.expr(&a.value, None);
+                match a.ctx {
+                    ExprContext::Load | ExprContext::AugLoad => self.record(e, call),
+                    // `lib.util.n += 1` reads the name first and `del
+                    // lib.util.n` needs it: both raise when it is missing
+                    // (`AttributeError`, `KeyError` on 8.3.3; review round
+                    // 30, Opus nit 4). A plain store creates it.
+                    ExprContext::AugStore => self.record(e, call),
+                    ExprContext::Del => self.record_use(e, call, true),
+                    _ => self.expr(&a.value, None),
                 }
             }
             Expr::Call(c) => {
@@ -229,14 +252,21 @@ impl<'s> Visitor<'s> for Collector<'_, 's, '_> {
         match stmt {
             Stmt::TryExcept(t) => {
                 let guarded = catches_missing_names(&t.handlers);
+                let key = catches(&t.handlers, DELETE_GUARDS);
                 if guarded {
                     self.guard += 1;
+                }
+                if key {
+                    self.key_guard += 1;
                 }
                 for s in &t.body {
                     self.visit_stmt(s);
                 }
                 if guarded {
                     self.guard -= 1;
+                }
+                if key {
+                    self.key_guard -= 1;
                 }
                 for h in &t.handlers {
                     self.visit_except_handler(h);

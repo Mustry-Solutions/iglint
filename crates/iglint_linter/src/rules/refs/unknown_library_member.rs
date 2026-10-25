@@ -61,8 +61,11 @@ projects whose parent project is not in the workspace, and names that a
 project inheriting from the script's project defines, and names a
 resource of the project stores, through any path (`core.util.flag =
 True` counts for `m0.util.flag` when `m0` imports `core.util` as `util`,
-and `m0.util.flag = True` for `core.util.flag`). Attribute stores
-themselves are not checked.
+and `m0.util.flag = True` for `core.util.flag`; a delete or augmented
+assignment creates nothing). Plain attribute stores themselves are not
+checked; deleting a missing name (`del core.util.flag`, a `KeyError` on
+8.3.3, unless a `try` catches it) and changing one with an augmented
+assignment (`core.util.flag += 1`, an `AttributeError`) are reported.
 
 ## Why is this bad?
 
@@ -143,13 +146,18 @@ fn resolve_with<'i>(
             index.resolve_library(p, dotted)
         }
     };
-    let stored = std::iter::once(project)
-        .chain(index.workspace().project_descendants(project))
-        .any(|p| index.library_name_stored(p, dotted));
-    if stored {
+    let projects =
+        || std::iter::once(project).chain(index.workspace().project_descendants(project));
+    if projects().any(|p| index.library_name_created(p, dotted)) {
         return LibraryLookup::Unknown;
     }
     let lookup = lookup_in(project);
+    // Deleted or changed by an augmented assignment only: the definition
+    // still says whether the name exists (each raises when it is missing;
+    // review round 30, Opus nit 4), not what it holds.
+    if !is_miss(&lookup) && projects().any(|p| index.library_name_stored(p, dotted)) {
+        return LibraryLookup::Unknown;
+    }
     if is_miss(&lookup) && index.workspace().project(project).inheritable() {
         let found_below = index
             .workspace()
@@ -300,6 +308,63 @@ mod tests {
         ));
         let f = with_library(f, "app/setup", "core.util.other = 1\n");
         assert_eq!(flagged(&f.lint(&["REF002"])), vec!["extra"]);
+    }
+
+    /// Review round 30 (Opus nit 4): deleting a missing name (`KeyError` on
+    /// 8.3.3) or changing it with an augmented assignment
+    /// (`AttributeError`) raises, directly, through an alias or another
+    /// module's import, or below a package; deletes and augmented
+    /// assignments elsewhere do not create the name; a plain store does,
+    /// and a `try` catching `KeyError` guards a delete only.
+    #[test]
+    fn deleting_or_augmenting_missing_names_is_reported() {
+        for (code, name) in [
+            ("del core.util.nothere\n", "nothere"),
+            ("core.util.nothere += 1\n", "nothere"),
+            ("u = core.util\n    del u.nothere\n", "nothere"),
+            ("import core.util as u\n    u.nothere -= 1\n", "nothere"),
+            ("del core.gone\n", "gone"),
+            ("core.gone += 1\n", "gone"),
+            ("del app.m0.util.nothere\n", "nothere"),
+            (
+                "try:\n        core.util.nothere += 1\n    except KeyError:\n        pass\n",
+                "nothere",
+            ),
+        ] {
+            let f = project(library("app/main", &format!("def go():\n    {code}")));
+            let f = with_library(f, "app/m0", "from core import util\n");
+            // Deletes and augmented assignments elsewhere create nothing.
+            let f = with_library(
+                f,
+                "app/other",
+                "def h():\n    del core.util.nothere\n    core.util.nothere += 1\n",
+            );
+            let d: Vec<_> = f
+                .lint(&["REF002"])
+                .into_iter()
+                .filter(|d| d.file.path().ends_with("app/main/code.py"))
+                .collect();
+            assert_eq!(flagged(&d), vec![name], "{code}");
+        }
+        for code in [
+            "del core.util.fmt\n",
+            "core.util.LIMIT += 1\n",
+            "try:\n        del core.util.nothere\n    except KeyError:\n        pass\n",
+            "try:\n        del core.util.nothere\n    except LookupError:\n        pass\n",
+            "core.util.nothere = 1\n",
+        ] {
+            let f = project(library("app/main", &format!("def go():\n    {code}")));
+            let d: Vec<_> = f
+                .lint(&["REF002"])
+                .into_iter()
+                .filter(|d| d.file.path().ends_with("app/main/code.py"))
+                .collect();
+            assert!(d.is_empty(), "{code}: {:?}", flagged(&d));
+        }
+        // A plain store elsewhere may create the name.
+        let f = project(library("app/main", "def go():\n    del core.util.extra\n"));
+        let f = with_library(f, "app/setup", "core.util.extra = 1\n");
+        assert!(f.lint(&["REF002"]).is_empty());
     }
 
     /// Review round 29 (M1): a store through another library module's

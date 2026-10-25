@@ -247,6 +247,12 @@ pub struct References {
     /// name and everything under it may differ at run time from its
     /// definition.
     pub library_stores: Vec<String>,
+    /// Dotted library names the script deletes or changes with an
+    /// augmented assignment (`del core.util.fmt`, `core.util.n += 1`):
+    /// stores that never create the name, each raises when it is missing
+    /// (`KeyError` and `AttributeError` on 8.3.3; review round 30, Opus
+    /// nit 4). Not in `library_stores`.
+    pub library_updates: Vec<String>,
     /// Dotted library names whose object reaches code that may change it
     /// or its module: a function or class used as a value (other than an
     /// argument of a `system.*` call), the base of `func_globals` or
@@ -400,6 +406,7 @@ impl References {
         self.tag_paths.extend(other.tag_paths);
         self.library.extend(other.library);
         self.library_stores.extend(other.library_stores);
+        self.library_updates.extend(other.library_updates);
         self.library_exposed.extend(other.library_exposed);
         self.library_star_imports.extend(other.library_star_imports);
         self.library_changes.extend(other.library_changes);
