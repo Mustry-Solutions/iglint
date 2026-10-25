@@ -207,7 +207,7 @@ impl Model<'_> {
                 Out::Package(p) => {
                     let child = format!("{p}.{name}");
                     (module_index(&child).is_some() || PACKAGES.contains(&child.as_str()))
-                        .then(|| (None, Binding::Import(child)))
+                        .then_some((None, Binding::Import(child)))
                 }
                 _ => {
                     // The star import fails (or what it binds is not

@@ -184,13 +184,13 @@ fn generate(rng: &mut Rng, name: String) -> Case {
                 }
             }
         }
-        for i in 0..n {
+        for (i, lines) in code.iter_mut().enumerate() {
             for _ in 0..1 + rng.below(2) {
                 let Some(other) = later(rng, i) else {
                     let star =
                         ["lib.exports", "lib.exports", "lib.exports", "core", "lib"][rng.below(5)];
-                    let at = rng.below(code[i].len() + 1);
-                    code[i].insert(at, format!("from {star} import *"));
+                    let at = rng.below(lines.len() + 1);
+                    lines.insert(at, format!("from {star} import *"));
                     continue;
                 };
                 let star = match rng.below(100) {
@@ -205,8 +205,8 @@ fn generate(rng: &mut Rng, name: String) -> Case {
                 };
                 let line = format!("from {star} import *");
                 // Before or after the module's own bindings.
-                let at = rng.below(code[i].len() + 1);
-                code[i].insert(at, line);
+                let at = rng.below(lines.len() + 1);
+                lines.insert(at, line);
             }
         }
     }
