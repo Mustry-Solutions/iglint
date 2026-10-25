@@ -30,7 +30,7 @@ On an existing project, commit a [baseline](/guides/baseline/) first so that onl
 
 ## Installing iglint in the job
 
-The examples below download the Linux x86_64 binary of a pinned release from [GitHub releases](https://github.com/Mustry-Solutions/iglint/releases) (it is statically linked and runs on any Linux image) and put it on the `PATH`. The archive `iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz` holds a directory of the same name with the `iglint` binary. Change the version in one place to upgrade. Each archive has a `.sha256` file next to it, which the GitHub Actions example checks; for a stronger check, compare against a hash you recorded yourself.
+The examples below download the Linux x86_64 binary of a pinned release from [GitHub releases](https://github.com/Mustry-Solutions/iglint/releases) (it is statically linked and runs on any Linux image) and put it on the `PATH`. The archive `iglint-linux-x64.tar.gz` holds a directory of the same name with the `iglint` binary. Change the version in one place to upgrade. The release's `SHA256SUMS` file holds the checksum of every archive, which the GitHub Actions example checks; for a stronger check, compare against a hash you recorded yourself.
 
 Once iglint is on PyPI (planned, not published yet), `pip install iglint==0.1.0` will do the same in an image with Python.
 
@@ -56,13 +56,12 @@ jobs:
           IGLINT_VERSION: v0.1.0
         run: |
           cd "$RUNNER_TEMP"
-          archive="iglint-${IGLINT_VERSION}-x86_64-unknown-linux-musl"
-          url="https://github.com/Mustry-Solutions/iglint/releases/download/${IGLINT_VERSION}/${archive}.tar.gz"
-          curl -sSfLO "$url"
-          curl -sSfLO "$url.sha256"
-          sha256sum -c "${archive}.tar.gz.sha256"
-          tar -xzf "${archive}.tar.gz"
-          echo "$RUNNER_TEMP/${archive}" >> "$GITHUB_PATH"
+          url="https://github.com/Mustry-Solutions/iglint/releases/download/${IGLINT_VERSION}"
+          curl -sSfLO "$url/iglint-linux-x64.tar.gz"
+          curl -sSfLO "$url/SHA256SUMS"
+          sha256sum -c --ignore-missing SHA256SUMS
+          tar -xzf iglint-linux-x64.tar.gz
+          echo "$RUNNER_TEMP/iglint-linux-x64" >> "$GITHUB_PATH"
       # Annotations, and the gate.
       - run: iglint check --output-format github
       # Code scanning (optional): a SARIF report, uploaded even when the gate failed.
@@ -93,10 +92,9 @@ iglint:
   image: python:3.12   # any Linux image with curl
   variables:
     IGLINT_VERSION: v0.1.0
-    IGLINT_ARCHIVE: iglint-${IGLINT_VERSION}-x86_64-unknown-linux-musl
   script:
-    - curl -sSfL -o /tmp/iglint.tar.gz "https://github.com/Mustry-Solutions/iglint/releases/download/${IGLINT_VERSION}/${IGLINT_ARCHIVE}.tar.gz"
-    - tar -xzf /tmp/iglint.tar.gz -C /usr/local/bin --strip-components=1 "${IGLINT_ARCHIVE}/iglint"
+    - curl -sSfL -o /tmp/iglint.tar.gz "https://github.com/Mustry-Solutions/iglint/releases/download/${IGLINT_VERSION}/iglint-linux-x64.tar.gz"
+    - tar -xzf /tmp/iglint.tar.gz -C /usr/local/bin --strip-components=1 iglint-linux-x64/iglint
     - iglint check --output-format gitlab --output-file gl-code-quality-report.json
   artifacts:
     when: always
@@ -116,10 +114,9 @@ variables:
   IGLINT_VERSION: v0.1.0
 steps:
   - script: |
-      archive="iglint-$(IGLINT_VERSION)-x86_64-unknown-linux-musl"
-      curl -sSfL "https://github.com/Mustry-Solutions/iglint/releases/download/$(IGLINT_VERSION)/${archive}.tar.gz" \
+      curl -sSfL "https://github.com/Mustry-Solutions/iglint/releases/download/$(IGLINT_VERSION)/iglint-linux-x64.tar.gz" \
         | tar -xz -C "$(Agent.TempDirectory)"
-      echo "##vso[task.prependpath]$(Agent.TempDirectory)/${archive}"
+      echo "##vso[task.prependpath]$(Agent.TempDirectory)/iglint-linux-x64"
     displayName: Install iglint
   - script: iglint check --output-format azure
     displayName: iglint

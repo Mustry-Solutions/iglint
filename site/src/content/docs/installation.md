@@ -7,27 +7,28 @@ iglint is a single executable with no runtime dependencies. Pick whichever chann
 
 ## Prebuilt binaries
 
-Every [GitHub release](https://github.com/Mustry-Solutions/iglint/releases) carries an archive per platform, each with a `.sha256` checksum. The archive `iglint-v0.1.0-<target>.tar.gz` (`.zip` on Windows) holds a directory of the same name with the binary, the README and the licenses:
+Every [GitHub release](https://github.com/Mustry-Solutions/iglint/releases) carries one archive per platform, and `SHA256SUMS` with their checksums. Each archive holds a directory of the same name with the binary, the README and the licenses:
 
-| Platform | Target | Archive |
-|---|---|---|
-| Linux x86_64 (static, musl) | `x86_64-unknown-linux-musl` | `.tar.gz` |
-| Linux aarch64 (static, musl) | `aarch64-unknown-linux-musl` | `.tar.gz` |
-| macOS Intel | `x86_64-apple-darwin` | `.tar.gz` |
-| macOS Apple silicon | `aarch64-apple-darwin` | `.tar.gz` |
-| Windows x86_64 | `x86_64-pc-windows-msvc` | `.zip` |
+| Platform | Archive |
+|---|---|
+| Linux x86_64 | `iglint-linux-x64.tar.gz` |
+| Linux ARM (aarch64) | `iglint-linux-arm64.tar.gz` |
+| macOS, Intel and Apple silicon | `iglint-macos.tar.gz` |
+| Windows x86_64 | `iglint-windows-x64.zip` |
+
+The names carry no version: `https://github.com/Mustry-Solutions/iglint/releases/latest/download/iglint-linux-x64.tar.gz` is always the latest release, and `releases/download/v0.1.0/...` a pinned one.
 
 The Linux binaries are statically linked and run on any distribution; the Windows binary does not need the Visual C++ runtime. Unpack the archive and put `iglint` (or `iglint.exe`) on your `PATH`. For example, on Linux x86_64:
 
 ```sh
-curl -sSfLO https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz
-curl -sSfLO https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz.sha256
-sha256sum -c iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz.sha256
-tar -xzf iglint-v0.1.0-x86_64-unknown-linux-musl.tar.gz
-sudo install iglint-v0.1.0-x86_64-unknown-linux-musl/iglint /usr/local/bin/
+curl -sSfLO https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/iglint-linux-x64.tar.gz
+curl -sSfLO https://github.com/Mustry-Solutions/iglint/releases/download/v0.1.0/SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS
+tar -xzf iglint-linux-x64.tar.gz
+sudo install iglint-linux-x64/iglint /usr/local/bin/
 ```
 
-On macOS, use `shasum -a 256 -c` instead of `sha256sum -c`. A binary downloaded with a browser is quarantined by Gatekeeper; `xattr -d com.apple.quarantine iglint` lets it run.
+On macOS, use `shasum -a 256 -c --ignore-missing` instead of `sha256sum -c --ignore-missing`. A binary downloaded with a browser is quarantined by Gatekeeper; `xattr -d com.apple.quarantine iglint` lets it run.
 
 ## Cargo
 
@@ -41,13 +42,13 @@ Without `--tag`, Cargo builds the latest commit of the `main` branch.
 
 ## VS Code extension
 
-The extension is attached to the GitHub releases as VSIX files (it is not on the Visual Studio Marketplace). There is one VSIX per platform with the binary inside, and one without a binary that uses `iglint` from your `PATH`:
+The extension is attached to the GitHub releases as `iglint-vscode.vsix` (it is not on the Visual Studio Marketplace). It contains the `iglint` binary for every platform above and uses the one for your machine:
 
 ```sh
-code --install-extension iglint-vscode-v0.1.0-linux-x64.vsix
+code --install-extension iglint-vscode.vsix
 ```
 
-Platform names are `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64` and `win32-x64`. See [Editors](/guides/editors/) for its settings.
+See [Editors](/guides/editors/) for its settings.
 
 ## Python package (pip, uv, pipx; planned)
 

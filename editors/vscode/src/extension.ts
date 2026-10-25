@@ -52,6 +52,7 @@ async function start(context: vscode.ExtensionContext): Promise<void> {
   settings = currentSettings();
   const command = resolveServerPath(settings.path, {
     platform: process.platform,
+    arch: process.arch,
     pathVariable: process.env.PATH ?? "",
     home: os.homedir(),
     workspaceFolder: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,

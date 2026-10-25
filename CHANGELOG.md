@@ -41,8 +41,8 @@ First public release.
   `iglint migrate` to convert the configuration.
 - Result cache and parallel checking.
 - Language server (`iglint server`) and a VS Code extension.
-- Distribution as prebuilt binaries and VS Code packages attached to the
-  GitHub release, and pre-commit hooks. The release workflow also builds a
+- Distribution as prebuilt binaries (Linux x64 and ARM, macOS, Windows) and
+  a VS Code extension attached to the GitHub release, and pre-commit hooks. The release workflow also builds a
   PyPI wheel (`pip install iglint`); it is not published to PyPI yet.
 
 ### Changes during development
@@ -59,6 +59,11 @@ before the first release; all of it is part of 0.1.0.
   published at https://iglint.mustrysolutions.com/. The release workflow
   publishes to PyPI only when the repository variable `PYPI_PUBLISH` is
   `true`.
+- Release files: one archive per platform without a version in its name
+  (`iglint-linux-x64.tar.gz`, `iglint-linux-arm64.tar.gz`,
+  `iglint-macos.tar.gz` with one binary for Intel and Apple silicon,
+  `iglint-windows-x64.zip`), one `SHA256SUMS`, and one VSIX with the binary
+  for every platform. The wheels go to PyPI only.
 - Language server edits (review round 34, Opus nits 2 and 3): a client
   that supports `workspace.workspaceEdit.documentChanges` gets every edit
   (quick fixes, "fix all", the fix-all command, suppressions) as a
