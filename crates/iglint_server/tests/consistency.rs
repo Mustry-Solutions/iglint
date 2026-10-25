@@ -386,3 +386,223 @@ fn published_findings_and_fixes_match_a_fresh_check_after_any_edits() {
     assert_eq!(steps, 11 * seeds as usize);
     assert!(compared_fixes > 20, "{compared_fixes}");
 }
+
+/// What a fresh `iglint check --fix` (safe fixes, not written) makes of
+/// each file that changes, by file.
+fn fresh_fixes(slots: &[Slot], texts: &[String]) -> BTreeMap<String, String> {
+    let dir = tempfile::tempdir().unwrap();
+    let root = iglint_linter::discovery::absolute(dir.path());
+    write_workspace(&root, slots, texts);
+    let config = iglint_config::load(
+        &iglint_config::LoadOptions {
+            cwd: root.clone(),
+            start: Some(root.clone()),
+            ..iglint_config::LoadOptions::default()
+        },
+        &iglint_linter::rules::REGISTRY,
+    )
+    .unwrap();
+    let result = iglint_linter::check(
+        &config.settings,
+        std::slice::from_ref(&root),
+        &iglint_linter::CheckOptions {
+            fix_mode: iglint_linter::FixMode::DiffOnly {
+                unsafe_fixes: false,
+            },
+            ..iglint_linter::CheckOptions::default()
+        },
+    );
+    result
+        .fixed
+        .iter()
+        .filter(|f| f.fixed != *f.original)
+        .map(|f| {
+            let rel = f
+                .path
+                .strip_prefix(&root)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            (rel, f.fixed.clone())
+        })
+        .collect()
+}
+
+/// The text "fix all" of `uri` makes of `text`, if offered (resolved when
+/// the server defers the edit).
+fn fix_all_result(client: &mut Client, uri: &Url, text: &str) -> Option<String> {
+    let actions = client
+        .request::<CodeActionRequest>(CodeActionParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+            context: CodeActionContext {
+                diagnostics: Vec::new(),
+                only: Some(vec![CodeActionKind::SOURCE_FIX_ALL]),
+                trigger_kind: None,
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        })
+        .unwrap_or_default();
+    let action = actions.into_iter().find_map(|a| match a {
+        CodeActionOrCommand::CodeAction(a) => Some(a),
+        CodeActionOrCommand::Command(_) => None,
+    })?;
+    let action = if action.edit.is_none() {
+        client.request::<lsp_types::request::CodeActionResolveRequest>(action)
+    } else {
+        action
+    };
+    let edits = action.edit?.changes?.remove(uri)?;
+    Some(apply(text, &edits))
+}
+
+/// Review round 30 (Codex, B2): with any run trigger (on type without and
+/// with a long debounce, on save) and code actions asked for at any point
+/// between edits (before the diagnostics of an edit arrive, after opening
+/// and closing documents, after saves), every quick fix offered as
+/// preferred is one a fresh check of the editor's current texts reports as
+/// safe, and "fix all" gives what a fresh `--fix` gives. On type without a
+/// debounce, once the diagnostics of every edit arrived, the offered safe
+/// fixes are exactly those of the fresh check.
+#[test]
+fn fixes_offered_between_edits_match_a_fresh_check() {
+    let slots = slots();
+    // `IGLINT_CONSISTENCY_SEEDS=n` runs `n` sequences (default 9).
+    let seeds: u64 = std::env::var("IGLINT_CONSISTENCY_SEEDS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(9);
+    let mut asked = 0;
+    let mut offered_total = 0;
+    let mut fix_alls = 0;
+    for seed in 1..=seeds {
+        let mut rng = Rng(seed * 7919);
+        let (init, settled_mode) = match seed % 3 {
+            0 => (json!({"run": "onType", "debounceMs": 0}), true),
+            1 => (json!({"run": "onType", "debounceMs": 60000}), false),
+            _ => (json!({"run": "onSave"}), false),
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let root = iglint_linter::discovery::absolute(dir.path());
+        let mut disk: Vec<String> = slots
+            .iter()
+            .map(|s| s.variants[rng.next(s.variants.len())].clone())
+            .collect();
+        write_workspace(&root, &slots, &disk);
+        let mut editor: Vec<Option<(Url, i32, String)>> = vec![None; slots.len()];
+        let mut client = Client::start(Some(&root), init.clone());
+        // Versions whose diagnostics the settled mode waits for.
+        let mut awaiting: Vec<(Url, i32)> = Vec::new();
+        for step in 0..24 {
+            let i = rng.next(slots.len());
+            let slot = &slots[i];
+            let variant = slot.variants[rng.next(slot.variants.len())].clone();
+            match (rng.next(6), editor[i].is_some()) {
+                // Open with the disk text.
+                (0, false) => {
+                    let path = root.join(&slot.rel);
+                    let uri = client.open(&path, &disk[i]);
+                    awaiting.push((uri.clone(), 1));
+                    editor[i] = Some((uri, 1, disk[i].clone()));
+                }
+                // Close: the disk text again.
+                (0, true) => {
+                    let (uri, _, _) = editor[i].take().unwrap();
+                    awaiting.retain(|(u, _)| *u != uri);
+                    client.notify(
+                        lsp_types::notification::DidCloseTextDocument::METHOD,
+                        json!({"textDocument": {"uri": uri}}),
+                    );
+                }
+                // Save: the editor text on disk.
+                (1, true) => {
+                    let (uri, _, text) = editor[i].clone().unwrap();
+                    std::fs::write(root.join(&slot.rel), &text).unwrap();
+                    disk[i] = text;
+                    client.notify(
+                        lsp_types::notification::DidSaveTextDocument::METHOD,
+                        json!({"textDocument": {"uri": uri}}),
+                    );
+                }
+                // Type in an open document.
+                (_, true) => {
+                    let (uri, version, text) = editor[i].as_mut().unwrap();
+                    *version += 1;
+                    *text = variant;
+                    let (uri, version, text) = (uri.clone(), *version, text.clone());
+                    client.replace_all(&uri, version, &text);
+                    awaiting.retain(|(u, _)| *u != uri);
+                    awaiting.push((uri, version));
+                }
+                // Change a file that is not open, on disk.
+                (_, false) => {
+                    let path = root.join(&slot.rel);
+                    std::fs::write(&path, &variant).unwrap();
+                    disk[i] = variant;
+                    client.notify(
+                        DidChangeWatchedFiles::METHOD,
+                        json!({"changes": [{"uri": Url::from_file_path(&path).unwrap(), "type": 2}]}),
+                    );
+                }
+            }
+            let texts: Vec<String> = (0..slots.len())
+                .map(|k| match &editor[k] {
+                    Some((_, _, t)) => t.clone(),
+                    None => disk[k].clone(),
+                })
+                .collect();
+            // Ask for fixes now, before any diagnostics arrived, in one or
+            // two open documents.
+            let open: Vec<usize> = (0..slots.len()).filter(|k| editor[*k].is_some()).collect();
+            if open.is_empty() {
+                continue;
+            }
+            let fresh = fresh_check(&slots, &texts);
+            let fixed = fresh_fixes(&slots, &texts);
+            for _ in 0..1 + rng.next(2) {
+                let k = open[rng.next(open.len())];
+                let (uri, _, text) = editor[k].clone().unwrap();
+                let rel = &slots[k].rel;
+                let safe = fresh.get(rel).map(|f| f.1.clone()).unwrap_or_default();
+                let offered = preferred_fixes(&mut client, &uri);
+                assert!(
+                    offered.is_subset(&safe),
+                    "seed {seed} ({init}) step {step}: {rel} offers {offered:?}, fresh {safe:?}\n{texts:#?}"
+                );
+                offered_total += offered.len();
+                if let Some(result) = fix_all_result(&mut client, &uri, &text) {
+                    assert_eq!(
+                        Some(&result),
+                        fixed.get(rel),
+                        "seed {seed} ({init}) step {step}: {rel} fix all\n{texts:#?}"
+                    );
+                    fix_alls += 1;
+                }
+                asked += 1;
+            }
+            if settled_mode {
+                // Every edit analysed: exactly the fresh check's.
+                for (uri, version) in std::mem::take(&mut awaiting) {
+                    client.diagnostics(&uri, Some(version));
+                }
+                let mut latest = BTreeMap::new();
+                settle(&mut client, &mut latest);
+                for k in &open {
+                    let (uri, _, _) = editor[*k].clone().unwrap();
+                    let rel = &slots[*k].rel;
+                    let safe = fresh.get(rel).map(|f| f.1.clone()).unwrap_or_default();
+                    assert_eq!(
+                        preferred_fixes(&mut client, &uri),
+                        safe,
+                        "seed {seed} ({init}) step {step}: {rel} after settling\n{texts:#?}"
+                    );
+                }
+            }
+        }
+        client.shutdown();
+    }
+    assert!(asked > 50, "{asked}");
+    assert!(offered_total > 5, "{offered_total}");
+    assert!(fix_alls > 5, "{fix_alls}");
+}

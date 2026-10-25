@@ -426,6 +426,37 @@ impl LiveWorkspace {
         result
     }
 
+    /// [`LiveWorkspace::check`] of `paths` a few files at a time, one index
+    /// for all, stopping before the next few once `stop` says so (the
+    /// language server: a new message arrived). Returns the findings of the
+    /// files checked, in the order given, and the files not checked.
+    pub fn check_until(
+        &mut self,
+        paths: &[PathBuf],
+        stop: &dyn Fn() -> bool,
+    ) -> (Vec<FileDiagnostics>, Vec<PathBuf>) {
+        /// About 10 ms of work in an optimised build.
+        const CHUNK: usize = 64;
+        let summaries = std::mem::take(&mut self.summaries);
+        let index = crate::analyze::build_index(
+            &self.ws,
+            summaries,
+            self.closed_world_unknown,
+            &self.settings.vetted,
+        );
+        let mut out = Vec::with_capacity(paths.len());
+        let mut rest: &[PathBuf] = &[];
+        for (n, chunk) in paths.chunks(CHUNK).enumerate() {
+            if stop() {
+                rest = &paths[n * CHUNK..];
+                break;
+            }
+            out.extend(self.check_with(&index, chunk));
+        }
+        self.summaries = index.into_summaries();
+        (out, rest.to_vec())
+    }
+
     fn check_with(&self, index: &ProjectIndex<'_>, paths: &[PathBuf]) -> Vec<FileDiagnostics> {
         let paths: Vec<PathBuf> = paths.iter().map(|p| absolute(p)).collect();
         let mut resources: Vec<ResourceId> = Vec::new();

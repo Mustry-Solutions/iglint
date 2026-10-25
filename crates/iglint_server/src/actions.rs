@@ -21,6 +21,9 @@ impl Server {
     pub fn code_actions(&mut self, params: CodeActionParams) -> Option<Vec<CodeActionOrCommand>> {
         let uri = params.text_document.uri;
         let path = path_of(&uri)?;
+        // Every fix is computed from the editor's text of every open
+        // document (review round 30, B2).
+        self.sync_documents();
         self.flush_document(&uri);
         let only = params.context.only.as_deref();
         let wants = |kind: &str| {
@@ -165,6 +168,7 @@ impl Server {
     /// that changes.
     pub fn fix_all_edit(&mut self, uri: &Url) -> Option<WorkspaceEdit> {
         let path = path_of(uri)?;
+        self.sync_documents();
         self.flush_document(uri);
         let folder = self.folder_for(&path);
         if self.republish_if_stale(folder, &path) {

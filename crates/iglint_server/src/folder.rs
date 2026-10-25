@@ -32,6 +32,11 @@ pub struct Folder {
     pub adhoc: bool,
     /// Every lintable file, computed on first use.
     files: Option<Vec<PathBuf>>,
+    /// Published files whose findings may have changed and that are not
+    /// checked again yet: dependents of editor text given to the live
+    /// workspace before the run trigger fired, and what a check left when
+    /// a message arrived (review round 30).
+    pub pending: std::collections::BTreeSet<PathBuf>,
 }
 
 impl Folder {
@@ -105,6 +110,7 @@ impl Folder {
             notices,
             adhoc: false,
             files: None,
+            pending: Default::default(),
         }
     }
 

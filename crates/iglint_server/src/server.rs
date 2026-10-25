@@ -48,8 +48,13 @@ pub(crate) struct Document {
     pub path: PathBuf,
     pub version: i32,
     pub text: String,
-    /// Changed since the last analysis.
+    /// Changed since the last analysis (findings to publish, per the run
+    /// trigger).
     pub dirty: bool,
+    /// The live workspace has `text` (review round 30, B2: every fix is
+    /// computed from the editor's text of every open document, whatever
+    /// the run trigger).
+    pub synced: bool,
 }
 
 /// What was last published for a file.
@@ -233,7 +238,12 @@ impl Server {
                 respond(id, request.params, |p| self.resolve_code_action(p))
             }
             HoverRequest::METHOD => respond(id, request.params, |p| self.hover(p)),
-            ExecuteCommand::METHOD => respond(id, request.params, |p| self.execute_command(p)),
+            ExecuteCommand::METHOD => {
+                // A command (fix all, rule docs) comes after every file
+                // left for later is checked and published.
+                self.finish_pending();
+                respond(id, request.params, |p| self.execute_command(p))
+            }
             method => Response::new_err(
                 id,
                 ErrorCode::MethodNotFound as i32,
@@ -298,6 +308,7 @@ impl Server {
                 version: p.text_document.version,
                 text: p.text_document.text,
                 dirty: true,
+                synced: false,
             },
         );
         self.schedule(Duration::ZERO);
@@ -312,6 +323,7 @@ impl Server {
             convert::apply_change(&mut doc.text, change);
         }
         doc.version = p.text_document.version;
+        doc.synced = false;
         if run == RunTrigger::OnType {
             doc.dirty = true;
             let debounce = Duration::from_millis(self.options.debounce_ms);
@@ -530,6 +542,7 @@ impl Server {
             }
             if let Some(doc) = self.documents.get_mut(&uri) {
                 doc.dirty = false;
+                doc.synced = true;
                 let text: Arc<str> = Arc::from(doc.text.as_str());
                 self.folders[i].live.set_text(&path, Some(text));
             }
@@ -587,7 +600,10 @@ impl Server {
         });
     }
 
-    /// Analyses every changed document and what depends on it.
+    /// Analyses every changed document, publishes it, then checks again
+    /// what depends on it (and what is pending), stopping when a message
+    /// arrives (review round 30, Opus minor 1: the rest is checked once
+    /// the messages are handled, or the next change's run comes first).
     pub fn flush(&mut self) {
         let dirty: Vec<Url> = self
             .documents
@@ -595,7 +611,7 @@ impl Server {
             .filter(|(_, d)| d.dirty)
             .map(|(u, _)| u.clone())
             .collect();
-        if dirty.is_empty() {
+        if dirty.is_empty() && self.folders.iter().all(|f| f.pending.is_empty()) {
             return;
         }
         // The edited documents first, then what depends on them.
@@ -605,6 +621,7 @@ impl Server {
                 continue;
             };
             doc.dirty = false;
+            doc.synced = true;
             let path = doc.path.clone();
             let text: Arc<str> = Arc::from(doc.text.as_str());
             let i = self.folder_for(&path);
@@ -612,6 +629,7 @@ impl Server {
             let (result, dependents) = self.folders[i].live.update(&path, text);
             let elapsed = start.elapsed();
             self.publish_result(i, result);
+            self.folders[i].pending.remove(&path);
             self.log(
                 MessageType::LOG,
                 format!(
@@ -627,15 +645,68 @@ impl Server {
         if self.deadline.is_some_and(|d| d <= Instant::now()) {
             self.deadline = None;
         }
+        for i in 0..self.folders.len() {
+            let pending = std::mem::take(&mut self.folders[i].pending);
+            if !pending.is_empty() {
+                checks.entry(i).or_default().extend(pending);
+            }
+        }
         for (i, paths) in checks {
             self.check_and_publish(i, paths);
         }
     }
 
-    /// Analyses `uri` now if it changed since its last analysis.
+    /// Analyses `uri` now if it changed since its last analysis, or if
+    /// its findings may have changed and it waits to be checked again.
     pub fn flush_document(&mut self, uri: &Url) {
         if self.documents.get(uri).is_some_and(|d| d.dirty) {
             self.flush();
+        }
+        let Some(path) = path_of(uri) else {
+            return;
+        };
+        let i = self.folder_for(&path);
+        if self.folders[i].pending.remove(&path) {
+            self.check_and_publish_all(i, BTreeSet::from([path]));
+        }
+    }
+
+    /// Gives the live workspaces the editor text of every open document
+    /// that changed since they last got it, whatever the run trigger and
+    /// its debounce (review round 30, B2): a fix is computed by a fresh
+    /// check, and that check must see what the editor has. Findings are
+    /// published per the run trigger; files whose findings may have
+    /// changed wait in [`Folder::pending`](crate::folder::Folder).
+    pub fn sync_documents(&mut self) {
+        let unsynced: Vec<Url> = self
+            .documents
+            .iter()
+            .filter(|(_, d)| !d.synced)
+            .map(|(u, _)| u.clone())
+            .collect();
+        for uri in unsynced {
+            let Some(doc) = self.documents.get_mut(&uri) else {
+                continue;
+            };
+            doc.synced = true;
+            let path = doc.path.clone();
+            let text: Arc<str> = Arc::from(doc.text.as_str());
+            let i = self.folder_for(&path);
+            let dependents = self.folders[i].live.set_text(&path, Some(text));
+            let mut extra = BTreeSet::new();
+            self.add_dependents(i, dependents, &mut extra);
+            extra.remove(&path);
+            self.folders[i].pending.extend(extra);
+        }
+    }
+
+    /// Checks everything pending now, without stopping for messages.
+    fn finish_pending(&mut self) {
+        for i in 0..self.folders.len() {
+            let pending = std::mem::take(&mut self.folders[i].pending);
+            if !pending.is_empty() {
+                self.check_and_publish_all(i, pending);
+            }
         }
     }
 
@@ -646,13 +717,26 @@ impl Server {
         }
     }
 
+    /// Checks and publishes `paths`, stopping when a message arrives: what
+    /// is left becomes pending, checked on the next run.
     fn check_and_publish(&mut self, i: usize, paths: BTreeSet<PathBuf>) {
+        self.check_and_publish_until(i, paths, true);
+    }
+
+    /// [`Server::check_and_publish`] without stopping.
+    fn check_and_publish_all(&mut self, i: usize, paths: BTreeSet<PathBuf>) {
+        self.check_and_publish_until(i, paths, false);
+    }
+
+    fn check_and_publish_until(&mut self, i: usize, paths: BTreeSet<PathBuf>, interruptible: bool) {
         if paths.is_empty() {
             return;
         }
         let start = Instant::now();
         let paths: Vec<PathBuf> = paths.into_iter().collect();
-        let results = self.folders[i].live.check(&paths);
+        let receiver = self.receiver.clone();
+        let stop = move || interruptible && !receiver.is_empty();
+        let (results, rest) = self.folders[i].live.check_until(&paths, &stop);
         let elapsed = start.elapsed();
         let count = results.len();
         for result in results {
@@ -661,10 +745,19 @@ impl Server {
         self.log(
             MessageType::LOG,
             format!(
-                "iglint: checked {count} file(s) in {:.1} ms",
-                elapsed.as_secs_f64() * 1000.0
+                "iglint: checked {count} file(s) in {:.1} ms{}",
+                elapsed.as_secs_f64() * 1000.0,
+                if rest.is_empty() {
+                    String::new()
+                } else {
+                    format!(", {} left for later", rest.len())
+                }
             ),
         );
+        if !rest.is_empty() {
+            self.folders[i].pending.extend(rest);
+            self.schedule(Duration::ZERO);
+        }
     }
 
     pub(crate) fn publish_result(

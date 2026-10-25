@@ -2091,3 +2091,86 @@ fn view015_through_two_library_calls_follows_an_edit_of_the_second() {
     assert!(!has(&after, "VIEW015", "`bar`"), "{after:#?}");
     client.shutdown();
 }
+
+/// Review round 30 (Codex, B2): fixes are computed from the editor's text
+/// of every open document, whatever the run trigger and debounce. With
+/// `run: onSave`, or `onType` with a long debounce, an edit of `m1` (now
+/// `import m2`, so `b`'s `m1.m2.util.json.dumps(1)` reads `json` of
+/// `lib.util`) has not been analysed when a code action of `lib.util` is
+/// asked for: no quick fix, fix-all edit, resolved fix-all or fix-all
+/// command removes `import json`. Closing `m1` without saving brings the
+/// disk text back, and the removal is offered again.
+#[test]
+fn fixes_see_pending_edits_of_other_documents() {
+    for init in [
+        json!({"run": "onSave"}),
+        json!({"run": "onType", "debounceMs": 60000}),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        demo_project(&root);
+        let manifest = MANIFEST.replace("view.json", "code.py");
+        let module = |name: &str, code: &str| {
+            write(&root, &format!("{LIBRARY}/{name}/resource.json"), &manifest);
+            write(&root, &format!("{LIBRARY}/{name}/code.py"), code)
+        };
+        let util_text = "import json\ndef f():\n    return 1\n";
+        let util = module("lib/util", util_text);
+        module("m2", "from lib import util\n");
+        let m1_text = "def x():\n    return 1\n";
+        let m1 = module("m1", m1_text);
+        module("b", "def g(n):\n    return m1.m2.util.json.dumps(1)\n");
+        let mut client = Client::start(Some(&root), init.clone());
+        let util_uri = client.open(&util, util_text);
+        let before = client.diagnostics(&util_uri, Some(1));
+        assert!(has(&before, "SCR102", "`json`"), "{before:#?}");
+        let m1_uri = client.open(&m1, m1_text);
+        client.diagnostics(&m1_uri, Some(1));
+        let removes_json = |client: &mut Client| -> Vec<String> {
+            let mut found = Vec::new();
+            for action in code_actions(
+                client,
+                &util_uri,
+                Range::new(Position::new(0, 0), Position::new(0, 30)),
+                None,
+            ) {
+                let action = if action.edit.is_none() && action.data.is_some() {
+                    client.request::<CodeActionResolveRequest>(action)
+                } else {
+                    action
+                };
+                let edits = action
+                    .edit
+                    .as_ref()
+                    .and_then(|e| e.changes.as_ref())
+                    .and_then(|c| c.get(&util_uri))
+                    .cloned()
+                    .unwrap_or_default();
+                if !apply(util_text, &edits).contains("import json") {
+                    found.push(action.title.clone());
+                }
+            }
+            found
+        };
+        // Before the edit: offered (also the preferred quick fix).
+        assert!(!removes_json(&mut client).is_empty(), "{init}");
+        client.replace_all(&m1_uri, 2, "import m2\ndef x():\n    return 1\n");
+        let removals = removes_json(&mut client);
+        assert!(removals.is_empty(), "{init}: {removals:?}");
+        let applied = client.request_raw(
+            "workspace/executeCommand",
+            json!({"command": "iglint.applyFixAll", "arguments": [util_uri.as_str()]}),
+        );
+        assert_eq!(applied, json!(false), "{init}");
+        // The fresh check of the editor's texts agrees.
+        let after = settled(&mut client, &util_uri);
+        assert!(after.is_none_or(|p| !has(&p, "SCR102", "`json`")), "{init}");
+        // Closing `m1` unsaved: the disk text again.
+        client.notify(
+            lsp_types::notification::DidCloseTextDocument::METHOD,
+            json!({"textDocument": {"uri": m1_uri}}),
+        );
+        assert!(!removes_json(&mut client).is_empty(), "{init}");
+        client.shutdown();
+    }
+}
