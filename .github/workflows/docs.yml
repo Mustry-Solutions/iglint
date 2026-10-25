@@ -1,21 +1,22 @@
 name: Docs
 
-# Builds the documentation site (site/) and deploys it to GitHub Pages.
-# Not active yet: it only runs when started by hand. To publish on every push
-# to main, enable GitHub Pages with "GitHub Actions" as the source and
-# uncomment the `push` trigger. The site's address is set in
-# site/site.config.mjs (SITE_URL); a custom domain is configured in the
-# repository's Pages settings.
+# Builds the documentation site (site/) and deploys it to GitHub Pages at
+# https://iglint.mustrysolutions.com/, on every push to main that changes the
+# site or the documents it copies, and when started by hand. The repository's
+# Pages settings use "GitHub Actions" as the source and hold the custom
+# domain; the site's address is set in site/site.config.mjs (SITE_URL).
 
 on:
   workflow_dispatch:
-  # push:
-  #   branches: [main]
-  #   paths:
-  #     - "site/**"
-  #     - "docs/**"
-  #     - "CHANGELOG.md"
-  #     - ".github/workflows/docs.yml"
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "docs/**"
+      - "README.md"
+      - "CHANGELOG.md"
+      - "CONTRIBUTING.md"
+      - ".github/workflows/docs.yml"
 
 permissions:
   contents: read

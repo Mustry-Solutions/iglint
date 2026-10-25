@@ -1,4 +1,6 @@
 // @ts-check
+import { writeFileSync } from 'node:fs';
+
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { satteri } from '@astrojs/markdown-satteri';
@@ -16,6 +18,26 @@ const ruleGroups = readRuleIndex().map((category) => ({
 		slug: ruleSlug(rule.code),
 	})),
 }));
+
+/**
+ * Writes dist/CNAME with the custom domain of SITE_URL. GitHub Pages ignores
+ * the file when a workflow deploys the site (the domain is set in the
+ * repository's Pages settings); it keeps the domain with the build for
+ * branch-based publishing. Not written for a github.io address.
+ * @returns {import('astro').AstroIntegration}
+ */
+function cname() {
+	return {
+		name: 'iglint-cname',
+		hooks: {
+			'astro:build:done': ({ dir }) => {
+				const { protocol, hostname } = new URL(SITE_URL);
+				if (protocol !== 'https:' || hostname.endsWith('.github.io')) return;
+				writeFileSync(new URL('CNAME', dir), `${hostname}\n`);
+			},
+		},
+	};
+}
 
 export default defineConfig({
 	site: SITE_URL,
@@ -94,5 +116,6 @@ export default defineConfig({
 				},
 			],
 		}),
+		cname(),
 	],
 });
