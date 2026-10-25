@@ -116,6 +116,56 @@ from 0.1.0 on.
 
 ### Fixed
 
+- Deleting or augmenting a library module's name elsewhere did not use
+  it (review round 29, blocker; since the first project index): `del
+  lib.util.json` in a view script or another library module (a
+  `KeyError` on 8.3.3 once `import json` is gone) and `lib.util.json +=
+  1` (`TypeError` with the import, `AttributeError` without) were
+  recorded only as stores, so `SCR102` removed `import json` from
+  `lib.util` as safe; also through aliases, other modules' imports
+  (`del m0.util.json`, `del m0.m1.util.json`) and tuple targets. Delete
+  and augmented-assignment targets are now uses of the name, through
+  the one resolver; an assignment from another resource (also a `for`,
+  `except` or tuple target) or from a function of the module through
+  `global` replaces the binding and makes the removal unsafe. Measured
+  with the library-routes oracle (`chains.cases`, each case also with
+  the import removed); `docs/internal/fix-safety.md`, "Stores, deletes
+  and augmented assignments through library paths".
+- The language server kept a stale safe `SCR102` quick fix after an edit
+  of a module in the middle of a chain (review round 29, blocker; new in
+  round 28): with `m2` importing `lib.util` and `b` returning
+  `m1.m2.util.json.dumps(1)`, changing `m1` to `import m2` left
+  `lib.util`'s "`json` imported but unused" published and offered its
+  removal as the preferred fix, also after a save and a watched-file
+  change; `VIEW015` stayed stale through two library calls. Any change
+  of a library module's summary, or of what a resource contributes to
+  the whole project, now re-checks every file; a quick fix, fix-all or
+  code action resolve is applied only while a fresh check reports the
+  same finding and fix, and stale findings are published again with
+  nothing offered. Property test of random edits against a fresh
+  `iglint check`.
+- `REF002` and `REF003` false positives for names stored through a
+  chain of library imports (review round 29, minor): `m0.util.h =
+  lambda: 'stored'` then `lib.util.h()` (returns `'stored'` on 8.3.3)
+  was reported missing, and `m0.util.f = lambda a, b: 5` then
+  `lib.util.f(1, 2)` (returns 5) as a wrong call. Stores are now
+  recorded where they land through imports as well as as written.
+- Star imports between library modules took time about cubic in their
+  number (review round 29, minor, new in round 28): 1,000 modules each
+  star-importing the ten before 22 s, 69 s with names bound nowhere,
+  150 modules each star-importing every earlier one minutes. Where a
+  name may come from through star imports is now found once per module
+  and name and kept for every consumer: 0.08 s, 0.14 s and 0.10 s
+  (release). Every module that may provide the name is found (the old
+  search stopped after 64 modules and counted a module reached twice
+  like a cycle); a module that can neither provide nor pass on the name
+  is not followed. New release stress test.
+- `__all__` changed in a way iglint does not read (`__all__[:] = [...]`,
+  `__all__[1] = 'json'`, `insert`, `+=`, an alias, a change from a
+  function, several or conditional bindings) was taken as the literal
+  list (review round 29, nit): a name a caller's `from lib.util import
+  *` uses was reported unused. Such an `__all__` now exports any name,
+  also one starting with `_`.
 - A path through another library module's import was not followed
   (review round 28, blocker; since the first project index): for
   `m0.util.json.dumps(1)` where `m0` does `from lib import util`, the

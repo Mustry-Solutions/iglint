@@ -995,7 +995,8 @@ values (`LibraryTree::value_objects`, judged where the path ends, and the
 module of an import followed when the rest of the path names a value
 attribute), dynamic library references, exposed names, star imports,
 the shared-object reach, stores (`library_name_stored` checks the path in
-each import's target too), rebinding (`library_name_rebound` checks every
+each import's target too, and since round 29 each store is also recorded
+where it lands, see below), rebinding (`library_name_rebound` checks every
 module on the way), `REF002`, `REF003`, `REF012`, `SCR102`'s closed-world
 checks, `VIEW015`'s call following (also for a module's own imports by
 bare name), vetting (every module on the way runs) and the language
@@ -1014,9 +1015,12 @@ Default deny where a path cannot be followed with certainty:
   code, or records what it binds);
 * a name a module with dynamic names does not bind, when the module
   star-imports library modules that may export it (`__all__` or no
-  leading `_`): the path continues in each, and its end is unknown;
-  likewise, in a script with star imports of library modules, a name that
-  is not a library name is also looked up in each;
+  leading `_`): the path continues in every module its star imports
+  reach that binds the name or whose names are not known, through the
+  modules that only pass it on (their namespaces are read), and its end
+  is unknown; likewise, in a script with star imports of library
+  modules, a name that is not a library name is also looked up there
+  (since round 29, see "Star imports between library modules");
 * an import that leads back to a path already followed, or more than
   `MAX_IMPORT_HOPS` (64) imports: the module and the import's target are
   used as values and the end is unknown.
@@ -1050,6 +1054,131 @@ and with the model where it is certain); `generated_import_chains_resolve_like_j
 (160 generated chains of 1 to 12 imports of every form, linted end to
 end); and per-rule tests for `SCR102`, `REF002`, `REF003`, `REF012` and
 `VIEW015`.
+
+### Stores, deletes and augmented assignments through library paths
+
+Review round 29 (B1, both reviewers; present since the first index): an
+attribute chain that is the target of `del` or of an augmented
+assignment was recorded only as a store, never as a use of the name. So
+`del lib.util.json` in a view script or another library module (on 8.3.3
+a `KeyError` once `import json` is gone; with it, the name is deleted)
+and `lib.util.json += 1` (`TypeError` with the import, `AttributeError`
+without) let `SCR102` remove `import json` from `lib.util` as safe, also
+through aliases (`import lib.util as u; del u.json`, `from lib import
+util; del util.json`), other modules' imports (`del m0.util.json`, `del
+m0.m1.util.json`) and tuple and list targets (`del m0.util.json, n`).
+`delattr(m, 'json')` already counted (the module is an argument, a value).
+
+The treatment of a library path in a context that is not a load is now:
+
+* `del` target: a use of the name (it needs the binding) as well as a
+  store of it and a change of the object it belongs to;
+* augmented assignment target (`AugStore`): a use of the name as a value
+  (it is read, and its value's own operator runs), a store and a change;
+* any other store (an assignment, a `for`, `with` or `except` target, a
+  tuple or list unpacking target): a store and a change. A store replaces
+  what the binding held; the binding is not observed, so the name is not
+  used, but `SCR102`'s removal of an import that another resource
+  assigns (`ProjectIndex::library_name_stored` of the module's name) is
+  unsafe, and so is the removal of an import that a function of the
+  module assigns through `global`;
+* subscripts and attributes of a module attribute in any context
+  (`lib.util.D['k'] = 1`, `del lib.util.D['k']`, `lib.util.L.x += 1`)
+  read the attribute (`Role::Base`), as before;
+* `global` declarations concern the module's own names, which its
+  semantic model resolves; `exec ... in m.__dict__` makes the module a
+  value (a special attribute).
+
+All of these go through the one resolver: the use is resolved like any
+other reference (`m0.util.json` reads `json` of `lib.util`).
+
+Stores land where the path leads (review round 29, M1): `m0.util.h =
+lambda: 'stored'` and then `lib.util.h()` returns `'stored'` on 8.3.3,
+but the index kept only the store as written, so `REF002` reported
+`lib.util.h` missing and `REF003` checked `lib.util.f` against a
+definition another resource had replaced (`m0.util.f = lambda a, b: 5`
+then `lib.util.f(1, 2)` returns 5). Each store is now recorded as
+written and where it lands (`ProjectIndex::record_store`): the object the
+name belongs to is resolved, not the name (`lib.util.h = f` rebinds `h`
+of `lib.util`, not what an import `h` there leads to), with every module
+on the way (`c1.a.util.h`, ..., `lib.util.h`); a store whose path ends
+at a module or package (`m0.util = x`, `setattr(m0.util, name, v)`)
+counts for every name of the module it may reach (default deny). With
+the check of the queried path through imports this holds both ways.
+
+`__all__` is read exactly only when the module assigns it once, in its
+own statement list, from literals, and changes it at module level only
+with literal `append` and `extend` calls (review round 29, N1:
+`__all__[:] = ['f', 'json']` and `__all__[1] = 'json'` exported `json`
+to a caller's `from lib.util import *` while `SCR102` reported it
+unused). Any other use (an item or slice store or delete, another
+method, `+=`, an alias, a use in a function, several or conditional
+bindings, a module that writes its namespace dynamically) makes the
+export list unknown: any name may be exported, also one starting with
+`_` (before, a module with several bindings of `__all__` was taken to
+export only the names without a leading `_`).
+
+Evidence: `chains.cases` of the library-routes oracle has each form
+(del and augmented assignment directly, through an alias, a package
+import, one and two module imports, tuple and list targets; stores as
+assignment, `for`, `except` and tuple targets; `global` del and store;
+stores through and into a chain read on the other side; `__all__` slice,
+item, `insert`, `+=`, alias, function and underscore cases), each
+del/augmented/`__all__` case also with the import removed (the `without`
+records differ: `KeyError`, `AttributeError`, `NameError`); the replay
+`every_chain_through_library_imports_counts` checks that uses keep the
+import, stores leave no safe removal and `REF002`/`REF003` stay silent.
+Per-form tests with applied fixes: `SCR102`'s
+`deleting_or_augmenting_a_module_name_elsewhere_uses_it` (library module
+and view script), `assigning_a_module_name_elsewhere_makes_the_removal_unsafe`,
+`changed_all_may_export_any_name`; `REF002`'s
+`stores_through_library_imports_are_not_missing`; `REF003`'s
+`functions_replaced_through_library_imports_are_not_checked`.
+
+### Star imports between library modules
+
+Review round 29 (M2): the star handling of round 28 looked a name a
+module did not bind up in every star-imported module that may export it,
+and on from there, as a search per path with the bound of 64 imports and
+with a module reached twice counted like a cycle, and every consumer of
+the index resolved the same paths again: 1,000 modules each
+star-importing the ten before took 22 s (with names bound nowhere 69 s),
+150 modules each star-importing every earlier one minutes.
+
+Where a name may come from through star imports does not depend on the
+path that asks, so the resolver now keeps it (`library::ResolveMemo`,
+one per project and symbols view, held by the index and shared by every
+consumer): the graph of star imports between library modules; per name,
+the modules that bind it and the modules whose star imports bring it (a
+module that does not bind it, is dynamic only by absolute star imports,
+`ModuleSymbols::names_from_stars_only`, and star-imports one that binds
+or brings it and exports it); per module and name, the modules where the
+path continues (those that bind the name, or whose names are not known:
+no symbols, `exec`, namespace writes, frame routes, a star import of a
+module outside the library) and the modules on the way. A star-imported
+module that can neither provide the name nor pass it on is not
+followed. The answers are kept over star imports without cycles; around
+a cycle each module's answer is searched on its own, which finds every
+module of the cycle (a name may come from any, whatever the order they
+load in). A script's own star imports are looked up once per name over
+all of them.
+
+This changes results in one direction only where the old search was not
+exact: it stopped after 64 star-imported modules (what lay beyond became
+values) and made a module reached a second time (a diamond, not a cycle)
+a value; now every module that may provide the name is found, and none
+that cannot is followed. Every name the old search found is still found
+(test `memoised_paths_match_the_reference_resolver`, which keeps the
+round-28 resolver as a reference: paths that meet no star import give
+exactly its result, through star imports the end is unknown in both);
+one memo for all paths equals a new one per path; the Jython-model
+property test `library_paths_resolve_like_jython` passes with the
+star-only flag set. On the private project and the fixtures the
+findings are unchanged. The release stress test
+`star_imports_between_library_modules_take_linear_time` runs the four
+shapes (each well under a second; growing them four times takes at
+most six times as long, ten for every-earlier-one, whose input grows
+with the square of the modules).
 
 ### Closed world
 
@@ -2080,6 +2209,39 @@ unsafe fix; one the net drops only together with others stays safe, and
 a later fix pass applies it once the others are applied or dropped
 (`every_fix_path_goes_through_the_net`,
 `quick_fixes_go_through_the_safety_net`).
+
+The language server's findings are what a fresh check reports (review
+round 29, B2). An edit of a library module in the middle of a chain
+(`m1` starting to import `m2`, which imports `lib.util`, so `b`'s
+`m1.m2.util.json` reads `json` of `lib.util`) left `lib.util`'s
+"imported but unused" finding published, and its quick fix offered as the
+safe, preferred removal: the files to check again after an edit
+(`live::dependents`) were only the modules on the paths of the resources
+that named the edited one. Two changes:
+
+* the files to check again are default deny: any change of a library
+  module's summary (facts or references) counts for every file, and so
+  does any change of what a resource contributes to the whole project
+  (stores, values, exposure, star imports, dynamic references, unknown
+  code, file reads, unvetted names, Perspective calls, messages, a
+  library path whose objects are used as values); only the views, named
+  queries, style classes and value-free library paths a resource names,
+  and what only its own findings use, are followed precisely;
+* a fix is applied only while a fresh check of the current workspace
+  still reports the same finding with the same fix (`Live::fix_one`,
+  `live::same_finding`), and the server's code actions (quick fixes and
+  `source.fixAll`), `codeAction/resolve` and the fix-all command check
+  the file again first: when the published findings are stale they are
+  published again and nothing is offered.
+
+Tests: `an_edit_in_the_middle_of_a_chain_updates_the_module_at_its_end`
+(editor and on-disk changes), `view015_through_two_library_calls_follows_an_edit_of_the_second`,
+`stale_findings_get_no_quick_fix` (`live`), and the property test
+`published_findings_and_fixes_match_a_fresh_check_after_any_edits`
+(`iglint_server/tests/consistency.rs`: random edits of open and unopened
+files of generated libraries; after every step the published findings
+and the preferred quick fixes equal a fresh `iglint check`; 8 sequences
+by default, `IGLINT_CONSISTENCY_SEEDS` for more, 150 run).
 
 ## Dynamic code: audit of every safe fix
 
