@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
-use std::sync::mpsc;
+use std::sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard, mpsc};
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
@@ -257,6 +257,7 @@ const ALL: &[&str] = &["--no-cache", "--select", "ALL", "--ignore", "SCR900"];
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn too_deep_scripts_are_findings() {
+    let _shared = shared();
     for (name, source) in too_deep_python() {
         for dir in [module(&source), view_script(&source)] {
             for args in [
@@ -286,6 +287,7 @@ fn too_deep_scripts_are_findings() {
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn deep_chains_do_not_flood() {
+    let _shared = shared();
     let mut inputs = too_deep_python();
     inputs.extend(deep_python());
     inputs.extend([
@@ -322,6 +324,7 @@ fn deep_chains_do_not_flood() {
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn deep_scripts_are_linted() {
+    let _shared = shared();
     for (name, source) in deep_python() {
         for dir in [module(&source), view_script(&source)] {
             for args in [ALL, &["--no-cache", "--unsafe-fixes", "--diff"][..]] {
@@ -340,6 +343,7 @@ fn deep_scripts_are_linted() {
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn deep_expressions() {
+    let _shared = shared();
     let value = "{view.custom.c}";
     let within = [
         format!("{value}{}", " + 1".repeat(990)),
@@ -424,6 +428,7 @@ const RULE_CONFIG: &str = r#"{"UnusedCustomPropertiesRule": {"enabled": true}, "
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn deep_json() {
+    let _shared = shared();
     // Gson reads any depth: iglint lints views up to its limit, in check
     // and ign-lint mode (ign-lint itself crashes from about 500 levels).
     for n in [600, JSON_DEPTH - 16] {
@@ -466,6 +471,7 @@ fn deep_json() {
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn deep_tags() {
+    let _shared = shared();
     for (n, too_deep) in [(JSON_DEPTH / 2 - 8, false), (100_000, true)] {
         let mut tags = r#"{"name": "T", "tagType": "AtomicTag", "valueSource": "expr", "expression": "now()"}"#
             .to_owned();
@@ -519,6 +525,7 @@ fn deep_tags() {
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn nested_finally_chains_are_never_safe() {
+    let _shared = shared();
     for depth in [50, 64, 200] {
         let mut source = String::from("def g():\n    import math\n    return 1\ndef f():\n");
         for d in 0..depth {
@@ -571,6 +578,7 @@ fn nested_finally_chains_are_never_safe() {
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn unknown_compile_status_is_not_quadratic() {
+    let _alone = alone();
     const BUDGET: Duration = Duration::from_secs(20);
     // 1,400 statements make the module's size bounds lie on both sides of
     // Jython's method limit; comment lines pad it to `lines`. Every line
@@ -678,6 +686,7 @@ fn unknown_compile_status_is_not_quadratic() {
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn long_lines() {
+    let _shared = shared();
     // How many scripts Jython cannot read.
     let mark = |source: &str, expected: usize, view: bool| {
         let dir = if view {
@@ -729,6 +738,7 @@ fn long_lines() {
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn ign_lint_mode_survives_deep_scripts() {
+    let _shared = shared();
     for (_, source) in too_deep_python().into_iter().chain(deep_python()) {
         let dir = view_script(&source);
         write(
@@ -948,6 +958,7 @@ fn file_uri(path: &Path) -> String {
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn language_server_survives_deep_documents() {
+    let _shared = shared();
     let dir = module("x = 1\n");
     write(
         dir.path(),
@@ -1033,9 +1044,28 @@ fn wide_view(n: usize) -> String {
     )
 }
 
-/// The best of two wall times of `iglint check` on `dir`.
+/// Held by every test while it runs: shared by most, alone by the tests
+/// that measure time. Other tests running at the same time (each spawns
+/// processes that use every core) made the measurements depend on what
+/// else ran, on runners with two or four cores above all.
+static RUNNING: RwLock<()> = RwLock::new(());
+
+/// For a test that does not measure time.
+fn shared() -> RwLockReadGuard<'static, ()> {
+    RUNNING.read().unwrap_or_else(|e| e.into_inner())
+}
+
+/// For a test that measures time: no other test runs meanwhile.
+fn alone() -> RwLockWriteGuard<'static, ()> {
+    RUNNING.write().unwrap_or_else(|e| e.into_inner())
+}
+
+/// The best of three wall times of `iglint check` on `dir`, after a run
+/// that is not counted (it reads the files into the cache, and lets a
+/// virus scanner see them).
 fn check_time(dir: &Path, args: &[&str]) -> Duration {
-    (0..2)
+    iglint(dir, args);
+    (0..3)
         .map(|_| {
             let start = Instant::now();
             iglint(dir, args);
@@ -1043,6 +1073,44 @@ fn check_time(dir: &Path, args: &[&str]) -> Duration {
         })
         .min()
         .unwrap()
+}
+
+/// How long this machine takes to check a library module of 10,000
+/// assignments `b = a` (linear, about 40 ms on two cores of a current
+/// laptop), measured once. Time budgets are multiples of it: shared CI
+/// runners take several times as long as a developer's machine, so a
+/// budget in seconds either fails there or lets a quadratic part pass on
+/// the fast machine.
+fn reference() -> Duration {
+    static REFERENCE: OnceLock<Duration> = OnceLock::new();
+    *REFERENCE.get_or_init(|| {
+        let source = "a = 1\n".to_owned()
+            + &(0..10_000)
+                .map(|i| format!("b{i} = a\n"))
+                .collect::<String>();
+        let dir = module(&source);
+        let time = check_time(
+            dir.path(),
+            &[
+                "--no-cache",
+                "--select",
+                "ALL",
+                "--ignore",
+                "SCR900",
+                "--exit-zero",
+            ],
+        );
+        eprintln!("reference: {time:?}");
+        time
+    })
+}
+
+/// Whether growing an input four times took at most six times as long
+/// (linear growth takes four, a quadratic part sixteen), with half the
+/// reference time for the part that does not grow (starting the process,
+/// reading the stubs).
+fn grows_linearly(small: Duration, large: Duration) -> bool {
+    large < small * 6 + reference() / 2
 }
 
 /// Review round 14: a view of 80,000 components took 11.5 s, 46 times as
@@ -1057,6 +1125,7 @@ fn check_time(dir: &Path, args: &[&str]) -> Duration {
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn large_views_and_modules_take_linear_time() {
+    let _alone = alone();
     let args = [
         "--no-cache",
         "--select",
@@ -1072,7 +1141,7 @@ fn large_views_and_modules_take_linear_time() {
     );
     eprintln!("views: 20,000 components {t_small:?}, 80,000 {t_large:?}");
     assert!(
-        t_large < t_small * 6 + Duration::from_millis(300),
+        grows_linearly(t_small, t_large),
         "20,000 components: {t_small:?}, 80,000: {t_large:?}"
     );
     assert!(t_large < Duration::from_secs(30), "{t_large:?}");
@@ -1086,7 +1155,7 @@ fn large_views_and_modules_take_linear_time() {
     );
     eprintln!("modules: 250,000 lines {t_small:?}, 1,000,000 {t_large:?}");
     assert!(
-        t_large < t_small * 6 + Duration::from_millis(300),
+        grows_linearly(t_small, t_large),
         "250,000 lines: {t_small:?}, 1,000,000: {t_large:?}"
     );
     assert!(t_large < Duration::from_secs(60), "{t_large:?}");
@@ -1116,12 +1185,21 @@ fn large_views_and_modules_take_linear_time() {
 /// each binding; the shapes around it (reads in blocks, by functions and
 /// class bodies, augmented assignments, deletions, module rebinding) are
 /// linear too.
+///
+/// The first CI run (machines several times slower than the one the
+/// budgets were set on) found more: every read of a top-level name bound
+/// to a literal searched the module's list of such names (`chains`, 2,500
+/// to 10,000 took 14 times as long), and the comprehension variable of a
+/// function, which Jython 2 leaks and which gathers every binding, was
+/// copied at every comprehension (`a function body`). Budgets are now
+/// multiples of a reference run on the same machine ([`reference`]).
 #[test]
 #[cfg_attr(
     debug_assertions,
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn library_modules_take_linear_time_in_their_names() {
+    let _alone = alone();
     let args = [
         "--no-cache",
         "--select",
@@ -1348,13 +1426,14 @@ fn library_modules_take_linear_time_in_their_names() {
         eprintln!("{name}: 2,500 {t_small:?}, 10,000 {t_large:?}");
         if linear {
             assert!(
-                t_large < t_small * 6 + Duration::from_millis(300),
+                grows_linearly(t_small, t_large),
                 "{name}: 2,500: {t_small:?}, 10,000: {t_large:?}"
             );
         }
         assert!(
-            t_large < Duration::from_millis(1_500),
-            "{name}: 10,000: {t_large:?}"
+            t_large < reference() * 30,
+            "{name}: 10,000: {t_large:?}, reference {:?}",
+            reference()
         );
     }
 }
@@ -1369,12 +1448,23 @@ fn library_modules_take_linear_time_in_their_names() {
 /// once per module and name, over the star imports that can bring it.
 /// Each shape takes well under a second, and growing it four times takes
 /// at most six times as long.
+///
+/// The first CI run found more: along a chain of star imports every
+/// module gets the names of every earlier one, and the modules that may
+/// bring each name were all found at once (time quadratic in the chain;
+/// they are now found as they are asked about); every script built and
+/// hashed the list of the project's top-level library names; and
+/// `REF012` and `REF014` asked, for every module, whether the project
+/// has scripts iglint does not model or reaches any library name
+/// dynamically, through every resource and every dynamic reference. Each
+/// is now known once per project.
 #[test]
 #[cfg_attr(
     debug_assertions,
     ignore = "large inputs: run with `cargo test --release -p iglint --test stress`"
 )]
 fn star_imports_between_library_modules_take_linear_time() {
+    let _alone = alone();
     let args = [
         "--no-cache",
         "--select",
@@ -1484,11 +1574,12 @@ fn star_imports_between_library_modules_take_linear_time() {
         );
         eprintln!("star imports, {name}: {n} {t_small:?}, {grown} {t_large:?}");
         assert!(
-            t_small < Duration::from_millis(750),
-            "{name}: {n}: {t_small:?}"
+            t_small < reference() * 15,
+            "{name}: {n}: {t_small:?}, reference {:?}",
+            reference()
         );
         assert!(
-            t_large < t_small * 6 + Duration::from_millis(300),
+            grows_linearly(t_small, t_large),
             "{name}: {n}: {t_small:?}, {grown}: {t_large:?}"
         );
     }
@@ -1556,6 +1647,7 @@ fn multi_byte_fixture(to: &Path, change: &Change) {
 /// assert that no rule reports a range that splits a character.
 #[test]
 fn multi_byte_first_characters_do_not_panic() {
+    let _shared = shared();
     let changes: [(&str, &Change); 5] = [
         ("byte order mark first", &|t: &str| format!("\u{feff}{t}")),
         ("euro sign first", &|t: &str| format!("\u{20ac}{t}")),
@@ -1664,6 +1756,7 @@ fn multi_byte_first_characters_do_not_panic() {
 /// server's initialization with exit status 101.
 #[test]
 fn multi_byte_path_components_do_not_panic() {
+    let _shared = shared();
     let dir = module("import os\nprint os.path.exists(u\"/\u{e9}/report.txt\")\n");
     let root = dir.path();
     for args in [
@@ -2591,9 +2684,37 @@ fn unicode_workspace(seed: u64) {
             "--statistics",
         ],
     );
-    let mut each = vec!["check", "--no-cache", "--output-format", "json"];
-    each.extend(files.iter().map(|f| f.to_str().unwrap()));
-    iglint(root, &each);
+    // Every file named on the command line, relative to the root, in as
+    // few runs as Windows allows (a command line holds at most 32,767
+    // UTF-16 units there).
+    let mut each: Vec<&str> = Vec::new();
+    let mut length = 0;
+    for file in &files {
+        let rel = file.strip_prefix(root).unwrap().to_str().unwrap();
+        let units = rel.encode_utf16().count() + 3;
+        if length + units > 24_000 {
+            iglint(
+                root,
+                &[
+                    &["check", "--no-cache", "--output-format", "json"],
+                    &each[..],
+                ]
+                .concat(),
+            );
+            each.clear();
+            length = 0;
+        }
+        each.push(rel);
+        length += units;
+    }
+    iglint(
+        root,
+        &[
+            &["check", "--no-cache", "--output-format", "json"],
+            &each[..],
+        ]
+        .concat(),
+    );
     for file in files.iter().step_by(7) {
         if let Ok(text) = std::fs::read_to_string(file) {
             iglint_stdin(root, file, &text);
@@ -2676,6 +2797,7 @@ fn unicode_workspace(seed: u64) {
 /// `IGLINT_UNICODE_KEEP=<dir>` keeps a copy of each generated workspace.
 #[test]
 fn unicode_everywhere_does_not_panic() {
+    let _shared = shared();
     match std::env::var("IGLINT_UNICODE_SEED") {
         Ok(seed) => {
             let seed = seed.trim_start_matches("0x");
@@ -2693,6 +2815,7 @@ fn unicode_everywhere_does_not_panic() {
 #[test]
 #[ignore = "long: cargo test --release -p iglint --test stress unicode_everywhere_long -- --ignored"]
 fn unicode_everywhere_long() {
+    let _shared = shared();
     let cases: u64 = std::env::var("IGLINT_UNICODE_CASES")
         .ok()
         .and_then(|n| n.parse().ok())
