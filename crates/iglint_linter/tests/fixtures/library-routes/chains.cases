@@ -1720,3 +1720,173 @@ from m0.exports import *
 from m1 import *
 def g(n):
     return leaf.json.dumps(1)
+### star-all-from-import uses lib.util.json
+== lib.names
+__all__ = ['json', 'f']
+== lib.util
+import json
+from lib.names import __all__
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-from-import-removed without star-all-from-import
+== lib.names
+__all__ = ['json', 'f']
+== lib.util
+import os
+from lib.names import __all__
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-for uses lib.util.json
+== lib.util
+import json
+for __all__ in [['json', 'f']]:
+    pass
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-for-removed without star-all-for
+== lib.util
+import os
+for __all__ in [['json', 'f']]:
+    pass
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-with uses lib.util.json
+== lib.util
+import json
+class C(object):
+    def __enter__(self):
+        return ['json', 'f']
+    def __exit__(self, *a):
+        return False
+with C() as __all__:
+    pass
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-with-removed without star-all-with
+== lib.util
+import os
+class C(object):
+    def __enter__(self):
+        return ['json', 'f']
+    def __exit__(self, *a):
+        return False
+with C() as __all__:
+    pass
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-tuple uses lib.util.json
+== lib.util
+import json
+__all__, x = ['json', 'f'], 1
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'
+### star-all-tuple-removed without star-all-tuple
+== lib.util
+import os
+__all__, x = ['json', 'f'], 1
+def f():
+    return 1
+== b
+from lib.util import *
+def g(n):
+    try:
+        return json.dumps(1)
+    except KeyError:
+        return 'KeyError'
+    except AttributeError:
+        return 'AttributeError'
+    except TypeError:
+        return 'TypeError'
+    except NameError:
+        return 'NameError'

@@ -164,7 +164,9 @@ one that `from pkg.mod import *` in another resource binds there (every
 name not starting with `_`, or the names of `__all__`; any name when
 `__all__` is changed in a way not read, such as `__all__[:] = [...]`,
 `__all__[1] = 'json'`, `__all__.insert(...)`, `__all__ += [...]`, an
-alias of it or a change from a function), nor one that another resource
+alias of it or a change from a function, and when its one binding is not
+an assignment to the bare name: `from x import __all__`, `for __all__ in
+...`, `with c as __all__`, `__all__, y = ...`), nor one that another resource
 deletes (`del pkg.mod.name`: without the binding, a `KeyError` on 8.3.3)
 or changes with an augmented assignment (`pkg.mod.name += 1` reads it
 first), also through aliases and other modules' imports. An assignment
@@ -1656,9 +1658,19 @@ mod tests {
             "__all__ = ['f']\ndef k():\n    __all__.extend(['json', '_j'])\n",
             "__all__ = ['f']\ndel __all__[0]\n__all__.extend(['f', 'json', '_j'])\n",
             "if f:\n    __all__ = ['f']\nelse:\n    __all__ = ['f', 'json', '_j']\n",
+            // Review round 30 (Opus minor 2): one binding that is not an
+            // assignment to the bare name (`chains.cases`, 8.3.3).
+            "from lib.names import __all__\n",
+            "for __all__ in [['f', 'json', '_j']]:\n    pass\n",
+            "class C(object):\n    def __enter__(self):\n        return ['f', 'json', '_j']\n    def __exit__(self, *a):\n        return False\nwith C() as __all__:\n    pass\n",
+            "__all__, x = ['f', 'json', '_j'], 1\n",
+            "[__all__] = [['f', 'json', '_j']]\n",
+            "import lib.names as __all__\n",
+            "def __all__():\n    pass\n",
         ] {
             let code = format!("import json\nimport json as _j\n{all}def f():\n    return 1\n");
             let f = with_library(library("lib/util", &code), "user", user);
+            let f = with_library(f, "lib/names", "__all__ = ['f', 'json', '_j']\n");
             let d: Vec<_> = f
                 .lint(&["SCR102"])
                 .into_iter()

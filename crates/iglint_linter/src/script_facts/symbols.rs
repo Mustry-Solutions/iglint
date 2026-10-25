@@ -187,11 +187,18 @@ pub(crate) fn star_exports(model: &SemanticModel<'_>, module: &Module) -> StarEx
     if all.is_empty() && !other_use {
         return StarExports::Public;
     }
+    // The one binding is an assignment to the bare name in the module's
+    // own statement list (the only binding the model reads the list of):
+    // `from x import __all__`, `for __all__ in ...`, `with c as __all__`,
+    // `__all__, y = ...`, `def __all__()` may bind anything (review round
+    // 30, Opus minor 2).
     let unconditional_all = match all {
-        [only] => model
-            .binding(*only)
-            .stmt
-            .is_some_and(|stmt| module.body.as_ptr_range().contains(&(stmt as *const Stmt))),
+        [only] => model.binding(*only).stmt.is_some_and(|stmt| {
+            module.body.as_ptr_range().contains(&(stmt as *const Stmt))
+                && matches!(stmt, Stmt::Assign(s) if s.targets.iter().any(
+                    |t| matches!(t, Expr::Name(n) if &*n.id == "__all__")
+                ))
+        }),
         _ => false,
     };
     if unconditional_all && !other_use && !model.dunder_all_is_dynamic() {
