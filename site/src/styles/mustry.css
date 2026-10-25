@@ -1,0 +1,25 @@
+/* Light Mustry branding: the accent blues of mustrysolutions.com. Starlight's
+   styles live in cascade layers, so these unlayered rules must name each
+   theme explicitly. */
+:root,
+:root[data-theme='dark'] {
+	--sl-color-accent-low: #0b1d4d;
+	--sl-color-accent: #507bf8;
+	--sl-color-accent-high: #bdcefc;
+}
+
+:root[data-theme='light'] {
+	--sl-color-accent-low: #d6e0fd;
+	--sl-color-accent: #295ef6;
+	--sl-color-accent-high: #0731a8;
+}
+
+.site-title {
+	gap: 0.5rem;
+}
+
+/* Rule codes, names and option names stay on one line in tables. */
+.sl-markdown-content td:first-child code,
+.sl-markdown-content td:nth-child(2) code {
+	white-space: nowrap;
+}

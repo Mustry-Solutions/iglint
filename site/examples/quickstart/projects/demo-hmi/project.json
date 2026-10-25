@@ -1,0 +1,6 @@
+{
+  "title": "Demo HMI",
+  "description": "Synthetic example project for the iglint documentation",
+  "enabled": true,
+  "inheritable": false
+}

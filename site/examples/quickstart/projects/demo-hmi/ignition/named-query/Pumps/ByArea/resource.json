@@ -1,0 +1,37 @@
+{
+  "scope": "A",
+  "documentation": "Pumps of one area",
+  "version": 2,
+  "restricted": false,
+  "overridable": true,
+  "files": [
+    "query.sql"
+  ],
+  "attributes": {
+    "cacheAmount": 1,
+    "cacheEnabled": false,
+    "database": "Plant",
+    "useMaxReturnSize": false,
+    "fallbackEnabled": false,
+    "autoBatchEnabled": false,
+    "permissions": [
+      {}
+    ],
+    "maxReturnSize": 100,
+    "cacheUnit": "SEC",
+    "type": "Query",
+    "parameters": [
+      {
+        "type": "Parameter",
+        "identifier": "area",
+        "sqlType": 7
+      }
+    ],
+    "enabled": true,
+    "lastModification": {
+      "actor": "designer",
+      "timestamp": "2026-10-01T08:00:00Z"
+    },
+    "lastModificationSignature": "0000000000000000000000000000000000000000000000000000000000000003"
+  }
+}
