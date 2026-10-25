@@ -1141,7 +1141,7 @@ fn library_modules_take_linear_time_in_their_names() {
             })
             .collect()
     }
-    let shapes: [(&str, Shape, bool); 20] = [
+    let shapes: [(&str, Shape, bool); 22] = [
         (
             "assignments",
             |n| "a = 1\n".to_owned() + &(0..n).map(|i| format!("b{i} = a\n")).collect::<String>(),
@@ -1288,6 +1288,38 @@ fn library_modules_take_linear_time_in_their_names() {
                         .collect::<String>()
             },
             true,
+        ),
+        // Review round 27 (Opus nit): every closure reads every binding of
+        // the function's local, a list now built once and shared (it was
+        // copied and hashed per closure: 32,000 lambdas took 3.4 s).
+        (
+            "closures reading one rebound local",
+            |n| {
+                "def f():\n    v = 0\n".to_owned()
+                    + &(0..n)
+                        .map(|i| format!("    v = {i}\n    g{i} = lambda: v\n"))
+                        .collect::<String>()
+            },
+            true,
+        ),
+        // A handler that does not rebind the name keeps every earlier
+        // binding reaching (the assignment in the body may have raised):
+        // the set grows with every `try`, and its merges are quadratic
+        // with a small constant (32,000 such blocks, far above Jython's
+        // method size limit, take about 1.4 s), like elif branches.
+        (
+            "handlers rebinding one name",
+            |n| {
+                "def f(x):\n".to_owned()
+                    + &(0..n)
+                        .map(|i| {
+                            format!(
+                                "    try:\n        x = {i}\n    except ValueError:\n        pass\n"
+                            )
+                        })
+                        .collect::<String>()
+            },
+            false,
         ),
         // Every read finds every conditional binding: the reaching lists
         // are held once (review round 26), their merges stay quadratic

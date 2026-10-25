@@ -319,6 +319,12 @@ pub(crate) struct Flow<'a, 'o> {
     /// Lists of reaching bindings longer than [`SHARED_FROM`], each held
     /// once for every reference that finds it.
     lists: FxHashSet<Arc<[BindingId]>>,
+    /// The bindings a free variable may find, by the function whose cell it
+    /// is and the name: every binding of the name there, built once for all
+    /// the closures that read it (review round 27, Opus nit: 32,000 lambdas
+    /// reading one rebound local copied and hashed the 32,000 bindings each
+    /// time).
+    free_lists: FxHashMap<(ScopeId, &'a str), Arc<[BindingId]>>,
 }
 
 /// The length from which the bindings a reference may find are shared.
@@ -360,6 +366,7 @@ impl<'a, 'o> Flow<'a, 'o> {
             package: table.package,
             package_bound_elsewhere: table.package_bound_elsewhere,
             lists: FxHashSet::default(),
+            free_lists: FxHashMap::default(),
         }
     }
 
@@ -786,6 +793,9 @@ impl<'a, 'o> Flow<'a, 'o> {
         let mut unbound = false;
         let mut maybe_unbound = false;
         let mut fallback = None;
+        // The bindings of a free variable, shared by every closure that
+        // reads it (`Flow::free_lists`).
+        let mut free: Option<Arc<[BindingId]>> = None;
         let global_only = matches!(access, NameAccess::Global | NameAccess::ImplicitGlobal);
         let local = if global_only && scope_kind != ScopeKind::Module {
             None
@@ -827,11 +837,16 @@ impl<'a, 'o> Flow<'a, 'o> {
                 }
                 Resolution::Local
             }
-            None if access == NameAccess::Free => {
-                let (resolution, extra) = self.lookup_free(name);
-                bindings = extra;
-                resolution
-            }
+            None if access == NameAccess::Free => match self.lookup_free(name) {
+                Ok((resolution, ids)) => {
+                    free = Some(ids);
+                    resolution
+                }
+                Err((resolution, extra)) => {
+                    bindings = extra;
+                    resolution
+                }
+            },
             None => {
                 let (resolution, extra) = self.lookup_global(name);
                 bindings = extra;
@@ -846,7 +861,11 @@ impl<'a, 'o> Flow<'a, 'o> {
         match existing {
             Some(&id) => {
                 let r = &mut self.references[id.index()];
-                r.bindings.add_all(bindings);
+                match free {
+                    Some(ids) if r.bindings.shared().iter().any(|s| Arc::ptr_eq(s, &ids)) => {}
+                    Some(ids) => r.bindings.add_all(ids.to_vec()),
+                    None => r.bindings.add_all(bindings),
+                }
                 if st.reachable {
                     if r.reachable {
                         r.unbound &= unbound;
@@ -864,7 +883,13 @@ impl<'a, 'o> Flow<'a, 'o> {
                 // read that finds the same (review round 26, M4: `n`
                 // conditional bindings of a name read `n` times held `n *
                 // n` entries).
-                let bindings = if bindings.len() > SHARED_FROM {
+                let bindings = if let Some(ids) = free {
+                    if ids.len() > SHARED_FROM {
+                        SharedIds::shared_from(ids)
+                    } else {
+                        ids.to_vec().into()
+                    }
+                } else if bindings.len() > SHARED_FROM {
                     let ids = match self.lists.get(bindings.as_slice()) {
                         Some(ids) => Arc::clone(ids),
                         None => {
@@ -938,20 +963,37 @@ impl<'a, 'o> Flow<'a, 'o> {
     /// Resolves a free variable: the enclosing function whose cell it is.
     /// Jython's `setup_closure` keeps a name free only while each enclosing
     /// function has it free or as a cell (class bodies are skipped).
-    fn lookup_free(&mut self, name: &'a str) -> (Resolution, Vec<BindingId>) {
+    /// The bindings are every binding of the name in that function, shared
+    /// ([`Flow::free_lists`]; `Ok`), or the global lookup's (`Err`).
+    #[allow(clippy::type_complexity)]
+    fn lookup_free(
+        &mut self,
+        name: &'a str,
+    ) -> Result<(Resolution, Arc<[BindingId]>), (Resolution, Vec<BindingId>)> {
         let mut at = self.scope;
         while at != ScopeId::MODULE {
             at = crate::symbols::enclosing_function(&self.scopes, at.index());
             let s = &self.scopes[at.index()];
             let flags = s.jython.get(name).copied().unwrap_or(0);
             if flags & jython::CELL != 0 {
-                return (Resolution::Free(at), s.bindings_of(name).to_vec());
+                let all = s.bindings_of(name);
+                // Bindings are only ever added: the same length is the same
+                // list.
+                let ids = match self.free_lists.get(&(at, name)) {
+                    Some(ids) if ids.len() == all.len() => Arc::clone(ids),
+                    _ => {
+                        let ids: Arc<[BindingId]> = all.into();
+                        self.free_lists.insert((at, name), Arc::clone(&ids));
+                        ids
+                    }
+                };
+                return Ok((Resolution::Free(at), ids));
             }
             if flags & jython::FREE == 0 {
                 break;
             }
         }
-        self.lookup_global(name)
+        Err(self.lookup_global(name))
     }
 
     /// Resolves a name in the module's globals, then the caller's injected

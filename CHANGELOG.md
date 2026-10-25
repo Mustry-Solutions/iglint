@@ -155,6 +155,16 @@ from 0.1.0 on.
   for any other; `**kwargs` adds no positional argument (verified on
   Jython). The other builtin exemptions do not depend on the number of
   arguments.
+- Closures that read a function's local took time quadratic in their
+  number when the local is bound many times (review round 27, Opus nit:
+  32,000 lambdas reading one rebound local, 3.4 s): each read copied and
+  hashed every binding of the name. The list is built once per function
+  and name and shared; 32,000 closures now take 0.44 s with every rule.
+  32,000 `try` blocks whose handler keeps an earlier binding of a name
+  reaching remain quadratic with a small constant (1.4 s; the set of
+  reaching bindings grows with every block), a known limit far above
+  Jython's method size limit. Both shapes are in the release stress test
+  `library_modules_take_linear_time_in_their_names`.
 - SCR102 removed an import of a library module as safe while another
   module reached it through the module object (review round 26, blocker):
   `m.__findattr_ex__('re')`, `m.dict['re']`, `m.getDict()['re']`,
