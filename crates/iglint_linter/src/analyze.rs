@@ -163,8 +163,9 @@ pub(crate) fn analyze_with(
     }
     let mut overrides: FxHashMap<FileId, Arc<str>> = FxHashMap::default();
     let mut overlay_applied: Vec<PathBuf> = Vec::new();
+    let mut overlay_refused: Vec<PathBuf> = Vec::new();
     if let Some(overlay) = options.overlay.as_deref().filter(|o| !o.is_empty()) {
-        overlay_applied = apply_overlay(&ws, overlay, &mut overrides);
+        (overlay_applied, overlay_refused) = apply_overlay(&ws, overlay, &mut overrides);
     }
     for (i, t) in target_of.iter().enumerate() {
         if let Some(t) = t
@@ -941,7 +942,10 @@ pub(crate) fn analyze_with(
             })
         })
         .collect();
-    // Linted files outside resources whose text came from the overlay.
+    // Linted files outside resources whose text came from the overlay. An
+    // entry some file refused stays refused, even when the linted file
+    // took its text (review round 34: a view that is also, by a hard
+    // link, the project's manifest).
     if let Some(overlay) = options.overlay.as_deref() {
         for (t, target) in targets.iter().enumerate() {
             let path = absolute(&target.path);
@@ -956,6 +960,7 @@ pub(crate) fn analyze_with(
                 .and_then(|f| table.get(f))
                 .is_some_and(|s| *s.shared_text() == **text)
                 && !overlay_applied.contains(&path)
+                && !overlay_refused.contains(&path)
             {
                 overlay_applied.push(path);
             }
@@ -988,15 +993,16 @@ pub(crate) fn analyze_with(
 /// path, or by identity: a symbolic or hard link to it, the file a link
 /// points to) the overlay's text, as writing the text to the entry's path
 /// would. Discovery read the manifests from disk: an overlay counts for
-/// one only when it holds the same text. Returns the overlay paths used;
-/// entries for the same file with different texts are not used, nor is
-/// an entry that some file it is did not take (a manifest with another
-/// text, a file the run does not read as text of a resource).
+/// one only when it holds the same text. Returns the overlay paths used
+/// and those refused; entries for the same file with different texts are
+/// not used, nor is an entry that some file it is did not take (a
+/// manifest with another text, a file the run does not read as text of a
+/// resource).
 fn apply_overlay(
     ws: &Workspace,
     overlay: &crate::engine::Overlay,
     overrides: &mut FxHashMap<FileId, Arc<str>>,
-) -> Vec<PathBuf> {
+) -> (Vec<PathBuf>, Vec<PathBuf>) {
     let by_identity: FxHashMap<FileIdentity, Vec<&PathBuf>> = {
         let mut map: FxHashMap<FileIdentity, Vec<&PathBuf>> = FxHashMap::default();
         for path in overlay.keys() {
@@ -1047,7 +1053,7 @@ fn apply_overlay(
         }
     }
     applied.retain(|p| !refused.contains(p));
-    applied
+    (applied, refused)
 }
 
 /// What identifies a file on disk (through links): device and inode on

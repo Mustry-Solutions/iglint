@@ -3431,3 +3431,85 @@ fn pylint_findings_do_not_count_as_drift() {
         client.shutdown();
     }
 }
+
+/// The edits of the `VIEW015` code actions of `uri` (all of them, safe or
+/// not), resolved when deferred, as the texts they make of `text`.
+fn view015_edits(client: &mut Client, uri: &Url, text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for action in code_actions(client, uri, full_range(), None) {
+        if !action.title.starts_with("VIEW015") || action.title.contains("suppress") {
+            continue;
+        }
+        let action = if action.edit.is_none() && action.data.is_some() {
+            client.request::<CodeActionResolveRequest>(action)
+        } else {
+            action
+        };
+        if let Some(edits) = action
+            .edit
+            .as_ref()
+            .and_then(|e| e.changes.as_ref())
+            .and_then(|c| c.get(uri))
+        {
+            out.push(apply(text, edits));
+        }
+    }
+    out
+}
+
+/// Review round 34 (Codex minor): `child/project.json` is also the view
+/// `V` (a hard link). The view is open, and its unsaved text makes the
+/// project inherit from `b`, whose `lib.f` reads `custom.dead`. Discovery
+/// read the manifest from disk (parent `a`), so the run refuses the text
+/// for the manifest, and no fix may be computed: before, the view itself
+/// taking the text counted as the run using it, and the removal of
+/// `custom.dead` was returned.
+#[cfg(unix)]
+#[test]
+fn a_view_that_is_also_the_manifest_gets_no_fix_from_unsaved_text() {
+    const VIEW: &str = r#"{"enabled":true,"parent":"a","custom":{"dead":1},"root":{"type":"ia.container.flex","meta":{"name":"root"},"props":{},"custom":{},"events":{"system":{"onStartup":{"type":"script","config":{"script":"\tlib.f(self.view)\n"}}}}}}"#;
+    for capabilities in three_clients() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        write(&root, "iglint.toml", "select = [\"VIEW015\"]\n");
+        let manifest = r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#;
+        for (p, body) in [
+            ("a", "def f(c): return 1\n"),
+            ("b", "def f(c): return c.custom.dead\n"),
+        ] {
+            write(
+                &root,
+                &format!("projects/{p}/project.json"),
+                r#"{"enabled": true, "inheritable": true}"#,
+            );
+            write(
+                &root,
+                &format!("projects/{p}/ignition/script-python/lib/resource.json"),
+                manifest,
+            );
+            write(
+                &root,
+                &format!("projects/{p}/ignition/script-python/lib/code.py"),
+                body,
+            );
+        }
+        let child = write(&root, "projects/child/project.json", VIEW);
+        let views = "projects/child/com.inductiveautomation.perspective/views";
+        write(&root, &format!("{views}/V/resource.json"), MANIFEST);
+        let view = root.join(format!("{views}/V/view.json"));
+        std::fs::hard_link(&child, &view).unwrap();
+        let mut client =
+            Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+        let uri = client.open(&view, VIEW);
+        let shown = client.diagnostics(&uri, Some(1));
+        assert!(codes(&shown).contains(&"VIEW015".to_owned()), "{shown:#?}");
+        assert!(!view015_edits(&mut client, &uri, VIEW).is_empty());
+        let to_b = VIEW.replace(r#""parent":"a""#, r#""parent":"b""#);
+        client.replace_all(&uri, 2, &to_b);
+        assert_eq!(
+            view015_edits(&mut client, &uri, &to_b),
+            Vec::<String>::new()
+        );
+        client.shutdown();
+    }
+}
