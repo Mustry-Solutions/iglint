@@ -14,6 +14,26 @@ and the changes listed here.
 
 ### Changed
 
+- Language server edits (review round 34, Opus nits 2 and 3): a client
+  that supports `workspace.workspaceEdit.documentChanges` gets every edit
+  (quick fixes, "fix all", the fix-all command, suppressions) as a
+  `TextDocumentEdit` for the document version it was computed for; a
+  `codeAction/resolve` that makes no edit returns the action disabled
+  with the reason when the client supports `disabledSupport`.
+- Rule pages, `iglint rule` and the editor hover state the default of
+  every option in the rule's Options section, taken from the rule
+  metadata (BIND002, BIND004, BIND005, NAME001, SCR900, VIEW012, VIEW013
+  and VIEW018 did not); a test checks the defaults that pages state
+  themselves.
+- Documentation: README and CHANGELOG say that nothing is released yet
+  (PyPI wheel, GitHub release binaries, VS Code packages and the
+  `v0.1.0` tag are planned for 0.1.0); the README documents `extend`,
+  `extend-ignore`, `extend-exclude`, `unfixable`, `projects`,
+  `gateways`, `respect-gitignore` and `cache-dir`; DESIGN.md no longer
+  lists a `COMPAT` category; the editor docs say which open files
+  withhold fixes and that a fix's fresh check may run pylint.
+- A documentation site (Astro Starlight) in `site/`: guides, reference
+  and the rule pages synced from `docs/rules/` at build time.
 - Language server latency (review round 30, minor): after an edit, the
   edited file is published first and the files it may affect are
   checked again 128 at a time until the next message arrives, so typing
@@ -133,6 +153,21 @@ and the changes listed here.
 
 ### Fixed
 
+- Language server and byte order marks or other encodings (review round
+  34, Opus minor): VS Code hides a leading byte order mark and writes it
+  back on save, so an open file with one counted as modified forever and
+  withheld every fix, and the file itself was linted without the mark (no
+  `SCR001`, fixes `iglint check` does not make). Now an open document
+  whose file has a hidden mark, or decodes to its text as iglint reads
+  it, counts as saved; a file that is not valid UTF-8 withholds fixes
+  with its own reason; a file that starts with a mark or is not valid
+  UTF-8 gets no fix itself; the editor shows `SCR001` for the mark, with
+  first-line positions after it.
+- Language server: an unsaved edit of a view that is also the project's
+  manifest (a hard link) could still get a fix computed with the
+  manifest on disk (review round 34, Codex minor): the check refused the
+  text for the manifest, but a later step counted it as used because the
+  view took it. A refused text now stays refused.
 - The language server applies a fix only when every other open document
   is saved (review round 33, blocker, Opus B1 and Codex 1). The round 32
   rule withheld fixes while an open file "the check reads" had unsaved
