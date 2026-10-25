@@ -1502,6 +1502,63 @@ mod tests {
         }
     }
 
+    /// Review round 30 (B1, new in round 29): a star import of a module
+    /// named through another module's import (`from m0.exports import *`,
+    /// `m0` doing `from lib import exports`), of a package (`from core
+    /// import *`) or through a name bound twice, passed on by a further
+    /// star import, reaches what that module binds (`chains.cases`: `ok`
+    /// with the import, `AttributeError` without). The import is used;
+    /// `--fix` keeps it.
+    #[test]
+    fn star_imports_through_imports_pass_names_on() {
+        let leaf = "import json\nimport os\ndef f():\n    return 1\n";
+        let firsts = [
+            "from m0.exports import *\n",
+            "from m0.e import *\n",
+            "from m0.m00.exports import *\n",
+            "from m0.v import *\n",
+            "from core import *\n",
+        ];
+        for first in firsts {
+            for user in [
+                "def g():\n    return m2.leaf.json.dumps(1)\n",
+                "from m2 import *\ndef g():\n    return leaf.json.dumps(1)\n",
+                "from m1 import *\ndef g():\n    return leaf.json.dumps(1)\n",
+            ] {
+                let f = with_library(
+                    library("core/leaf", leaf),
+                    "lib/exports",
+                    "from core import leaf\n",
+                );
+                let f = with_library(
+                    f,
+                    "m0",
+                    "from lib import exports\nimport lib.exports as e\nimport m00\ntry:\n    from lib import exports as v\nexcept ImportError:\n    v = None\n",
+                );
+                let f = with_library(f, "m00", "from lib import exports\n");
+                let f = with_library(f, "m1", first);
+                let f = with_library(f, "m2", "from m1 import *\n");
+                let f = with_library(f, "user", user);
+                let d: Vec<_> = f
+                    .lint(&["SCR102"])
+                    .into_iter()
+                    .filter(|d| d.file.path().ends_with("core/leaf/code.py"))
+                    .collect();
+                assert!(
+                    !flagged(&d).contains(&"json".to_owned()),
+                    "{first}{user}: {:?}",
+                    flagged(&d)
+                );
+                // `os` is unused (unless the module may have any name
+                // read): even unsafe fixes keep `json`.
+                if !d.is_empty() {
+                    let fixed = f.fixed(&[("SCR102", "")], true, &library_path(&f, "core/leaf"));
+                    assert!(fixed.contains("import json\n"), "{first}{user}: {fixed}");
+                }
+            }
+        }
+    }
+
     /// Review round 29 (B1): an assignment from elsewhere replaces what the
     /// import binds (`lib.util.json = 5`, through other modules' imports, in
     /// `for`, `except` and tuple targets, or from a function of the module

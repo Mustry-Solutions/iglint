@@ -899,6 +899,11 @@ impl StarGraph {
         }
         let n = g.resources.len();
         g.importers = vec![Vec::new(); n];
+        // Star targets are resolved by the one resolver, through imports,
+        // aliases and chains, with star imports not followed (the graph is
+        // being built): a target found through a star import is not exact.
+        let plain = ResolveMemo::default();
+        let _ = plain.graph.set(StarGraph::default());
         for i in 0..n {
             let Some(syms) = symbols(g.resources[i]) else {
                 g.unknown.insert(i);
@@ -914,20 +919,32 @@ impl StarGraph {
                 }
             }
             let mut foreign = false;
+            let mut inexact = false;
             let mut stars = Vec::new();
             for star in &syms.star_imports {
                 if !tree.is_library_path(star) {
                     foreign = true;
                     continue;
                 }
-                let segments: Vec<String> = star.split('.').map(str::to_owned).collect();
-                let target = match tree.lookup(&segments, symbols).0 {
-                    LibraryLookup::Module { resource, .. } => g.by_resource.get(&resource).copied(),
+                // Review round 30 (B1): `from m0.exports import *`, where
+                // `m0` imports `lib.exports`, star-imports `lib.exports`.
+                // A star import the graph cannot resolve exactly to one
+                // module (a package, a variable, a name found through a
+                // star import, a cycle) stays a place of its own for the
+                // module's own paths, and the module's names are not known
+                // to the modules star-importing it (whatever the name, the
+                // path continues in it).
+                let path = tree.resolve_path_with(star, symbols, &plain);
+                let target = match path.end {
+                    LibraryLookup::Module { resource, .. } if path.values.is_empty() => {
+                        g.by_resource.get(&resource).copied()
+                    }
                     _ => None,
                 };
+                inexact |= target.is_none();
                 stars.push((star.clone(), target));
             }
-            if syms.dynamic && (foreign || !syms.names_from_stars_only) {
+            if (syms.dynamic && (foreign || !syms.names_from_stars_only)) || inexact {
                 g.unknown.insert(i);
             }
             g.stars.push(stars);
@@ -1029,12 +1046,16 @@ impl StarGraph {
         } else {
             self.reach_acyclic(root, name, facts)
         };
-        let sources = sources.unwrap_or_else(|| {
+        let mut sources = sources.unwrap_or_else(|| {
             facts
                 .cyclic
                 .store(true, std::sync::atomic::Ordering::Relaxed);
             self.reach_search(root, name, facts)
         });
+        // The two searches meet star imports that are not modules in
+        // different orders, and which one answers depends on what the memo
+        // met before (review round 30): one order, whatever asked first.
+        sources.other.sort_unstable();
         StarReach {
             places: sources
                 .places
@@ -2101,7 +2122,8 @@ pub(crate) mod reference {
                             .into_iter()
                             .flat_map(|s| &s.star_imports)
                             .filter(|s| {
-                                self.is_library_path(s) && self.exports(s, &segments[at], symbols)
+                                self.is_library_path(s)
+                                    && self.reference_exports(s, &segments[at], symbols)
                             })
                             .collect();
                         if !stars.is_empty() {
@@ -2131,6 +2153,25 @@ pub(crate) mod reference {
                 shared,
                 side: w.side > 0,
             });
+        }
+
+        /// [`LibraryTree::exports`] of the module a star import names
+        /// through imports (review round 30, B1: `from m0.util import *`
+        /// binds what `lib.util` exports when `m0` imports it).
+        fn reference_exports<'i>(
+            &self,
+            star: &str,
+            name: &str,
+            symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+        ) -> bool {
+            let plain = ResolveMemo::default();
+            let _ = plain.graph.set(StarGraph::default());
+            match self.resolve_path_with(star, symbols, &plain).end {
+                LibraryLookup::Module { resource, .. } => {
+                    symbols(resource).is_none_or(|s| s.star_exports.exports(name))
+                }
+                _ => true,
+            }
         }
 
         #[allow(clippy::too_many_arguments)]
@@ -2226,7 +2267,7 @@ mod tests {
         }
         let mut checked = 0;
         let mut stars = 0;
-        for round in 0..60 {
+        for round in 0..240 {
             let n = 3 + next(14);
             let names: Vec<String> = (0..n)
                 .map(|i| match i % 3 {
@@ -2278,9 +2319,26 @@ mod tests {
                     _ => (i.saturating_sub(3)..i).collect(),
                 };
                 for s in stars {
-                    m.star_imports.push(names[s].clone());
+                    // Review round 30 (B1): star imports of a module named
+                    // directly, through another module's import (an alias,
+                    // a chain of two, a re-exported name, a name bound
+                    // several times), or of a package.
+                    let star = match next(8) {
+                        0 => format!("{}.a{}", names[s], next(4)),
+                        1 => format!("{}.a{}.a{}", names[s], next(4), next(4)),
+                        2 => format!("{}.v", names[s]),
+                        3 if next(2) == 0 => "p".to_owned(),
+                        3 => "p.q".to_owned(),
+                        _ => names[s].clone(),
+                    };
+                    m.star_imports.push(star);
                 }
-                m.dynamic = !m.star_imports.is_empty() || next(6) == 0;
+                // Dynamic by its star imports only, as the script layer
+                // says of a module without `exec` or namespace writes, or
+                // otherwise too.
+                let other = next(6) == 0;
+                m.dynamic = !m.star_imports.is_empty() || other;
+                m.names_from_stars_only = !m.star_imports.is_empty() && !other;
                 if next(5) == 0 {
                     m.symbols.push(Symbol {
                         name: "v".into(),
@@ -2299,10 +2357,24 @@ mod tests {
                 modules.push(m);
             }
             let lookup = |r: ResourceId| modules.get(r.0 as usize);
+            // The names a module's star import reads on the way to what it
+            // imports (`a2` of `m11` for `from m11.a2 import *`): the index
+            // credits them where the star import is written, whatever path
+            // reaches the module.
+            let mut star_reads: rustc_hash::FxHashSet<(ResourceId, &str)> = Default::default();
+            for m in &modules {
+                for star in &m.star_imports {
+                    for (r, symbol) in tree.resolve_path(star, lookup).names {
+                        star_reads.insert((r, symbol.name.as_str()));
+                    }
+                }
+            }
             let mut memo = ResolveMemo::default();
             let mut queries: Vec<String> = Vec::new();
             for m in &names {
-                for tail in ["f0", "f1.x", "a0.f2", "a1.a2.f0", "v.f1", "nope", "a3"] {
+                for tail in [
+                    "f0", "f1.x", "a0.f2", "a1.a2.f0", "v.f1", "nope", "a3", "a0.f1.x", "a2.a3",
+                ] {
                     queries.push(format!("{m}.{tail}"));
                 }
             }
@@ -2328,12 +2400,32 @@ mod tests {
                         } else {
                             assert_eq!(new.end, old.end, "{q}");
                         }
+                        // Every name the old resolver found is found, or
+                        // its module may have any name read: the new path
+                        // reaches it as a value, directly or through the
+                        // imports of modules it reaches as values (what the
+                        // index does with `values`), as when a path meets
+                        // the bound of imports followed.
+                        let mut valued: rustc_hash::FxHashSet<ResourceId> = Default::default();
+                        let mut work: Vec<LibraryObject> = new.values.clone();
+                        while let Some(object) = work.pop() {
+                            for r in tree.object_modules(&object) {
+                                if valued.insert(r)
+                                    && let Some(syms) = lookup(r)
+                                {
+                                    work.extend(tree.imported_objects(syms, &lookup));
+                                }
+                            }
+                        }
                         for (r, symbol) in &old.names {
                             assert!(
-                                new.names
-                                    .iter()
-                                    .any(|(r2, s2)| r2 == r && s2.name == symbol.name),
-                                "{q}: {}",
+                                valued.contains(r)
+                                    || star_reads.contains(&(*r, symbol.name.as_str()))
+                                    || new
+                                        .names
+                                        .iter()
+                                        .any(|(r2, s2)| r2 == r && s2.name == symbol.name),
+                                "{q}: {} of {r:?}",
                                 symbol.name
                             );
                         }

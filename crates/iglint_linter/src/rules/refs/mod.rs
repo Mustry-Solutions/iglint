@@ -8,6 +8,8 @@ pub mod manifest_mismatch;
 pub mod named_query_params;
 pub mod popup_params;
 pub(crate) mod script_calls;
+#[cfg(test)]
+mod star_graphs;
 pub mod unhandled_message_handler;
 pub mod unknown_library_member;
 pub mod unknown_message_type;

@@ -65,9 +65,18 @@ enum Binding {
 #[derive(Clone, Debug)]
 struct Spec {
     names: Vec<(String, Binding)>,
-    /// `from <module> import *`, before the module's own bindings.
-    star: Option<String>,
+    /// `from <path> import *`, in order, before the module's own bindings
+    /// (review round 30, B1: also of a module named through another
+    /// module's import, a package or a name).
+    stars: Vec<String>,
 }
+
+/// What a star import may name: a module, a package, a name, or a path
+/// through another module's import.
+const STAR_TARGETS: &[&str] = &[
+    "m0", "m1", "m2", "lib.a", "lib.b", "pkg.c.d", "lib", "pkg.c", "m0.a", "m1.u", "m2.w",
+    "lib.a.b", "lib.b.u", "m0.a.u", "m1.v", "lib.a.f",
+];
 
 fn spec() -> impl Strategy<Value = Spec> {
     (
@@ -75,9 +84,10 @@ fn spec() -> impl Strategy<Value = Spec> {
         any::<bool>(),
         prop::collection::vec((0..ALIASES.len(), 0..TARGETS.len()), 0..4),
         prop::option::of((0..TARGETS.len(), 0..TARGETS.len())),
-        prop::option::weighted(0.25, 0..MODULES.len()),
+        prop::collection::vec(0..STAR_TARGETS.len(), 0..3),
+        0..4usize,
     )
-        .prop_map(|(f, json, imports, ambiguous, star)| {
+        .prop_map(|(f, json, imports, ambiguous, stars, some)| {
             let mut names: Vec<(String, Binding)> = Vec::new();
             let mut add = |name: &str, b: Binding| {
                 if !names.iter().any(|(n, _)| n == name) {
@@ -101,7 +111,14 @@ fn spec() -> impl Strategy<Value = Spec> {
             }
             Spec {
                 names,
-                star: star.map(|s| MODULES[s].to_owned()),
+                // About half of the modules star-import.
+                stars: match some {
+                    0 | 1 => stars
+                        .into_iter()
+                        .map(|s| STAR_TARGETS[s].to_owned())
+                        .collect(),
+                    _ => Vec::new(),
+                },
             }
         })
 }
@@ -160,18 +177,51 @@ fn module_index(dotted: &str) -> Option<usize> {
 }
 
 impl Model<'_> {
-    fn lookup(&self, module: usize, name: &str) -> Option<(usize, Binding)> {
+    /// Where the name `name` of `module` comes from: the module that binds
+    /// it (none for a package's child a star import of the package binds)
+    /// and the binding. Star imports bind every name not starting with `_`
+    /// of what they name when the module loads (also the names that module
+    /// got from its own star imports), the last one winning, before the
+    /// module's own bindings (measured in `chains.cases`).
+    fn lookup(&mut self, module: usize, name: &str) -> Option<(Option<usize>, Binding)> {
         let spec = &self.specs[module];
         if let Some((_, b)) = spec.names.iter().find(|(n, _)| n == name) {
-            return Some((module, b.clone()));
+            return Some((Some(module), b.clone()));
         }
-        // Names a star import binds (every name not starting with `_`).
-        let star = module_index(spec.star.as_deref()?)?;
-        if name.starts_with('_') || star == module {
+        if name.starts_with('_') {
             return None;
         }
-        let found = self.specs[star].names.iter().find(|(n, _)| n == name)?;
-        Some((star, found.1.clone()))
+        let stars = spec.stars.clone();
+        for star in stars.iter().rev() {
+            let key = (module, format!("*{star}"));
+            if self.loading.contains(&key) {
+                // A cycle of star imports: Ignition raises ImportError.
+                self.uncertain = true;
+                continue;
+            }
+            self.loading.push(key);
+            let segs: Vec<&str> = star.split('.').collect();
+            let target = self.eval(&segs);
+            let found = match target {
+                Out::Module(m) => self.lookup(m, name),
+                Out::Package(p) => {
+                    let child = format!("{p}.{name}");
+                    (module_index(&child).is_some() || PACKAGES.contains(&child.as_str()))
+                        .then(|| (None, Binding::Import(child)))
+                }
+                _ => {
+                    // The star import fails (or what it binds is not
+                    // modelled).
+                    self.uncertain = true;
+                    None
+                }
+            };
+            self.loading.pop();
+            if found.is_some() {
+                return found;
+            }
+        }
+        None
     }
 
     fn eval(&mut self, segs: &[&str]) -> Out {
@@ -195,7 +245,17 @@ impl Model<'_> {
                     };
                 }
                 Out::Module(m) => {
-                    if self.specs[m].star.is_some()
+                    if self
+                        .loading
+                        .iter()
+                        .any(|(l, k)| *l == m && k.starts_with('*'))
+                    {
+                        // A star import of the module itself, while it
+                        // loads: its names are not bound yet.
+                        self.uncertain = true;
+                        return Out::Fails;
+                    }
+                    if !self.specs[m].stars.is_empty()
                         && !self.specs[m].names.iter().any(|(n, _)| n == seg)
                     {
                         // The index does not know which names a star
@@ -205,7 +265,10 @@ impl Model<'_> {
                     let Some((owner, binding)) = self.lookup(m, seg) else {
                         return Out::Missing(i);
                     };
-                    self.reads.insert((owner, seg.to_owned()));
+                    if let Some(owner) = owner {
+                        self.reads.insert((owner, seg.to_owned()));
+                    }
+                    let owner = owner.unwrap_or(m);
                     let rest = segs.len() - i - 1;
                     match binding {
                         Binding::Function | Binding::Leaf => {
@@ -285,12 +348,12 @@ fn workspace(root: &Path) -> Workspace {
 
 fn symbols(spec: &Spec) -> ModuleSymbols {
     let mut out = ModuleSymbols {
-        dynamic: spec.star.is_some(),
+        dynamic: !spec.stars.is_empty(),
         // The script layer's flag for a module dynamic only by its star
         // import (review round 29, M2: such a module passes on what the
         // star-imported module binds, nothing else).
-        names_from_stars_only: spec.star.is_some(),
-        star_imports: spec.star.iter().cloned().collect(),
+        names_from_stars_only: !spec.stars.is_empty(),
+        star_imports: spec.stars.clone(),
         ..ModuleSymbols::default()
     };
     for (name, b) in &spec.names {
@@ -349,11 +412,11 @@ fn check(ws: &Workspace, specs: &[Spec], paths: &[String]) -> Result<(), TestCas
             }
             s.references
                 .library_star_imports
-                .extend(specs[i].star.iter().cloned());
+                .extend(specs[i].stars.iter().cloned());
             s.references
                 .dynamic
                 .library
-                .extend(specs[i].star.iter().cloned());
+                .extend(specs[i].stars.iter().cloned());
         } else if dotted == "user" {
             s.set_module_symbols(ModuleSymbols::default());
             s.references.library.extend(paths.iter().cloned());
@@ -439,6 +502,118 @@ fn check(ws: &Workspace, specs: &[Spec], paths: &[String]) -> Result<(), TestCas
     Ok(())
 }
 
+/// What `path` names, statically (for generating paths only): a module or
+/// a package, through imports and star imports, bounded.
+fn object(specs: &[Spec], path: &str, depth: usize) -> Option<Out> {
+    let segs: Vec<&str> = path.split('.').collect();
+    let mut at = match module_index(segs[0]) {
+        Some(m) => Out::Module(m),
+        None if PACKAGES.contains(&segs[0]) => Out::Package(segs[0].to_owned()),
+        None => return None,
+    };
+    for seg in &segs[1..] {
+        at = member(specs, &at, seg, depth)?;
+    }
+    Some(at)
+}
+
+/// What the name `seg` of `at` names, statically.
+fn member(specs: &[Spec], at: &Out, seg: &str, depth: usize) -> Option<Out> {
+    if depth == 0 {
+        return None;
+    }
+    match at {
+        Out::Package(p) => {
+            let child = format!("{p}.{seg}");
+            match module_index(&child) {
+                Some(m) => Some(Out::Module(m)),
+                None if PACKAGES.contains(&child.as_str()) => Some(Out::Package(child)),
+                None => None,
+            }
+        }
+        Out::Module(m) => {
+            let spec = &specs[*m];
+            if let Some((_, b)) = spec.names.iter().find(|(n, _)| n == seg) {
+                return match b {
+                    Binding::Import(t) => object(specs, t, depth - 1),
+                    _ => None,
+                };
+            }
+            spec.stars.iter().rev().find_map(|star| {
+                let target = object(specs, star, depth - 1)?;
+                member(specs, &target, seg, depth - 1)
+            })
+        }
+        _ => None,
+    }
+}
+
+/// The names `at` may have, statically: its own, those its star imports
+/// may bring, children of a package.
+fn visible(specs: &[Spec], at: &Out, depth: usize, out: &mut Vec<String>) {
+    if depth == 0 {
+        return;
+    }
+    match at {
+        Out::Package(p) => {
+            for child in MODULES.iter().chain(PACKAGES) {
+                if let Some(rest) = child.strip_prefix(&format!("{p}."))
+                    && !rest.contains('.')
+                    && !out.iter().any(|o| o == rest)
+                {
+                    out.push(rest.to_owned());
+                }
+            }
+        }
+        Out::Module(m) => {
+            for (n, _) in &specs[*m].names {
+                if !out.contains(n) {
+                    out.push(n.clone());
+                }
+            }
+            for star in &specs[*m].stars {
+                if let Some(target) = object(specs, star, depth - 1) {
+                    visible(specs, &target, depth - 1, out);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Paths that follow what the generated library binds (review round 30,
+/// B1: a path through star imports of modules named through imports
+/// rarely comes up by chance): from a random module, each segment one of
+/// the names the object may have, sometimes a missing one.
+fn guided(specs: &[Spec], mut seed: u64) -> Vec<String> {
+    let mut next = |n: usize| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed % n as u64) as usize
+    };
+    let mut out = Vec::new();
+    for _ in 0..8 {
+        let root = MODULES[next(MODULES.len())];
+        let mut path = root.to_owned();
+        let mut at = Out::Module(module_index(root).expect("module"));
+        for _ in 0..5 {
+            let mut names = Vec::new();
+            visible(specs, &at, 6, &mut names);
+            names.extend(["json".to_owned(), "nope".to_owned()]);
+            let seg = names[next(names.len())].clone();
+            path.push('.');
+            path.push_str(&seg);
+            match member(specs, &at, &seg, 6) {
+                Some(o) => at = o,
+                None => break,
+            }
+        }
+        out.push(path);
+    }
+    out
+}
+
 proptest! {
     #![proptest_config(ProptestConfig {
         cases: 400,
@@ -450,10 +625,16 @@ proptest! {
     fn library_paths_resolve_like_jython(
         specs in prop::collection::vec(spec(), MODULES.len()),
         paths in paths(),
+        seed in 1..u64::MAX,
     ) {
         let dir = tempfile::tempdir().unwrap();
         let ws = workspace(dir.path());
         check(&ws, &specs, &paths)?;
+        // Each guided path alone: what one path reads must not be credited
+        // only because another path of the case reads it too.
+        for path in guided(&specs, seed) {
+            check(&ws, &specs, std::slice::from_ref(&path))?;
+        }
     }
 }
 
@@ -468,7 +649,7 @@ fn representative_chains() {
             .iter()
             .map(|(n, b)| ((*n).to_owned(), b.clone()))
             .collect(),
-        star: None,
+        stars: Vec::new(),
     };
     let import = |t: &str| Binding::Import(t.to_owned());
     let specs = vec![
@@ -490,5 +671,33 @@ fn representative_chains() {
     .iter()
     .map(|s| (*s).to_owned())
     .collect();
+    check(&ws, &specs, &paths).unwrap();
+}
+
+/// Review round 30 (B1): a star import of a module named through another
+/// module's import (`from m0.a import *`, `m0` importing `lib.a`), passed
+/// on by a further star import, reaches what that module re-exports.
+#[test]
+fn star_imports_through_imports() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = workspace(dir.path());
+    let spec = |names: &[(&str, Binding)], stars: &[&str]| Spec {
+        names: names
+            .iter()
+            .map(|(n, b)| ((*n).to_owned(), b.clone()))
+            .collect(),
+        stars: stars.iter().map(|s| (*s).to_owned()).collect(),
+    };
+    let import = |t: &str| Binding::Import(t.to_owned());
+    // m0, m1, m2, lib.a, lib.b, pkg.c.d
+    let specs = vec![
+        spec(&[("a", import("lib.a"))], &[]),
+        spec(&[], &["m0.a"]),
+        spec(&[], &["m1"]),
+        spec(&[("b", import("lib.b"))], &[]),
+        spec(&[("json", Binding::Leaf)], &[]),
+        spec(&[], &[]),
+    ];
+    let paths: Vec<String> = ["m2.b.json"].iter().map(|s| (*s).to_owned()).collect();
     check(&ws, &specs, &paths).unwrap();
 }

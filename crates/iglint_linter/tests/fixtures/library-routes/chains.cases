@@ -1492,3 +1492,231 @@ def g(n):
         return 'TypeError'
     except NameError:
         return 'NameError'
+### star-chain-through-import uses core.leaf.json
+== core.leaf
+import json
+def f():
+    return 1
+== lib.exports
+from core import leaf
+== m0
+from lib import exports
+== m1
+from m0.exports import *
+== m2
+from m1 import *
+== b
+def g(n):
+    return m2.leaf.json.dumps(1)
+### star-chain-through-import-removed without star-chain-through-import
+== core.leaf
+import os
+def f():
+    return 1
+== lib.exports
+from core import leaf
+== m0
+from lib import exports
+== m1
+from m0.exports import *
+== m2
+from m1 import *
+== b
+def g(n):
+    return m2.leaf.json.dumps(1)
+### star-chain-through-alias uses core.leaf.json
+== core.leaf
+import json
+def f():
+    return 1
+== lib.exports
+from core import leaf
+== m0
+import lib.exports as e
+== m1
+from m0.e import *
+== m2
+from m1 import *
+== b
+def g(n):
+    return m2.leaf.json.dumps(1)
+### star-chain-through-alias-removed without star-chain-through-alias
+== core.leaf
+import os
+def f():
+    return 1
+== lib.exports
+from core import leaf
+== m0
+import lib.exports as e
+== m1
+from m0.e import *
+== m2
+from m1 import *
+== b
+def g(n):
+    return m2.leaf.json.dumps(1)
+### star-chain-through-chain uses core.leaf.json
+== core.leaf
+import json
+def f():
+    return 1
+== lib.exports
+from core import leaf
+== m00
+from lib import exports
+== m0
+import m00
+== m1
+from m0.m00.exports import *
+== m2
+from m1 import *
+== b
+def g(n):
+    return m2.leaf.json.dumps(1)
+### star-chain-through-chain-removed without star-chain-through-chain
+== core.leaf
+import os
+def f():
+    return 1
+== lib.exports
+from core import leaf
+== m00
+from lib import exports
+== m0
+import m00
+== m1
+from m0.m00.exports import *
+== m2
+from m1 import *
+== b
+def g(n):
+    return m2.leaf.json.dumps(1)
+### star-chain-through-variable uses core.leaf.json
+== core.leaf
+import json
+def f():
+    return 1
+== lib.exports
+from core import leaf
+== m0
+try:
+    from lib import exports
+except ImportError:
+    exports = None
+== m1
+from m0.exports import *
+== m2
+from m1 import *
+== b
+def g(n):
+    return m2.leaf.json.dumps(1)
+### star-chain-through-variable-removed without star-chain-through-variable
+== core.leaf
+import os
+def f():
+    return 1
+== lib.exports
+from core import leaf
+== m0
+try:
+    from lib import exports
+except ImportError:
+    exports = None
+== m1
+from m0.exports import *
+== m2
+from m1 import *
+== b
+def g(n):
+    return m2.leaf.json.dumps(1)
+### star-chain-through-star uses core.leaf.json
+== core.leaf
+import json
+def f():
+    return 1
+== lib.exports
+from core import leaf
+== mx
+from lib import exports
+== m0
+from mx import *
+== m1
+from m0.exports import *
+== m2
+from m1 import *
+== b
+def g(n):
+    return m2.leaf.json.dumps(1)
+### star-chain-through-star-removed without star-chain-through-star
+== core.leaf
+import os
+def f():
+    return 1
+== lib.exports
+from core import leaf
+== mx
+from lib import exports
+== m0
+from mx import *
+== m1
+from m0.exports import *
+== m2
+from m1 import *
+== b
+def g(n):
+    return m2.leaf.json.dumps(1)
+### star-chain-of-package uses core.leaf.json
+== core.leaf
+import json
+def f():
+    return 1
+== m1
+from core import *
+== m2
+from m1 import *
+== b
+def g(n):
+    return m2.leaf.json.dumps(1)
+### star-chain-of-package-removed without star-chain-of-package
+== core.leaf
+import os
+def f():
+    return 1
+== m1
+from core import *
+== m2
+from m1 import *
+== b
+def g(n):
+    return m2.leaf.json.dumps(1)
+### star-chain-in-user uses core.leaf.json
+== core.leaf
+import json
+def f():
+    return 1
+== lib.exports
+from core import leaf
+== m0
+from lib import exports
+== m1
+from m0.exports import *
+== b
+from m1 import *
+def g(n):
+    return leaf.json.dumps(1)
+### star-chain-in-user-removed without star-chain-in-user
+== core.leaf
+import os
+def f():
+    return 1
+== lib.exports
+from core import leaf
+== m0
+from lib import exports
+== m1
+from m0.exports import *
+== b
+from m1 import *
+def g(n):
+    return leaf.json.dumps(1)
