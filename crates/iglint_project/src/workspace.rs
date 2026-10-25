@@ -2060,6 +2060,7 @@ mod tests {
         out
     }
 
+    #[cfg(unix)]
     fn unread(ws: &Workspace) -> Vec<(String, String)> {
         ws.unread
             .iter()

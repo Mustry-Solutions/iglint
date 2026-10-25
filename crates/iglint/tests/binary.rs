@@ -2810,6 +2810,7 @@ fn unusual_project_and_collection_directories_are_linted() {
 
 /// The findings of a JSON run as (file, code, applicability, reason,
 /// message).
+#[cfg(unix)]
 fn all_fixes(out: &std::process::Output) -> Vec<(String, String, String, String, String)> {
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap_or_else(|_| {
         panic!(
@@ -2966,6 +2967,7 @@ fn symbolic_links_to_directories_are_not_followed() {
 }
 
 /// Every file below `dir` (through no links), sorted.
+#[cfg(unix)]
 fn walk_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut files = Vec::new();
     let mut stack = vec![dir.to_path_buf()];
@@ -3025,8 +3027,11 @@ fn linked_file_repository() -> tempfile::TempDir {
     dir
 }
 
+#[cfg(unix)]
 const LINKED_MODULE: &str = "import math\nimport os\n\ndef f():\n    return math.pi\n";
+#[cfg(unix)]
 const LINKED_P: &str = "projects/P/ignition/script-python/lib/a/code.py";
+#[cfg(unix)]
 const LINKED_Q: &str = "projects/Q/ignition/script-python/lib/a/code.py";
 
 /// Reviewer round 16 B1: the gateway reads a library `code.py` that is a

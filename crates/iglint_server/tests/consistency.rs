@@ -12,6 +12,10 @@
 //! quick fixes of each, are compared with a fresh check of a copy of the
 //! workspace.
 
+// The differential test and its generators run on Unix only (they make
+// symbolic and hard links).
+#![cfg_attr(not(unix), allow(dead_code))]
+
 mod common;
 
 use std::collections::{BTreeMap, BTreeSet};
