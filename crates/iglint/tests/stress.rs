@@ -1573,8 +1573,13 @@ fn star_imports_between_library_modules_take_linear_time() {
             check_time(large.path(), &args),
         );
         eprintln!("star imports, {name}: {n} {t_small:?}, {grown} {t_large:?}");
+        // The reference is one file and these are a thousand: per-file
+        // costs (opening, reading, the virus scanner) weigh several times
+        // more on Windows. 3.7 times the reference on 2 Linux cores, 17 on
+        // a Windows runner. The linear check below is the same everywhere.
+        let budget = if cfg!(windows) { 40 } else { 15 };
         assert!(
-            t_small < reference() * 15,
+            t_small < reference() * budget,
             "{name}: {n}: {t_small:?}, reference {:?}",
             reference()
         );
