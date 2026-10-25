@@ -1473,11 +1473,9 @@ fn star_imports_between_library_modules_take_linear_time() {
     ];
     for (name, n, build) in shapes {
         // Four times the input: four times the modules, or twice the
-        // modules when each star-imports every earlier one. There each of
-        // the `n` names a module reads is looked for in its `n` star
-        // imports, `n` cubed in all for an input of `n` squared: four
-        // times the input may take eight times as long, not sixteen.
-        let (grown, factor) = if n == 150 { (2 * n, 10) } else { (4 * n, 6) };
+        // modules when each star-imports every earlier one (the input
+        // grows with the square of the modules there).
+        let grown = if n == 150 { 2 * n } else { 4 * n };
         let (small, large) = (build(n), build(grown));
         let (t_small, t_large) = (
             check_time(small.path(), &args),
@@ -1489,7 +1487,7 @@ fn star_imports_between_library_modules_take_linear_time() {
             "{name}: {n}: {t_small:?}"
         );
         assert!(
-            t_large < t_small * factor + Duration::from_millis(300),
+            t_large < t_small * 6 + Duration::from_millis(300),
             "{name}: {n}: {t_small:?}, {grown}: {t_large:?}"
         );
     }

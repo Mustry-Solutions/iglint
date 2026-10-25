@@ -690,10 +690,15 @@ pub struct ResolveMemo {
 }
 
 /// The star imports of a script, looked up once
-/// ([`LibraryTree::prepare_star_imports`]): each as written, with the
-/// module of the library it names, if it names one.
-#[derive(Debug)]
-pub struct StarImports(Vec<(String, Option<usize>)>);
+/// ([`LibraryTree::prepare_star_imports`]): the modules of the library they
+/// name, and the others as written.
+#[derive(Debug, Default)]
+pub struct StarImports {
+    modules: ModuleSet,
+    other: Vec<String>,
+    /// The modules on the way of every name looked up so far.
+    through: ModuleSet,
+}
 
 impl std::fmt::Debug for ResolveMemo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1099,7 +1104,16 @@ impl StarGraph {
         gray.insert(root);
         while let Some((m, next, sources)) = stack.last_mut() {
             let m = *m;
-            let Some((star, target)) = self.stars[m].get(*next) else {
+            // Later star imports first: a module already reached on the
+            // way adds nothing (what it reaches, the module that reached it
+            // reaches too), so each answer costs about one lookup per star
+            // import, not a merge of each one's answer.
+            let stars = &self.stars[m];
+            let Some((star, target)) = stars
+                .len()
+                .checked_sub(*next + 1)
+                .and_then(|i| stars.get(i))
+            else {
                 let (m, _, done) = stack.pop().expect("frame");
                 gray.remove(m);
                 match stack.last_mut() {
@@ -1119,6 +1133,9 @@ impl StarGraph {
                 continue;
             };
             *next += 1;
+            if target.is_some_and(|t| sources.through.contains(t)) {
+                continue;
+            }
             match self.star_kind(*target, name, facts) {
                 StarKind::Other => {
                     if !sources.other.contains(star) {
@@ -1131,6 +1148,9 @@ impl StarGraph {
                 StarKind::Through(t) => {
                     if gray.contains(t) {
                         return None;
+                    }
+                    if sources.through.contains(t) {
+                        continue;
                     }
                     if let Some(done) = local.get(&t) {
                         let done = done.clone();
@@ -1517,22 +1537,30 @@ impl LibraryTree {
         symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
         memo: &ResolveMemo,
     ) -> StarImports {
+        let mut out = StarImports::default();
         if stars.is_empty() {
-            return StarImports(Vec::new());
+            return out;
         }
         let graph = memo.graph(self, symbols);
-        StarImports(
-            stars
-                .iter()
-                .map(|s| (s.clone(), graph.by_dotted.get(s).copied()))
-                .collect(),
-        )
+        for star in stars {
+            match graph.by_dotted.get(star) {
+                Some(&t) => {
+                    out.modules.insert(t);
+                }
+                None => {
+                    if !out.other.contains(star) {
+                        out.other.push(star.clone());
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// Where `name` may come from through the star imports `stars` of a
     /// script that does not bind it (review round 29, M2): the places to
-    /// look the name up in, star-imported modules first, and the modules
-    /// on the way, each once. A star import of a module that does not
+    /// look the name up in, star-imported modules first; the modules on the
+    /// way are added to `stars` ([`LibraryTree::star_imports_through`]). A star import of a module that does not
     /// export the name brings nothing; one of a module that binds it, or
     /// whose names are not known, or of a library path that is not a
     /// module, is a place; one of a module that only passes it on from its
@@ -1543,39 +1571,54 @@ impl LibraryTree {
     /// up in all of them, each passing it on from all of theirs).
     pub fn star_imports<'i>(
         &self,
-        stars: &StarImports,
+        stars: &mut StarImports,
         name: &str,
         symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
         memo: &ResolveMemo,
-    ) -> (Vec<String>, Vec<ResourceId>) {
+    ) -> Vec<String> {
         let mut places: Vec<String> = Vec::new();
-        let mut through: Vec<ResourceId> = Vec::new();
-        if stars.0.is_empty() {
-            return (places, through);
+        places.extend(stars.other.iter().cloned());
+        if stars.modules.is_empty() {
+            return places;
         }
         let graph = memo.graph(self, symbols);
         let facts = memo.name(graph, name);
         let mut via: Option<Sources> = None;
-        for (star, target) in &stars.0 {
-            match graph.star_kind(*target, name, &facts) {
-                StarKind::None => {}
-                StarKind::Other | StarKind::Place(_) => {
-                    if !places.contains(star) {
-                        places.push(star.clone());
-                    }
+        let mut passing: Vec<usize> = Vec::new();
+        // Only the star-imported modules that may bind the name or pass it
+        // on are looked at (a word of the sets at a time).
+        let word = |set: &ModuleSet, w: usize| set.0.get(w).copied().unwrap_or(0);
+        for (w, bits) in stars.modules.0.iter().enumerate() {
+            let mut bits = bits
+                & (word(&facts.binds, w)
+                    | word(&facts.brings, w)
+                    | word(&graph.unknown, w)
+                    | word(&graph.reach_unknown, w));
+            while bits != 0 {
+                let t = w * 64 + bits.trailing_zeros() as usize;
+                bits &= bits - 1;
+                match graph.star_kind(Some(t), name, &facts) {
+                    StarKind::None | StarKind::Other => {}
+                    StarKind::Place(_) => places.push(graph.dotted[t].clone()),
+                    StarKind::Through(t) => passing.push(t),
                 }
-                StarKind::Through(t) => {
-                    let reach = graph.reach_kept(t, name, &facts);
-                    let all = via.get_or_insert_with(|| Sources {
-                        places: ModuleSet::default(),
-                        other: Vec::new(),
-                        through: ModuleSet::default(),
-                    });
-                    if let Some(found) = &reach.sources {
-                        merge(all, found);
-                    }
-                    all.through.insert(t);
-                }
+            }
+        }
+        // From the last: a module reached on the way from one already
+        // looked at brings nothing more (what it reaches, that one reaches
+        // too), so a module star-importing every earlier one costs about
+        // one lookup per name, not one per star import.
+        for &t in passing.iter().rev() {
+            let all = via.get_or_insert_with(|| Sources {
+                places: ModuleSet::default(),
+                other: Vec::new(),
+                through: ModuleSet::default(),
+            });
+            if !all.through.insert(t) {
+                continue;
+            }
+            if let Some(found) = &graph.reach_kept(t, name, &facts).sources {
+                merge(all, found);
             }
         }
         if let Some(all) = via {
@@ -1589,9 +1632,24 @@ impl LibraryTree {
                     places.push(p.clone());
                 }
             }
-            through.extend(all.through.iter().map(|i| graph.resources[i]));
+            stars.through.union(&all.through);
         }
-        (places, through)
+        places
+    }
+
+    /// The modules on the way of the names [`LibraryTree::star_imports`]
+    /// looked up through `stars`.
+    pub fn star_imports_through<'i>(
+        &self,
+        stars: &StarImports,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+        memo: &ResolveMemo,
+    ) -> Vec<ResourceId> {
+        if stars.through.is_empty() {
+            return Vec::new();
+        }
+        let graph = memo.graph(self, symbols);
+        stars.through.iter().map(|i| graph.resources[i]).collect()
     }
 
     /// Whether `from <star> import *` may bind `name`: the library module

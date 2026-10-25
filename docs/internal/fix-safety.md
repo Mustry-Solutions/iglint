@@ -1176,9 +1176,14 @@ property test `library_paths_resolve_like_jython` passes with the
 star-only flag set. On the private project and the fixtures the
 findings are unchanged. The release stress test
 `star_imports_between_library_modules_take_linear_time` runs the four
-shapes (each well under a second; growing them four times takes at
-most six times as long, ten for every-earlier-one, whose input grows
-with the square of the modules).
+shapes (each well under a second; growing the input four times takes
+at most six times as long). Two observations keep that linear: a
+script's star imports are resolved to modules once and, for each name,
+only those that may bind it or pass it on are looked at, a word of the
+sets at a time; and a module reached on the way from a star import
+already looked at adds nothing (what it reaches, that one reaches too),
+so it is skipped (star imports are looked at from the last, which in a
+module star-importing every earlier one reaches all the others).
 
 ### Closed world
 
