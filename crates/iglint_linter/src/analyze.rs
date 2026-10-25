@@ -989,7 +989,9 @@ pub(crate) fn analyze_with(
 /// points to) the overlay's text, as writing the text to the entry's path
 /// would. Discovery read the manifests from disk: an overlay counts for
 /// one only when it holds the same text. Returns the overlay paths used;
-/// entries for the same file with different texts are not used.
+/// entries for the same file with different texts are not used, nor is
+/// an entry that some file it is did not take (a manifest with another
+/// text, a file the run does not read as text of a resource).
 fn apply_overlay(
     ws: &Workspace,
     overlay: &crate::engine::Overlay,
@@ -1023,24 +1025,28 @@ fn apply_overlay(
         })
         .collect();
     let mut applied: Vec<PathBuf> = Vec::new();
-    let mut conflicts: Vec<PathBuf> = Vec::new();
+    let mut refused: Vec<PathBuf> = Vec::new();
     for (id, entries) in found {
         let f = ws.file(id);
         let text = &overlay[entries[0]];
         if entries.iter().any(|p| overlay[*p] != *text) {
-            conflicts.extend(entries.into_iter().cloned());
+            refused.extend(entries.into_iter().cloned());
             continue;
         }
         if crate::live::is_manifest_kind(f.kind) {
             if manifests.get(&id).is_some_and(|read| **read == **text) {
                 applied.extend(entries.into_iter().cloned());
+            } else {
+                refused.extend(entries.into_iter().cloned());
             }
         } else if f.resource.is_some() && f.kind.is_text() {
             overrides.insert(id, Arc::clone(text));
             applied.extend(entries.into_iter().cloned());
+        } else {
+            refused.extend(entries.into_iter().cloned());
         }
     }
-    applied.retain(|p| !conflicts.contains(p));
+    applied.retain(|p| !refused.contains(p));
     applied
 }
 

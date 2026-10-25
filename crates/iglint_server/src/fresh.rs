@@ -1,35 +1,42 @@
-//! Fixes computed by `iglint check` itself (review round 32).
+//! Fixes computed by `iglint check` itself (review rounds 32 and 33).
 //!
 //! The server keeps an incremental [`LiveWorkspace`] per folder for what it
 //! shows (diagnostics, hovers, the list of code actions). Rounds 29 to 32
 //! each found another way for that state to drift from what a fresh check
-//! reports (a file becoming a symbolic link to another one, an unsaved
-//! manifest edit, ...), so that a stale safe fix was offered. Every edit the
-//! server returns or applies for a fix is therefore computed here, by the
-//! same run as `iglint check --fix` in the folder: the configuration and
-//! the baseline loaded again, the workspace discovered again
-//! ([`iglint_linter::engine::check`]), the editor's text of every open
-//! document in place of the file on disk ([`CheckOptions::overlay`]), and
-//! nothing taken from the live workspace. When an open document's editor
-//! text differs from the disk and the run could not use it (a manifest,
-//! which discovery reads, a configuration or baseline file, a file that is
-//! not on disk), no fix is computed at all.
+//! reports, so every edit the server returns or applies for a fix is
+//! computed here, by the same run as `iglint check --fix` in the folder:
+//! the configuration and the baseline loaded again, the workspace
+//! discovered again ([`iglint_linter::engine::check`]), and nothing taken
+//! from the live workspace.
+//!
+//! The run reads the disk, with one exception: the editor's text of the
+//! document the fix is for (the target) replaces that file, by path and
+//! by file identity, as saving the document would write it
+//! ([`CheckOptions::overlay`]). A fix is computed only when every other
+//! open document has its file's text on disk (round 33, B1: deciding by
+//! path which of them the run reads missed links and configuration files
+//! outside the folder), so the run is `iglint check --fix` on the disk
+//! after saving the target. Otherwise, and when the target is open under
+//! several names with different texts, or its editor text differs from
+//! the disk and the run could not use it (a manifest, which discovery
+//! reads, a configuration or baseline file, a file that is not on disk),
+//! no fix is computed ([`Withheld`]).
 //!
 //! [`LiveWorkspace`]: iglint_linter::live::LiveWorkspace
 
 use std::hash::{Hash, Hasher};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use iglint_linter::discovery::absolute;
-use iglint_linter::engine::{self, CheckOptions, FixMode, Overlay};
+use iglint_linter::engine::{self, CheckOptions, FixMode};
 use iglint_linter::{Applicability, Diagnostic, SourceFile};
 use lsp_types::MessageType;
-use rustc_hash::{FxHashMap, FxHasher};
+use rustc_hash::FxHasher;
 use serde::{Deserialize, Serialize};
 
-use crate::folder::{CONFIG_NAMES, Configured};
+use crate::folder::Configured;
 use crate::server::Server;
 
 /// What identifies the finding of a quick fix between the list of code
@@ -94,9 +101,9 @@ pub enum FixWanted {
     All { unsafe_fixes: bool },
     /// The fix of one finding, in one pass.
     One(FindingKey),
-    /// The fix of every finding of the file, each on its own (the edits
-    /// that go with a list of quick fixes).
-    Each,
+    /// The fix of each of these findings, each on its own (the edits that
+    /// go with a list of quick fixes).
+    Keys(Vec<FindingKey>),
 }
 
 /// What a fresh run found for one file.
@@ -109,12 +116,12 @@ pub struct Fresh {
     /// The text the run linted and its fixed text, when a fix was asked
     /// for and changes it.
     pub fixed: Option<(SourceFile, String)>,
-    /// With [`FixWanted::Each`]: the fixed text of each finding's fix.
+    /// With [`FixWanted::Keys`]: the fixed text of each finding's fix.
     pub each: Vec<(FindingKey, SourceFile, String)>,
 }
 
 impl Fresh {
-    /// The fixed text of the finding `key` ([`FixWanted::Each`]).
+    /// The fixed text of the finding `key` ([`FixWanted::Keys`]).
     pub fn fix_of(&self, key: &FindingKey) -> Option<(SourceFile, String)> {
         self.each
             .iter()
@@ -122,19 +129,6 @@ impl Fresh {
             .map(|(_, s, t)| (s.clone(), t.clone()))
     }
 }
-
-/// Fresh results kept for the requests of one burst, for clients that
-/// take the edits with the list of code actions (no `codeAction/resolve`):
-/// valid while no notification arrived, for at most [`BURST`], and while
-/// the disk fingerprint of the folder is unchanged.
-#[derive(Default)]
-pub struct BurstCache {
-    epoch: u64,
-    entries: FxHashMap<(PathBuf, FixWanted), (Instant, u64, Option<Fresh>)>,
-}
-
-/// How long a burst of requests may reuse a fresh result.
-const BURST: Duration = Duration::from_secs(1);
 
 impl Server {
     /// A fresh run for `path` in the folder that publishes it, with the
@@ -147,9 +141,19 @@ impl Server {
     pub fn fresh(&mut self, path: &Path, wanted: &FixWanted) -> Option<Fresh> {
         let start = Instant::now();
         let path = absolute(path);
+        let target = match self.withheld(&path) {
+            Ok(target) => target,
+            Err(withheld) => {
+                self.log(
+                    MessageType::INFO,
+                    format!("iglint: no fix for {}: {}", path.display(), withheld.detail),
+                );
+                return None;
+            }
+        };
         let i = self.folder_for(&path);
         let root = self.folders[i].root.clone();
-        let outcome = fresh_run(&root, &path, wanted, &self.open_texts());
+        let outcome = fresh_run(&root, &path, wanted, target);
         let elapsed = start.elapsed();
         let fresh = match outcome {
             Ok(fresh) => fresh,
@@ -175,46 +179,47 @@ impl Server {
         Some(fresh)
     }
 
-    /// [`Server::fresh`] reused within a burst of requests (clients
-    /// without `codeAction/resolve`).
-    pub fn fresh_in_burst(&mut self, path: &Path, wanted: &FixWanted) -> Option<Fresh> {
+    /// Whether a fix of `path` may be computed now: when every open
+    /// document other than `path` has its file's text on disk, the editor
+    /// text of `path` if it is open (the same in every document that is
+    /// that file); otherwise why not.
+    pub fn withheld(&self, path: &Path) -> Result<Option<Arc<str>>, Withheld> {
         let path = absolute(path);
-        if self.burst.epoch != self.epoch {
-            self.burst = BurstCache {
-                epoch: self.epoch,
-                ..BurstCache::default()
-            };
-        }
-        let i = self.folder_for(&path);
-        let fingerprint = self.folders[i].disk_fingerprint();
-        let key = (path.clone(), wanted.clone());
-        if let Some((at, seen, fresh)) = self.burst.entries.get(&key)
-            && at.elapsed() < BURST
-            && *seen == fingerprint
-        {
-            return fresh.clone();
-        }
-        let at = Instant::now();
-        let fresh = self.fresh(&path, wanted);
-        if self.burst.epoch == self.epoch {
-            self.burst
-                .entries
-                .insert(key, (at, fingerprint, fresh.clone()));
-        }
-        fresh
-    }
-
-    /// The editor text of every open document, by absolute path.
-    fn open_texts(&self) -> Vec<(PathBuf, Arc<str>)> {
-        self.documents
+        let identity = file_identity(&path);
+        let mut target: Option<&str> = None;
+        let open = self
+            .documents
             .values()
-            .map(|d| (absolute(&d.path), Arc::from(d.text.as_str())))
-            .chain(
-                self.other_documents
-                    .values()
-                    .map(|(p, t)| (absolute(p), Arc::from(t.as_str()))),
-            )
-            .collect()
+            .map(|d| (&d.path, d.text.as_str()))
+            .chain(self.other_documents.values().map(|(p, t)| (p, t.as_str())));
+        for (at, text) in open {
+            let at = absolute(at);
+            let alias = at == path || identity.is_some() && file_identity(&at) == identity;
+            if alias {
+                match target {
+                    Some(seen) if seen != text => {
+                        return Err(Withheld {
+                            reason: WITHHELD_ALIASES,
+                            detail: format!(
+                                "{} is open as {} with another text",
+                                path.display(),
+                                at.display()
+                            ),
+                        });
+                    }
+                    _ => target = Some(text),
+                }
+            } else if !std::fs::read(&at).is_ok_and(|bytes| bytes == text.as_bytes()) {
+                return Err(Withheld {
+                    reason: WITHHELD_OTHERS,
+                    detail: format!(
+                        "the editor text of {} differs from the file on disk",
+                        at.display()
+                    ),
+                });
+            }
+        }
+        Ok(target.map(Arc::from))
     }
 
     /// After a fresh run of `path` in folder `i`: when the live workspace
@@ -222,6 +227,16 @@ impl Server {
     /// it keeps drifted from the disk); when the published findings
     /// differ, the fresh ones are published.
     fn heal(&mut self, i: usize, path: &Path, fresh: &[Diagnostic]) {
+        // The live workspace does not run pylint (SCR900): what it shows
+        // is compared, and shown, without those findings (review round
+        // 33, Codex 3).
+        let pylint = iglint_linter::rules::script::pylint::META.code;
+        let fresh: Vec<Diagnostic> = fresh
+            .iter()
+            .filter(|d| d.rule.code() != pylint)
+            .cloned()
+            .collect();
+        let fresh = fresh.as_slice();
         self.sync_documents();
         let live = self.folders[i]
             .live
@@ -268,13 +283,49 @@ pub fn same_set(a: &[Diagnostic], b: &[Diagnostic]) -> bool {
     })
 }
 
+/// Why no fix is computed now ([`Server::withheld`]).
+#[derive(Clone, Debug)]
+pub struct Withheld {
+    /// For the user (a disabled code action's reason).
+    pub reason: &'static str,
+    /// For the log.
+    pub detail: String,
+}
+
+pub const WITHHELD_OTHERS: &str = "Save the other modified files to apply iglint fixes";
+pub const WITHHELD_ALIASES: &str = "This file is open more than once with different texts; save or close one to apply iglint fixes";
+
+/// What identifies a file on disk through links: device and inode on
+/// Unix, the canonical path elsewhere (as the check's overlay).
+#[derive(Debug, PartialEq, Eq)]
+enum FileIdentity {
+    #[cfg(unix)]
+    Inode(u64, u64),
+    #[cfg(not(unix))]
+    Path(std::path::PathBuf),
+}
+
+fn file_identity(path: &Path) -> Option<FileIdentity> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let meta = std::fs::metadata(path).ok()?;
+        Some(FileIdentity::Inode(meta.dev(), meta.ino()))
+    }
+    #[cfg(not(unix))]
+    {
+        Some(FileIdentity::Path(std::fs::canonicalize(path).ok()?))
+    }
+}
+
 /// The run of [`Server::fresh`]: `iglint check` (`--fix`) of the folder
-/// `root`, linting only `path`, with the open documents' texts `open`.
+/// `root`, linting only `path`, with the disk after saving `target` (the
+/// editor's text of `path`, if it is open) to `path`.
 fn fresh_run(
     root: &Path,
     path: &Path,
     wanted: &FixWanted,
-    open: &[(PathBuf, Arc<str>)],
+    target: Option<Arc<str>>,
 ) -> Result<Fresh, String> {
     let configured = Configured::load(root, false);
     if let Some(error) = &configured.error {
@@ -291,7 +342,9 @@ fn fresh_run(
     {
         return Err("the configured baseline does not exist".to_owned());
     }
-    let overlay: Arc<Overlay> = Arc::new(open.iter().cloned().collect());
+    let overlay = target
+        .as_ref()
+        .map(|text| Arc::new(std::iter::once((path.to_path_buf(), Arc::clone(text))).collect()));
     let (fix_mode, fix_each, select): (FixMode, bool, Option<engine::FixSelect>) = match wanted {
         FixWanted::All { unsafe_fixes } => (
             FixMode::DiffOnly {
@@ -310,13 +363,20 @@ fn fresh_run(
                 Arc::new(move |d: &Diagnostic| absolute(d.file.path()) == at && key.matches(d));
             (mode, true, Some(select))
         }
-        FixWanted::Each => (FixMode::DiffOnly { unsafe_fixes: true }, true, None),
+        FixWanted::Keys(keys) => {
+            let keys = keys.clone();
+            let at = path.to_path_buf();
+            let select: engine::FixSelect = Arc::new(move |d: &Diagnostic| {
+                absolute(d.file.path()) == at && keys.iter().any(|k| k.matches(d))
+            });
+            (FixMode::DiffOnly { unsafe_fixes: true }, true, Some(select))
+        }
     };
     let options = CheckOptions {
         fix_mode,
         fix_each,
         fix_select: select,
-        overlay: Some(overlay),
+        overlay,
         only: Some(vec![path.to_path_buf()]),
         ..CheckOptions::default()
     };
@@ -342,7 +402,7 @@ fn fresh_run(
         // Invalid rule options: `iglint check` fails.
         return Err(e.to_string());
     }
-    unusable_document(&configured, &result, root, open)?;
+    unsaved_target(&configured, &result, path, target.as_deref())?;
     let reported: Vec<Diagnostic> = configured.filter_baseline(
         result
             .diagnostics
@@ -396,7 +456,7 @@ fn fresh_run(
                 .map(|(_, s, t)| (s.clone(), t.clone())),
             each: Vec::new(),
         },
-        FixWanted::Each => Fresh {
+        FixWanted::Keys(_) => Fresh {
             diagnostics: Some(reported),
             fixed: None,
             each: singles,
@@ -405,47 +465,38 @@ fn fresh_run(
     Ok(fresh)
 }
 
-/// Why the run cannot stand for `iglint check` of the editor's texts, if
-/// it cannot: an open document whose editor text differs from the disk
-/// and that the run read from the disk, or would have read had it been on
-/// disk (a manifest, a configuration, baseline or whitelist file, a file
-/// of the workspace that is not on disk).
-fn unusable_document(
+/// When the editor's text of the target `path` differs from the disk:
+/// why the run does not stand for `iglint check` after saving it, if it
+/// does not (the run did not take the text, as for a manifest, which
+/// discovery reads from disk, or a file that is not on disk; or the
+/// configuration load read the file).
+fn unsaved_target(
     configured: &Configured,
     result: &engine::CheckResult,
-    root: &Path,
-    open: &[(PathBuf, Arc<str>)],
+    path: &Path,
+    target: Option<&str>,
 ) -> Result<(), String> {
-    let roots: Vec<PathBuf> = result
-        .workspace_roots
+    let Some(text) = target else {
+        return Ok(());
+    };
+    if std::fs::read(path).is_ok_and(|bytes| bytes == text.as_bytes()) {
+        return Ok(());
+    }
+    let identity = file_identity(path);
+    let configuration = configured
+        .sources
         .iter()
-        .chain(&configured.roots)
-        .map(|r| absolute(r))
-        .chain(std::iter::once(absolute(root)))
-        .collect();
-    for (path, text) in open {
-        if result.overlay_applied.binary_search(path).is_ok() {
-            continue;
-        }
-        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        let relevant = roots.iter().any(|r| path.starts_with(r))
-            || CONFIG_NAMES.contains(&name)
-            || name == iglint_linter::baseline::DEFAULT_BASELINE_FILE
-            || name == ".gitignore"
-            || matches!(extension, "toml" | "txt")
-            || configured.config.as_deref() == Some(path.as_path())
-            || configured.baseline_path.as_deref() == Some(path.as_path());
-        if !relevant {
-            continue;
-        }
-        let same = std::fs::read(path).is_ok_and(|bytes| bytes == text.as_bytes());
-        if !same {
-            return Err(format!(
-                "the editor text of {} differs from the file on disk, and the check reads the disk",
-                path.display()
-            ));
-        }
+        .any(|p| p == path || identity.is_some() && file_identity(p) == identity);
+    if configuration
+        || result
+            .overlay_applied
+            .binary_search(&path.to_path_buf())
+            .is_err()
+    {
+        return Err(format!(
+            "the editor text of {} differs from the file on disk, and the check reads the disk",
+            path.display()
+        ));
     }
     Ok(())
 }

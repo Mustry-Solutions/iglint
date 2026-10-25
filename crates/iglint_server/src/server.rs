@@ -53,9 +53,10 @@ pub(crate) struct Document {
     pub dirty: bool,
     /// Identifies `text`: a new number for every change. A live workspace
     /// has the editor's text when its folder's `applied` holds this
-    /// number (review round 30, B2, and round 31, B1: every fix is computed
-    /// from the editor's text of every open document, whatever the run
-    /// trigger, in every live workspace whose index holds the document).
+    /// number (review round 30, B2, and round 31, B1: what is shown
+    /// follows the editor's text of every open document, whatever the run
+    /// trigger, in every live workspace whose index holds the document;
+    /// fixes come from [`crate::fresh`]).
     pub generation: u64,
 }
 
@@ -75,13 +76,12 @@ pub(crate) struct Server {
     /// whitelist): their path and editor text. A fix is not computed while
     /// one the check reads differs from the disk (review round 32).
     pub other_documents: FxHashMap<Url, (PathBuf, String)>,
-    /// Counts the notifications received: fresh results are reused only
-    /// between two notifications ([`crate::fresh::BurstCache`]).
-    pub epoch: u64,
-    pub burst: crate::fresh::BurstCache,
     pub results: FxHashMap<PathBuf, Published>,
     deadline: Option<Instant>,
     pub resolve_support: bool,
+    /// The client shows disabled code actions with their reason
+    /// (`codeAction.disabledSupport`).
+    pub disabled_support: bool,
     watch_registration: bool,
     /// The client takes watchers relative to a base URI.
     relative_patterns: bool,
@@ -117,11 +117,16 @@ impl Server {
             folders: Vec::new(),
             documents: FxHashMap::default(),
             other_documents: FxHashMap::default(),
-            epoch: 0,
-            burst: crate::fresh::BurstCache::default(),
             results: FxHashMap::default(),
             deadline: None,
             resolve_support: resolve_support(&params.capabilities),
+            disabled_support: params
+                .capabilities
+                .text_document
+                .as_ref()
+                .and_then(|t| t.code_action.as_ref())
+                .and_then(|c| c.disabled_support)
+                .unwrap_or(false),
             watch_registration: params
                 .capabilities
                 .workspace
@@ -282,7 +287,6 @@ impl Server {
     }
 
     fn handle_notification(&mut self, n: Notification) {
-        self.epoch += 1;
         match n.method.as_str() {
             DidOpenTextDocument::METHOD => {
                 if let Ok(p) = parse::<lsp_types::DidOpenTextDocumentParams>(n.params) {
@@ -433,6 +437,7 @@ impl Server {
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if CONFIG_NAMES.contains(&name)
                 || name == iglint_linter::baseline::DEFAULT_BASELINE_FILE
+                || self.folders.iter().any(|f| f.config_affected_by(&path))
             {
                 for (i, f) in self.folders.iter().enumerate() {
                     if f.config_affected_by(&path) || path.starts_with(&f.root) {
@@ -843,8 +848,9 @@ impl Server {
 
     /// Gives the live workspaces the editor text of every open document
     /// that changed since they last got it, whatever the run trigger and
-    /// its debounce (review round 30, B2): a fix is computed by a fresh
-    /// check, and that check must see what the editor has. Findings are
+    /// its debounce (review round 30, B2), before a list of code actions
+    /// or a fix is computed, so that what is shown matches the editor
+    /// ([`crate::fresh`] computes fixes from the disk). Findings are
     /// published per the run trigger; files whose findings may have
     /// changed wait in [`Folder::pending`](crate::folder::Folder).
     pub fn sync_documents(&mut self) {

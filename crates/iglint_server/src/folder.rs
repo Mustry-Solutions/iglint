@@ -46,9 +46,9 @@ pub struct Folder {
     /// workspace whose index holds a document gets its text, not only
     /// the folder that publishes it).
     pub applied: FxHashMap<PathBuf, u64>,
-    /// Every file the configuration could come from (the configuration
-    /// file, and each configuration name in the folder and the directories
-    /// above it), with its size and modification time when it was loaded.
+    /// Every file the configuration and the baseline could come from
+    /// ([`Configured::sources`]), with its [`FileStamp`] when it was
+    /// loaded.
     config_seen: Vec<(PathBuf, Option<FileStamp>)>,
 }
 
@@ -97,18 +97,6 @@ impl Folder {
             .any(|(path, stamp)| file_stamp(path) != *stamp)
     }
 
-    /// A digest of the folder's files, directories and configuration files
-    /// on disk now ([`LiveWorkspace::disk_fingerprint`]).
-    pub fn disk_fingerprint(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut h = rustc_hash::FxHasher::default();
-        self.live.disk_fingerprint().hash(&mut h);
-        for (path, _) in &self.config_seen {
-            file_stamp(path).hash(&mut h);
-        }
-        h.finish()
-    }
-
     /// Whether files wait to be checked again.
     pub fn has_pending(&self) -> bool {
         self.pending_all || !self.pending.is_empty()
@@ -136,7 +124,7 @@ impl Folder {
 
     /// Whether a change of `path` (a configuration file) affects this folder.
     pub fn config_affected_by(&self, path: &Path) -> bool {
-        if self.config.as_deref() == Some(path) {
+        if self.config.as_deref() == Some(path) || self.config_seen.iter().any(|(p, _)| p == path) {
             return true;
         }
         let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
@@ -169,9 +157,11 @@ pub struct Configured {
     /// The configuration names a baseline file (`iglint check` fails when
     /// it is missing).
     pub baseline_required: bool,
-    /// Every file the configuration and the baseline could come from: the
-    /// configuration file, each configuration name in the folder and the
-    /// directories above it, and the baseline file (review round 32, N1).
+    /// Every file the configuration and the baseline could come from: each
+    /// configuration name in the folder and the directories above it, every
+    /// file the load looked at or read (the configuration file and every
+    /// file it extends, `rule_config.json`, the whitelist files), and the
+    /// baseline file (review rounds 32, N1, and 33, B1).
     pub sources: Vec<PathBuf>,
     pub notices: Vec<String>,
     /// The configuration could not be read (`lenient` used the defaults).
@@ -191,7 +181,8 @@ impl Configured {
             start: Some(root.to_path_buf()),
             ..LoadOptions::default()
         };
-        let configuration = match iglint_config::load(&options, &REGISTRY) {
+        let mut read: Vec<PathBuf> = Vec::new();
+        let configuration = match iglint_config::load_recording(&options, &REGISTRY, &mut read) {
             Ok(c) => Some(c),
             Err(e) => {
                 let message = format!("iglint configuration error: {e}");
@@ -199,12 +190,13 @@ impl Configured {
                     notices.push(message.clone());
                 }
                 error = Some(message);
-                iglint_config::load(
+                iglint_config::load_recording(
                     &LoadOptions {
                         isolated: true,
                         ..options
                     },
                     &REGISTRY,
+                    &mut read,
                 )
                 .ok()
             }
@@ -246,15 +238,19 @@ impl Configured {
         if roots.is_empty() {
             roots.push(root.to_path_buf());
         }
-        let sources = config
+        let mut sources: Vec<PathBuf> = config
             .iter()
             .cloned()
+            .chain(read)
             .chain(
                 root.ancestors()
                     .flat_map(|dir| CONFIG_NAMES.iter().map(move |name| dir.join(name))),
             )
             .chain(baseline_path.iter().cloned())
+            .map(|p| iglint_linter::discovery::absolute(&p))
             .collect();
+        let mut seen = rustc_hash::FxHashSet::default();
+        sources.retain(|p| seen.insert(p.clone()));
         Configured {
             settings,
             config,
@@ -280,10 +276,42 @@ impl Configured {
     }
 }
 
-/// A file's size and modification time.
-type FileStamp = (u64, Option<SystemTime>);
+/// What a configuration file is on disk, by its path: whether the path is
+/// a symbolic link and its target, and the file it reaches: identity
+/// (device and inode, or the canonical path), size and times (review
+/// round 33: a file replaced by another one, or a link retargeted, with
+/// the same size and modification time is a change).
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FileStamp {
+    link: Option<PathBuf>,
+    file: Option<(Identity, u64, Option<SystemTime>, Option<SystemTime>)>,
+}
+
+#[cfg(unix)]
+type Identity = (u64, u64, i64, i64);
+#[cfg(not(unix))]
+type Identity = Option<PathBuf>;
 
 fn file_stamp(path: &Path) -> Option<FileStamp> {
-    let meta = std::fs::metadata(path).ok()?;
-    Some((meta.len(), meta.modified().ok()))
+    let own = std::fs::symlink_metadata(path).ok()?;
+    let link = own
+        .file_type()
+        .is_symlink()
+        .then(|| std::fs::read_link(path).unwrap_or_default());
+    let file = std::fs::metadata(path).ok().map(|meta| {
+        #[cfg(unix)]
+        let identity = {
+            use std::os::unix::fs::MetadataExt;
+            (meta.dev(), meta.ino(), meta.ctime(), meta.ctime_nsec())
+        };
+        #[cfg(not(unix))]
+        let identity = std::fs::canonicalize(path).ok();
+        (
+            identity,
+            meta.len(),
+            meta.modified().ok(),
+            meta.created().ok(),
+        )
+    });
+    Some(FileStamp { link, file })
 }

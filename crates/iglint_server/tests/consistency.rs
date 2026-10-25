@@ -301,6 +301,15 @@ fn preferred_fixes(client: &mut Client, uri: &Url) -> BTreeSet<FixAt> {
         .collect()
 }
 
+/// Whether an open document other than `target` (by path) has an editor
+/// text other than its file's text on disk: the server then computes no
+/// fix (review round 33, B1).
+fn others_modified(open: &[(PathBuf, String)], target: &Path) -> bool {
+    open.iter().any(|(path, text)| {
+        path != target && std::fs::read(path).ok().as_deref() != Some(text.as_bytes())
+    })
+}
+
 #[test]
 fn published_findings_and_fixes_match_a_fresh_check_after_any_edits() {
     let slots = slots();
@@ -370,6 +379,17 @@ fn published_findings_and_fixes_match_a_fresh_check_after_any_edits() {
                     "seed {seed} step {step}: {rel} published\n{texts:#?}"
                 );
                 let offered = preferred_fixes(&mut client, uri);
+                // Fixes are withheld while another open document has
+                // unsaved changes (review round 33, B1).
+                let open: Vec<(PathBuf, String)> = uris
+                    .iter()
+                    .map(|(k, (u, _))| (u.to_file_path().unwrap(), texts[*k].clone()))
+                    .collect();
+                let safe = if others_modified(&open, &root.join(rel)) {
+                    BTreeSet::new()
+                } else {
+                    safe
+                };
                 assert_eq!(
                     offered, safe,
                     "seed {seed} step {step}: {rel} preferred fixes\n{texts:#?}"
@@ -588,10 +608,19 @@ fn fixes_offered_between_edits_match_a_fresh_check() {
                 }
                 let mut latest = BTreeMap::new();
                 settle(&mut client, &mut latest);
+                let documents: Vec<(PathBuf, String)> = editor
+                    .iter()
+                    .flatten()
+                    .map(|(u, _, t)| (u.to_file_path().unwrap(), t.clone()))
+                    .collect();
                 for k in &open {
                     let (uri, _, _) = editor[*k].clone().unwrap();
                     let rel = &slots[*k].rel;
-                    let safe = fresh.get(rel).map(|f| f.1.clone()).unwrap_or_default();
+                    let safe = if others_modified(&documents, &root.join(rel)) {
+                        BTreeSet::new()
+                    } else {
+                        fresh.get(rel).map(|f| f.1.clone()).unwrap_or_default()
+                    };
                     assert_eq!(
                         preferred_fixes(&mut client, &uri),
                         safe,
@@ -952,10 +981,15 @@ enum ItemKind {
     Manifest,
     /// The configuration file.
     Config,
+    /// A configuration file outside the workspace that the configuration
+    /// may extend (with any extension).
+    Shared,
 }
 
 /// A file of the differential test, its kind and the texts it may have.
 struct Item {
+    /// Relative to the top directory: `ws/...` in the workspace,
+    /// `shared/...` outside it.
     rel: String,
     kind: ItemKind,
     /// Opened at the start.
@@ -965,10 +999,16 @@ struct Item {
 
 const BASE_LIBRARY: &str = "projects/base/ignition/script-python";
 
+/// Extensions of the extended configuration files (review round 33, B1:
+/// any name may be extended).
+const EXTENSIONS: [&str; 7] = [".cfg", ".toml", ".txt", ".json", ".py", "", ".iglint"];
+
 /// The files of [`applied_safe_fixes_equal_a_fresh_cli_run`]: the
 /// generated libraries of [`slots`], a module of the parent project `base`
-/// that `p` may inherit from, `p`'s `project.json` and the configuration.
-fn differential_items() -> Vec<Item> {
+/// that `p` may inherit from, `p`'s `project.json`, the configuration, and
+/// a chain of two configuration files outside the workspace (`base{ext0}`
+/// and `more{ext1}`) that it may extend.
+fn differential_items(ext: [&str; 2]) -> Vec<Item> {
     let mut items: Vec<Item> = slots()
         .into_iter()
         .map(|s| Item {
@@ -977,32 +1017,34 @@ fn differential_items() -> Vec<Item> {
             } else {
                 ItemKind::Data
             },
-            rel: s.rel,
+            rel: format!("ws/{}", s.rel),
             open: s.open,
             variants: s.variants,
         })
         .collect();
+    let owned = |v: &[&str]| v.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
     items.push(Item {
-        rel: format!("{BASE_LIBRARY}/bm/code.py"),
+        rel: format!("ws/{BASE_LIBRARY}/bm/code.py"),
         kind: ItemKind::Module,
         open: false,
-        variants: vec![
-            "def z():\n    return lib.util.json.dumps(1)\n".to_owned(),
-            "def z():\n    return 1\n".to_owned(),
-            "import os\ndef z():\n    return m0.util.os.sep\n".to_owned(),
-        ],
+        variants: owned(&[
+            "def z():\n    return lib.util.json.dumps(1)\n",
+            "def z():\n    return 1\n",
+            "import os\ndef z():\n    return m0.util.os.sep\n",
+        ]),
     });
     items.push(Item {
-        rel: "projects/p/project.json".to_owned(),
+        rel: "ws/projects/p/project.json".to_owned(),
         kind: ItemKind::Manifest,
         open: false,
-        variants: vec![
-            r#"{"title": "p", "enabled": true, "inheritable": false}"#.to_owned(),
-            r#"{"title": "p", "enabled": true, "inheritable": false, "parent": "base"}"#.to_owned(),
-        ],
+        variants: owned(&[
+            r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+            r#"{"title": "p", "enabled": true, "inheritable": false, "parent": "base"}"#,
+        ]),
     });
+    let base = format!("../shared/base{}", ext[0]);
     items.push(Item {
-        rel: "iglint.toml".to_owned(),
+        rel: "ws/iglint.toml".to_owned(),
         kind: ItemKind::Config,
         open: false,
         variants: vec![
@@ -1010,29 +1052,54 @@ fn differential_items() -> Vec<Item> {
             "unfixable = [\"VIEW015\"]\n".to_owned(),
             "select = [\"SCR102\", \"VIEW015\"]\n".to_owned(),
             "select = [\n".to_owned(),
+            format!("extend = \"{base}\"\n"),
+            format!("extend = \"{base}\"\nselect = [\"SCR102\", \"VIEW015\"]\n"),
         ],
+    });
+    let more = format!("more{}", ext[1]);
+    items.push(Item {
+        rel: format!("shared/base{}", ext[0]),
+        kind: ItemKind::Shared,
+        open: false,
+        variants: vec![
+            "select = [\"SCR102\", \"VIEW015\"]\n".to_owned(),
+            "unfixable = [\"SCR102\"]\n".to_owned(),
+            format!("extend = \"{more}\"\n"),
+            format!("extend = \"{more}\"\nunfixable = [\"VIEW015\"]\n"),
+            "select = [\n".to_owned(),
+        ],
+    });
+    items.push(Item {
+        rel: format!("shared/{more}"),
+        kind: ItemKind::Shared,
+        open: false,
+        variants: owned(&[
+            "select = [\"SCR102\"]\n",
+            "unfixable = [\"SCR102\"]\n",
+            "ignore = [\"VIEW015\"]\n",
+        ]),
     });
     items
 }
 
-/// The workspace of the differential test below `top/ws`, with the texts
-/// `texts` (one per item), and `top/outside` for hard links elsewhere.
-fn write_items(ws: &Path, items: &[Item], texts: &[String]) {
+/// The files of the differential test below `top`, with the texts `texts`
+/// (one per item); `top/outside` holds links and hard links elsewhere.
+fn write_items(top: &Path, items: &[Item], texts: &[String]) {
     write(
-        ws,
-        "projects/base/project.json",
+        top,
+        "ws/projects/base/project.json",
         r#"{"title": "base", "enabled": true, "inheritable": true}"#,
     );
     for (item, text) in items.iter().zip(texts) {
         if item.kind == ItemKind::Module || item.kind == ItemKind::Data {
             let dir = Path::new(&item.rel).parent().unwrap();
             write(
-                ws,
+                top,
                 &format!("{}/resource.json", dir.display()),
                 &manifest(&item.rel),
             );
         }
-        write(ws, &item.rel, text);
+        write(top, &item.rel, text);
     }
 }
 
@@ -1135,37 +1202,88 @@ fn cli_on_copy(top: &Path, folder: &Path, editor: &[(PathBuf, String)]) -> Optio
     ))
 }
 
-/// Review round 32: the fixes the server applies are those of `iglint
-/// check` itself. Random sequences of editor edits, saves, closes, a
-/// workspace folder added and removed, and changes on disk with and
-/// without notifications: a file replaced by a symbolic link to another
-/// one, a link retargeted, a link replaced by a file, hard links inside
-/// and outside the workspace, renamed modules, manifest edits (inheriting
-/// from `base` or not), configuration and baseline writes, and unsaved
-/// edits of the manifest and the configuration. At random points the code
-/// actions of an open document are asked for and every fix resolved: each
-/// edit the server gives for a safe quick fix is the fix of a finding that
-/// a fresh `iglint check` of a copy of the editor's texts and the disk
-/// reports as safe, and each "fix all" edit gives what `--fix` gives
+/// The file a path reaches (device and inode), through links.
+#[cfg(unix)]
+fn identity(path: &Path) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    let meta = std::fs::metadata(path).ok()?;
+    Some((meta.dev(), meta.ino()))
+}
+
+/// The folder the server makes for a file outside every workspace folder.
+fn adhoc_root(path: &Path) -> PathBuf {
+    path.ancestors()
+        .skip(1)
+        .find(|dir| dir.join("project.json").is_file() || dir.join("config-mode.json").is_file())
+        .or_else(|| path.parent())
+        .unwrap_or(path)
+        .to_path_buf()
+}
+
+/// An open document of the differential test: its path, the item it was
+/// opened as (or the item an alias was made of), and the editor's state.
+struct Doc {
+    path: PathBuf,
+    item: usize,
+    editor: Option<(Url, i32, String)>,
+}
+
+/// Review rounds 32 and 33: the fixes the server applies are those of
+/// `iglint check --fix` on the disk after saving the document they are
+/// for, and none are applied while another open document has unsaved
+/// changes. Random sequences of editor edits (in several documents at
+/// once), saves, closes, a workspace folder added and removed, and
+/// changes on disk with and without notifications: a file replaced by a
+/// symbolic link to another one, a link retargeted, a link replaced by a
+/// file, hard links inside and outside the workspace, renamed modules,
+/// manifest edits (inheriting from `base` or not), configuration and
+/// baseline writes, a configuration extending a chain of files outside the
+/// workspace with arbitrary extensions, and names outside the folder for
+/// any file (symbolic links and hard links to scripts, views, manifests,
+/// configuration files), opened and edited as documents of their own. At
+/// random points the code actions of an open document are asked for and
+/// every fix resolved. When another open document's editor text differs
+/// from its file on disk, or the document is open under several names
+/// with different texts, no fix edit is given. Otherwise each edit given
+/// for a safe quick fix is the fix of a finding that `iglint check` of a
+/// copy (links and hard links kept) with the document's text written to
+/// it reports as safe, and each "fix all" edit gives what `--fix` gives
 /// there; when the check fails nothing is given. Edits are sometimes
-/// applied to the document. With and without `codeAction/resolve`.
+/// applied to the document. With and without `codeAction/resolve`, and
+/// with `disabledSupport`.
 #[cfg(unix)]
 #[test]
 fn applied_safe_fixes_equal_a_fresh_cli_run() {
     use std::os::unix::fs::symlink;
-    let items = differential_items();
     // `IGLINT_CONSISTENCY_SEEDS=n` runs `n` sequences (default 4).
     let seeds: u64 = std::env::var("IGLINT_CONSISTENCY_SEEDS")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(4);
-    let modules: Vec<usize> = (0..items.len())
-        .filter(|i| items[*i].kind == ItemKind::Module)
-        .collect();
     let (mut asked, mut safe_quick, mut fix_alls, mut withheld, mut links) = (0, 0, 0, 0, 0);
+    let (mut aliased, mut outside_targets, mut disabled, mut extended) = (0, 0, 0, 0);
     for seed in 1..=seeds {
         let mut rng = Rng(seed * 7_919 + 13);
-        let capabilities = if rng.next(2) == 0 {
+        let ext = [
+            EXTENSIONS[rng.next(EXTENSIONS.len())],
+            EXTENSIONS[rng.next(EXTENSIONS.len())],
+        ];
+        let items = differential_items(ext);
+        let modules: Vec<usize> = (0..items.len())
+            .filter(|i| items[*i].kind == ItemKind::Module)
+            .collect();
+        let disabled_support = rng.next(3) == 0;
+        let capabilities = if disabled_support {
+            let mut c = client_capabilities();
+            c.text_document
+                .as_mut()
+                .unwrap()
+                .code_action
+                .as_mut()
+                .unwrap()
+                .disabled_support = Some(true);
+            c
+        } else if rng.next(2) == 0 {
             client_capabilities()
         } else {
             lsp_types::ClientCapabilities::default()
@@ -1176,31 +1294,44 @@ fn applied_safe_fixes_equal_a_fresh_cli_run() {
         std::fs::create_dir_all(top.join("outside")).unwrap();
         let initial: Vec<String> = items
             .iter()
-            .map(|i| i.variants[rng.next(i.variants.len().min(3))].clone())
+            .map(|i| {
+                let n = match i.kind {
+                    ItemKind::Config => i.variants.len(),
+                    _ => i.variants.len().min(3),
+                };
+                i.variants[rng.next(n)].clone()
+            })
             .collect();
-        write_items(&ws, &items, &initial);
+        write_items(&top, &items, &initial);
         let nested = ws.join(format!("{LIBRARY}/lib"));
         let mut nested_open = false;
         let mut client = Client::start_folders(&[&ws], json!({"debounceMs": 0}), capabilities);
-        // Per item: the editor's document (uri, version, text).
-        let mut editor: Vec<Option<(Url, i32, String)>> = vec![None; items.len()];
         let mut renamed = vec![false; items.len()];
-        let mut outside = 0;
-        for (k, item) in items.iter().enumerate() {
-            if item.open {
-                let uri = client.open(&ws.join(&item.rel), &initial[k]);
-                editor[k] = Some((uri, 1, initial[k].clone()));
-            }
-        }
         let path_of = |i: usize, renamed: &[bool]| -> PathBuf {
             let rel = &items[i].rel;
             if renamed[i] {
                 let dir = Path::new(rel).parent().unwrap();
-                ws.join(format!("{}_r/code.py", dir.display()))
+                top.join(format!("{}_r/code.py", dir.display()))
             } else {
-                ws.join(rel)
+                top.join(rel)
             }
         };
+        // The documents: one per item (opened under its own name), then
+        // the names made outside the workspace.
+        let mut docs: Vec<Doc> = (0..items.len())
+            .map(|i| Doc {
+                path: path_of(i, &renamed),
+                item: i,
+                editor: None,
+            })
+            .collect();
+        let mut outside = 0;
+        for (k, item) in items.iter().enumerate() {
+            if item.open {
+                let uri = client.open(&docs[k].path, &initial[k]);
+                docs[k].editor = Some((uri, 1, initial[k].clone()));
+            }
+        }
         let notify = |client: &Client, rng: &mut Rng, path: &Path, typ: u32| {
             if rng.next(2) == 0 {
                 client.notify(
@@ -1212,43 +1343,56 @@ fn applied_safe_fixes_equal_a_fresh_cli_run() {
         for step in 0..30 {
             let i = rng.next(items.len());
             let path = path_of(i, &renamed);
+            if docs[i].editor.is_none() {
+                docs[i].path = path.clone();
+            }
             let variant = items[i].variants[rng.next(items[i].variants.len())].clone();
             let module = items[i].kind == ItemKind::Module && !renamed[i];
             let other = modules[rng.next(modules.len())];
-            match rng.next(14) {
+            // A document: one of the items, or a name made outside.
+            let d = rng.next(docs.len());
+            let doc_variant = {
+                let v = &items[docs[d].item].variants;
+                v[rng.next(v.len())].clone()
+            };
+            match rng.next(20) {
                 // Open or close.
-                0 | 1 => match editor[i].take() {
+                0 | 1 => match docs[d].editor.take() {
                     Some((uri, _, _)) => client.notify(
                         lsp_types::notification::DidCloseTextDocument::METHOD,
                         json!({"textDocument": {"uri": uri}}),
                     ),
                     None => {
-                        if let Ok(text) = std::fs::read_to_string(&path) {
-                            let uri = client.open(&path, &text);
-                            editor[i] = Some((uri, 1, text));
+                        if d < items.len() {
+                            docs[d].path = path_of(d, &renamed);
+                        }
+                        if let Ok(text) = std::fs::read_to_string(&docs[d].path) {
+                            let uri = client.open(&docs[d].path, &text);
+                            docs[d].editor = Some((uri, 1, text));
                         }
                     }
                 },
                 // Type in an open document, else write the disk.
-                2..=4 => match editor[i].as_mut() {
+                2..=4 => match docs[d].editor.as_mut() {
                     Some((uri, version, text)) => {
                         *version += 1;
-                        *text = variant;
+                        *text = doc_variant;
                         let (uri, version, text) = (uri.clone(), *version, text.clone());
                         client.replace_all(&uri, version, &text);
                     }
-                    None => {
+                    None if d < items.len() => {
                         let _ = std::fs::remove_file(&path);
                         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
                         std::fs::write(&path, &variant).unwrap();
                         notify(&client, &mut rng, &path, 2);
                     }
+                    None => {}
                 },
                 // Save.
                 5 => {
                     // Through a link whose target is gone, saving fails.
-                    if let Some((uri, _, text)) = &editor[i]
-                        && std::fs::write(&path, text).is_ok()
+                    if let Some((uri, _, text)) = &docs[d].editor
+                        && std::fs::write(&docs[d].path, text).is_ok()
                     {
                         client.notify(
                             lsp_types::notification::DidSaveTextDocument::METHOD,
@@ -1296,13 +1440,14 @@ fn applied_safe_fixes_equal_a_fresh_cli_run() {
                     notify(&client, &mut rng, &path, 2);
                 }
                 // A closed module is renamed, or renamed back.
-                10 if items[i].kind == ItemKind::Module && editor[i].is_none() => {
+                10 if items[i].kind == ItemKind::Module && docs[i].editor.is_none() => {
                     let from = path.parent().unwrap().to_path_buf();
                     renamed[i] = !renamed[i];
                     let to = path_of(i, &renamed).parent().unwrap().to_path_buf();
                     if std::fs::rename(&from, &to).is_err() {
                         renamed[i] = !renamed[i];
                     }
+                    docs[i].path = path_of(i, &renamed);
                     notify(&client, &mut rng, &to.join("code.py"), 1);
                 }
                 // The baseline: written from the disk now, or removed.
@@ -1353,34 +1498,141 @@ fn applied_safe_fixes_equal_a_fresh_cli_run() {
                         json!({ "event": event }),
                     );
                 }
+                // Another name for a file, outside the workspace: a
+                // symbolic link or a hard link, with the file's own name
+                // or another extension, opened or not.
+                13 | 14 => {
+                    outside += 1;
+                    let original = path_of(i, &renamed);
+                    let name = if rng.next(2) == 0 {
+                        original.file_name().unwrap().to_string_lossy().into_owned()
+                    } else {
+                        format!("a{}", EXTENSIONS[rng.next(EXTENSIONS.len())])
+                    };
+                    let at = top.join(format!("outside/n{outside}/{name}"));
+                    std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+                    let made = if rng.next(2) == 0 {
+                        symlink(
+                            format!(
+                                "{}/{}",
+                                pathdiff(original.parent().unwrap(), at.parent().unwrap()),
+                                original.file_name().unwrap().to_string_lossy()
+                            ),
+                            &at,
+                        )
+                        .is_ok()
+                    } else {
+                        std::fs::canonicalize(&original)
+                            .and_then(|real| std::fs::hard_link(real, &at))
+                            .is_ok()
+                    };
+                    if made {
+                        links += 1;
+                        let editor = if rng.next(3) > 0
+                            && let Ok(text) = std::fs::read_to_string(&at)
+                        {
+                            Some((client.open(&at, &text), 1, text))
+                        } else {
+                            None
+                        };
+                        docs.push(Doc {
+                            path: at,
+                            item: i,
+                            editor,
+                        });
+                    }
+                }
+                // Save every open document but one.
+                15 | 16 => {
+                    let keep = rng.next(docs.len() + 1);
+                    for (k, doc) in docs.iter().enumerate() {
+                        if k == keep {
+                            continue;
+                        }
+                        if let Some((uri, _, text)) = &doc.editor
+                            && std::fs::read(&doc.path).ok().as_deref() != Some(text.as_bytes())
+                            && std::fs::write(&doc.path, text).is_ok()
+                        {
+                            client.notify(
+                                lsp_types::notification::DidSaveTextDocument::METHOD,
+                                json!({"textDocument": {"uri": uri}}),
+                            );
+                        }
+                    }
+                }
                 _ => {}
             }
             if rng.next(2) == 0 {
                 continue;
             }
-            let open: Vec<usize> = (0..items.len())
+            let open: Vec<usize> = (0..docs.len())
                 .filter(|k| {
-                    editor[*k].is_some()
-                        && matches!(items[*k].kind, ItemKind::Module | ItemKind::Data)
+                    docs[*k].editor.is_some()
+                        && matches!(
+                            items[docs[*k].item].kind,
+                            ItemKind::Module | ItemKind::Data | ItemKind::Manifest
+                        )
                 })
                 .collect();
             if open.is_empty() {
                 continue;
             }
             let k = open[rng.next(open.len())];
-            let (uri, version, text) = editor[k].clone().unwrap();
+            if rng.next(2) == 0 {
+                // Every other document saved first.
+                for (j, doc) in docs.iter().enumerate() {
+                    if let Some((u, _, t)) = &doc.editor
+                        && j != k
+                        && std::fs::read(&doc.path).ok().as_deref() != Some(t.as_bytes())
+                        && std::fs::write(&doc.path, t).is_ok()
+                    {
+                        client.notify(
+                            lsp_types::notification::DidSaveTextDocument::METHOD,
+                            json!({"textDocument": {"uri": u}}),
+                        );
+                    }
+                }
+            }
+            let (uri, version, text) = docs[k].editor.clone().unwrap();
             let doc_path = Url::to_file_path(&uri).unwrap();
-            let folder = if nested_open && doc_path.starts_with(&nested) {
+            let folder = if !doc_path.starts_with(&ws) {
+                outside_targets += 1;
+                adhoc_root(&doc_path)
+            } else if nested_open && doc_path.starts_with(&nested) {
                 nested.clone()
             } else {
                 ws.clone()
             };
-            let texts: Vec<(PathBuf, String)> = editor
-                .iter()
-                .flatten()
-                .map(|(u, _, t)| (Url::to_file_path(u).unwrap(), t.clone()))
-                .collect();
-            let reference = cli_on_copy(&top, &folder, &texts);
+            if std::fs::read_to_string(ws.join("iglint.toml")).is_ok_and(|t| t.contains("extend")) {
+                extended += 1;
+            }
+            // What may be applied: the document's text (the same under
+            // every name it is open as), every other open document
+            // unchanged.
+            let target = identity(&doc_path);
+            let mut texts: Vec<&str> = Vec::new();
+            let mut modified: Option<PathBuf> = None;
+            for doc in &docs {
+                let Some((u, _, t)) = &doc.editor else {
+                    continue;
+                };
+                let p = Url::to_file_path(u).unwrap();
+                if p == doc_path || target.is_some() && identity(&p) == target {
+                    texts.push(t);
+                } else if std::fs::read(&p).ok().as_deref() != Some(t.as_bytes()) {
+                    modified = Some(p);
+                }
+            }
+            if texts.len() > 1 {
+                aliased += 1;
+            }
+            let conflict = texts.iter().any(|t| *t != texts[0]);
+            let withhold = conflict || modified.is_some();
+            let reference = if withhold {
+                None
+            } else {
+                cli_on_copy(&top, &folder, &[(doc_path.clone(), text.clone())])
+            };
             let rel = doc_path
                 .strip_prefix(&top)
                 .unwrap()
@@ -1409,6 +1661,18 @@ fn applied_safe_fixes_equal_a_fresh_cli_run() {
                 if action.title.contains("suppress") {
                     continue;
                 }
+                if action.disabled.is_some() {
+                    assert!(
+                        disabled_support,
+                        "{context}: disabled action without support"
+                    );
+                    assert!(
+                        action.edit.is_none() && action.data.is_none(),
+                        "{context}: a disabled action with an edit"
+                    );
+                    disabled += 1;
+                    continue;
+                }
                 let quick = action.kind == Some(CodeActionKind::QUICKFIX);
                 let safe = action.is_preferred == Some(true);
                 let target = action
@@ -1432,6 +1696,16 @@ fn applied_safe_fixes_equal_a_fresh_cli_run() {
                     }
                     continue;
                 };
+                if withhold {
+                    panic!(
+                        "{context}: {} gives an edit while {}",
+                        action.title,
+                        match &modified {
+                            Some(p) => format!("{} has unsaved changes", p.display()),
+                            None => "the document is open with different texts".to_owned(),
+                        }
+                    );
+                }
                 let applied = apply(&text, edits);
                 if quick && !safe {
                     continue;
@@ -1440,9 +1714,6 @@ fn applied_safe_fixes_equal_a_fresh_cli_run() {
                     panic!("{context}: {} applied while the CLI fails", action.title);
                 };
                 if quick {
-                    if !safe {
-                        continue;
-                    }
                     let target = target.expect("a quick fix names its finding");
                     let found = diagnostics.iter().find(|(r, d)| {
                         *r == rel
@@ -1484,15 +1755,18 @@ fn applied_safe_fixes_equal_a_fresh_cli_run() {
                     apply_to_editor = Some(applied);
                 }
             }
+            if withhold {
+                withheld += 1;
+            }
             if let Some(new) = apply_to_editor {
                 client.replace_all(&uri, version + 1, &new);
-                editor[k] = Some((uri, version + 1, new));
+                docs[k].editor = Some((uri, version + 1, new));
             }
         }
         client.shutdown();
     }
     eprintln!(
-        "{asked} code action requests, {safe_quick} safe quick fixes and {fix_alls} fix-all edits equal to the CLI, {withheld} safe quick fixes withheld, {links} links made"
+        "{asked} code action requests, {safe_quick} safe quick fixes and {fix_alls} fix-all edits equal to the CLI, {withheld} withheld, {disabled} disabled actions, {links} links made, {aliased} requests with the document open under several names, {outside_targets} for a name outside the folder, {extended} with an extended configuration"
     );
     assert!(asked > 10 * seeds as usize / 2, "{asked}");
     assert!(safe_quick > 0, "{safe_quick}");

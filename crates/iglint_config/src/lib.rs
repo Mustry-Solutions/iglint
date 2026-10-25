@@ -117,8 +117,17 @@ pub struct Configuration {
 /// from `start` upward, or else a legacy `rule_config.json` from `start`
 /// upward.
 pub fn find_config(options: &LoadOptions) -> Result<ConfigSource, ConfigError> {
+    find_config_recording(options, &mut Vec::new())
+}
+
+/// [`find_config`], adding every file it looks at or reads to `read`.
+fn find_config_recording(
+    options: &LoadOptions,
+    read: &mut Vec<PathBuf>,
+) -> Result<ConfigSource, ConfigError> {
     if let Some(file) = &options.config_file {
         let path = absolutize(&options.cwd, file);
+        read.push(path.clone());
         if !path.is_file() {
             return Err(ConfigError::new(
                 &path,
@@ -151,6 +160,7 @@ pub fn find_config(options: &LoadOptions) -> Result<ConfigSource, ConfigError> {
     for dir in start.ancestors() {
         for name in CONFIG_FILES {
             let candidate = dir.join(name);
+            read.push(candidate.clone());
             if !candidate.is_file() {
                 continue;
             }
@@ -165,6 +175,7 @@ pub fn find_config(options: &LoadOptions) -> Result<ConfigSource, ConfigError> {
     }
     for dir in start.ancestors() {
         let candidate = dir.join(compat::RULE_CONFIG_FILE);
+        read.push(candidate.clone());
         if candidate.is_file() {
             return Ok(ConfigSource::IgnLint(candidate));
         }
@@ -174,8 +185,19 @@ pub fn find_config(options: &LoadOptions) -> Result<ConfigSource, ConfigError> {
 
 /// Finds, reads, validates and resolves the configuration.
 pub fn load(options: &LoadOptions, registry: &Registry) -> Result<Configuration, ConfigError> {
-    let source = find_config(options)?;
-    resolve::load_source(source, options, registry)
+    load_recording(options, registry, &mut Vec::new())
+}
+
+/// [`load`], adding to `read` every file the load looked at or read, also
+/// when it fails: the configuration candidates, the configuration file and
+/// every file it extends, `rule_config.json` and the whitelist files.
+pub fn load_recording(
+    options: &LoadOptions,
+    registry: &Registry,
+    read: &mut Vec<PathBuf>,
+) -> Result<Configuration, ConfigError> {
+    let source = find_config_recording(options, read)?;
+    resolve::load_source(source, options, registry, read)
 }
 
 /// Joins `path` to `base` unless it is absolute, and normalises `.`/`..`.

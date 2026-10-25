@@ -38,15 +38,23 @@ impl Server {
         if !self.is_current(&uri, &published.diagnostics) {
             return Some(actions);
         }
-        let fixable = published
+        // The findings in the range with a fix to offer.
+        let keys: Vec<FindingKey> = published
             .diagnostics
             .iter()
             .zip(&published.lsp)
-            .any(|(d, lsp)| {
-                d.fix.is_some() && (overlaps(lsp.range, params.range) || wants(FIX_ALL_KIND))
-            });
+            .filter(|(d, lsp)| {
+                overlaps(lsp.range, params.range)
+                    && d.fix
+                        .as_ref()
+                        .is_some_and(|f| f.applicability != Applicability::DisplayOnly)
+            })
+            .filter_map(|(d, _)| FindingKey::of(d))
+            .collect();
+        let quick_fixes = wants(CodeActionKind::QUICKFIX.as_str()) && !keys.is_empty();
+        let fix_all = wants(FIX_ALL_KIND) && self.has_fix_all(&path);
         let folder = self.folder_for(&path);
-        if fixable {
+        if quick_fixes || fix_all {
             // What is shown is brought up to date first (review rounds 29
             // and 31). The edits do not depend on it: they come from a
             // fresh check ([`crate::fresh`]).
@@ -55,11 +63,23 @@ impl Server {
                 return Some(actions);
             }
         }
+        // While another open document has unsaved changes no fix is
+        // computed ([`crate::fresh`]); the fixes are shown disabled when
+        // the client can show that.
+        let withheld = if quick_fixes || fix_all {
+            self.withheld(&path).err()
+        } else {
+            None
+        };
+        let disabled = withheld.as_ref().map(|w| lsp_types::CodeActionDisabled {
+            reason: w.reason.to_owned(),
+        });
         // Without `codeAction/resolve` the edits go with the list: the
         // findings are those of a fresh check (published again when they
-        // differ), with the fix of each.
-        let eager = if fixable && !self.resolve_support {
-            match self.fresh_in_burst(&path, &FixWanted::Each) {
+        // differ), with the fix of each finding in the range (review
+        // round 33, M1: only those).
+        let eager = if quick_fixes && !self.resolve_support && withheld.is_none() {
+            match self.fresh(&path, &FixWanted::Keys(keys)) {
                 Some(fresh) => Some(fresh),
                 None => return Some(actions),
             }
@@ -107,18 +127,28 @@ impl Server {
                         data: Some(json!({ "uri": uri, "fix": key })),
                         ..CodeAction::default()
                     };
-                    // Without `codeAction/resolve`, the edit of a fresh
-                    // check goes with the list; a fix it does not make is
-                    // not offered.
-                    if !self.resolve_support {
+                    if withheld.is_some() {
+                        if self.disabled_support {
+                            actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                                is_preferred: None,
+                                data: None,
+                                disabled: disabled.clone(),
+                                ..action
+                            }));
+                        }
+                    } else if !self.resolve_support {
+                        // Without `codeAction/resolve`, the edit of a
+                        // fresh check goes with the list; a fix it does
+                        // not make is not offered.
                         action.edit = eager
                             .as_ref()
                             .and_then(|fresh| self.document_edit(&uri, fresh.fix_of(&key)));
-                        if action.edit.is_none() {
-                            continue;
+                        if action.edit.is_some() {
+                            actions.push(CodeActionOrCommand::CodeAction(action));
                         }
+                    } else {
+                        actions.push(CodeActionOrCommand::CodeAction(action));
                     }
-                    actions.push(CodeActionOrCommand::CodeAction(action));
                 }
                 let live = &self.folders[folder].live;
                 if live.suppressible(d.rule)
@@ -135,15 +165,25 @@ impl Server {
                 }
             }
         }
-        if wants(FIX_ALL_KIND) && self.has_fix_all(&path) {
+        if fix_all {
             let mut action = CodeAction {
                 title: "iglint: fix all auto-fixable problems".to_owned(),
                 kind: Some(CodeActionKind::new(FIX_ALL_KIND)),
                 data: Some(json!({ "uri": uri })),
                 ..CodeAction::default()
             };
+            if withheld.is_some() {
+                if self.disabled_support {
+                    actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                        data: None,
+                        disabled,
+                        ..action
+                    }));
+                }
+                return Some(actions);
+            }
             if !self.resolve_support {
-                action.edit = self.fix_all_edit_in_burst(&uri);
+                action.edit = self.fix_all_edit(&uri);
                 if action.edit.is_none() {
                     return Some(actions);
                 }
@@ -213,16 +253,6 @@ impl Server {
             unsafe_fixes: self.options.unsafe_fixes,
         };
         let fresh = self.fresh(&path, &wanted)?;
-        self.document_edit(uri, fresh.fixed)
-    }
-
-    /// [`Server::fix_all_edit`] within a burst of requests.
-    fn fix_all_edit_in_burst(&mut self, uri: &Url) -> Option<WorkspaceEdit> {
-        let path = path_of(uri)?;
-        let wanted = FixWanted::All {
-            unsafe_fixes: self.options.unsafe_fixes,
-        };
-        let fresh = self.fresh_in_burst(&path, &wanted)?;
         self.document_edit(uri, fresh.fixed)
     }
 

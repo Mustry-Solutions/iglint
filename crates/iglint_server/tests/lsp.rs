@@ -2999,3 +2999,435 @@ fn fixes_of_a_loose_python_file_come_from_checking_the_file() {
     assert_eq!(apply(text, edits), "\ndef f():\n    return 1\n");
     client.shutdown();
 }
+
+/// Client capabilities with `codeAction/resolve` and `disabledSupport`
+/// (as VS Code).
+fn disabled_client() -> lsp_types::ClientCapabilities {
+    let mut c = client_capabilities();
+    c.text_document
+        .as_mut()
+        .unwrap()
+        .code_action
+        .as_mut()
+        .unwrap()
+        .disabled_support = Some(true);
+    c
+}
+
+/// [`both_clients`] and [`disabled_client`].
+fn three_clients() -> [lsp_types::ClientCapabilities; 3] {
+    let [a, b] = both_clients();
+    [a, b, disabled_client()]
+}
+
+/// Whether the client shows disabled code actions.
+fn shows_disabled(capabilities: &lsp_types::ClientCapabilities) -> bool {
+    capabilities
+        .text_document
+        .as_ref()
+        .and_then(|t| t.code_action.as_ref())
+        .and_then(|c| c.disabled_support)
+        .unwrap_or(false)
+}
+
+/// The reasons of the disabled code actions for the first line of `uri`.
+fn disabled_reasons(client: &mut Client, uri: &Url) -> Vec<String> {
+    code_actions(
+        client,
+        uri,
+        Range::new(Position::new(0, 0), Position::new(0, 11)),
+        None,
+    )
+    .into_iter()
+    .filter_map(|a| {
+        assert!(a.disabled.is_none() || a.edit.is_none() && a.data.is_none());
+        a.disabled.map(|d| d.reason)
+    })
+    .collect()
+}
+
+const OTHERS_MODIFIED: &str = "Save the other modified files to apply iglint fixes";
+
+/// Review round 33 (Opus, B1, repro 1): `c` is open through a symbolic
+/// link outside the folder, with unsaved text that reads `a.json`. The
+/// path of the link is below no root of the folder, yet saving it changes
+/// `c`, so no fix of `a` is computed while it differs from the disk (with
+/// `c` open under its own name too, or not). Clients that show disabled
+/// actions see why. After saving, the import is used.
+#[cfg(unix)]
+#[test]
+fn unsaved_text_of_a_link_outside_the_folder_withholds_fixes() {
+    const A: &str = "import json\ndef f():\n    return 1\n";
+    const C: &str = "def h():\n    return 1\n";
+    const C_DIRTY: &str = "def h():\n    return a.json.dumps(1)\n";
+    for capabilities in three_clients() {
+        for c_open in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let top = root(&dir);
+            let root = top.join("root");
+            let paths = library(&root, &[("a", A), ("c", C)]);
+            let link = top.join("outside/c_link.py");
+            std::fs::create_dir_all(link.parent().unwrap()).unwrap();
+            std::os::unix::fs::symlink(&paths[1], &link).unwrap();
+            let mut client =
+                Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+            let uri = client.open(&paths[0], A);
+            client.diagnostics(&uri, Some(1));
+            if c_open {
+                client.open(&paths[1], C);
+            }
+            let link_uri = client.open(&link, C);
+            assert!(!safe_removals(&mut client, &uri, A, "import json").is_empty());
+            assert!(disabled_reasons(&mut client, &uri).is_empty());
+            client.replace_all(&link_uri, 2, C_DIRTY);
+            assert_eq!(
+                safe_removals(&mut client, &uri, A, "import json"),
+                Vec::<String>::new()
+            );
+            let reasons = disabled_reasons(&mut client, &uri);
+            if shows_disabled(&capabilities) {
+                assert!(
+                    !reasons.is_empty() && reasons.iter().all(|r| r == OTHERS_MODIFIED),
+                    "{reasons:?}"
+                );
+            } else {
+                assert!(reasons.is_empty());
+            }
+            if !c_open {
+                std::fs::write(&link, C_DIRTY).unwrap();
+                client.notify(
+                    lsp_types::notification::DidSaveTextDocument::METHOD,
+                    json!({"textDocument": {"uri": link_uri}}),
+                );
+                assert_eq!(
+                    safe_removals(&mut client, &uri, A, "import json"),
+                    Vec::<String>::new()
+                );
+            }
+            client.shutdown();
+        }
+    }
+}
+
+/// Review round 33 (Opus, B1, repro 2, and Codex 1): `child/project.json`
+/// edited unsaved, to inherit from `b` (whose module reads
+/// `lib.util.json`), under another name outside the folder: a symbolic
+/// link to it, a hard link to it, or the file `project.json` links to.
+/// Neither the quick fix nor "fix all" (code action, `source.fixAll`
+/// with only that kind, or the command) removes `import json`.
+#[cfg(unix)]
+#[test]
+fn unsaved_manifest_edits_under_another_name_withhold_fixes() {
+    const UTIL: &str = "import json\ndef f():\n    return 1\n";
+    const TO_A: &str = r#"{"enabled": true, "parent": "a"}"#;
+    const TO_B: &str = r#"{"enabled": true, "parent": "b"}"#;
+    for capabilities in three_clients() {
+        for kind in ["symlink", "hard link", "linked from"] {
+            let dir = tempfile::tempdir().unwrap();
+            let top = root(&dir);
+            let root = top.join("root");
+            write(&root, "iglint.toml", "select = [\"SCR102\"]\n");
+            for p in ["a", "b"] {
+                write(
+                    &root,
+                    &format!("projects/{p}/project.json"),
+                    r#"{"enabled": true, "inheritable": true}"#,
+                );
+            }
+            let child = root.join("projects/child/project.json");
+            let outside = top.join("outside.json");
+            match kind {
+                "symlink" => {
+                    write(&root, "projects/child/project.json", TO_A);
+                    std::os::unix::fs::symlink(&child, &outside).unwrap();
+                }
+                "hard link" => {
+                    write(&root, "projects/child/project.json", TO_A);
+                    std::fs::hard_link(&child, &outside).unwrap();
+                }
+                _ => {
+                    write(&top, "outside.json", TO_A);
+                    std::fs::create_dir_all(child.parent().unwrap()).unwrap();
+                    std::os::unix::fs::symlink(&outside, &child).unwrap();
+                }
+            }
+            let manifest = r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#;
+            write(
+                &root,
+                "projects/child/ignition/script-python/lib/util/resource.json",
+                manifest,
+            );
+            let util = write(
+                &root,
+                "projects/child/ignition/script-python/lib/util/code.py",
+                UTIL,
+            );
+            write(
+                &root,
+                "projects/b/ignition/script-python/m/resource.json",
+                manifest,
+            );
+            write(
+                &root,
+                "projects/b/ignition/script-python/m/code.py",
+                "def g():\n    return lib.util.json.dumps(1)\n",
+            );
+            let mut client =
+                Client::start_folders(&[&root], json!({"run": "onSave"}), capabilities.clone());
+            let uri = client.open(&util, UTIL);
+            client.diagnostics(&uri, Some(1));
+            let outside_uri = client.open(&outside, TO_A);
+            assert!(
+                !safe_removals(&mut client, &uri, UTIL, "import json").is_empty(),
+                "{kind}"
+            );
+            client.replace_all(&outside_uri, 2, TO_B);
+            assert_eq!(
+                safe_removals(&mut client, &uri, UTIL, "import json"),
+                Vec::<String>::new(),
+                "{kind}"
+            );
+            for action in code_actions(
+                &mut client,
+                &uri,
+                full_range(),
+                Some(vec![CodeActionKind::SOURCE_FIX_ALL]),
+            ) {
+                let action = if action.edit.is_none() && action.data.is_some() {
+                    client.request::<CodeActionResolveRequest>(action)
+                } else {
+                    action
+                };
+                assert!(action.edit.is_none(), "{kind}: {}", action.title);
+            }
+            client.shutdown();
+        }
+    }
+}
+
+/// Review round 33 (Opus, B1, repro 3): the configuration extends
+/// `../shared/base.cfg`, and an unsaved edit of that file makes `SCR102`
+/// unfixable: no fix. Written to disk without a notification, the next
+/// list of code actions already shows the finding without a fix (the
+/// folder records every file the configuration load read).
+#[test]
+fn unsaved_edits_of_an_extended_configuration_withhold_fixes() {
+    const UTIL: &str = "import json\ndef f():\n    return 1\n";
+    const UNFIXABLE: &str = "select = [\"SCR102\"]\nunfixable = [\"SCR102\"]\n";
+    for capabilities in three_clients() {
+        let dir = tempfile::tempdir().unwrap();
+        let top = root(&dir);
+        let root = top.join("root");
+        let paths = library(&root, &[("lib/util", UTIL)]);
+        write(&root, "iglint.toml", "extend = \"../shared/base.cfg\"\n");
+        let base = write(&top, "shared/base.cfg", "select = [\"SCR102\"]\n");
+        let mut client =
+            Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+        let uri = client.open(&paths[0], UTIL);
+        client.diagnostics(&uri, Some(1));
+        let base_uri = client.open(&base, "select = [\"SCR102\"]\n");
+        assert!(!safe_removals(&mut client, &uri, UTIL, "import json").is_empty());
+        client.replace_all(&base_uri, 2, UNFIXABLE);
+        assert_eq!(
+            safe_removals(&mut client, &uri, UTIL, "import json"),
+            Vec::<String>::new()
+        );
+        client.notify(
+            DidCloseTextDocument::METHOD,
+            json!({"textDocument": {"uri": base_uri}}),
+        );
+        std::fs::write(&base, UNFIXABLE).unwrap();
+        assert_eq!(
+            safe_removals(&mut client, &uri, UTIL, "import json"),
+            Vec::<String>::new()
+        );
+        let shown = settled(&mut client, &uri).expect("published again");
+        assert!(
+            shown
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("`json`")),
+            "{shown:#?}"
+        );
+        client.shutdown();
+    }
+}
+
+/// Review round 33 (Codex 2): the configuration rewritten on disk with
+/// the same size and modification time (`select` to `ignore`), without a
+/// notification: the very next request gives no fix (nothing is reused
+/// from an earlier request).
+#[test]
+fn a_same_size_configuration_rewrite_is_honoured_at_once() {
+    const UTIL: &str = "import json\ndef f():\n    return 1\n";
+    for capabilities in three_clients() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        let paths = library(&root, &[("lib/util", UTIL)]);
+        let config = root.join("iglint.toml");
+        let mut client =
+            Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+        let uri = client.open(&paths[0], UTIL);
+        client.diagnostics(&uri, Some(1));
+        assert!(!safe_removals(&mut client, &uri, UTIL, "import json").is_empty());
+        let before = std::fs::metadata(&config).unwrap();
+        let text = "ignore = [\"SCR102\"]\n";
+        assert_eq!(before.len(), text.len() as u64);
+        std::fs::write(&config, text).unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&config)
+            .unwrap()
+            .set_times(
+                std::fs::FileTimes::new()
+                    .set_modified(before.modified().unwrap())
+                    .set_accessed(before.accessed().unwrap()),
+            )
+            .unwrap();
+        assert_eq!(
+            safe_removals(&mut client, &uri, UTIL, "import json"),
+            Vec::<String>::new()
+        );
+        client.shutdown();
+    }
+}
+
+/// Review round 33 (B1): the document a fix is for, open under two names
+/// (its path and a symbolic link to it): with the same text the fix is
+/// computed; with different texts it is not, and the reason says why.
+#[cfg(unix)]
+#[test]
+fn a_document_open_under_two_names_with_different_texts_gets_no_fix() {
+    const UTIL: &str = "import json\ndef f():\n    return 1\n";
+    for capabilities in three_clients() {
+        let dir = tempfile::tempdir().unwrap();
+        let top = root(&dir);
+        let root = top.join("root");
+        let paths = library(&root, &[("lib/util", UTIL)]);
+        let link = top.join("elsewhere/util.py");
+        std::fs::create_dir_all(link.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&paths[0], &link).unwrap();
+        let mut client =
+            Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+        let uri = client.open(&paths[0], UTIL);
+        client.diagnostics(&uri, Some(1));
+        let link_uri = client.open(&link, UTIL);
+        // Unsaved, the same text under both names.
+        let typed = "import json\ndef f():\n    return 2\n";
+        client.replace_all(&uri, 2, typed);
+        client.replace_all(&link_uri, 2, typed);
+        client.diagnostics(&uri, Some(2));
+        assert!(!safe_removals(&mut client, &uri, typed, "import json").is_empty());
+        client.replace_all(&link_uri, 3, "import json\ndef f():\n    return 3\n");
+        assert_eq!(
+            safe_removals(&mut client, &uri, typed, "import json"),
+            Vec::<String>::new()
+        );
+        let reasons = disabled_reasons(&mut client, &uri);
+        assert_eq!(
+            !reasons.is_empty(),
+            shows_disabled(&capabilities),
+            "{reasons:?}"
+        );
+        assert!(reasons.iter().all(|r| r.contains("open more than once")));
+        client.shutdown();
+    }
+}
+
+/// Review round 33 (Codex 3): pylint findings (`SCR900`, which the live
+/// workspace does not compute) in a fresh check do not count as the live
+/// workspace drifting: no rediscovery, the same findings shown, and every
+/// list of code actions holds the quick fix. Also (round 33, M1): quick
+/// fixes for a range without findings run no fresh check.
+#[cfg(unix)]
+#[test]
+fn pylint_findings_do_not_count_as_drift() {
+    const UTIL: &str = "import json\ndef f():\n    return 1\n";
+    for capabilities in three_clients() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        let paths = library(&root, &[("lib/util", UTIL)]);
+        let message = json!([{
+            "type": "convention", "module": "iglint_0", "obj": "",
+            "line": 2, "column": 0, "endLine": 2, "endColumn": 3,
+            "path": "iglint_0.py", "symbol": "singleton-comparison",
+            "message": "Comparison 'x == None' should be 'x is None'", "message-id": "C0121",
+        }]);
+        let script = write(
+            &root,
+            "fake-pylint.sh",
+            &format!(
+                "#!/bin/sh\ncat <<'IGLINT_EOF'\n{}\nIGLINT_EOF\nexit 0\n",
+                serde_json::to_string_pretty(&message).unwrap()
+            ),
+        );
+        write(
+            &root,
+            "iglint.toml",
+            &format!(
+                "select = [\"SCR102\", \"SCR900\"]\n[rules.SCR900]\npylint = \"/bin/sh {}\"\n",
+                script.display()
+            ),
+        );
+        let mut client =
+            Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+        let uri = client.open(&paths[0], UTIL);
+        let first = client.diagnostics(&uri, Some(1));
+        for round in 0..3 {
+            let actions = code_actions(&mut client, &uri, full_range(), None);
+            assert!(
+                actions.iter().any(|a| a.title.contains("unused import")),
+                "round {round}: {actions:?}"
+            );
+            if let Some(preferred) = actions.into_iter().find(|a| a.is_preferred == Some(true))
+                && preferred.edit.is_none()
+            {
+                let resolved = client.request::<CodeActionResolveRequest>(preferred);
+                assert!(resolved.edit.is_some(), "round {round}");
+            }
+        }
+        let shown = settled(&mut client, &uri);
+        assert!(
+            shown
+                .as_ref()
+                .is_none_or(|p| p.diagnostics.len() == first.diagnostics.len()),
+            "{shown:#?}"
+        );
+        let logs: Vec<String> = client
+            .inbox
+            .iter()
+            .filter_map(|m| match m {
+                Message::Notification(n) if n.method == "window/logMessage" => {
+                    n.params["message"].as_str().map(str::to_owned)
+                }
+                _ => None,
+            })
+            .collect();
+        assert!(
+            !logs
+                .iter()
+                .any(|l| l.contains("differs from a fresh check")),
+            "{logs:#?}"
+        );
+        client.inbox.clear();
+        // Quick fixes for a range on the last line, where nothing is
+        // found.
+        let none = code_actions(
+            &mut client,
+            &uri,
+            Range::new(Position::new(2, 0), Position::new(2, 4)),
+            Some(vec![CodeActionKind::QUICKFIX]),
+        );
+        assert!(
+            none.iter()
+                .all(|a| a.kind != Some(CodeActionKind::QUICKFIX)),
+            "{none:?}"
+        );
+        let fresh_runs = client.inbox.iter().any(|m| {
+            matches!(m, Message::Notification(n) if n.method == "window/logMessage"
+                && n.params["message"].as_str().is_some_and(|t| t.contains("fresh check of")))
+        });
+        assert!(!fresh_runs);
+        client.shutdown();
+    }
+}

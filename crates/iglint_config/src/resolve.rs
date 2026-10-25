@@ -76,11 +76,16 @@ fn rule_settings(rule: RuleCode, raw: Option<&RawRule>) -> RuleSettings {
 }
 
 /// Reads `path` and the files it extends, base first.
-fn read_chain(path: &Path, registry: &Registry) -> Result<Vec<RawConfig>, ConfigError> {
+fn read_chain(
+    path: &Path,
+    registry: &Registry,
+    read: &mut Vec<PathBuf>,
+) -> Result<Vec<RawConfig>, ConfigError> {
     let mut chain = Vec::new();
     let mut seen: Vec<PathBuf> = Vec::new();
     let mut next = Some((path.to_path_buf(), None::<(PathBuf, Option<(u32, u32)>)>));
     while let Some((current, referenced_from)) = next.take() {
+        read.push(current.clone());
         if seen.contains(&current) {
             let mut cycle: Vec<String> = seen.iter().map(|p| p.display().to_string()).collect();
             cycle.push(current.display().to_string());
@@ -286,11 +291,12 @@ fn build_override(
     }
 }
 
-fn whitelist(options: &LoadOptions) -> Result<Vec<PathBuf>, ConfigError> {
+fn whitelist(options: &LoadOptions, read: &mut Vec<PathBuf>) -> Result<Vec<PathBuf>, ConfigError> {
     let Some(path) = &options.cli.whitelist else {
         return Ok(Vec::new());
     };
     let path = absolutize(&options.cwd, path);
+    read.push(path.clone());
     compat::read_whitelist(&path, &options.cwd)
         .map_err(|e| ConfigError::new(&path, None, format!("cannot read whitelist: {e}")))
 }
@@ -299,11 +305,13 @@ pub(crate) fn load_source(
     source: ConfigSource,
     options: &LoadOptions,
     registry: &Registry,
+    read: &mut Vec<PathBuf>,
 ) -> Result<Configuration, ConfigError> {
     let cli = cli_layer(options, registry)?;
-    let mut whitelist = whitelist(options)?;
+    let mut whitelist = whitelist(options, read)?;
     match &source {
         ConfigSource::IgnLint(path) => {
+            read.push(path.clone());
             let config = compat::read_rule_config(path)
                 .map_err(|e| ConfigError::new(path, None, e.message))?;
             let root = path.parent().map(Path::to_path_buf).unwrap_or_default();
@@ -318,6 +326,7 @@ pub(crate) fn load_source(
             if options.cli.whitelist.is_none() {
                 for name in compat::WHITELIST_FILES {
                     let candidate = root.join(name);
+                    read.push(candidate.clone());
                     if candidate.is_file() {
                         whitelist = compat::read_whitelist(&candidate, &root).map_err(|e| {
                             ConfigError::new(
@@ -368,7 +377,7 @@ pub(crate) fn load_source(
         ConfigSource::Defaults | ConfigSource::Toml(_) | ConfigSource::PyProject(_) => {
             let (chain, root) = match source.path() {
                 Some(path) => (
-                    read_chain(path, registry)?,
+                    read_chain(path, registry, read)?,
                     path.parent().map(Path::to_path_buf).unwrap_or_default(),
                 ),
                 None => (Vec::new(), options.cwd.clone()),

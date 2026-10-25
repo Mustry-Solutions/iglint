@@ -2461,10 +2461,12 @@ CLI's own run on a workspace discovered afresh** (`iglint_server::fresh`):
   a file do not depend on which other files are linted, see "Closed
   world"); a file the folder's check does not find (a Python file
   outside every project) is checked as `iglint check <file>` checks it;
-* the editor's text of every open document replaces the file on disk
-  (`overlay`) for every data file of a resource that is that file: by
-  path, or by identity (a symbolic link to it, the file a link points to,
-  a hard link), as saving the document would write it;
+* the run reads the disk, except for the document the fix is for (the
+  target): its editor text replaces the file on disk (`overlay`) for
+  every data file of a resource that is that file, by path or by identity
+  (a symbolic link to it, the file a link points to, a hard link), as
+  saving the document would write it (round 33, see "One overlay"
+  below);
 * nothing is taken from the live workspace: no summaries, no index, no
   identities, no stamps. Each run rediscovers everything;
 * the edits are those of that run: "fix all" is the fixed text `--fix`
@@ -2476,15 +2478,10 @@ CLI's own run on a workspace discovered afresh** (`iglint_server::fresh`):
   baseline. A finding the run does not report the same way, or whose
   fix is no longer safe when a safe one was listed, gives no edit.
 
-When the run cannot stand for `iglint check` of the editor's texts no
-fix is computed: an open document whose editor text differs from the
-disk and that the run did not take from the overlay, when the check
-reads it (a manifest, which discovery reads from disk; a configuration,
-baseline, whitelist or `.gitignore` file; any file below the folder or a
-workspace root, which includes an open document whose file is missing,
-such as a module renamed on disk while it is open), or two open
-documents that are the same file with different texts. A manifest
-counts as used when the editor holds the text discovery read.
+When the run cannot stand for `iglint check` after saving the target no
+fix is computed; see "One overlay" below for the rule (round 33
+replaced the round 32 rule, which decided by location which open
+documents the check reads).
 
 The live workspace keeps what is shown: diagnostics, hovers and the
 list of code actions (stale display is corrected by the next check).
@@ -2493,13 +2490,12 @@ workspace's: when they differ, the folder is discovered again, and the
 fresh findings are published. Clients that resolve code actions
 (`codeAction.resolveSupport` with `edit`, as VS Code) get quick fixes
 and "fix all" without edits and the fresh run on `codeAction/resolve`;
-for other clients one fresh run gives the edit of every quick fix in the
-list (`fix_each` over all findings), kept for at most one second while
-no notification arrives and the folder's disk fingerprint (type, size,
-times, identity, hard links and link target of every file and directory
-of the workspace, and of the configuration files) is unchanged. Such a
-client applies the edit later anyway; the fingerprint only keeps a burst
-of requests from computing the same run again.
+for other clients one fresh run per list request gives the edit of
+every quick fix for a finding in the requested range (`fix_each` with
+`fix_select` naming those findings), and "fix all" its own run. Nothing
+is reused from one request to the next (round 33, Codex 2 removed a
+one-second reuse that trusted a disk fingerprint of sizes and times; a
+same-size rewrite with the old modification time passed it).
 
 What remains of round 31 (watched files for every workspace, per
 workspace overlays, the disk check before a code action) and its
@@ -2514,11 +2510,21 @@ not apply to fixes: each run reads everything again. In the corpus comparison (`
 the live workspace's findings equal a fresh check's for every file (it
 found the view settings taken from a `thumbnail.png`, fixed).
 
-Cost (release build, `latency.rs`): resolving a fix on 3,005 generated
-files takes 31 ms median (34 ms p95); on the private project (3,143
-linted files) 143 ms median (169 ms p95), one run of discovery and
-analysis; the list of code actions there 16 ms median (24 ms p95); typing latency is unchanged (the fresh run happens only
-for a fix).
+Cost (release build, `latency.rs`, round 33): resolving a fix on 3,005
+generated files takes 31 ms median (32 ms p95); on the private project
+(3,143 linted files) 146 ms median (182 ms p95), one run of discovery
+and analysis plus reading the open documents; the list of code actions
+there 15 ms median (30 ms p95); typing latency is unchanged (the fresh
+run happens only for a fix). For clients without `codeAction/resolve`
+the list computes the fixes of the findings in the requested range only
+(round 33, Opus M1). On the five largest views and library modules of
+the private project with fixes (5 requests each, round 32 binary against
+round 33): a range without findings went from 1,139 ms p95 (1,178 ms
+max) to 0.4 ms p95 (0.9 ms max); a range on one finding from 1,153 ms
+p95 to 147 ms p95 (the round 32 median of 13 ms came from the reuse
+removed in round 33; now 64 ms); the whole file stays about 1.2 s p95 on
+the view with the most fixes (each finding's fix computed on its own,
+no longer reused between requests).
 
 Tests: in `lsp.rs`, `a_file_that_becomes_a_link_gets_no_safe_fix`
 (Opus repro 1, with and without a notification),
@@ -2546,7 +2552,100 @@ copy's `--fix`, and nothing is given when the check fails; 4 sequences
 by default, 1,000 run (14,967 code action requests, 1,080 safe quick
 fixes and 871 "fix all" edits compared, 2,491 links made); with the round 31 code it fails within 60
 sequences (link changes alone) and at once with configuration changes.
-In `iglint_project`, `directory_records_tell_link_changes`.
+In `iglint_project`, `directory_records_tell_link_changes`. (Round 33
+made this test stricter, see "One overlay" below.)
+
+#### One overlay (review round 33)
+
+Round 33 (Opus B1, Codex 1) found that the round 32 rule for withholding,
+"an open document with unsaved changes that the check reads from disk",
+was decided by path: below the folder or a workspace root, or named like
+a configuration, baseline or `.gitignore` file. A document reached
+through another name was missed: a module open through a symbolic link
+outside the folder (`/outside/c_link.py` to `c/code.py`) with unsaved
+text that reads `a.json`; `child/project.json` open through a symbolic
+link, a hard link, or as the external file it links to, edited to change
+the parent; a configuration file the configuration extends
+(`extend = "../shared/base.cfg"`) edited to add `unfixable`. In each the
+safe removal of `import json` was still applied.
+
+The rule now depends on no path:
+
+* **A fix edit is computed only when every open document other than the
+  target has its editor text equal to its file's bytes on disk**, read
+  afresh for every request (a document whose file is missing counts as
+  different). The run then overlays only the target's text, by path and
+  by identity, so it is `iglint check --fix` on the disk after saving the
+  target. Which files the check reads, under which names, no longer
+  matters: they are all on disk.
+* A document is the target, too, when it is the same file under another
+  name (same path, or same device and inode through links); all of them
+  must hold the same text, else no fix.
+* When the target's own text differs from the disk, the run must have
+  taken it: every file of the workspace that is that file took the text
+  (`CheckResult::overlay_applied` lists an entry only then; a manifest
+  whose text differs from what discovery read, or a file the run does
+  not read as resource text, refuses it), and it is not a file the
+  configuration load read (`Configured::sources`). Otherwise no fix.
+* The same applies to every edit: quick fixes (list and resolve),
+  "fix all" as a code action, `source.fixAll` on save and the fix-all
+  command.
+
+UX cost: while any other open document has unsaved changes, iglint
+offers no fix, even when that document cannot affect the target (a file
+of another project, a README). A client that supports
+`codeAction.disabledSupport` (VS Code does) lists the fixes disabled with
+the reason "Save the other modified files to apply iglint fixes" (or, for
+the target open twice with different texts, a reason saying so); other
+clients get no fix actions. Suppression comments are still offered. The
+check of the other documents reads each open file once per request.
+
+The display side records every file the configuration load looked at or
+read (`iglint_config::load_recording`: the candidates, the configuration
+file and every file it extends, `rule_config.json`, whitelist files),
+with the baseline, in `Configured::sources`; the folder compares them by
+path, link target, identity, size and times before a code action and
+reloads when one changed, and a watched-file notification for any of
+them reloads the folder. This keeps what is shown current; fixes do not
+depend on it.
+
+The live workspace does not run pylint (`SCR900`); a fresh run does. The
+comparison of a fresh run with the live workspace, and what is published
+after it, leave `SCR900` findings out (round 33, Codex 3: they made
+every fresh run rediscover the folder and the list of code actions come
+back empty).
+
+Tests: in `lsp.rs`, `unsaved_text_of_a_link_outside_the_folder_withholds_fixes`
+(repro 1, with `c` open or not), `unsaved_manifest_edits_under_another_name_withhold_fixes`
+(repro 2 and Codex 1: symbolic link, hard link, and `project.json`
+linking to an external file; quick fix, `source.fixAll`, fix-all
+command), `unsaved_edits_of_an_extended_configuration_withhold_fixes`
+(repro 3, also written to disk without a notification),
+`a_same_size_configuration_rewrite_is_honoured_at_once` (Codex 2),
+`a_document_open_under_two_names_with_different_texts_gets_no_fix`,
+`pylint_findings_do_not_count_as_drift` (Codex 3, with a fake pylint;
+also that quick fixes for a range without findings run no fresh check),
+each with and without `codeAction/resolve` and with `disabledSupport`;
+all fail on the round 32 code. In `consistency.rs`,
+`applied_safe_fixes_equal_a_fresh_cli_run` now also makes names outside
+the folder for any file (symbolic and hard links to modules, views,
+manifests, the configuration and the extended files), opens and edits
+them, lets the configuration extend a chain of two files outside the
+workspace with extensions chosen at random, edits several documents at
+once, and asks for fixes for documents under such names. It asserts that
+no fix edit is given while another open document differs from the disk
+or the target is open with different texts, and otherwise that every
+safe quick fix and "fix all" edit equals `iglint check --fix` on a
+`cp -a` copy after writing only the target's text. 1,000 sequences:
+14,938 code action requests, 870 safe quick fixes and 731 "fix all"
+edits compared, 5,398 requests withheld, 681 disabled actions,
+4,574 links made, 2,571 requests with the target open under several
+names, 1,682 for a name outside the folder, 4,925 with an extending
+configuration. On the round 32 code it fails at once (sequence 1, a
+fix while another module has unsaved changes); held to the round 32
+invariant instead (the copy with every editor text written), it fails
+at sequence 347 (a fix applied while the check of the saved texts
+fails, through an extended configuration).
 
 Re-checking the files an edit may affect (every published file, after
 an edit of a library module) goes 128 files at a time with one index

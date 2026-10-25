@@ -16,10 +16,12 @@ Quick fixes apply iglint's fixes (unsafe ones are marked), suppress script
 findings with `# iglint: ignore[CODE]`, and **iglint: Fix All Auto-Fixable
 Problems** (or `"editor.codeActionsOnSave": {"source.fixAll.iglint": "explicit"}`)
 fixes a whole file. A fix is computed when you pick it, by a fresh
-`iglint check --fix` with the editor's texts; while an open manifest
-(`project.json`, `resource.json`), configuration or baseline file has
-unsaved changes, picking a fix does nothing (save it first). Hover a
-problem for the rule's documentation.
+`iglint check --fix` on the disk as it would be after saving the file you
+fix. While any other open file has unsaved changes, iglint's fixes are
+shown disabled ("Save the other modified files to apply iglint fixes")
+and fix-all on save does nothing; save the other files first. Hover a
+problem for the rule's documentation. pylint findings (`SCR900`) are not
+shown in the editor; `iglint check` reports them.
 
 ## Requirements
 

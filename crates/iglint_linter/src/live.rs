@@ -404,59 +404,6 @@ impl LiveWorkspace {
         out
     }
 
-    /// A digest of what the files and directories of the workspace are on
-    /// disk now (type, size, times, identity and links of each, a link's
-    /// target), for a client that reuses a result for a moment (the
-    /// language server, within one burst of requests). Not a test of
-    /// whether the workspace is current: [`LiveWorkspace::refresh_from_disk`].
-    pub fn disk_fingerprint(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let paths: Vec<&Path> = self
-            .ws
-            .files
-            .iter()
-            .map(|f| f.path.as_path())
-            .chain(self.ws.directories.iter().map(|d| d.path.as_path()))
-            .chain(self.roots.iter().map(PathBuf::as_path))
-            .collect();
-        let digests: Vec<u64> = paths
-            .par_iter()
-            .map(|p| {
-                let mut h = rustc_hash::FxHasher::default();
-                p.hash(&mut h);
-                Stamp::of(p)
-                    .map(|s| (s.len, s.modified, s.changed, s.identity))
-                    .hash(&mut h);
-                match std::fs::symlink_metadata(p) {
-                    Ok(meta) => {
-                        meta.file_type().is_symlink().hash(&mut h);
-                        meta.len().hash(&mut h);
-                        meta.modified().ok().hash(&mut h);
-                        #[cfg(unix)]
-                        {
-                            use std::os::unix::fs::MetadataExt;
-                            (meta.ino(), meta.nlink(), meta.ctime(), meta.ctime_nsec())
-                                .hash(&mut h);
-                        }
-                        if meta.file_type().is_symlink() {
-                            std::fs::read_link(p).ok().hash(&mut h);
-                        }
-                    }
-                    Err(e) => e.kind().hash(&mut h),
-                }
-                #[cfg(unix)]
-                if let Ok(meta) = std::fs::metadata(p) {
-                    use std::os::unix::fs::MetadataExt;
-                    meta.nlink().hash(&mut h);
-                }
-                h.finish()
-            })
-            .collect();
-        let mut h = rustc_hash::FxHasher::default();
-        digests.hash(&mut h);
-        h.finish()
-    }
-
     /// Compares every file and directory of the workspace with what was
     /// read (review round 31, B1: a file changed on disk without a
     /// notification, by `git pull` or another editor, must not leave a

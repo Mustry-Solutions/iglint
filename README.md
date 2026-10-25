@@ -370,10 +370,12 @@ shell find the same workspace root.
 `iglint server` is a language server (LSP over standard input and output):
 findings while you type, quick fixes, "fix all" and rule documentation on
 hover. Every fix it applies is computed when you pick it by a fresh
-`iglint check --fix` of the folder with the editor's texts, so it is the
-fix the command line would make; while an open `project.json`,
-`resource.json`, configuration or baseline file has unsaved changes, no
-fix is offered (save it first). The VS Code extension in
+`iglint check --fix` of the folder on the disk as it would be after
+saving the file you fix, so it is the fix the command line would make.
+While any other open file has unsaved changes, no fix is computed: save
+the other files first (editors that show disabled code actions, such as
+VS Code, say so). The server does not run pylint: `SCR900` findings
+come from `iglint check` only. The VS Code extension in
 [editors/vscode](editors/vscode) runs it; other editors can start
 `iglint server` directly.
 

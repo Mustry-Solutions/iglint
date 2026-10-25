@@ -128,6 +128,48 @@ from 0.1.0 on.
 
 ### Fixed
 
+- The language server applies a fix only when every other open document
+  is saved (review round 33, blocker, Opus B1 and Codex 1). The round 32
+  rule withheld fixes while an open file "the check reads" had unsaved
+  changes, decided by path, and missed files open under another name: a
+  module open through a symbolic link outside the folder, a
+  `project.json` open through a symbolic or hard link or as the external
+  file it links to, a configuration file the configuration `extend`s
+  (any extension). Now a fix edit (quick fix, "fix all", `source.fixAll`
+  on save, the fix-all command) is computed only when every open
+  document other than the one fixed holds its file's bytes on disk, and
+  the fresh run overlays only that document's text (by path and file
+  identity), so it is `iglint check --fix` after saving it; the document
+  open under several names with different texts, or with unsaved text
+  the run cannot take (a manifest, a configuration file), gets no fix
+  either. Clients with `codeAction.disabledSupport` (VS Code) list the
+  fixes disabled with the reason "Save the other modified files to apply
+  iglint fixes". The cost: no fixes while any other open file has unsaved
+  changes, also one that cannot matter.
+- The language server no longer reuses fix edits between requests
+  (review round 33, Codex 2): the one-second reuse for clients without
+  `codeAction/resolve` trusted a fingerprint of sizes and modification
+  times, and a same-size rewrite of the configuration with its old
+  modification time kept a removed fix on offer.
+- The language server treated pylint findings (`SCR900`), which only a
+  fresh check computes, as the editor's workspace drifting: every fix
+  computation discovered the folder again, the published findings
+  flapped, and a list of code actions could come back empty (review
+  round 33, Codex 3). They are left out of that comparison and of what is
+  published after it.
+- The language server watches every file the configuration load read
+  (files it extends, `rule_config.json`, whitelist files, the baseline),
+  compared by path, link target, identity, size and times, so a change
+  to an extended configuration file is shown at the next code action
+  (review round 33).
+- The language server computed the fix of every finding of the file for
+  a list of code actions of clients without `codeAction/resolve`, even
+  for a range without findings (review round 33, Opus M1); it now
+  computes only the fixes of findings in the range, and none when there
+  are none. On the largest views and modules of the private project, a
+  range without findings went from 1,139 ms p95 to 0.4 ms p95, a range on
+  one finding from 1,153 ms p95 to 147 ms p95. Resolving a fix there
+  takes 146 ms median (182 ms p95), listing code actions 15 ms median.
 - The language server computes every fix it applies with `iglint check`
   itself (review round 32, blocker, Opus and Codex). Rounds 29 to 32 each
   found another way for the server's incrementally kept workspace to
@@ -143,15 +185,18 @@ from 0.1.0 on.
   in place of the file on disk (also through symbolic and hard links to
   it), nothing reused from the incremental workspace. A quick fix's edit
   is the fix of a finding that run reports, applied on its own. While an
-  open manifest, configuration or baseline file (or any other open file
-  the check reads from disk) has unsaved changes, or an open document is
-  missing on disk, no fix is computed. The incremental workspace still
+  open manifest, configuration or baseline file below the folder had
+  unsaved changes, or an open document was missing on disk, no fix was
+  computed (round 33 replaced this rule by location, which missed files
+  open under other names, by "every other open document saved"; see
+  above). The incremental workspace still
   shows diagnostics, hovers and the list of code actions; when a fresh
   run disagrees with it, the folder is discovered again and the fresh
   findings are published. Clients with `codeAction/resolve` get the
   edits on resolve; for other clients one run computes the edit of every
   quick fix in the list (reused for at most a second while no
-  notification arrives and the disk is unchanged). Cost (release build,
+  notification arrived and the disk looked unchanged; removed in
+  round 33). Cost (release build,
   private project, 3,143 files): resolving a fix takes 143 ms median
   (169 ms p95), listing code actions 16 ms median; typing is unchanged
   (largest library modules 19.4 ms median, 23.0 ms p95).
