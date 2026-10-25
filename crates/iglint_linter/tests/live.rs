@@ -306,13 +306,15 @@ fn script_references_match_a_full_check() {
     actual.sort();
     assert_eq!(actual, expected);
 
-    // Editing the library changes the findings of the view that uses it.
+    // Editing the library changes the findings of the view that uses it
+    // (an edit of a library module counts for every file, review round
+    // 29).
     let (_, dependents) = live.update(
         &module,
         Arc::from("def fmt(value, digits=2, unit=None):\n    return value\ndef nope():\n    pass\ndef unused():\n    pass\n"),
     );
     let view = absolute(&root.join(format!("{VIEWS}/Main/view.json")));
-    assert!(format!("{dependents:?}").contains("Main"), "{dependents:?}");
+    assert_eq!(dependents, iglint_linter::live::Dependents::All);
     let codes = codes(&mut live, &view);
     assert!(
         !codes.contains(&"REF002") && !codes.contains(&"REF003"),

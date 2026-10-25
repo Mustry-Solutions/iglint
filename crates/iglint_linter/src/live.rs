@@ -801,8 +801,21 @@ impl LiveWorkspace {
     /// [`crate::engine::fix_file`]: a fix that would make the file worse,
     /// or a safe fix that fails the safe-fix net, gives `None`. Unsafe
     /// fixes are applied (the caller labels them).
+    ///
+    /// The fix is applied only when a fresh check of the current workspace
+    /// still reports the finding with the same fix (review round 29, B2:
+    /// a quick fix published before an edit of another file could be stale,
+    /// a safe removal of an import that the edit made used).
     pub fn fix_one(&mut self, path: &Path, diagnostic: &Diagnostic) -> Option<FixAll> {
         let path = absolute(path);
+        let current = self.check(std::slice::from_ref(&path)).pop()?;
+        if !current
+            .diagnostics
+            .iter()
+            .any(|d| same_finding(d, diagnostic))
+        {
+            return None;
+        }
         self.apply_fixes(&path, vec![diagnostic.clone()], true, Some(1))
     }
 
@@ -1039,8 +1052,39 @@ fn drop_in_background(loaded: LoadedResource) {
     let _ = spawned;
 }
 
+/// Whether `a` and `b` are the same finding of the same text, with the
+/// same fix (review round 29, B2).
+pub fn same_finding(a: &Diagnostic, b: &Diagnostic) -> bool {
+    a.rule == b.rule
+        && a.severity == b.severity
+        && a.range == b.range
+        && a.message == b.message
+        && a.node_path == b.node_path
+        && a.labels == b.labels
+        && a.fix == b.fix
+        && a.file.path() == b.file.path()
+        && a.file.text() == b.file.text()
+}
+
+/// Whether two lists of findings are the same, in order ([`same_finding`]).
+pub fn same_findings(a: &[Diagnostic], b: &[Diagnostic]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(a, b)| same_finding(a, b))
+}
+
 /// Resources whose findings may change because the summary of `changed`
 /// went from `old` to its current one in `index`.
+///
+/// Default deny (review round 29, B2): only what is known to matter for
+/// named resources is followed precisely; any other change counts for
+/// every file. A library module's names, imports and references feed every
+/// path through it (an edit of a module in the middle of a chain changes
+/// where `m1.m2.util.json` ends), which modules are used as values,
+/// exposed or reach shared objects, call following (`VIEW015` through two
+/// library calls), vetting and the closed world: any change of one counts
+/// for every file. So does any change of what a resource contributes to
+/// the whole project (stores, values, exposure, star imports, dynamic
+/// references, unknown code, file reads, unvetted names, Perspective
+/// calls, messages), or of a library path whose objects are used as values.
 fn dependents(
     ws: &Workspace,
     index: &ProjectIndex<'_>,
@@ -1058,8 +1102,7 @@ fn dependents(
         let by_reference = match (&old.facts, &new.facts) {
             (Facts::View(a), Facts::View(b)) => a.message_handlers == b.message_handlers,
             (Facts::NamedQuery(_), Facts::NamedQuery(_))
-            | (Facts::StyleClass(_), Facts::StyleClass(_))
-            | (Facts::Library(_), Facts::Library(_)) => true,
+            | (Facts::StyleClass(_), Facts::StyleClass(_)) => true,
             _ => false,
         };
         if !by_reference {
@@ -1077,7 +1120,9 @@ fn dependents(
 
     // Usage counts of the resources it references.
     if old.references != new.references {
-        if old.references.messages != new.references.messages {
+        if resource.kind == ResourceKind::ScriptLibrary
+            || without_named(&old.references) != without_named(&new.references)
+        {
             return Dependents::All;
         }
         if let Some(project) = project_of(resource.container) {
@@ -1086,13 +1131,35 @@ fn dependents(
                 .collect();
             for refs in [&old.references, &new.references] {
                 for p in &projects {
-                    targets(index, *p, refs, &mut out);
+                    if !targets(index, *p, refs, &mut out) {
+                        return Dependents::All;
+                    }
                 }
             }
         }
     }
     out.remove(&changed);
     Dependents::from_resources(ws, out)
+}
+
+/// `refs` without what [`dependents`] follows precisely: the views, named
+/// queries, style classes and library paths a resource names, and what
+/// only its own findings use (pages, tag paths, historian providers,
+/// databases).
+fn without_named(
+    refs: &iglint_project::summary::References,
+) -> iglint_project::summary::References {
+    iglint_project::summary::References {
+        views: Vec::new(),
+        style_classes: Vec::new(),
+        named_queries: Vec::new(),
+        pages: Vec::new(),
+        tag_paths: Vec::new(),
+        library: Vec::new(),
+        history_providers: Vec::new(),
+        databases: Vec::new(),
+        ..refs.clone()
+    }
 }
 
 /// Whether `refs`, seen from `project`, name the resource `target`.
@@ -1126,13 +1193,15 @@ fn references_resource(
     }
 }
 
-/// Adds the resources `refs` resolve to from `project`.
+/// Adds the resources `refs` resolve to from `project`. False when a
+/// library path reaches objects it uses as values (default deny: whoever
+/// holds a module reaches what it imports, transitively).
 fn targets(
     index: &ProjectIndex<'_>,
     project: ProjectId,
     refs: &iglint_project::summary::References,
     out: &mut FxHashSet<ResourceId>,
-) {
+) -> bool {
     out.extend(
         refs.views
             .iter()
@@ -1149,9 +1218,16 @@ fn targets(
             .filter_map(|c| index.style_class(project, c).resource()),
     );
     // Every module whose names a library path reads, through imports.
+    let library = index.library(project);
+    let symbols = |r: ResourceId| index.module_symbols(r);
     for name in &refs.library {
-        out.extend(index.resolve_library_path(project, name).modules);
+        let path = index.resolve_library_path(project, name);
+        if !path.values.is_empty() || !library.value_objects(&path, &symbols).is_empty() {
+            return false;
+        }
+        out.extend(path.modules);
     }
+    true
 }
 
 #[cfg(test)]
@@ -1189,6 +1265,58 @@ mod tests {
     };
 
     static TEST_RULES: &[&RuleImpl] = &[&BAD_NAME_RULE];
+
+    /// Review round 29 (Opus, B2): a quick fix is applied only while a
+    /// fresh check of the current workspace reports the same finding with
+    /// the same fix. Here the published finding is stale: another module
+    /// changed (`m1` now imports `m2`, so `b`'s `m1.m2.util.json` uses
+    /// `json` of `lib.util`) and the caller did not check `lib.util` again.
+    #[test]
+    fn stale_findings_get_no_quick_fix() {
+        use crate::rules::script::testing::{library, with_library};
+        let f = with_library(
+            library("lib/util", "import json\ndef f():\n    return 1\n"),
+            "m2",
+            "from lib import util\n",
+        );
+        let f = with_library(f, "m1", "def x():\n    return 1\n");
+        let f = with_library(f, "b", "def g(n):\n    return m1.m2.util.json.dumps(1)\n");
+        let root = absolute(f.root());
+        let settings = crate::rules::test_support::settings(&root, &[("SCR102", "")]);
+        let mut live = LiveWorkspace::new(settings, vec![root.clone()]);
+        let util = root.join("projects/p/ignition/script-python/lib/util/code.py");
+        let m1 = root.join("projects/p/ignition/script-python/m1/code.py");
+        let found = live
+            .check(std::slice::from_ref(&util))
+            .remove(0)
+            .diagnostics;
+        let stale = found
+            .iter()
+            .find(|d| d.rule.code() == "SCR102")
+            .unwrap_or_else(|| panic!("{found:#?}"))
+            .clone();
+        assert_eq!(
+            stale.fix.as_ref().map(|f| f.applicability),
+            Some(crate::diagnostic::Applicability::Safe)
+        );
+        // While the finding is current, the fix applies.
+        assert!(live.fix_one(&util, &stale).is_some());
+        live.set_text(&m1, Some(Arc::from("import m2\ndef x():\n    return 1\n")));
+        assert!(live.fix_one(&util, &stale).is_none());
+        let fresh = live
+            .check(std::slice::from_ref(&util))
+            .remove(0)
+            .diagnostics;
+        assert!(
+            !fresh.iter().any(|d| d.rule.code() == "SCR102"),
+            "{fresh:#?}"
+        );
+        // An edit of a library module counts for every file.
+        assert_eq!(
+            live.set_text(&m1, Some(Arc::from("def x():\n    return 2\n"))),
+            Dependents::All
+        );
+    }
 
     /// Review round 17 (Opus): a file of a project that the workspace
     /// walk did not reach (below a hidden directory of the root) is linted

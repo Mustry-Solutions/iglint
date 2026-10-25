@@ -1966,3 +1966,128 @@ fn a_linked_work_tree_below_the_folder_is_its_own_workspace() {
     }
     client.shutdown();
 }
+
+const LIBRARY: &str = "projects/demo/ignition/script-python";
+
+/// The diagnostics last published for `uri` since the last call, after
+/// everything the server did before answering a request sent now.
+fn settled(client: &mut Client, uri: &Url) -> Option<lsp_types::PublishDiagnosticsParams> {
+    client.request_raw(
+        "workspace/executeCommand",
+        json!({"command": "iglint.ruleDocs", "arguments": ["VIEW001"]}),
+    );
+    let mut last = None;
+    client.inbox.retain(|m| match m {
+        Message::Notification(n)
+            if n.method == lsp_types::notification::PublishDiagnostics::METHOD =>
+        {
+            match serde_json::from_value::<lsp_types::PublishDiagnosticsParams>(n.params.clone()) {
+                Ok(p) if p.uri == *uri => {
+                    last = Some(p);
+                    false
+                }
+                _ => true,
+            }
+        }
+        _ => true,
+    });
+    last
+}
+
+fn has(p: &lsp_types::PublishDiagnosticsParams, code: &str, text: &str) -> bool {
+    p.diagnostics.iter().any(|d| {
+        d.code == Some(lsp_types::NumberOrString::String(code.to_owned()))
+            && d.message.contains(text)
+    })
+}
+
+/// Review round 29 (Opus, B2): an edit of a module in the middle of a
+/// chain (`m1` now imports `m2`, which imports `lib.util`, so `b`'s
+/// `m1.m2.util.json.dumps(1)` reads `json` of `lib.util`) re-publishes
+/// `lib.util`, whose `import json` is now used, and no quick fix removes
+/// it: after a change in the editor, and after a change on disk reported
+/// by `didChangeWatchedFiles`.
+#[test]
+fn an_edit_in_the_middle_of_a_chain_updates_the_module_at_its_end() {
+    for on_disk in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        demo_project(&root);
+        let manifest = MANIFEST.replace("view.json", "code.py");
+        let module = |name: &str, code: &str| {
+            write(&root, &format!("{LIBRARY}/{name}/resource.json"), &manifest);
+            write(&root, &format!("{LIBRARY}/{name}/code.py"), code)
+        };
+        let util_text = "import json\ndef f():\n    return 1\n";
+        let util = module("lib/util", util_text);
+        module("m2", "from lib import util\n");
+        let m1_text = "def x():\n    return 1\n";
+        let m1 = module("m1", m1_text);
+        let b_text = "def g(n):\n    return m1.m2.util.json.dumps(1)\n";
+        let b = module("b", b_text);
+        let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+        let util_uri = client.open(&util, util_text);
+        let before = client.diagnostics(&util_uri, Some(1));
+        assert!(has(&before, "SCR102", "`json`"), "{before:#?}");
+        let b_uri = client.open(&b, b_text);
+        client.diagnostics(&b_uri, Some(1));
+        let edited = "import m2\ndef x():\n    return 1\n";
+        if on_disk {
+            std::fs::write(&m1, edited).unwrap();
+            client.notify(
+                DidChangeWatchedFiles::METHOD,
+                json!({"changes": [{"uri": Url::from_file_path(&m1).unwrap(), "type": 2}]}),
+            );
+        } else {
+            let m1_uri = client.open(&m1, m1_text);
+            client.diagnostics(&m1_uri, Some(1));
+            client.replace_all(&m1_uri, 2, edited);
+            client.diagnostics(&m1_uri, Some(2));
+        }
+        let after = settled(&mut client, &util_uri)
+            .unwrap_or_else(|| panic!("lib.util was not published again (on disk: {on_disk})"));
+        assert!(!has(&after, "SCR102", "`json`"), "{after:#?}");
+        let actions = code_actions(&mut client, &util_uri, full_range(), None);
+        assert!(
+            !actions.iter().any(|a| a.title.contains("SCR102")),
+            "{actions:#?}"
+        );
+        client.shutdown();
+    }
+}
+
+/// Review round 29 (Opus, B2): `VIEW015` follows a component into a
+/// library function that hands it to another one; an edit of the second
+/// changes which custom property is read, and the view is published again.
+#[test]
+fn view015_through_two_library_calls_follows_an_edit_of_the_second() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    demo_project(&root);
+    let manifest = MANIFEST.replace("view.json", "code.py");
+    let module = |name: &str, code: &str| {
+        write(&root, &format!("{LIBRARY}/{name}/resource.json"), &manifest);
+        write(&root, &format!("{LIBRARY}/{name}/code.py"), code)
+    };
+    module("lib/a", "def f(c):\n    return lib.two.k(c)\n");
+    let two_text = "def k(c):\n    return c.custom.foo\n";
+    let two = module("lib/two", two_text);
+    let view = r#"{"params": {},
+  "root": {"meta": {"name": "root"}, "type": "ia.container.flex", "children": [{"meta": {"name": "Btn"}, "type": "ia.input.button", "custom": {"foo": 1, "bar": 2}, "events": {"component": {"onActionPerformed": {"type": "script", "scope": "G", "config": {"script": "\tlib.a.f(self)"}}}}}]}}
+"#;
+    write(&root, &format!("{VIEWS}/A/resource.json"), MANIFEST);
+    let path = write(&root, &format!("{VIEWS}/A/view.json"), view);
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&path, view);
+    let before = client.diagnostics(&uri, Some(1));
+    assert!(has(&before, "VIEW015", "`bar`"), "{before:#?}");
+    assert!(!has(&before, "VIEW015", "`foo`"), "{before:#?}");
+    let two_uri = client.open(&two, two_text);
+    client.diagnostics(&two_uri, Some(1));
+    client.replace_all(&two_uri, 2, "def k(c):\n    return c.custom.bar\n");
+    client.diagnostics(&two_uri, Some(2));
+    let after = settled(&mut client, &uri).expect("the view is published again");
+    assert!(has(&after, "VIEW015", "`foo`"), "{after:#?}");
+    assert!(!has(&after, "VIEW015", "`bar`"), "{after:#?}");
+    client.shutdown();
+}

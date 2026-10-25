@@ -667,7 +667,11 @@ impl Server {
         );
     }
 
-    fn publish_result(&mut self, i: usize, result: iglint_linter::live::FileDiagnostics) {
+    pub(crate) fn publish_result(
+        &mut self,
+        i: usize,
+        result: iglint_linter::live::FileDiagnostics,
+    ) {
         if let Some(error) = &result.error {
             self.log(
                 MessageType::WARNING,

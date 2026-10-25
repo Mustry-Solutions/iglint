@@ -34,7 +34,22 @@ impl Server {
         if !self.is_current(&uri, &published.diagnostics) {
             return Some(actions);
         }
+        // A fix is offered only while a fresh check of the current
+        // workspace reports the same findings with the same fixes: an edit
+        // of another file may have changed them without a new check of
+        // this one (review round 29, B2). Otherwise the findings are
+        // published again and nothing is offered.
+        let fixable = published
+            .diagnostics
+            .iter()
+            .zip(&published.lsp)
+            .any(|(d, lsp)| {
+                d.fix.is_some() && (overlaps(lsp.range, params.range) || wants(FIX_ALL_KIND))
+            });
         let folder = self.folder_for(&path);
+        if fixable && self.republish_if_stale(folder, &path) {
+            return Some(actions);
+        }
         if wants(CodeActionKind::QUICKFIX.as_str()) {
             let published = self.results.get(&path)?;
             let in_range: Vec<(Diagnostic, lsp_types::Diagnostic)> = published
@@ -152,6 +167,9 @@ impl Server {
         let path = path_of(uri)?;
         self.flush_document(uri);
         let folder = self.folder_for(&path);
+        if self.republish_if_stale(folder, &path) {
+            return None;
+        }
         let unsafe_fixes = self.options.unsafe_fixes;
         let current = self.folders[folder].live.source(&path)?;
         let fixed = self.folders[folder].live.fix_all(&path, unsafe_fixes)?;
@@ -164,6 +182,28 @@ impl Server {
             changes: Some(HashMap::from([(uri.clone(), vec![edit])])),
             ..WorkspaceEdit::default()
         })
+    }
+
+    /// Checks `path` again; when the findings differ from the published
+    /// ones (rule, place, message, fix), publishes the new ones and returns
+    /// true.
+    fn republish_if_stale(&mut self, folder: usize, path: &Path) -> bool {
+        let Some(fresh) = self.folders[folder]
+            .live
+            .check(std::slice::from_ref(&path.to_path_buf()))
+            .pop()
+        else {
+            return false;
+        };
+        let current = self.folders[folder].filter_baseline(fresh.diagnostics.clone());
+        let same = self
+            .results
+            .get(path)
+            .is_some_and(|p| iglint_linter::live::same_findings(&p.diagnostics, &current));
+        if !same {
+            self.publish_result(folder, fresh);
+        }
+        !same
     }
 
     /// The edit of the quick fix of `d`, applied through
