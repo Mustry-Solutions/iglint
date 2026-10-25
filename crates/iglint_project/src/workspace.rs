@@ -408,11 +408,16 @@ fn listing_signature(kind: DirectoryKind, entries: &Entries) -> u64 {
             e.kind().hash(&mut h);
         }
         Ok(entries) => {
-            let mut kept: Vec<(&std::ffi::OsStr, u8)> = entries
+            // Whether an entry is a symbolic link, and where it points, count
+            // too (review round 32, B1: a file replaced by a link to another
+            // file of the workspace, or a link retargeted, shares files
+            // differently).
+            type Kept<'e> = (&'e std::ffi::OsStr, u8, Option<Option<PathBuf>>);
+            let mut kept: Vec<Kept<'_>> = entries
                 .iter()
                 .filter_map(|e| match e {
-                    Err(_) => Some((std::ffi::OsStr::new(""), 0)),
-                    Ok((name, _, entry, _)) => {
+                    Err(_) => Some((std::ffi::OsStr::new(""), 0, None)),
+                    Ok((name, path, entry, link)) => {
                         let tag = entry.tag();
                         let keep = match kind {
                             DirectoryKind::Walk => {
@@ -427,7 +432,8 @@ fn listing_signature(kind: DirectoryKind, entries: &Entries) -> u64 {
                                 _ => true,
                             },
                         };
-                        keep.then_some((name.as_os_str(), tag))
+                        let link = link.then(|| std::fs::read_link(path).ok());
+                        keep.then_some((name.as_os_str(), tag, link))
                     }
                 })
                 .collect();
@@ -1835,7 +1841,15 @@ mod tests {
         let mut out: Vec<String> = ws
             .files
             .iter()
-            .map(|f| format!("{} {:?} {:?}", f.path.display(), f.kind, f.resource))
+            .map(|f| {
+                format!(
+                    "{} {:?} {:?} {:?}",
+                    f.path.display(),
+                    f.kind,
+                    f.resource,
+                    f.symlink.then(|| std::fs::read_link(&f.path).ok())
+                )
+            })
             .chain(names(ws))
             .chain(
                 ws.unread
@@ -1949,13 +1963,14 @@ mod tests {
             );
             let roots = [root.clone(), root.join("projects/Child")];
             let before = Workspace::discover(&roots);
+            let outline_before = outline(&before);
             change(&root);
             let after = Workspace::discover(&roots);
             let seen = before
                 .directories
                 .iter()
                 .any(|d| directory_signature(&d.path, d.kind) != d.signature);
-            let differs = outline(&before) != outline(&after);
+            let differs = outline_before != outline(&after);
             assert!(
                 !differs || seen,
                 "{what}: discovery changed, the records did not"
@@ -1963,6 +1978,57 @@ mod tests {
             if let Some(expected) = expected {
                 assert_eq!(seen, *expected, "{what}");
             }
+        }
+    }
+
+    /// Review round 32 (Opus, B1): a file that becomes a symbolic link to
+    /// another file of the workspace, a link retargeted (atomically) and a
+    /// link that becomes a file again change what discovery sees (and what
+    /// files share), and the records tell each.
+    #[cfg(unix)]
+    #[test]
+    fn directory_records_tell_link_changes() {
+        use std::os::unix::fs::symlink;
+        let module = "projects/A/ignition/script-python/m/code.py";
+        // (what, whether the module starts as a link to `n`, the change)
+        type Change = fn(&Path);
+        let changes: &[(&str, bool, Change)] = &[
+            ("file becomes a link", false, |file| {
+                std::fs::remove_file(file).unwrap();
+                symlink("../n/code.py", file).unwrap();
+            }),
+            ("link retargeted", true, |file| {
+                let tmp = file.with_file_name("tmp-link");
+                symlink("../o/code.py", &tmp).unwrap();
+                std::fs::rename(&tmp, file).unwrap();
+            }),
+            ("link becomes a file", true, |file| {
+                std::fs::remove_file(file).unwrap();
+                std::fs::write(file, "x = 1\n").unwrap();
+            }),
+        ];
+        for (what, linked, change) in changes {
+            let dir = tempfile::tempdir().unwrap();
+            let root = dir.path().to_path_buf();
+            project(&root, "projects/A");
+            project_module(&root, "projects/A", "n");
+            project_module(&root, "projects/A", "o");
+            let file = root.join(module);
+            if *linked {
+                std::fs::remove_file(&file).unwrap();
+                symlink("../n/code.py", &file).unwrap();
+            }
+            let roots = [root.clone()];
+            let before = Workspace::discover(&roots);
+            let outline_before = outline(&before);
+            change(&file);
+            let after = Workspace::discover(&roots);
+            assert_ne!(outline_before, outline(&after), "{what}");
+            let seen = before
+                .directories
+                .iter()
+                .any(|d| directory_signature(&d.path, d.kind) != d.signature);
+            assert!(seen, "{what}: discovery changed, the records did not");
         }
     }
 

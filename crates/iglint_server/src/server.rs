@@ -71,6 +71,14 @@ pub(crate) struct Server {
     pub options: ServerOptions,
     pub folders: Vec<Folder>,
     pub documents: FxHashMap<Url, Document>,
+    /// Open documents iglint does not lint (configuration files, a
+    /// whitelist): their path and editor text. A fix is not computed while
+    /// one the check reads differs from the disk (review round 32).
+    pub other_documents: FxHashMap<Url, (PathBuf, String)>,
+    /// Counts the notifications received: fresh results are reused only
+    /// between two notifications ([`crate::fresh::BurstCache`]).
+    pub epoch: u64,
+    pub burst: crate::fresh::BurstCache,
     pub results: FxHashMap<PathBuf, Published>,
     deadline: Option<Instant>,
     pub resolve_support: bool,
@@ -108,6 +116,9 @@ impl Server {
             options,
             folders: Vec::new(),
             documents: FxHashMap::default(),
+            other_documents: FxHashMap::default(),
+            epoch: 0,
+            burst: crate::fresh::BurstCache::default(),
             results: FxHashMap::default(),
             deadline: None,
             resolve_support: resolve_support(&params.capabilities),
@@ -271,6 +282,7 @@ impl Server {
     }
 
     fn handle_notification(&mut self, n: Notification) {
+        self.epoch += 1;
         match n.method.as_str() {
             DidOpenTextDocument::METHOD => {
                 if let Ok(p) = parse::<lsp_types::DidOpenTextDocumentParams>(n.params) {
@@ -317,6 +329,8 @@ impl Server {
             return;
         };
         if !lintable(&path) {
+            self.other_documents
+                .insert(uri, (path, p.text_document.text));
             return;
         }
         let generation = self.generation();
@@ -336,6 +350,12 @@ impl Server {
     fn did_change(&mut self, p: lsp_types::DidChangeTextDocumentParams) {
         let run = self.options.run;
         let generation = self.generation();
+        if let Some((_, text)) = self.other_documents.get_mut(&p.text_document.uri) {
+            for change in &p.content_changes {
+                convert::apply_change(text, change);
+            }
+            return;
+        }
         let Some(doc) = self.documents.get_mut(&p.text_document.uri) else {
             return;
         };
@@ -367,6 +387,7 @@ impl Server {
     }
 
     fn did_close(&mut self, uri: &Url) {
+        self.other_documents.remove(uri);
         let Some(doc) = self.documents.remove(uri) else {
             return;
         };
@@ -546,7 +567,7 @@ impl Server {
 
     /// Discovers the folder again (configuration or files changed) and
     /// re-publishes its files.
-    fn reload_folder(&mut self, i: usize) {
+    pub(crate) fn reload_folder(&mut self, i: usize) {
         let start = Instant::now();
         let root = self.folders[i].root.clone();
         let adhoc = self.folders[i].adhoc;
@@ -943,7 +964,7 @@ impl Server {
         self.publish(&result.path, diagnostics);
     }
 
-    fn publish(&mut self, path: &Path, diagnostics: Vec<Diagnostic>) {
+    pub(crate) fn publish(&mut self, path: &Path, diagnostics: Vec<Diagnostic>) {
         // An open document keeps the client's own URI: on Windows it may
         // spell the drive differently (`file:///c%3A/...`) from ours.
         let open = self

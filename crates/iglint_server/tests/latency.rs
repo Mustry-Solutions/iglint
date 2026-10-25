@@ -507,14 +507,15 @@ fn refresh_cost(root: &Path, rounds: usize) -> (usize, usize, Stats) {
     (files, directories, stats(samples))
 }
 
-/// Code actions over the whole of `path`: the time of each request,
-/// including the check of the disk, the fresh check and every fix, and
-/// whether a fix was offered (`None` when none was).
-fn code_action_latency(client: &mut Client, path: &Path, rounds: usize) -> Option<Stats> {
+/// Code actions over the whole of `path`: the time of each list request
+/// (from the live workspace), and of resolving the first fix it offers
+/// (review round 32: the edit comes from a fresh check, discovery
+/// included). `None` when no fix was offered.
+fn code_action_latency(client: &mut Client, path: &Path, rounds: usize) -> Option<(Stats, Stats)> {
     let text = std::fs::read_to_string(path).unwrap();
     let uri = client.open(path, &text);
     client.diagnostics(&uri, Some(1));
-    let mut offered = false;
+    let mut resolved = Vec::new();
     let samples = (0..rounds)
         .map(|_| {
             let start = Instant::now();
@@ -523,18 +524,36 @@ fn code_action_latency(client: &mut Client, path: &Path, rounds: usize) -> Optio
                 json!({"textDocument": {"uri": uri}, "range": {"start": {"line": 0, "character": 0}, "end": {"line": 100000, "character": 0}}, "context": {"diagnostics": []}}),
             );
             let elapsed = start.elapsed();
-            offered |= actions
-                .as_array()
-                .is_some_and(|a| a.iter().any(|a| a.get("edit").is_some() && !a["title"].as_str().unwrap_or("").contains("suppress")));
+            let fix = actions.as_array().and_then(|a| {
+                a.iter()
+                    .find(|a| a.get("data").is_some_and(|d| d.get("fix").is_some()))
+                    .cloned()
+            });
+            if let Some(fix) = fix {
+                let start = Instant::now();
+                let action = client.request_raw("codeAction/resolve", fix);
+                let took = start.elapsed();
+                if action.get("edit").is_some() {
+                    resolved.push(took);
+                }
+            }
             elapsed
         })
         .collect();
+    // A fresh check that disagrees with the live workspace makes the
+    // server discover the folder again; on an unchanged disk it must not.
+    let diverged = client.inbox.iter().any(|m| {
+        matches!(m, lsp_server::Message::Notification(n)
+            if n.method == "window/logMessage"
+                && n.params["message"].as_str().is_some_and(|t| t.contains("differs from a fresh check")))
+    });
+    assert!(!diverged, "the live workspace disagrees with a fresh check");
     client.notify(
         "textDocument/didClose",
         json!({"textDocument": {"uri": uri}}),
     );
     client.drain();
-    offered.then(|| stats(samples))
+    (!resolved.is_empty()).then(|| (stats(samples), stats(resolved)))
 }
 
 fn ms(d: Duration) -> f64 {
@@ -561,12 +580,18 @@ fn fix_request_latency() {
         ms(refresh.max)
     );
     let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
-    let s = code_action_latency(&mut client, &path, 15).expect("a fix");
+    let (list, fix) = code_action_latency(&mut client, &path, 15).expect("a fix");
     println!(
-        "code action with a fix: median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
-        ms(s.median),
-        ms(s.p95),
-        ms(s.max)
+        "code action list: median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
+        ms(list.median),
+        ms(list.p95),
+        ms(list.max)
+    );
+    println!(
+        "resolving a fix (fresh check): median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
+        ms(fix.median),
+        ms(fix.p95),
+        ms(fix.max)
     );
     if !cfg!(debug_assertions) {
         assert!(
@@ -616,6 +641,7 @@ fn private_corpus_fix_request_latency() {
     modules.sort();
     let mut client = Client::start(Some(&corpus), json!({"debounceMs": 0}));
     let mut all = Vec::new();
+    let mut fixes = Vec::new();
     // The largest library modules and views that offer a fix.
     let mut views: Vec<(u64, PathBuf)> = Vec::new();
     let mut stack = vec![corpus.clone()];
@@ -639,18 +665,26 @@ fn private_corpus_fix_request_latency() {
             if measured == 5 {
                 break;
             }
-            if let Some(s) = code_action_latency(&mut client, path, 10) {
+            if let Some((s, f)) = code_action_latency(&mut client, path, 10) {
                 all.extend([s.median, s.p95, s.max]);
+                fixes.extend([f.median, f.p95, f.max]);
                 measured += 1;
             }
         }
     }
     let s = stats(all);
     println!(
-        "code actions with fixes on the largest library modules and views (whole file): median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
+        "code action lists on the largest library modules and views with fixes (whole file): median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
         ms(s.median),
         ms(s.p95),
         ms(s.max)
+    );
+    let f = stats(fixes);
+    println!(
+        "resolving a fix there (fresh check): median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
+        ms(f.median),
+        ms(f.p95),
+        ms(f.max)
     );
     client.shutdown();
 }

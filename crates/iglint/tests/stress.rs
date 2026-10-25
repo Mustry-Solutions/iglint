@@ -756,7 +756,8 @@ impl Server {
             .current_dir(root)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            // Nothing reads it: a full pipe would block the server's log.
+            .stderr(Stdio::null())
             .spawn()
             .unwrap();
         let stdin = child.stdin.take().unwrap();

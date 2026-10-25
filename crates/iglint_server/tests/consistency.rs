@@ -939,3 +939,649 @@ fn fixes_match_a_fresh_check_in_every_folder_layout() {
     assert!(fix_alls > 5, "{fix_alls}");
     assert!(unnotified > 5, "{unnotified}");
 }
+
+/// What a file of [`differential_items`] is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ItemKind {
+    /// A library module (`code.py` next to its `resource.json`), which
+    /// disk operations may turn into links.
+    Module,
+    /// Any other data file (a view).
+    Data,
+    /// A project manifest.
+    Manifest,
+    /// The configuration file.
+    Config,
+}
+
+/// A file of the differential test, its kind and the texts it may have.
+struct Item {
+    rel: String,
+    kind: ItemKind,
+    /// Opened at the start.
+    open: bool,
+    variants: Vec<String>,
+}
+
+const BASE_LIBRARY: &str = "projects/base/ignition/script-python";
+
+/// The files of [`applied_safe_fixes_equal_a_fresh_cli_run`]: the
+/// generated libraries of [`slots`], a module of the parent project `base`
+/// that `p` may inherit from, `p`'s `project.json` and the configuration.
+fn differential_items() -> Vec<Item> {
+    let mut items: Vec<Item> = slots()
+        .into_iter()
+        .map(|s| Item {
+            kind: if s.rel.ends_with("code.py") {
+                ItemKind::Module
+            } else {
+                ItemKind::Data
+            },
+            rel: s.rel,
+            open: s.open,
+            variants: s.variants,
+        })
+        .collect();
+    items.push(Item {
+        rel: format!("{BASE_LIBRARY}/bm/code.py"),
+        kind: ItemKind::Module,
+        open: false,
+        variants: vec![
+            "def z():\n    return lib.util.json.dumps(1)\n".to_owned(),
+            "def z():\n    return 1\n".to_owned(),
+            "import os\ndef z():\n    return m0.util.os.sep\n".to_owned(),
+        ],
+    });
+    items.push(Item {
+        rel: "projects/p/project.json".to_owned(),
+        kind: ItemKind::Manifest,
+        open: false,
+        variants: vec![
+            r#"{"title": "p", "enabled": true, "inheritable": false}"#.to_owned(),
+            r#"{"title": "p", "enabled": true, "inheritable": false, "parent": "base"}"#.to_owned(),
+        ],
+    });
+    items.push(Item {
+        rel: "iglint.toml".to_owned(),
+        kind: ItemKind::Config,
+        open: false,
+        variants: vec![
+            String::new(),
+            "unfixable = [\"VIEW015\"]\n".to_owned(),
+            "select = [\"SCR102\", \"VIEW015\"]\n".to_owned(),
+            "select = [\n".to_owned(),
+        ],
+    });
+    items
+}
+
+/// The workspace of the differential test below `top/ws`, with the texts
+/// `texts` (one per item), and `top/outside` for hard links elsewhere.
+fn write_items(ws: &Path, items: &[Item], texts: &[String]) {
+    write(
+        ws,
+        "projects/base/project.json",
+        r#"{"title": "base", "enabled": true, "inheritable": true}"#,
+    );
+    for (item, text) in items.iter().zip(texts) {
+        if item.kind == ItemKind::Module || item.kind == ItemKind::Data {
+            let dir = Path::new(&item.rel).parent().unwrap();
+            write(
+                ws,
+                &format!("{}/resource.json", dir.display()),
+                &manifest(&item.rel),
+            );
+        }
+        write(ws, &item.rel, text);
+    }
+}
+
+/// What `iglint check` and `iglint check --fix` (safe fixes, not
+/// written) report when run in the folder `folder`: the findings after
+/// the baseline and the fixed text of each file that changes (absolute
+/// paths), or `None` when the run fails (a broken configuration or
+/// baseline).
+type CliRun = (Vec<iglint_linter::Diagnostic>, BTreeMap<PathBuf, String>);
+
+fn cli_run(folder: &Path) -> Option<CliRun> {
+    let config = iglint_config::load(
+        &iglint_config::LoadOptions {
+            cwd: folder.to_path_buf(),
+            start: Some(folder.to_path_buf()),
+            ..iglint_config::LoadOptions::default()
+        },
+        &iglint_linter::rules::REGISTRY,
+    )
+    .ok()?;
+    let paths = vec![folder.to_path_buf()];
+    let origin = iglint_linter::baseline::BaselineOrigin::new(&config.settings, &paths);
+    let baseline_path = config
+        .baseline
+        .clone()
+        .unwrap_or_else(|| origin.default_file());
+    let baseline = if baseline_path.is_file() {
+        Some(iglint_linter::baseline::Baseline::load(&baseline_path).ok()?)
+    } else if config.baseline.is_some() {
+        return None;
+    } else {
+        None
+    };
+    let checked = iglint_linter::check(
+        &config.settings,
+        &paths,
+        &iglint_linter::CheckOptions::default(),
+    );
+    let mut diagnostics = checked.diagnostics;
+    if let Some(b) = &baseline {
+        diagnostics = b.filter(&origin, diagnostics).new;
+    }
+    let fixed = iglint_linter::check(
+        &config.settings,
+        &paths,
+        &iglint_linter::CheckOptions {
+            fix_mode: iglint_linter::FixMode::DiffOnly {
+                unsafe_fixes: false,
+            },
+            ..iglint_linter::CheckOptions::default()
+        },
+    );
+    let fixed = fixed
+        .fixed
+        .into_iter()
+        .filter(|f| f.changed())
+        .map(|f| (iglint_linter::discovery::absolute(&f.path), f.fixed))
+        .collect();
+    Some((diagnostics, fixed))
+}
+
+/// By path relative to the top: the findings, and the texts `--fix` makes.
+type CliOnCopy = (
+    Vec<(String, iglint_linter::Diagnostic)>,
+    BTreeMap<String, String>,
+);
+
+/// A copy of `top` (links and hard links kept) with the editor's texts
+/// written over it, as saving every open document would, and the CLI run
+/// in the copy of `folder` (paths relative to `top` in the result).
+fn cli_on_copy(top: &Path, folder: &Path, editor: &[(PathBuf, String)]) -> Option<CliOnCopy> {
+    let copy = tempfile::tempdir().unwrap();
+    let to = iglint_linter::discovery::absolute(copy.path());
+    let status = std::process::Command::new("cp")
+        .arg("-a")
+        .arg(format!("{}/.", top.display()))
+        .arg(&to)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    for (path, text) in editor {
+        let at = to.join(path.strip_prefix(top).unwrap());
+        std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+        // Through a link whose target's directory is gone, saving fails:
+        // no fix may be applied then.
+        std::fs::write(&at, text).ok()?;
+    }
+    let (diagnostics, fixed) = cli_run(&to.join(folder.strip_prefix(top).unwrap()))?;
+    let rel = |p: &Path| {
+        p.strip_prefix(&to)
+            .map(|r| r.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default()
+    };
+    Some((
+        diagnostics
+            .into_iter()
+            .map(|d| (rel(&iglint_linter::discovery::absolute(d.file.path())), d))
+            .collect(),
+        fixed.into_iter().map(|(p, t)| (rel(&p), t)).collect(),
+    ))
+}
+
+/// Review round 32: the fixes the server applies are those of `iglint
+/// check` itself. Random sequences of editor edits, saves, closes, a
+/// workspace folder added and removed, and changes on disk with and
+/// without notifications: a file replaced by a symbolic link to another
+/// one, a link retargeted, a link replaced by a file, hard links inside
+/// and outside the workspace, renamed modules, manifest edits (inheriting
+/// from `base` or not), configuration and baseline writes, and unsaved
+/// edits of the manifest and the configuration. At random points the code
+/// actions of an open document are asked for and every fix resolved: each
+/// edit the server gives for a safe quick fix is the fix of a finding that
+/// a fresh `iglint check` of a copy of the editor's texts and the disk
+/// reports as safe, and each "fix all" edit gives what `--fix` gives
+/// there; when the check fails nothing is given. Edits are sometimes
+/// applied to the document. With and without `codeAction/resolve`.
+#[cfg(unix)]
+#[test]
+fn applied_safe_fixes_equal_a_fresh_cli_run() {
+    use std::os::unix::fs::symlink;
+    let items = differential_items();
+    // `IGLINT_CONSISTENCY_SEEDS=n` runs `n` sequences (default 4).
+    let seeds: u64 = std::env::var("IGLINT_CONSISTENCY_SEEDS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(4);
+    let modules: Vec<usize> = (0..items.len())
+        .filter(|i| items[*i].kind == ItemKind::Module)
+        .collect();
+    let (mut asked, mut safe_quick, mut fix_alls, mut withheld, mut links) = (0, 0, 0, 0, 0);
+    for seed in 1..=seeds {
+        let mut rng = Rng(seed * 7_919 + 13);
+        let capabilities = if rng.next(2) == 0 {
+            client_capabilities()
+        } else {
+            lsp_types::ClientCapabilities::default()
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let top = iglint_linter::discovery::absolute(dir.path());
+        let ws = top.join("ws");
+        std::fs::create_dir_all(top.join("outside")).unwrap();
+        let initial: Vec<String> = items
+            .iter()
+            .map(|i| i.variants[rng.next(i.variants.len().min(3))].clone())
+            .collect();
+        write_items(&ws, &items, &initial);
+        let nested = ws.join(format!("{LIBRARY}/lib"));
+        let mut nested_open = false;
+        let mut client = Client::start_folders(&[&ws], json!({"debounceMs": 0}), capabilities);
+        // Per item: the editor's document (uri, version, text).
+        let mut editor: Vec<Option<(Url, i32, String)>> = vec![None; items.len()];
+        let mut renamed = vec![false; items.len()];
+        let mut outside = 0;
+        for (k, item) in items.iter().enumerate() {
+            if item.open {
+                let uri = client.open(&ws.join(&item.rel), &initial[k]);
+                editor[k] = Some((uri, 1, initial[k].clone()));
+            }
+        }
+        let path_of = |i: usize, renamed: &[bool]| -> PathBuf {
+            let rel = &items[i].rel;
+            if renamed[i] {
+                let dir = Path::new(rel).parent().unwrap();
+                ws.join(format!("{}_r/code.py", dir.display()))
+            } else {
+                ws.join(rel)
+            }
+        };
+        let notify = |client: &Client, rng: &mut Rng, path: &Path, typ: u32| {
+            if rng.next(2) == 0 {
+                client.notify(
+                    DidChangeWatchedFiles::METHOD,
+                    json!({"changes": [{"uri": Url::from_file_path(path).unwrap(), "type": typ}]}),
+                );
+            }
+        };
+        for step in 0..30 {
+            let i = rng.next(items.len());
+            let path = path_of(i, &renamed);
+            let variant = items[i].variants[rng.next(items[i].variants.len())].clone();
+            let module = items[i].kind == ItemKind::Module && !renamed[i];
+            let other = modules[rng.next(modules.len())];
+            match rng.next(14) {
+                // Open or close.
+                0 | 1 => match editor[i].take() {
+                    Some((uri, _, _)) => client.notify(
+                        lsp_types::notification::DidCloseTextDocument::METHOD,
+                        json!({"textDocument": {"uri": uri}}),
+                    ),
+                    None => {
+                        if let Ok(text) = std::fs::read_to_string(&path) {
+                            let uri = client.open(&path, &text);
+                            editor[i] = Some((uri, 1, text));
+                        }
+                    }
+                },
+                // Type in an open document, else write the disk.
+                2..=4 => match editor[i].as_mut() {
+                    Some((uri, version, text)) => {
+                        *version += 1;
+                        *text = variant;
+                        let (uri, version, text) = (uri.clone(), *version, text.clone());
+                        client.replace_all(&uri, version, &text);
+                    }
+                    None => {
+                        let _ = std::fs::remove_file(&path);
+                        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                        std::fs::write(&path, &variant).unwrap();
+                        notify(&client, &mut rng, &path, 2);
+                    }
+                },
+                // Save.
+                5 => {
+                    // Through a link whose target is gone, saving fails.
+                    if let Some((uri, _, text)) = &editor[i]
+                        && std::fs::write(&path, text).is_ok()
+                    {
+                        client.notify(
+                            lsp_types::notification::DidSaveTextDocument::METHOD,
+                            json!({"textDocument": {"uri": uri}}),
+                        );
+                    }
+                }
+                // A module becomes a link to another one, or a link is
+                // retargeted (atomically).
+                6 | 7 if module && other != i && !renamed[other] => {
+                    let target = format!(
+                        "{}/code.py",
+                        pathdiff(
+                            path_of(other, &renamed).parent().unwrap(),
+                            path.parent().unwrap()
+                        )
+                    );
+                    let tmp = path.with_file_name("tmp-link");
+                    let _ = std::fs::remove_file(&tmp);
+                    symlink(&target, &tmp).unwrap();
+                    std::fs::rename(&tmp, &path).unwrap();
+                    links += 1;
+                    notify(&client, &mut rng, &path, 2);
+                }
+                // A link (or a file) becomes a file again.
+                8 if module => {
+                    let _ = std::fs::remove_file(&path);
+                    std::fs::write(&path, &variant).unwrap();
+                    notify(&client, &mut rng, &path, 2);
+                }
+                // Hard links: inside the workspace, or elsewhere.
+                9 if module && other != i && !renamed[other] => {
+                    let target = path_of(other, &renamed);
+                    if rng.next(2) == 0 {
+                        if let Ok(real) = std::fs::canonicalize(&target)
+                            && real != std::fs::canonicalize(&path).unwrap_or_default()
+                        {
+                            let _ = std::fs::remove_file(&path);
+                            std::fs::hard_link(&real, &path).unwrap();
+                        }
+                    } else if let Ok(real) = std::fs::canonicalize(&path) {
+                        outside += 1;
+                        let _ = std::fs::hard_link(&real, top.join(format!("outside/h{outside}")));
+                    }
+                    notify(&client, &mut rng, &path, 2);
+                }
+                // A closed module is renamed, or renamed back.
+                10 if items[i].kind == ItemKind::Module && editor[i].is_none() => {
+                    let from = path.parent().unwrap().to_path_buf();
+                    renamed[i] = !renamed[i];
+                    let to = path_of(i, &renamed).parent().unwrap().to_path_buf();
+                    if std::fs::rename(&from, &to).is_err() {
+                        renamed[i] = !renamed[i];
+                    }
+                    notify(&client, &mut rng, &to.join("code.py"), 1);
+                }
+                // The baseline: written from the disk now, or removed.
+                11 => {
+                    let file = ws.join(iglint_linter::baseline::DEFAULT_BASELINE_FILE);
+                    if rng.next(2) == 0 {
+                        let _ = std::fs::remove_file(&file);
+                    } else if let Ok(config) = iglint_config::load(
+                        &iglint_config::LoadOptions {
+                            cwd: ws.clone(),
+                            start: Some(ws.clone()),
+                            ..iglint_config::LoadOptions::default()
+                        },
+                        &iglint_linter::rules::REGISTRY,
+                    ) {
+                        let paths = vec![ws.clone()];
+                        let result = iglint_linter::check(
+                            &config.settings,
+                            &paths,
+                            &iglint_linter::CheckOptions::default(),
+                        );
+                        let origin =
+                            iglint_linter::baseline::BaselineOrigin::new(&config.settings, &paths);
+                        // Some of the findings.
+                        let some: Vec<iglint_linter::Diagnostic> = result
+                            .diagnostics
+                            .into_iter()
+                            .filter(|_| rng.next(2) == 0)
+                            .collect();
+                        iglint_linter::baseline::Baseline::from_diagnostics(&origin, &some)
+                            .save(&file)
+                            .unwrap();
+                    }
+                    notify(&client, &mut rng, &file, 2);
+                }
+                // A workspace folder on the library, added or removed.
+                12 => {
+                    let uri = Url::from_file_path(&nested).unwrap();
+                    let folder = json!([{"uri": uri, "name": "lib"}]);
+                    let event = if nested_open {
+                        json!({"added": [], "removed": folder})
+                    } else {
+                        json!({"added": folder, "removed": []})
+                    };
+                    nested_open = !nested_open;
+                    client.notify(
+                        lsp_types::notification::DidChangeWorkspaceFolders::METHOD,
+                        json!({ "event": event }),
+                    );
+                }
+                _ => {}
+            }
+            if rng.next(2) == 0 {
+                continue;
+            }
+            let open: Vec<usize> = (0..items.len())
+                .filter(|k| {
+                    editor[*k].is_some()
+                        && matches!(items[*k].kind, ItemKind::Module | ItemKind::Data)
+                })
+                .collect();
+            if open.is_empty() {
+                continue;
+            }
+            let k = open[rng.next(open.len())];
+            let (uri, version, text) = editor[k].clone().unwrap();
+            let doc_path = Url::to_file_path(&uri).unwrap();
+            let folder = if nested_open && doc_path.starts_with(&nested) {
+                nested.clone()
+            } else {
+                ws.clone()
+            };
+            let texts: Vec<(PathBuf, String)> = editor
+                .iter()
+                .flatten()
+                .map(|(u, _, t)| (Url::to_file_path(u).unwrap(), t.clone()))
+                .collect();
+            let reference = cli_on_copy(&top, &folder, &texts);
+            let rel = doc_path
+                .strip_prefix(&top)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            let actions = client
+                .request::<CodeActionRequest>(CodeActionParams {
+                    text_document: TextDocumentIdentifier { uri: uri.clone() },
+                    range: Range::new(Position::new(0, 0), Position::new(10_000, 0)),
+                    context: CodeActionContext {
+                        diagnostics: Vec::new(),
+                        only: None,
+                        trigger_kind: None,
+                    },
+                    work_done_progress_params: Default::default(),
+                    partial_result_params: Default::default(),
+                })
+                .unwrap_or_default();
+            asked += 1;
+            let context = format!("seed {seed} step {step} {rel}");
+            let mut apply_to_editor: Option<String> = None;
+            for action in actions {
+                let CodeActionOrCommand::CodeAction(action) = action else {
+                    continue;
+                };
+                if action.title.contains("suppress") {
+                    continue;
+                }
+                let quick = action.kind == Some(CodeActionKind::QUICKFIX);
+                let safe = action.is_preferred == Some(true);
+                let target = action
+                    .diagnostics
+                    .as_ref()
+                    .and_then(|d| d.first())
+                    .map(finding);
+                let action = if action.edit.is_none() && action.data.is_some() {
+                    client.request::<lsp_types::request::CodeActionResolveRequest>(action)
+                } else {
+                    action
+                };
+                let Some(edits) = action
+                    .edit
+                    .as_ref()
+                    .and_then(|e| e.changes.as_ref())
+                    .and_then(|c| c.get(&uri))
+                else {
+                    if quick && safe {
+                        withheld += 1;
+                    }
+                    continue;
+                };
+                let applied = apply(&text, edits);
+                if quick && !safe {
+                    continue;
+                }
+                let Some((diagnostics, fixed)) = &reference else {
+                    panic!("{context}: {} applied while the CLI fails", action.title);
+                };
+                if quick {
+                    if !safe {
+                        continue;
+                    }
+                    let target = target.expect("a quick fix names its finding");
+                    let found = diagnostics.iter().find(|(r, d)| {
+                        *r == rel
+                            && d.rule.code() == target.0
+                            && position(d.file.text(), d.range.start().to_usize()) == target.1
+                            && position(d.file.text(), d.range.end().to_usize()) == target.2
+                            && d.message == target.3
+                            && d.fix.as_ref().is_some_and(|f| {
+                                f.applicability == iglint_linter::Applicability::Safe
+                                    && action.title.contains(&f.message)
+                            })
+                    });
+                    let Some((_, d)) = found else {
+                        panic!(
+                            "{context}: safe {} applied, not a safe fix of the CLI",
+                            action.title
+                        );
+                    };
+                    let own: Vec<iglint_text::TextEdit> = d
+                        .fix
+                        .as_ref()
+                        .unwrap()
+                        .edits
+                        .iter()
+                        .map(|e| e.edit.clone())
+                        .collect();
+                    let expected = iglint_text::apply_edits(&text, &own).unwrap();
+                    assert_eq!(applied, expected, "{context}: {}", action.title);
+                    safe_quick += 1;
+                } else {
+                    assert_eq!(
+                        Some(&applied),
+                        fixed.get(&rel).or(Some(&text)),
+                        "{context}: fix all"
+                    );
+                    fix_alls += 1;
+                }
+                if apply_to_editor.is_none() && applied != text && rng.next(3) == 0 {
+                    apply_to_editor = Some(applied);
+                }
+            }
+            if let Some(new) = apply_to_editor {
+                client.replace_all(&uri, version + 1, &new);
+                editor[k] = Some((uri, version + 1, new));
+            }
+        }
+        client.shutdown();
+    }
+    eprintln!(
+        "{asked} code action requests, {safe_quick} safe quick fixes and {fix_alls} fix-all edits equal to the CLI, {withheld} safe quick fixes withheld, {links} links made"
+    );
+    assert!(asked > 10 * seeds as usize / 2, "{asked}");
+    assert!(safe_quick > 0, "{safe_quick}");
+    assert!(fix_alls > 0, "{fix_alls}");
+}
+
+/// The relative path from `from` (a directory) to `to`, both absolute.
+fn pathdiff(to: &Path, from: &Path) -> String {
+    let to: Vec<_> = to.components().collect();
+    let from: Vec<_> = from.components().collect();
+    let common = to.iter().zip(&from).take_while(|(a, b)| a == b).count();
+    let mut parts: Vec<String> = vec!["..".to_owned(); from.len() - common];
+    parts.extend(
+        to[common..]
+            .iter()
+            .map(|c| c.as_os_str().to_string_lossy().into_owned()),
+    );
+    parts.join("/")
+}
+
+/// Review round 32: on a private corpus (aggregates only), the live
+/// workspace's findings of every file equal those of a fresh check, so the
+/// server does not discover a folder again after a fresh fix computation
+/// on an unchanged disk.
+#[test]
+#[ignore = "needs IGLINT_PRIVATE_CORPUS"]
+fn private_corpus_live_matches_a_fresh_check() {
+    let Some(corpus) = std::env::var_os("IGLINT_PRIVATE_CORPUS") else {
+        eprintln!("IGLINT_PRIVATE_CORPUS is not set");
+        return;
+    };
+    let root = iglint_linter::discovery::absolute(Path::new(&corpus));
+    let config = iglint_config::load(
+        &iglint_config::LoadOptions {
+            cwd: root.clone(),
+            start: Some(root.clone()),
+            ..iglint_config::LoadOptions::default()
+        },
+        &iglint_linter::rules::REGISTRY,
+    )
+    .unwrap();
+    let paths = vec![root.clone()];
+    let result = iglint_linter::check(
+        &config.settings,
+        &paths,
+        &iglint_linter::CheckOptions::default(),
+    );
+    let mut fresh: BTreeMap<PathBuf, Vec<iglint_linter::Diagnostic>> = BTreeMap::new();
+    for d in result.diagnostics {
+        fresh
+            .entry(iglint_linter::discovery::absolute(d.file.path()))
+            .or_default()
+            .push(d);
+    }
+    let mut live = iglint_linter::live::LiveWorkspace::new(config.settings.clone(), paths);
+    let files = live.lintable_files();
+    let mut differ = 0;
+    let mut rules: BTreeMap<&'static str, usize> = BTreeMap::new();
+    for found in live.check(&files) {
+        let empty = Vec::new();
+        let expected = fresh.get(&found.path).unwrap_or(&empty);
+        let missing: Vec<&iglint_linter::Diagnostic> = expected
+            .iter()
+            .filter(|d| {
+                !found
+                    .diagnostics
+                    .iter()
+                    .any(|f| iglint_linter::live::same_finding(d, f))
+            })
+            .collect();
+        let extra: Vec<&iglint_linter::Diagnostic> = found
+            .diagnostics
+            .iter()
+            .filter(|d| {
+                !expected
+                    .iter()
+                    .any(|f| iglint_linter::live::same_finding(d, f))
+            })
+            .collect();
+        if !missing.is_empty() || !extra.is_empty() {
+            differ += 1;
+            for d in missing.iter().chain(&extra) {
+                *rules.entry(d.rule.code()).or_default() += 1;
+            }
+        }
+    }
+    eprintln!(
+        "{} files, {differ} differ; findings that differ by rule: {rules:?}",
+        files.len()
+    );
+    assert_eq!(differ, 0);
+}

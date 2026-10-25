@@ -369,8 +369,13 @@ shell find the same workspace root.
 
 `iglint server` is a language server (LSP over standard input and output):
 findings while you type, quick fixes, "fix all" and rule documentation on
-hover. The VS Code extension in [editors/vscode](editors/vscode) runs it;
-other editors can start `iglint server` directly.
+hover. Every fix it applies is computed when you pick it by a fresh
+`iglint check --fix` of the folder with the editor's texts, so it is the
+fix the command line would make; while an open `project.json`,
+`resource.json`, configuration or baseline file has unsaved changes, no
+fix is offered (save it first). The VS Code extension in
+[editors/vscode](editors/vscode) runs it; other editors can start
+`iglint server` directly.
 
 ## Rules
 

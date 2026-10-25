@@ -185,7 +185,10 @@ fn quick_fixes_fix_all_and_hover() {
         .unwrap_or_else(|| panic!("{actions:#?}"));
     assert!(quick.title.starts_with("VIEW015"));
     assert_eq!(quick.is_preferred, Some(true));
-    let edits = &quick.edit.as_ref().unwrap().changes.as_ref().unwrap()[&uri];
+    // The edit comes with `codeAction/resolve` (review round 32).
+    assert!(quick.edit.is_none());
+    let resolved = client.request::<CodeActionResolveRequest>(quick.clone());
+    let edits = &resolved.edit.as_ref().unwrap().changes.as_ref().unwrap()[&uri];
     let fixed = apply(&text, edits);
     assert!(
         !fixed.contains("unusedA") && fixed.contains("unusedB"),
@@ -2548,4 +2551,451 @@ fn watches_workspace_directories_outside_the_folder() {
         }
         client.shutdown();
     }
+}
+
+/// The titles of the code actions of `uri` (line 0) whose edit removes
+/// the line `import` from `text` and that are not marked unsafe: quick
+/// fixes (resolved when deferred), "fix all" resolved, and the fix-all
+/// command.
+fn safe_removals(client: &mut Client, uri: &Url, text: &str, import: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    for action in code_actions(
+        client,
+        uri,
+        Range::new(Position::new(0, 0), Position::new(0, 11)),
+        None,
+    ) {
+        if action.title.contains("(unsafe") || action.title.contains("suppress") {
+            continue;
+        }
+        let action = if action.edit.is_none() && action.data.is_some() {
+            client.request::<CodeActionResolveRequest>(action)
+        } else {
+            action
+        };
+        let edits = action
+            .edit
+            .as_ref()
+            .and_then(|e| e.changes.as_ref())
+            .and_then(|c| c.get(uri))
+            .cloned()
+            .unwrap_or_default();
+        if !apply(text, &edits).contains(import) {
+            found.push(action.title.clone());
+        }
+    }
+    let applied = client.request_raw(
+        "workspace/executeCommand",
+        json!({"command": "iglint.applyFixAll", "arguments": [uri.as_str()]}),
+    );
+    if applied == json!(true) {
+        found.push("iglint.applyFixAll".to_owned());
+    }
+    found
+}
+
+/// A project `p` with `select = ["SCR102"]` and library modules (name,
+/// text). Returns the path of each `code.py`.
+fn library(root: &std::path::Path, modules: &[(&str, &str)]) -> Vec<std::path::PathBuf> {
+    write(
+        root,
+        "projects/p/project.json",
+        r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+    );
+    write(root, "iglint.toml", "select = [\"SCR102\"]\n");
+    let manifest = r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#;
+    modules
+        .iter()
+        .map(|(name, text)| {
+            write(
+                root,
+                &format!("projects/p/ignition/script-python/{name}/resource.json"),
+                manifest,
+            );
+            write(
+                root,
+                &format!("projects/p/ignition/script-python/{name}/code.py"),
+                text,
+            )
+        })
+        .collect()
+}
+
+/// Client capabilities with and without `codeAction/resolve`: deferred
+/// edits and edits that go with the list.
+fn both_clients() -> [lsp_types::ClientCapabilities; 2] {
+    [
+        client_capabilities(),
+        lsp_types::ClientCapabilities::default(),
+    ]
+}
+
+fn notify_changed(client: &Client, path: &std::path::Path) {
+    client.notify(
+        DidChangeWatchedFiles::METHOD,
+        json!({"changes": [{"uri": Url::from_file_path(path).unwrap(), "type": 2}]}),
+    );
+}
+
+/// Review round 32 (Opus, B1): `b` becomes a symbolic link to `a`, on disk
+/// without a notification or with a "changed" notification for `b`. The
+/// removal of `import json` from `a` edits `b` too (which `c` reads as
+/// `b.json`), so a fresh check makes it unsafe, and no safe fix removes it.
+#[cfg(unix)]
+#[test]
+fn a_file_that_becomes_a_link_gets_no_safe_fix() {
+    const A: &str = "import json\ndef f():\n    return 1\n";
+    for capabilities in both_clients() {
+        for notify in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let root = root(&dir);
+            let paths = library(
+                &root,
+                &[
+                    ("a", A),
+                    ("b", "def g():\n    return 2\n"),
+                    ("c", "def h():\n    return b.json.dumps(1)\n"),
+                ],
+            );
+            let mut client =
+                Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+            let uri = client.open(&paths[0], A);
+            client.diagnostics(&uri, Some(1));
+            assert!(!safe_removals(&mut client, &uri, A, "import json").is_empty());
+            std::fs::remove_file(&paths[1]).unwrap();
+            std::os::unix::fs::symlink("../a/code.py", &paths[1]).unwrap();
+            if notify {
+                notify_changed(&client, &paths[1]);
+            }
+            assert_eq!(
+                safe_removals(&mut client, &uri, A, "import json"),
+                Vec::<String>::new(),
+                "notified: {notify}"
+            );
+            client.shutdown();
+        }
+    }
+}
+
+/// Review round 32 (Opus, B1, second repro): `b` is a link to `a` and is
+/// retargeted atomically to `c`, whose unused `import os` then is `b`'s
+/// too: no safe fix removes it.
+#[cfg(unix)]
+#[test]
+fn a_retargeted_link_gets_no_safe_fix() {
+    const C: &str = "import os\ndef h():\n    return 3\n";
+    for capabilities in both_clients() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        let paths = library(
+            &root,
+            &[
+                ("a", "def f():\n    return 1\n"),
+                ("c", C),
+                ("d", "def k():\n    return b.os.sep\n"),
+            ],
+        );
+        let lib = root.join("projects/p/ignition/script-python");
+        write(
+            &lib,
+            "b/resource.json",
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        );
+        std::os::unix::fs::symlink("../a/code.py", lib.join("b/code.py")).unwrap();
+        let mut client =
+            Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+        let uri = client.open(&paths[1], C);
+        client.diagnostics(&uri, Some(1));
+        assert!(!safe_removals(&mut client, &uri, C, "import os").is_empty());
+        std::os::unix::fs::symlink("../c/code.py", lib.join("b/tmp")).unwrap();
+        std::fs::rename(lib.join("b/tmp"), lib.join("b/code.py")).unwrap();
+        assert_eq!(
+            safe_removals(&mut client, &uri, C, "import os"),
+            Vec::<String>::new()
+        );
+        client.shutdown();
+    }
+}
+
+/// Review round 32 (Codex, 1): `other` is replaced by a link to
+/// `lib/util` with the same bytes, without a notification.
+#[cfg(unix)]
+#[test]
+fn an_equal_file_replaced_by_a_link_gets_no_safe_fix() {
+    const UTIL: &str = "import json\ndef f():\n    return 1\n";
+    for capabilities in both_clients() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        let paths = library(
+            &root,
+            &[
+                ("lib/util", UTIL),
+                ("other", UTIL),
+                ("consumer", "def g():\n    return other.json.dumps(1)\n"),
+            ],
+        );
+        let mut client =
+            Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+        let uri = client.open(&paths[0], UTIL);
+        client.diagnostics(&uri, Some(1));
+        assert!(!safe_removals(&mut client, &uri, UTIL, "import json").is_empty());
+        std::fs::remove_file(&paths[1]).unwrap();
+        std::os::unix::fs::symlink("../lib/util/code.py", &paths[1]).unwrap();
+        assert_eq!(
+            safe_removals(&mut client, &uri, UTIL, "import json"),
+            Vec::<String>::new()
+        );
+        client.shutdown();
+    }
+}
+
+/// Review round 32 (Codex, 2): an unsaved edit of `child/project.json`
+/// makes it inherit from `b`, whose module reads `lib.util.json`.
+/// Discovery reads manifests from disk, so while the editor text differs
+/// no fix is computed; after saving, the fresh check reads the new parent
+/// (the import is used); closing an unsaved edit brings the removal back.
+#[test]
+fn unsaved_manifest_edits_withhold_fixes() {
+    const UTIL: &str = "import json\ndef f():\n    return 1\n";
+    const TO_A: &str = r#"{"enabled": true, "parent": "a"}"#;
+    const TO_B: &str = r#"{"enabled": true, "parent": "b"}"#;
+    for capabilities in both_clients() {
+        for save in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let root = root(&dir);
+            write(&root, "iglint.toml", "select = [\"SCR102\"]\n");
+            for p in ["a", "b"] {
+                write(
+                    &root,
+                    &format!("projects/{p}/project.json"),
+                    r#"{"enabled": true, "inheritable": true}"#,
+                );
+            }
+            let child = write(&root, "projects/child/project.json", TO_A);
+            let manifest = r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#;
+            write(
+                &root,
+                "projects/child/ignition/script-python/lib/util/resource.json",
+                manifest,
+            );
+            let util = write(
+                &root,
+                "projects/child/ignition/script-python/lib/util/code.py",
+                UTIL,
+            );
+            write(
+                &root,
+                "projects/b/ignition/script-python/m/resource.json",
+                manifest,
+            );
+            write(
+                &root,
+                "projects/b/ignition/script-python/m/code.py",
+                "def g():\n    return lib.util.json.dumps(1)\n",
+            );
+            let mut client =
+                Client::start_folders(&[&root], json!({"run": "onSave"}), capabilities.clone());
+            let uri = client.open(&util, UTIL);
+            client.diagnostics(&uri, Some(1));
+            let child_uri = client.open(&child, TO_A);
+            assert!(!safe_removals(&mut client, &uri, UTIL, "import json").is_empty());
+            client.replace_all(&child_uri, 2, TO_B);
+            assert_eq!(
+                safe_removals(&mut client, &uri, UTIL, "import json"),
+                Vec::<String>::new()
+            );
+            if save {
+                std::fs::write(&child, TO_B).unwrap();
+                client.notify(
+                    lsp_types::notification::DidSaveTextDocument::METHOD,
+                    json!({"textDocument": {"uri": child_uri}}),
+                );
+                assert_eq!(
+                    safe_removals(&mut client, &uri, UTIL, "import json"),
+                    Vec::<String>::new()
+                );
+            } else {
+                client.notify(
+                    DidCloseTextDocument::METHOD,
+                    json!({"textDocument": {"uri": child_uri}}),
+                );
+                assert!(!safe_removals(&mut client, &uri, UTIL, "import json").is_empty());
+            }
+            client.shutdown();
+        }
+    }
+}
+
+/// Review round 32: an unsaved edit of the configuration (here one that
+/// selects other rules) withholds fixes, since `iglint check` reads the
+/// file on disk; closing it brings them back.
+#[test]
+fn unsaved_configuration_edits_withhold_fixes() {
+    const UTIL: &str = "import json\ndef f():\n    return 1\n";
+    for capabilities in both_clients() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        let paths = library(&root, &[("lib/util", UTIL)]);
+        let mut client =
+            Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+        let uri = client.open(&paths[0], UTIL);
+        client.diagnostics(&uri, Some(1));
+        let config = root.join("iglint.toml");
+        let config_uri = client.open(&config, "select = [\"SCR102\"]\n");
+        assert!(!safe_removals(&mut client, &uri, UTIL, "import json").is_empty());
+        client.replace_all(
+            &config_uri,
+            2,
+            "select = [\"SCR102\"]\nunfixable = [\"SCR102\"]\n",
+        );
+        assert_eq!(
+            safe_removals(&mut client, &uri, UTIL, "import json"),
+            Vec::<String>::new()
+        );
+        client.notify(
+            DidCloseTextDocument::METHOD,
+            json!({"textDocument": {"uri": config_uri}}),
+        );
+        assert!(!safe_removals(&mut client, &uri, UTIL, "import json").is_empty());
+        client.shutdown();
+    }
+}
+
+/// Review round 32 (Opus, N1): a baseline written on disk without a
+/// notification hides the finding: no quick fix is offered for it, and
+/// its diagnostics are published again without it.
+#[test]
+fn a_baseline_written_without_notification_is_honoured() {
+    const UTIL: &str = "import json\ndef f():\n    return 1\n";
+    for capabilities in both_clients() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        let paths = library(&root, &[("lib/util", UTIL)]);
+        let mut client =
+            Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+        let uri = client.open(&paths[0], UTIL);
+        let before = client.diagnostics(&uri, Some(1));
+        assert!(has(&before, "SCR102", "`json`"), "{before:#?}");
+        let config = iglint_config::load(
+            &iglint_config::LoadOptions {
+                cwd: root.clone(),
+                start: Some(root.clone()),
+                ..iglint_config::LoadOptions::default()
+            },
+            &iglint_linter::rules::REGISTRY,
+        )
+        .unwrap();
+        let result = iglint_linter::check(
+            &config.settings,
+            std::slice::from_ref(&root),
+            &iglint_linter::CheckOptions::default(),
+        );
+        let origin = iglint_linter::baseline::BaselineOrigin::new(
+            &config.settings,
+            std::slice::from_ref(&root),
+        );
+        iglint_linter::baseline::Baseline::from_diagnostics(&origin, &result.diagnostics)
+            .save(&origin.default_file())
+            .unwrap();
+        let quick: Vec<String> = code_actions(
+            &mut client,
+            &uri,
+            full_range(),
+            Some(vec![CodeActionKind::QUICKFIX]),
+        )
+        .into_iter()
+        .filter(|a| a.title.starts_with("SCR102"))
+        .map(|a| a.title)
+        .collect();
+        assert_eq!(quick, Vec::<String>::new());
+        let after = settled(&mut client, &uri);
+        assert!(
+            after.as_ref().is_none_or(|p| !has(p, "SCR102", "`json`")),
+            "{after:#?}"
+        );
+        client.shutdown();
+    }
+}
+
+/// Review round 32 (found by the corpus comparison of the live workspace
+/// with a fresh check): a view's `thumbnail.png` gave the view's unit its
+/// settings in the server, so a rule enabled only for `view.json` files
+/// (an `[[overrides]]` entry, as ign-lint configurations migrate) was not
+/// shown, while `iglint check` reports it.
+#[test]
+fn rules_enabled_for_views_only_are_shown_next_to_a_thumbnail() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    let (popup, _) = demo_project(&root);
+    write(
+        &root,
+        "iglint.toml",
+        "select = [\"VIEW001\"]\n\n[[overrides]]\nfiles = [\"**/view.json\"]\nextend-select = [\"NAME001\"]\n",
+    );
+    let text = popup_view("speed").replace("\"Label\"", "\"bad_label\"");
+    std::fs::write(&popup, &text).unwrap();
+    std::fs::write(
+        popup.with_file_name("thumbnail.png"),
+        [0x89, b'P', b'N', b'G'],
+    )
+    .unwrap();
+    let config = iglint_config::load(
+        &iglint_config::LoadOptions {
+            cwd: root.clone(),
+            start: Some(root.clone()),
+            ..iglint_config::LoadOptions::default()
+        },
+        &iglint_linter::rules::REGISTRY,
+    )
+    .unwrap();
+    let cli = iglint_linter::check(
+        &config.settings,
+        std::slice::from_ref(&root),
+        &iglint_linter::CheckOptions::default(),
+    );
+    assert!(
+        cli.diagnostics.iter().any(|d| d.rule.code() == "NAME001"),
+        "{:#?}",
+        cli.diagnostics
+    );
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&popup, &text);
+    let published = client.diagnostics(&uri, Some(1));
+    assert!(
+        codes(&published).contains(&"NAME001".to_owned()),
+        "{published:#?}"
+    );
+    client.shutdown();
+}
+
+/// A Python file outside every project is linted on its own, like
+/// `iglint check <file>`, and its quick fixes resolve to that run's edits
+/// (review round 32).
+#[test]
+fn fixes_of_a_loose_python_file_come_from_checking_the_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    let text = "import os\n\ndef f():\n    return 1\n";
+    let loose = write(&root, "tools/x.py", text);
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let uri = client.open(&loose, text);
+    let published = client.diagnostics(&uri, Some(1));
+    assert!(
+        codes(&published).contains(&"SCR102".to_owned()),
+        "{published:#?}"
+    );
+    let fixes: Vec<CodeAction> = code_actions(
+        &mut client,
+        &uri,
+        full_range(),
+        Some(vec![CodeActionKind::QUICKFIX]),
+    )
+    .into_iter()
+    .filter(|a| a.title.starts_with("SCR102") && !a.title.contains("suppress"))
+    .collect();
+    assert_eq!(fixes.len(), 1, "{fixes:#?}");
+    let resolved = client.request::<CodeActionResolveRequest>(fixes[0].clone());
+    let edits = &resolved.edit.expect("an edit").changes.unwrap()[&uri];
+    assert_eq!(apply(text, edits), "\ndef f():\n    return 1\n");
+    client.shutdown();
 }

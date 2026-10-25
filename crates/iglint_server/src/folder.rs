@@ -56,71 +56,18 @@ impl Folder {
     /// Loads the configuration of `root` and discovers its workspace. A
     /// broken configuration falls back to the defaults, with a notice.
     pub fn load(root: &Path) -> Folder {
-        let mut notices = Vec::new();
-        let options = LoadOptions {
-            cwd: root.to_path_buf(),
-            start: Some(root.to_path_buf()),
-            ..LoadOptions::default()
-        };
-        let configuration = match iglint_config::load(&options, &REGISTRY) {
-            Ok(c) => Some(c),
+        let configured = Configured::load(root, true);
+        let mut notices = configured.notices;
+        let baseline = match configured.baseline {
+            Ok(b) => b,
             Err(error) => {
-                notices.push(format!("iglint configuration error: {error}"));
-                iglint_config::load(
-                    &LoadOptions {
-                        isolated: true,
-                        ..options
-                    },
-                    &REGISTRY,
-                )
-                .ok()
+                notices.push(error);
+                None
             }
         };
-        let (settings, config, baseline_path) = match configuration {
-            Some(c) => {
-                notices.extend(c.notices.iter().cloned());
-                let config = match &c.source {
-                    ConfigSource::Defaults => None,
-                    other => other.path().map(Path::to_path_buf),
-                };
-                (c.settings, config, Some(c.baseline.clone()))
-            }
-            None => (
-                ProjectSettings {
-                    root: root.to_path_buf(),
-                    ..ProjectSettings::default()
-                },
-                None,
-                None,
-            ),
-        };
-        let baseline_origin = BaselineOrigin::new(&settings, &[root.to_path_buf()]);
-        let baseline = baseline_path
-            .map(|configured| configured.unwrap_or_else(|| baseline_origin.default_file()))
-            .filter(|p| p.is_file())
-            .and_then(|p| match Baseline::load(&p) {
-                Ok(b) => Some(b),
-                Err(error) => {
-                    notices.push(format!("cannot read baseline {}: {error}", p.display()));
-                    None
-                }
-            });
-        let mut roots: Vec<PathBuf> = settings
-            .projects
-            .iter()
-            .chain(&settings.gateways)
-            .cloned()
-            .collect();
-        if roots.is_empty() {
-            roots.push(root.to_path_buf());
-        }
-        let config_seen = config
-            .iter()
-            .cloned()
-            .chain(
-                root.ancestors()
-                    .flat_map(|dir| CONFIG_NAMES.iter().map(move |name| dir.join(name))),
-            )
+        let config_seen = configured
+            .sources
+            .into_iter()
             .map(|path| {
                 let stamp = file_stamp(&path);
                 (path, stamp)
@@ -128,10 +75,10 @@ impl Folder {
             .collect();
         Folder {
             root: root.to_path_buf(),
-            config,
-            live: LiveWorkspace::new(settings, roots),
+            config: configured.config,
+            live: LiveWorkspace::new(configured.settings, configured.roots),
             baseline,
-            baseline_origin,
+            baseline_origin: configured.baseline_origin,
             notices,
             adhoc: false,
             files: None,
@@ -148,6 +95,18 @@ impl Folder {
         self.config_seen
             .iter()
             .any(|(path, stamp)| file_stamp(path) != *stamp)
+    }
+
+    /// A digest of the folder's files, directories and configuration files
+    /// on disk now ([`LiveWorkspace::disk_fingerprint`]).
+    pub fn disk_fingerprint(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = rustc_hash::FxHasher::default();
+        self.live.disk_fingerprint().hash(&mut h);
+        for (path, _) in &self.config_seen {
+            file_stamp(path).hash(&mut h);
+        }
+        h.finish()
     }
 
     /// Whether files wait to be checked again.
@@ -188,6 +147,134 @@ impl Folder {
     pub fn filter_baseline(&self, diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
         match &self.baseline {
             Some(b) if !diagnostics.is_empty() => b.filter(&self.baseline_origin, diagnostics).new,
+            _ => diagnostics,
+        }
+    }
+}
+
+/// The configuration of a folder, loaded the way `iglint check` run in
+/// the folder loads it: the settings, the roots to lint, the baseline.
+pub struct Configured {
+    pub settings: ProjectSettings,
+    /// Where the configuration came from (`None`: defaults).
+    pub config: Option<PathBuf>,
+    /// The paths to lint: the configured projects and gateways, else the
+    /// folder.
+    pub roots: Vec<PathBuf>,
+    /// The baseline, if there is one, or why it cannot be read.
+    pub baseline: Result<Option<Baseline>, String>,
+    pub baseline_origin: BaselineOrigin,
+    /// The configured baseline file, or the default one.
+    pub baseline_path: Option<PathBuf>,
+    /// The configuration names a baseline file (`iglint check` fails when
+    /// it is missing).
+    pub baseline_required: bool,
+    /// Every file the configuration and the baseline could come from: the
+    /// configuration file, each configuration name in the folder and the
+    /// directories above it, and the baseline file (review round 32, N1).
+    pub sources: Vec<PathBuf>,
+    pub notices: Vec<String>,
+    /// The configuration could not be read (`lenient` used the defaults).
+    pub error: Option<String>,
+}
+
+impl Configured {
+    /// Loads the configuration of `root`. With `lenient`, a broken
+    /// configuration falls back to the defaults (with a notice in
+    /// [`Configured::error`] and the notices); otherwise the defaults are
+    /// still returned, and the caller decides with [`Configured::error`].
+    pub fn load(root: &Path, lenient: bool) -> Configured {
+        let mut notices = Vec::new();
+        let mut error = None;
+        let options = LoadOptions {
+            cwd: root.to_path_buf(),
+            start: Some(root.to_path_buf()),
+            ..LoadOptions::default()
+        };
+        let configuration = match iglint_config::load(&options, &REGISTRY) {
+            Ok(c) => Some(c),
+            Err(e) => {
+                let message = format!("iglint configuration error: {e}");
+                if lenient {
+                    notices.push(message.clone());
+                }
+                error = Some(message);
+                iglint_config::load(
+                    &LoadOptions {
+                        isolated: true,
+                        ..options
+                    },
+                    &REGISTRY,
+                )
+                .ok()
+            }
+        };
+        let (settings, config, baseline_path) = match configuration {
+            Some(c) => {
+                notices.extend(c.notices.iter().cloned());
+                let config = match &c.source {
+                    ConfigSource::Defaults => None,
+                    other => other.path().map(Path::to_path_buf),
+                };
+                (c.settings, config, Some(c.baseline.clone()))
+            }
+            None => (
+                ProjectSettings {
+                    root: root.to_path_buf(),
+                    ..ProjectSettings::default()
+                },
+                None,
+                None,
+            ),
+        };
+        let baseline_required = matches!(baseline_path, Some(Some(_)));
+        let baseline_origin = BaselineOrigin::new(&settings, &[root.to_path_buf()]);
+        let baseline_path = baseline_path
+            .map(|configured| configured.unwrap_or_else(|| baseline_origin.default_file()));
+        let baseline = match baseline_path.as_ref().filter(|p| p.is_file()) {
+            None => Ok(None),
+            Some(p) => Baseline::load(p)
+                .map(Some)
+                .map_err(|e| format!("cannot read baseline {}: {e}", p.display())),
+        };
+        let mut roots: Vec<PathBuf> = settings
+            .projects
+            .iter()
+            .chain(&settings.gateways)
+            .cloned()
+            .collect();
+        if roots.is_empty() {
+            roots.push(root.to_path_buf());
+        }
+        let sources = config
+            .iter()
+            .cloned()
+            .chain(
+                root.ancestors()
+                    .flat_map(|dir| CONFIG_NAMES.iter().map(move |name| dir.join(name))),
+            )
+            .chain(baseline_path.iter().cloned())
+            .collect();
+        Configured {
+            settings,
+            config,
+            roots,
+            baseline,
+            baseline_origin,
+            baseline_path,
+            baseline_required,
+            sources,
+            notices,
+            error,
+        }
+    }
+
+    /// Removes findings covered by the baseline.
+    pub fn filter_baseline(&self, diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
+        match &self.baseline {
+            Ok(Some(b)) if !diagnostics.is_empty() => {
+                b.filter(&self.baseline_origin, diagnostics).new
+            }
             _ => diagnostics,
         }
     }

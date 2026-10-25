@@ -15,14 +15,15 @@ use lsp_types::{
 use serde_json::{Value, json};
 
 use crate::convert::{self, path_of, uri_of};
+use crate::fresh::{FindingKey, FixWanted};
 use crate::server::{COMMAND_FIX_ALL, COMMAND_RULE_DOCS, FIX_ALL_KIND, Server};
 
 impl Server {
     pub fn code_actions(&mut self, params: CodeActionParams) -> Option<Vec<CodeActionOrCommand>> {
         let uri = params.text_document.uri;
         let path = path_of(&uri)?;
-        // Every fix is computed from the editor's text of every open
-        // document (review round 30, B2).
+        // The list follows the editor's text of every open document
+        // (review round 30, B2).
         self.sync_documents();
         self.flush_document(&uri);
         let only = params.context.only.as_deref();
@@ -37,11 +38,6 @@ impl Server {
         if !self.is_current(&uri, &published.diagnostics) {
             return Some(actions);
         }
-        // A fix is offered only while a fresh check of the current
-        // workspace reports the same findings with the same fixes: an edit
-        // of another file may have changed them without a new check of
-        // this one (review round 29, B2). Otherwise the findings are
-        // published again and nothing is offered.
         let fixable = published
             .diagnostics
             .iter()
@@ -51,15 +47,30 @@ impl Server {
             });
         let folder = self.folder_for(&path);
         if fixable {
-            // What changed on disk without a notification counts too
-            // (review round 31, B1).
+            // What is shown is brought up to date first (review rounds 29
+            // and 31). The edits do not depend on it: they come from a
+            // fresh check ([`crate::fresh`]).
             self.refresh_disk(folder);
             if self.republish_if_stale(folder, &path) {
                 return Some(actions);
             }
         }
+        // Without `codeAction/resolve` the edits go with the list: the
+        // findings are those of a fresh check (published again when they
+        // differ), with the fix of each.
+        let eager = if fixable && !self.resolve_support {
+            match self.fresh_in_burst(&path, &FixWanted::Each) {
+                Some(fresh) => Some(fresh),
+                None => return Some(actions),
+            }
+        } else {
+            None
+        };
+        let folder = self.folder_for(&path);
         if wants(CodeActionKind::QUICKFIX.as_str()) {
-            let published = self.results.get(&path)?;
+            let Some(published) = self.results.get(&path) else {
+                return Some(actions);
+            };
             let in_range: Vec<(Diagnostic, lsp_types::Diagnostic)> = published
                 .diagnostics
                 .iter()
@@ -68,13 +79,9 @@ impl Server {
                 .map(|(d, lsp)| (d.clone(), lsp.clone()))
                 .collect();
             for (d, lsp) in &in_range {
-                // The fix goes through the same function as fix-all and
-                // `--fix` (`Live::fix_one`): one that would make the file
-                // worse, or a safe fix that fails the safe-fix net, is not
-                // offered.
                 if let Some(fix) = &d.fix
                     && fix.applicability != Applicability::DisplayOnly
-                    && let Some(edit) = self.quick_fix_edit(&uri, &path, folder, d)
+                    && let Some(key) = FindingKey::of(d)
                 {
                     let safe = fix.applicability == Applicability::Safe;
                     let root = self.folders[folder].root.clone();
@@ -92,14 +99,26 @@ impl Server {
                         ),
                         (None, false) => format!("{}: {} (unsafe)", d.rule.code(), fix.message),
                     };
-                    actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                    let mut action = CodeAction {
                         title,
                         kind: Some(CodeActionKind::QUICKFIX),
                         diagnostics: Some(vec![lsp.clone()]),
-                        edit: Some(edit),
                         is_preferred: Some(safe),
+                        data: Some(json!({ "uri": uri, "fix": key })),
                         ..CodeAction::default()
-                    }));
+                    };
+                    // Without `codeAction/resolve`, the edit of a fresh
+                    // check goes with the list; a fix it does not make is
+                    // not offered.
+                    if !self.resolve_support {
+                        action.edit = eager
+                            .as_ref()
+                            .and_then(|fresh| self.document_edit(&uri, fresh.fix_of(&key)));
+                        if action.edit.is_none() {
+                            continue;
+                        }
+                    }
+                    actions.push(CodeActionOrCommand::CodeAction(action));
                 }
                 let live = &self.folders[folder].live;
                 if live.suppressible(d.rule)
@@ -124,7 +143,7 @@ impl Server {
                 ..CodeAction::default()
             };
             if !self.resolve_support {
-                action.edit = self.fix_all_edit(&uri);
+                action.edit = self.fix_all_edit_in_burst(&uri);
                 if action.edit.is_none() {
                     return Some(actions);
                 }
@@ -134,15 +153,30 @@ impl Server {
         Some(actions)
     }
 
+    /// `codeAction/resolve`: the edit of a quick fix or of "fix all", from
+    /// a fresh check ([`crate::fresh`]); none when that check does not
+    /// make the fix.
     pub fn resolve_code_action(&mut self, mut action: CodeAction) -> CodeAction {
-        if action.edit.is_none()
-            && let Some(uri) = action
-                .data
-                .as_ref()
-                .and_then(|d| d.get("uri"))
-                .and_then(|u| serde_json::from_value::<Url>(u.clone()).ok())
-        {
-            action.edit = self.fix_all_edit(&uri);
+        if action.edit.is_some() {
+            return action;
+        }
+        let data = action.data.clone().unwrap_or(Value::Null);
+        let Some(uri) = data
+            .get("uri")
+            .and_then(|u| serde_json::from_value::<Url>(u.clone()).ok())
+        else {
+            return action;
+        };
+        match data.get("fix") {
+            Some(key) => {
+                if let (Ok(key), Some(path)) = (
+                    serde_json::from_value::<FindingKey>(key.clone()),
+                    path_of(&uri),
+                ) {
+                    action.edit = self.quick_fix_edit(&uri, &path, &key);
+                }
+            }
+            None => action.edit = self.fix_all_edit(&uri),
         }
         action
     }
@@ -169,34 +203,72 @@ impl Server {
         })
     }
 
-    /// The edit of "fix all" for a document: one replacement of the part
-    /// that changes.
+    /// The edit of "fix all" for a document, from a fresh `--fix`
+    /// ([`crate::fresh`]): one replacement of the part that changes.
     pub fn fix_all_edit(&mut self, uri: &Url) -> Option<WorkspaceEdit> {
         let path = path_of(uri)?;
         self.sync_documents();
         self.flush_document(uri);
-        let folder = self.folder_for(&path);
-        self.refresh_disk(folder);
-        if self.republish_if_stale(folder, &path) {
+        let wanted = FixWanted::All {
+            unsafe_fixes: self.options.unsafe_fixes,
+        };
+        let fresh = self.fresh(&path, &wanted)?;
+        self.document_edit(uri, fresh.fixed)
+    }
+
+    /// [`Server::fix_all_edit`] within a burst of requests.
+    fn fix_all_edit_in_burst(&mut self, uri: &Url) -> Option<WorkspaceEdit> {
+        let path = path_of(uri)?;
+        let wanted = FixWanted::All {
+            unsafe_fixes: self.options.unsafe_fixes,
+        };
+        let fresh = self.fresh_in_burst(&path, &wanted)?;
+        self.document_edit(uri, fresh.fixed)
+    }
+
+    /// The edit of the quick fix of the finding `key`, from a fresh check
+    /// ([`crate::fresh`]) (`codeAction/resolve`).
+    fn quick_fix_edit(
+        &mut self,
+        uri: &Url,
+        path: &Path,
+        key: &FindingKey,
+    ) -> Option<WorkspaceEdit> {
+        self.sync_documents();
+        self.flush_document(uri);
+        let fresh = self.fresh(path, &FixWanted::One(key.clone()))?;
+        self.document_edit(uri, fresh.fixed)
+    }
+
+    /// The edit that turns the text a fresh run linted into its fixed
+    /// text, while the document still has that text.
+    fn document_edit(
+        &self,
+        uri: &Url,
+        fixed: Option<(iglint_linter::SourceFile, String)>,
+    ) -> Option<WorkspaceEdit> {
+        let (original, fixed) = fixed?;
+        if let Some(doc) = self.documents.get(uri)
+            && doc.text != original.text()
+        {
             return None;
         }
-        let unsafe_fixes = self.options.unsafe_fixes;
-        let current = self.folders[folder].live.source(&path)?;
-        let fixed = self.folders[folder].live.fix_all(&path, unsafe_fixes)?;
-        let (range, content) = convert::minimal_edit(current.text(), &fixed.fixed);
-        let edit = TextEdit {
-            range: convert::source_range(&current, range),
-            new_text: content,
-        };
+        let (range, content) = convert::minimal_edit(original.text(), &fixed);
         Some(WorkspaceEdit {
-            changes: Some(HashMap::from([(uri.clone(), vec![edit])])),
+            changes: Some(HashMap::from([(
+                uri.clone(),
+                vec![TextEdit {
+                    range: convert::source_range(&original, range),
+                    new_text: content,
+                }],
+            )])),
             ..WorkspaceEdit::default()
         })
     }
 
-    /// Checks `path` again; when the findings differ from the published
-    /// ones (rule, place, message, fix), publishes the new ones and returns
-    /// true.
+    /// Checks `path` again with the live workspace; when the findings
+    /// differ from the published ones (rule, place, message, fix),
+    /// publishes the new ones and returns true.
     fn republish_if_stale(&mut self, folder: usize, path: &Path) -> bool {
         let Some(fresh) = self.folders[folder]
             .live
@@ -214,33 +286,6 @@ impl Server {
             self.publish_result(folder, fresh);
         }
         !same
-    }
-
-    /// The edit of the quick fix of `d`, applied through
-    /// `Live::fix_one` (see [`Server::code_actions`]).
-    fn quick_fix_edit(
-        &mut self,
-        uri: &Url,
-        path: &Path,
-        folder: usize,
-        d: &Diagnostic,
-    ) -> Option<WorkspaceEdit> {
-        let current = self.folders[folder].live.source(path)?;
-        let fixed = self.folders[folder].live.fix_one(path, d)?;
-        if fixed.applied == 0 {
-            return None;
-        }
-        let (range, content) = convert::minimal_edit(current.text(), &fixed.fixed);
-        Some(WorkspaceEdit {
-            changes: Some(HashMap::from([(
-                uri.clone(),
-                vec![TextEdit {
-                    range: convert::source_range(&current, range),
-                    new_text: content,
-                }],
-            )])),
-            ..WorkspaceEdit::default()
-        })
     }
 
     /// Fix edits as a workspace edit, against the current text of each file.

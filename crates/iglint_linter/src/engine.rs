@@ -57,6 +57,14 @@ impl FixMode {
 pub type Analyzer =
     Arc<dyn Fn(&SourceFile, FileKind, &LinterSettings) -> Vec<Diagnostic> + Send + Sync>;
 
+/// Texts that replace files on disk for one run, by absolute path (the
+/// language server: the editor's text of every open document).
+pub type Overlay = FxHashMap<PathBuf, Arc<str>>;
+
+/// Selects the findings whose fixes a fixing run applies, besides the fix
+/// mode and [`CheckOptions::fix_rules`].
+pub type FixSelect = Arc<dyn Fn(&Diagnostic) -> bool + Send + Sync>;
+
 /// Options of one check run that are not settings of the project.
 #[derive(Clone)]
 pub struct CheckOptions {
@@ -74,6 +82,23 @@ pub struct CheckOptions {
     pub stdin: Option<(PathBuf, String)>,
     /// Replaces the project pipeline with a per-file analyzer (tests).
     pub analyzer: Option<Analyzer>,
+    /// Texts that replace the files at these paths wherever the run reads
+    /// them as data files of resources or as linted files (review round
+    /// 32: the language server computes every fix it applies by this run,
+    /// on a workspace discovered afresh, with the editor's texts). Files
+    /// that discovery reads (manifests) are not replaced; the paths whose
+    /// overlay the run used are in [`CheckResult::overlay_applied`].
+    pub overlay: Option<Arc<Overlay>>,
+    /// Lint only these files (absolute paths) of those found below the
+    /// paths; the workspace is the same as for all of them.
+    pub only: Option<Vec<PathBuf>>,
+    /// Only fixes of the findings this accepts are applied, when set.
+    pub fix_select: Option<FixSelect>,
+    /// With a fix mode: instead of fixing each file, apply the fix of each
+    /// finding on its own, in one pass from the file's text (a quick fix),
+    /// as [`CheckResult::single_fixes`]; the findings reported are those
+    /// of the unfixed text.
+    pub fix_each: bool,
     /// Free the parse trees and models at the end of the run. A process
     /// that exits right after the run sets this to `false`: the operating
     /// system reclaims the memory at once, while freeing millions of nodes
@@ -91,6 +116,10 @@ impl Default for CheckOptions {
             cache_dir: None,
             stdin: None,
             analyzer: None,
+            overlay: None,
+            only: None,
+            fix_select: None,
+            fix_each: false,
             release_memory: true,
         }
     }
@@ -105,6 +134,8 @@ impl std::fmt::Debug for CheckOptions {
             .field("threads", &self.threads)
             .field("cache_dir", &self.cache_dir)
             .field("stdin", &self.stdin.as_ref().map(|(p, _)| p))
+            .field("overlay", &self.overlay.as_ref().map(|o| o.len()))
+            .field("only", &self.only)
             .finish_non_exhaustive()
     }
 }
@@ -287,6 +318,17 @@ impl FixSummary {
     }
 }
 
+/// The fix of one finding applied on its own ([`CheckOptions::fix_each`]).
+#[derive(Clone, Debug)]
+pub struct SingleFix {
+    /// The finding, as the check reports it.
+    pub diagnostic: Diagnostic,
+    /// The text it was found in.
+    pub original: Arc<str>,
+    /// The text after its fix, when the fix applies and changes it.
+    pub fixed: Option<String>,
+}
+
 /// A file that could not be linted.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileError {
@@ -337,6 +379,15 @@ pub struct CheckResult {
     pub timings: Timings,
     /// With [`CheckOptions::stdin`] and a fix mode: the fixed text.
     pub stdin_output: Option<String>,
+    /// The paths of [`CheckOptions::overlay`] whose text the run used
+    /// (a manifest counts when its text on disk, which discovery read,
+    /// equals the overlay). Sorted.
+    pub overlay_applied: Vec<PathBuf>,
+    /// With [`CheckOptions::fix_each`]: the fix of each finding on its own.
+    pub single_fixes: Vec<SingleFix>,
+    /// The directories whose projects and collections form the workspace
+    /// ([`discovery::workspace_roots`]), with the project pipeline.
+    pub workspace_roots: Vec<PathBuf>,
 }
 
 impl CheckResult {
@@ -374,6 +425,12 @@ pub fn check(settings: &ProjectSettings, paths: &[PathBuf], options: &CheckOptio
             found
                 .files
                 .into_iter()
+                .filter(|(path, _)| {
+                    options
+                        .only
+                        .as_ref()
+                        .is_none_or(|only| only.contains(&discovery::absolute(path)))
+                })
                 .map(|(path, kind)| (path, kind, None))
                 .collect()
         }
@@ -396,6 +453,11 @@ pub fn check(settings: &ProjectSettings, paths: &[PathBuf], options: &CheckOptio
                 files
                     .par_iter()
                     .map(|(path, kind, text)| {
+                        let overlaid = options
+                            .overlay
+                            .as_ref()
+                            .and_then(|o| o.get(&discovery::absolute(path)))
+                            .map(|t| &**t);
                         lint_one(
                             settings,
                             options,
@@ -403,7 +465,7 @@ pub fn check(settings: &ProjectSettings, paths: &[PathBuf], options: &CheckOptio
                             cache.as_ref(),
                             path,
                             *kind,
-                            text.as_deref(),
+                            text.as_deref().or(overlaid),
                         )
                     })
                     .collect::<Vec<_>>()
@@ -426,6 +488,8 @@ pub fn check(settings: &ProjectSettings, paths: &[PathBuf], options: &CheckOptio
             result.notices.extend(analysis.notices);
             result.skipped.extend(analysis.skipped);
             result.files_skipped = result.skipped.len();
+            result.overlay_applied = analysis.overlay_applied;
+            result.workspace_roots = analysis.workspace_roots;
             analysis.outcomes
         }
     };
@@ -439,6 +503,7 @@ pub fn check(settings: &ProjectSettings, paths: &[PathBuf], options: &CheckOptio
                 result.files_checked += 1;
                 result.files.push(outcome.checked);
                 result.diagnostics.extend(outcome.diagnostics);
+                result.single_fixes.extend(outcome.single_fixes);
                 if let Some(summary) = outcome.fix {
                     if options.stdin.is_some() {
                         result.stdin_output = Some(summary.fixed.clone());
@@ -485,6 +550,7 @@ pub(crate) struct Outcome {
     pub checked: CheckedFile,
     pub diagnostics: Vec<Diagnostic>,
     pub fix: Option<FixSummary>,
+    pub single_fixes: Vec<SingleFix>,
     pub cache_entry: Option<crate::cache::Entry>,
 }
 
@@ -561,6 +627,7 @@ fn lint_one(
         },
         diagnostics,
         fix: fix_summary,
+        single_fixes: Vec::new(),
         cache_entry,
     })
 }
@@ -605,6 +672,11 @@ pub(crate) fn fix_file(
             && !rules.contains(&d.rule)
         {
             return Err("filtered by the selected fix rules".to_owned());
+        }
+        if let Some(select) = &options.fix_select
+            && !select(d)
+        {
+            return Err("not selected".to_owned());
         }
         if !fix::applicability_allowed(fix.applicability, unsafe_fixes) {
             return Err(match fix.applicability {

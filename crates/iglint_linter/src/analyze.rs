@@ -78,6 +78,10 @@ pub(crate) struct Analysis {
     pub notices: Vec<String>,
     /// Targets that were found but not linted, with the reason.
     pub skipped: Vec<(PathBuf, crate::discovery::SkipReason)>,
+    /// The paths of [`CheckOptions::overlay`] whose text was used.
+    pub overlay_applied: Vec<PathBuf>,
+    /// The directories the workspace was discovered in.
+    pub workspace_roots: Vec<PathBuf>,
 }
 
 /// Runs every rule of [`crate::rules::IMPLS`] on `targets`.
@@ -125,6 +129,7 @@ pub(crate) fn analyze_with(
     let ws_roots = crate::discovery::workspace_roots(settings, &linted_paths);
     let ws = Workspace::discover(&ws_roots.roots);
     let closed_world_unknown = !ws_roots.unknown.is_empty();
+    let workspace_roots = ws_roots.roots.clone();
 
     // Which workspace file is which target. Files that are not linted as
     // part of their resource (see [`treatment`]) are linted standalone,
@@ -157,6 +162,10 @@ pub(crate) fn analyze_with(
         in_workspace[*t] = true;
     }
     let mut overrides: FxHashMap<FileId, Arc<str>> = FxHashMap::default();
+    let mut overlay_applied: Vec<PathBuf> = Vec::new();
+    if let Some(overlay) = options.overlay.as_deref().filter(|o| !o.is_empty()) {
+        overlay_applied = apply_overlay(&ws, overlay, &mut overrides);
+    }
     for (i, t) in target_of.iter().enumerate() {
         if let Some(t) = t
             && let Some(text) = &targets[*t].stdin
@@ -164,6 +173,17 @@ pub(crate) fn analyze_with(
             overrides.insert(FileId(i as u32), Arc::clone(text));
         }
     }
+    // Linted files read outside resources (standalone files, files the
+    // model does not read) take their overlay text like stdin.
+    let overlaid = |t: &Target| -> Option<Arc<str>> {
+        t.stdin.clone().or_else(|| {
+            options
+                .overlay
+                .as_ref()
+                .and_then(|o| o.get(&absolute(&t.path)))
+                .cloned()
+        })
+    };
     let linted: Vec<bool> = ws
         .resources
         .iter()
@@ -184,8 +204,8 @@ pub(crate) fn analyze_with(
         .into_par_iter()
         .map(|i| {
             let t = &targets[i];
-            let text = match &t.stdin {
-                Some(text) => Ok((Arc::clone(text), Vec::new())),
+            let text = match overlaid(t) {
+                Some(text) => Ok((text, Vec::new())),
                 None => read_text(&t.path),
             };
             (i, text)
@@ -255,8 +275,8 @@ pub(crate) fn analyze_with(
     let unread_texts: Vec<(FileId, usize, Result<Decoded, String>)> = unread
         .into_par_iter()
         .map(|(f, t)| {
-            let text = match &targets[t].stdin {
-                Some(text) => Ok((Arc::clone(text), Vec::new())),
+            let text = match overlaid(&targets[t]) {
+                Some(text) => Ok((text, Vec::new())),
                 None => read_text(&targets[t].path),
             };
             (f, t, text)
@@ -820,6 +840,7 @@ pub(crate) fn analyze_with(
                     .cloned()
                     .collect::<Vec<_>>(),
             );
+            let carried_before = carried.borrow().clone();
             let assume_no_reads = settings.assume_no_workspace_file_reads;
             let reanalyze = |text: &str, edits: &[TextEdit], what: Reanalysis| -> Vec<Diagnostic> {
                 let text: Arc<str> = Arc::from(text);
@@ -871,6 +892,31 @@ pub(crate) fn analyze_with(
                 }
                 out
             };
+            if options.fix_each && options.fix_mode.is_fixing() {
+                let single_fixes = single_fixes(
+                    settings,
+                    options,
+                    &target.path,
+                    &source.shared_text(),
+                    &diagnostics,
+                    &|| *carried.borrow_mut() = carried_before.clone(),
+                    &reanalyze,
+                    &scripts,
+                );
+                return Ok(Outcome {
+                    checked: CheckedFile {
+                        path: target.path.clone(),
+                        kind: target.kind,
+                        cached: cached[t],
+                        read_time: Duration::ZERO,
+                        analysis_time: time[t],
+                    },
+                    diagnostics,
+                    fix: None,
+                    single_fixes,
+                    cache_entry,
+                });
+            }
             let (fix, diagnostics) = fix_file(
                 settings,
                 options,
@@ -890,10 +936,33 @@ pub(crate) fn analyze_with(
                 },
                 diagnostics,
                 fix,
+                single_fixes: Vec::new(),
                 cache_entry,
             })
         })
         .collect();
+    // Linted files outside resources whose text came from the overlay.
+    if let Some(overlay) = options.overlay.as_deref() {
+        for (t, target) in targets.iter().enumerate() {
+            let path = absolute(&target.path);
+            let Some(text) = overlay.get(&path) else {
+                continue;
+            };
+            let file = file_of_target
+                .get(&t)
+                .copied()
+                .or_else(|| standalone_by_target.get(&t).map(|s| s.file));
+            if file
+                .and_then(|f| table.get(f))
+                .is_some_and(|s| *s.shared_text() == **text)
+                && !overlay_applied.contains(&path)
+            {
+                overlay_applied.push(path);
+            }
+        }
+    }
+    overlay_applied.sort();
+    overlay_applied.dedup();
     if !options.release_memory {
         // Freeing every parse tree and model node takes a noticeable share
         // of a short run; a process that exits next does not need it.
@@ -910,7 +979,164 @@ pub(crate) fn analyze_with(
         errors,
         notices,
         skipped,
+        overlay_applied,
+        workspace_roots,
     }
+}
+
+/// Gives every data file of a resource whose file an overlay entry is (by
+/// path, or by identity: a symbolic or hard link to it, the file a link
+/// points to) the overlay's text, as writing the text to the entry's path
+/// would. Discovery read the manifests from disk: an overlay counts for
+/// one only when it holds the same text. Returns the overlay paths used;
+/// entries for the same file with different texts are not used.
+fn apply_overlay(
+    ws: &Workspace,
+    overlay: &crate::engine::Overlay,
+    overrides: &mut FxHashMap<FileId, Arc<str>>,
+) -> Vec<PathBuf> {
+    let by_identity: FxHashMap<FileIdentity, Vec<&PathBuf>> = {
+        let mut map: FxHashMap<FileIdentity, Vec<&PathBuf>> = FxHashMap::default();
+        for path in overlay.keys() {
+            if let Some(identity) = file_identity(path) {
+                map.entry(identity).or_default().push(path);
+            }
+        }
+        map
+    };
+    let manifests = manifest_texts(ws);
+    let found: Vec<(FileId, Vec<&PathBuf>)> = ws
+        .files
+        .par_iter()
+        .filter_map(|f| {
+            let path = absolute(&f.path);
+            let mut entries: Vec<&PathBuf> = Vec::new();
+            if let Some((p, _)) = overlay.get_key_value(&path) {
+                entries.push(p);
+            }
+            if let Some(same) = file_identity(&path).and_then(|i| by_identity.get(&i)) {
+                entries.extend(same.iter().copied());
+            }
+            entries.sort();
+            entries.dedup();
+            (!entries.is_empty()).then_some((f.id, entries))
+        })
+        .collect();
+    let mut applied: Vec<PathBuf> = Vec::new();
+    let mut conflicts: Vec<PathBuf> = Vec::new();
+    for (id, entries) in found {
+        let f = ws.file(id);
+        let text = &overlay[entries[0]];
+        if entries.iter().any(|p| overlay[*p] != *text) {
+            conflicts.extend(entries.into_iter().cloned());
+            continue;
+        }
+        if crate::live::is_manifest_kind(f.kind) {
+            if manifests.get(&id).is_some_and(|read| **read == **text) {
+                applied.extend(entries.into_iter().cloned());
+            }
+        } else if f.resource.is_some() && f.kind.is_text() {
+            overrides.insert(id, Arc::clone(text));
+            applied.extend(entries.into_iter().cloned());
+        }
+    }
+    applied.retain(|p| !conflicts.contains(p));
+    applied
+}
+
+/// What identifies a file on disk (through links): device and inode on
+/// Unix, the canonical path elsewhere.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum FileIdentity {
+    #[cfg_attr(not(unix), allow(dead_code))]
+    Inode(u64, u64),
+    #[cfg_attr(unix, allow(dead_code))]
+    Path(PathBuf),
+}
+
+fn file_identity(path: &Path) -> Option<FileIdentity> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let meta = std::fs::metadata(path).ok()?;
+        Some(FileIdentity::Inode(meta.dev(), meta.ino()))
+    }
+    #[cfg(not(unix))]
+    {
+        Some(FileIdentity::Path(std::fs::canonicalize(path).ok()?))
+    }
+}
+
+/// The fix of each finding of `diagnostics` that the options select, on
+/// its own: [`fix_file`] in one pass from `text`, with only that finding's
+/// fix wanted ([`CheckOptions::fix_each`]). `reset` restores what a
+/// re-analysis carries between passes.
+#[allow(clippy::too_many_arguments)]
+fn single_fixes(
+    settings: &ProjectSettings,
+    options: &CheckOptions,
+    path: &Path,
+    text: &Arc<str>,
+    diagnostics: &[Diagnostic],
+    reset: &dyn Fn(),
+    reanalyze: &crate::engine::Reanalyze<'_>,
+    scripts: &crate::safety::Scripts<'_>,
+) -> Vec<crate::engine::SingleFix> {
+    let unsafe_fixes = options.fix_mode.unsafe_fixes();
+    diagnostics
+        .iter()
+        .filter(|d| {
+            d.fix
+                .as_ref()
+                .is_some_and(|f| crate::fix::applicability_allowed(f.applicability, unsafe_fixes))
+                && options.fix_select.as_ref().is_none_or(|select| select(d))
+        })
+        .map(|d| {
+            reset();
+            let key = d.clone();
+            let one = CheckOptions {
+                fix_each: false,
+                max_fix_passes: 1,
+                fix_select: Some(Arc::new(move |x: &Diagnostic| {
+                    crate::live::same_finding(x, &key)
+                })),
+                ..options.clone()
+            };
+            let fixed = fix_file(
+                settings,
+                &one,
+                path,
+                text,
+                diagnostics.to_vec(),
+                reanalyze,
+                scripts,
+            )
+            .ok()
+            .and_then(|(summary, _)| summary)
+            .filter(|s| s.changed() && s.applied.len() == 1)
+            .map(|s| s.fixed);
+            crate::engine::SingleFix {
+                diagnostic: d.clone(),
+                original: Arc::clone(text),
+                fixed,
+            }
+        })
+        .collect()
+}
+
+/// The text discovery read of every manifest of the workspace.
+fn manifest_texts(ws: &Workspace) -> FxHashMap<FileId, Arc<str>> {
+    let mut out = FxHashMap::default();
+    for r in ws.resources.iter().filter(|r| !r.manifest.missing) {
+        out.insert(r.manifest.file, Arc::clone(r.manifest.doc.shared_text()));
+    }
+    for p in &ws.projects {
+        out.insert(p.manifest.file, Arc::clone(p.manifest.doc.shared_text()));
+    }
+    for c in &ws.collections {
+        out.insert(c.manifest.file, Arc::clone(c.manifest.doc.shared_text()));
+    }
+    out
 }
 
 /// How a discovered file of the workspace is linted.

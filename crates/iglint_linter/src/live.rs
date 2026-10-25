@@ -105,6 +105,9 @@ struct Stamp {
     changed: Option<SystemTime>,
     /// Device and inode on Unix.
     identity: (u64, u64),
+    /// The number of hard links (Unix), and whether the path itself is a
+    /// symbolic link.
+    links: (u64, bool),
 }
 
 /// How much later than a read a file system may date a write: a write
@@ -127,11 +130,20 @@ impl Stamp {
         };
         #[cfg(not(unix))]
         let (changed, identity) = (meta.created().ok(), (0, 0));
+        #[cfg(unix)]
+        let hard_links = {
+            use std::os::unix::fs::MetadataExt;
+            meta.nlink()
+        };
+        #[cfg(not(unix))]
+        let hard_links = 1;
+        let symlink = std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink());
         Some(Stamp {
             len: meta.len(),
             modified: meta.modified().ok(),
             changed,
             identity,
+            links: (hard_links, symlink),
         })
     }
 }
@@ -392,6 +404,59 @@ impl LiveWorkspace {
         out
     }
 
+    /// A digest of what the files and directories of the workspace are on
+    /// disk now (type, size, times, identity and links of each, a link's
+    /// target), for a client that reuses a result for a moment (the
+    /// language server, within one burst of requests). Not a test of
+    /// whether the workspace is current: [`LiveWorkspace::refresh_from_disk`].
+    pub fn disk_fingerprint(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let paths: Vec<&Path> = self
+            .ws
+            .files
+            .iter()
+            .map(|f| f.path.as_path())
+            .chain(self.ws.directories.iter().map(|d| d.path.as_path()))
+            .chain(self.roots.iter().map(PathBuf::as_path))
+            .collect();
+        let digests: Vec<u64> = paths
+            .par_iter()
+            .map(|p| {
+                let mut h = rustc_hash::FxHasher::default();
+                p.hash(&mut h);
+                Stamp::of(p)
+                    .map(|s| (s.len, s.modified, s.changed, s.identity))
+                    .hash(&mut h);
+                match std::fs::symlink_metadata(p) {
+                    Ok(meta) => {
+                        meta.file_type().is_symlink().hash(&mut h);
+                        meta.len().hash(&mut h);
+                        meta.modified().ok().hash(&mut h);
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::MetadataExt;
+                            (meta.ino(), meta.nlink(), meta.ctime(), meta.ctime_nsec())
+                                .hash(&mut h);
+                        }
+                        if meta.file_type().is_symlink() {
+                            std::fs::read_link(p).ok().hash(&mut h);
+                        }
+                    }
+                    Err(e) => e.kind().hash(&mut h),
+                }
+                #[cfg(unix)]
+                if let Ok(meta) = std::fs::metadata(p) {
+                    use std::os::unix::fs::MetadataExt;
+                    meta.nlink().hash(&mut h);
+                }
+                h.finish()
+            })
+            .collect();
+        let mut h = rustc_hash::FxHasher::default();
+        digests.hash(&mut h);
+        h.finish()
+    }
+
     /// Compares every file and directory of the workspace with what was
     /// read (review round 31, B1: a file changed on disk without a
     /// notification, by `git pull` or another editor, must not leave a
@@ -449,6 +514,21 @@ impl LiveWorkspace {
                             FileCheck::Structure
                         },
                     ));
+                }
+                // Another number of hard links, a link in place of a file or
+                // the other way round, or another file behind a path that is
+                // or was shared (a link retargeted): which files are shared
+                // may have changed, even with the same bytes (review round
+                // 32, Codex 1). A plain file saved by renaming a new one
+                // over it is compared by content.
+                let shared = |s: &Stamp| s.links != (1, false);
+                if old.stamp.is_some_and(|o| {
+                    now.is_some_and(|n| {
+                        o.links != n.links
+                            || (o.identity != n.identity && (shared(&o) || shared(&n)))
+                    })
+                }) {
+                    return Some((i, FileCheck::Structure));
                 }
                 let current = self.table.get(f.id);
                 if is_manifest_kind(f.kind) {
@@ -972,7 +1052,10 @@ impl LiveWorkspace {
     }
 
     /// The file whose settings a resource's unit runs with: its first data
-    /// file that is linted, else its manifest.
+    /// file that is linted, else its manifest, as `check` picks it (review
+    /// round 32: a file iglint does not lint, a view's `thumbnail.png`,
+    /// gave the unit its settings, so rules the configuration enables only
+    /// for some files did not run).
     fn unit_settings_path(&self, rid: ResourceId) -> Option<PathBuf> {
         let r = self.ws.resource(rid);
         r.files
@@ -980,7 +1063,7 @@ impl LiveWorkspace {
             .filter(|f| **f != r.manifest.file)
             .chain(std::iter::once(&r.manifest.file))
             .map(|f| &self.ws.file(*f).path)
-            .find(|p| !self.is_skipped(p))
+            .find(|p| discovery::FileKind::classify(p).is_some() && !self.is_skipped(p))
             .cloned()
     }
 
@@ -1419,7 +1502,7 @@ fn suppression_insert(source: &str, offset: TextSize, code: &str) -> Option<(Tex
     ok.then(|| (TextSize::new(insert_at as u32), insert))
 }
 
-fn is_manifest_kind(kind: iglint_project::FileKind) -> bool {
+pub(crate) fn is_manifest_kind(kind: iglint_project::FileKind) -> bool {
     use iglint_project::FileKind as K;
     matches!(
         kind,
@@ -1974,6 +2057,54 @@ mod tests {
                 other => panic!("{text:?}: {other:?}"),
             }
             assert_eq!(&*live.source(&b).unwrap().shared_text(), text);
+        }
+    }
+
+    /// Review round 32 (Codex 1): a file replaced by a link to a file with
+    /// the same bytes, a link retargeted, and a new hard link elsewhere
+    /// change which files are shared: the refresh says the workspace
+    /// changed, whatever the bytes.
+    #[cfg(unix)]
+    #[test]
+    fn refresh_tells_links_and_hard_links() {
+        use crate::rules::script::testing::{library, with_library};
+        const TEXT: &str = "import json\ndef f():\n    return 1\n";
+        for change in 0..3 {
+            let f = with_library(library("lib/util", TEXT), "other", TEXT);
+            let root = absolute(f.root());
+            let lib = root.join("projects/p/ignition/script-python");
+            let other = lib.join("other/code.py");
+            let mut live = LiveWorkspace::new(
+                crate::rules::test_support::settings(&root, &[("SCR102", "")]),
+                vec![root.clone()],
+            );
+            live.refresh_from_disk();
+            match change {
+                0 => {
+                    std::fs::remove_file(&other).unwrap();
+                    std::os::unix::fs::symlink("../lib/util/code.py", &other).unwrap();
+                }
+                1 => {
+                    std::fs::hard_link(&other, root.join("elsewhere.py")).unwrap();
+                }
+                _ => {
+                    std::fs::remove_file(&other).unwrap();
+                    std::os::unix::fs::symlink("../lib/util/code.py", &other).unwrap();
+                    live = LiveWorkspace::new(
+                        crate::rules::test_support::settings(&root, &[("SCR102", "")]),
+                        vec![root.clone()],
+                    );
+                    live.refresh_from_disk();
+                    std::fs::write(root.join("copy.py"), TEXT).unwrap();
+                    let tmp = lib.join("other/tmp");
+                    std::os::unix::fs::symlink("../../../../../copy.py", &tmp).unwrap();
+                    std::fs::rename(&tmp, &other).unwrap();
+                }
+            }
+            assert!(
+                matches!(live.refresh_from_disk(), DiskChange::Structure(_)),
+                "change {change}"
+            );
         }
     }
 

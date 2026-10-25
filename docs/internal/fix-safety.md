@@ -2267,7 +2267,9 @@ that applies or offers a fix goes through one function,
 safety net (see "Threat model"): `--fix`, `--fix --unsafe-fixes`,
 `--diff`, `iglint ign-lint --fix`, the language server's fix-all (code
 action, `source.fixAll` on save, command) and its single quick fixes
-(`Live::fix_one`). A safe fix that fails the net is not applied. So that
+(`engine::check` with `fix_each`, one pass per finding, see "The language
+server's fixes are `iglint check`'s" below). A safe fix that fails the
+net is not applied. So that
 what is reported is what is applied (review round 18, N1), every path
 that reports fixes (`check` without `--fix`, the findings left after
 `--fix`, the language server's diagnostics and quick fixes) runs the net
@@ -2428,6 +2430,119 @@ every preferred quick fix is safe in a fresh check of the folder that
 publishes the file and fix all equals its `--fix`; 3 sequences per
 layout by default, 40 run with 4,021 code action requests; fails on
 the round 30 code).
+
+### The language server's fixes are `iglint check`'s
+
+Review round 32 (Opus B1, Codex 1 and 2) found three more ways for the
+live workspace to differ from a fresh check: a module replaced on disk,
+without a notification or with a "changed" one, by a symbolic link to
+another module (the removal of `import json` from `a` then edits `b`,
+which `c` reads as `b.json`; also with the same bytes, which the disk
+check accepted as unchanged, and a link retargeted to another module),
+because neither the directory digests nor the identities of shared files
+(computed once per discovery) changed; and an unsaved edit of
+`project.json` that makes the project inherit from another parent,
+which the live workspace never applies (discovery reads manifests). The
+same round found a baseline written without a notification ignored.
+Each round since 29 patched one more way the incremental state could
+drift. The argument no longer rests on it:
+
+**Every edit the server returns or applies for a fix is computed by the
+CLI's own run on a workspace discovered afresh** (`iglint_server::fresh`):
+
+* the folder's configuration and baseline are loaded again exactly as
+  `iglint check` run in the folder loads them (`folder::Configured`, the
+  same function the folder uses for what it shows; a configuration or
+  baseline that `iglint check` cannot read gives no fix);
+* `engine::check` runs over the folder's roots, so discovery, the
+  workspace roots, the index, the closed world, identities, link and
+  hard-link checks, the vetting gates and the safety net are those of
+  `iglint check`; only the requested file is linted (`only`; findings of
+  a file do not depend on which other files are linted, see "Closed
+  world"); a file the folder's check does not find (a Python file
+  outside every project) is checked as `iglint check <file>` checks it;
+* the editor's text of every open document replaces the file on disk
+  (`overlay`) for every data file of a resource that is that file: by
+  path, or by identity (a symbolic link to it, the file a link points to,
+  a hard link), as saving the document would write it;
+* nothing is taken from the live workspace: no summaries, no index, no
+  identities, no stamps. Each run rediscovers everything;
+* the edits are those of that run: "fix all" is the fixed text `--fix`
+  (`--unsafe-fixes` when configured) makes of the file; a quick fix is
+  the fix of one finding applied on its own in one pass through
+  `engine::fix_file` (`fix_each`, with `fix_select` naming the finding
+  by rule, range, message, fix and applicability, and the text it was
+  found in by digest), and only for a finding the run reports after the
+  baseline. A finding the run does not report the same way, or whose
+  fix is no longer safe when a safe one was listed, gives no edit.
+
+When the run cannot stand for `iglint check` of the editor's texts no
+fix is computed: an open document whose editor text differs from the
+disk and that the run did not take from the overlay, when the check
+reads it (a manifest, which discovery reads from disk; a configuration,
+baseline, whitelist or `.gitignore` file; any file below the folder or a
+workspace root, which includes an open document whose file is missing,
+such as a module renamed on disk while it is open), or two open
+documents that are the same file with different texts. A manifest
+counts as used when the editor holds the text discovery read.
+
+The live workspace keeps what is shown: diagnostics, hovers and the
+list of code actions (stale display is corrected by the next check).
+After a fresh run its findings for the file are compared with the live
+workspace's: when they differ, the folder is discovered again, and the
+fresh findings are published. Clients that resolve code actions
+(`codeAction.resolveSupport` with `edit`, as VS Code) get quick fixes
+and "fix all" without edits and the fresh run on `codeAction/resolve`;
+for other clients one fresh run gives the edit of every quick fix in the
+list (`fix_each` over all findings), kept for at most one second while
+no notification arrives and the folder's disk fingerprint (type, size,
+times, identity, hard links and link target of every file and directory
+of the workspace, and of the configuration files) is unchanged. Such a
+client applies the edit later anyway; the fingerprint only keeps a burst
+of requests from computing the same run again.
+
+What remains of round 31 (watched files for every workspace, per
+workspace overlays, the disk check before a code action) and its
+round 32 additions (the link flag and target in the directory digests,
+a changed identity, hard-link count or link status as a change of the
+workspace, the baseline among the files whose change reloads the
+folder) serves what is shown; the correctness of applied fixes does not
+depend on it, and the limits listed for round 31 (a change above the
+discovered roots, a configuration rewrite of the same size within one
+modification-time tick, a rewrite between read and stamp on Windows) do
+not apply to fixes: each run reads everything again. In the corpus comparison (`private_corpus_live_matches_a_fresh_check`)
+the live workspace's findings equal a fresh check's for every file (it
+found the view settings taken from a `thumbnail.png`, fixed).
+
+Cost (release build): resolving a fix on 3,005 generated files FIXGEN;
+on the private project (3,143 linted files) FIXLAT; the list of code
+actions LISTLAT; typing latency is unchanged (the fresh run happens only
+for a fix).
+
+Tests: in `lsp.rs`, `a_file_that_becomes_a_link_gets_no_safe_fix`
+(Opus repro 1, with and without a notification),
+`a_retargeted_link_gets_no_safe_fix` (repro 2),
+`an_equal_file_replaced_by_a_link_gets_no_safe_fix` (Codex 1),
+`unsaved_manifest_edits_withhold_fixes` (Codex 2: unsaved parent change,
+then saved or closed unsaved), `unsaved_configuration_edits_withhold_fixes`,
+`a_baseline_written_without_notification_is_honoured` (N1), each with
+and without `codeAction/resolve`, and
+`rules_enabled_for_views_only_are_shown_next_to_a_thumbnail`; all fail
+on the round 31 code. In `consistency.rs`,
+`applied_safe_fixes_equal_a_fresh_cli_run`: random sequences of typing,
+saves, opens and closes, a workspace folder added and removed, and disk
+changes with and without notifications (a module replaced by a link to
+another, links retargeted and replaced by files, hard links inside and
+outside the workspace, renamed modules, manifest edits making `p`
+inherit from `base`, configuration and baseline writes, unsaved
+manifest and configuration edits); at random points every code action
+is resolved: every safe quick fix edit equals the fix of a finding that
+`iglint check` of a copy (links and hard links kept, the editor's texts
+written over it) reports as safe, every "fix all" edit equals that
+copy's `--fix`, and nothing is given when the check fails; 4 sequences
+by default, SEEDS run; with the round 31 code it fails within 60
+sequences (link changes alone) and at once with configuration changes.
+In `iglint_project`, `directory_records_tell_link_changes`.
 
 Re-checking the files an edit may affect (every published file, after
 an edit of a library module) goes 128 files at a time with one index

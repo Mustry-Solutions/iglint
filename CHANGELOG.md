@@ -128,6 +128,47 @@ from 0.1.0 on.
 
 ### Fixed
 
+- The language server computes every fix it applies with `iglint check`
+  itself (review round 32, blocker, Opus and Codex). Rounds 29 to 32 each
+  found another way for the server's incrementally kept workspace to
+  differ from a fresh check and so offer a stale safe fix: a module
+  replaced on disk by a symbolic link to another module (also with the
+  same bytes), a link retargeted, an unsaved edit of `project.json` that
+  changes the parent project, a baseline written without a notification.
+  Now every edit the server returns or applies for a fix (quick fixes,
+  "fix all" as a code action, `source.fixAll` on save, the fix-all
+  command) comes from a run of the same function as `iglint check
+  --fix` in the folder: configuration and baseline loaded again, the
+  workspace discovered again, the editor's text of every open document
+  in place of the file on disk (also through symbolic and hard links to
+  it), nothing reused from the incremental workspace. A quick fix's edit
+  is the fix of a finding that run reports, applied on its own. While an
+  open manifest, configuration or baseline file (or any other open file
+  the check reads from disk) has unsaved changes, or an open document is
+  missing on disk, no fix is computed. The incremental workspace still
+  shows diagnostics, hovers and the list of code actions; when a fresh
+  run disagrees with it, the folder is discovered again and the fresh
+  findings are published. Clients with `codeAction/resolve` get the
+  edits on resolve; for other clients one run computes the edit of every
+  quick fix in the list (reused for at most a second while no
+  notification arrives and the disk is unchanged). Cost (release build,
+  private project, 3,143 files): resolving a fix takes FIXLAT; listing
+  code actions LISTLAT; typing is unchanged.
+- The language server did not show findings of rules a configuration
+  enables only for some files (an `[[overrides]]` entry for
+  `**/view.json`, as migrated ign-lint configurations have) in views with
+  a `thumbnail.png`: the view's settings were taken from the thumbnail.
+  On the private project, NAME001 and VIEW018 findings in 175 files now
+  appear in the editor as `iglint check` reports them (review round 32,
+  found by comparing the server with a fresh check).
+- Discovery's directory digests now tell a file replaced by a symbolic
+  link, a link retargeted and a link replaced by a file; the server's
+  disk check treats a file whose identity, number of hard links or link
+  status changed as a change of the workspace, even with the same bytes;
+  a baseline written without a notification reloads the folder (review
+  round 32, Opus B1 and N1, Codex 1). These keep what is shown current;
+  fixes do not depend on them.
+
 - The language server offered stale safe fixes when a file it read was
   outside the workspace folder or changed without a notification (review
   round 31, blocker, Opus and Codex; since round 24 for changes on
