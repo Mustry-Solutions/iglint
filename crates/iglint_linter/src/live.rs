@@ -16,6 +16,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 
 use iglint_project::index::ProjectIndex;
 use iglint_project::model::{LoadedFile, LoadedResource, ModelData};
@@ -76,6 +77,100 @@ impl Dependents {
     }
 }
 
+/// What [`LiveWorkspace::refresh_from_disk`] found.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DiskChange {
+    /// Every file and directory is as it was read.
+    Unchanged,
+    /// Files changed on disk and were read again: the files, and the other
+    /// files whose findings may have changed.
+    Files {
+        changed: Vec<PathBuf>,
+        dependents: Dependents,
+    },
+    /// What discovery found may have changed (a file or directory was
+    /// added, removed or renamed, a manifest changed): only a new
+    /// [`LiveWorkspace`] is current. The path is the first change seen.
+    Structure(PathBuf),
+}
+
+/// What identifies the state of a file or directory on disk: its size,
+/// modification and change (status) times, and its identity.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Stamp {
+    len: u64,
+    modified: Option<SystemTime>,
+    /// The inode change time on Unix (which no tool can set back), the
+    /// creation time elsewhere.
+    changed: Option<SystemTime>,
+    /// Device and inode on Unix.
+    identity: (u64, u64),
+}
+
+/// How much later than a read a file system may date a write: a write
+/// within this time before a read may not show in the stamp (coarse time
+/// stamps, a write in the same tick).
+const TIMESTAMP_SLACK: Duration = Duration::from_secs(2);
+
+impl Stamp {
+    /// The stamp of `path` through links, `None` when it is missing or
+    /// cannot be read.
+    fn of(path: &Path) -> Option<Stamp> {
+        let meta = std::fs::metadata(path).ok()?;
+        #[cfg(unix)]
+        let (changed, identity) = {
+            use std::os::unix::fs::MetadataExt;
+            let ctime = u64::try_from(meta.ctime()).ok().and_then(|s| {
+                SystemTime::UNIX_EPOCH.checked_add(Duration::new(s, meta.ctime_nsec() as u32))
+            });
+            (ctime, (meta.dev(), meta.ino()))
+        };
+        #[cfg(not(unix))]
+        let (changed, identity) = (meta.created().ok(), (0, 0));
+        Some(Stamp {
+            len: meta.len(),
+            modified: meta.modified().ok(),
+            changed,
+            identity,
+        })
+    }
+}
+
+/// What was on disk when a file or directory was last read: its stamp
+/// taken before the read finished, and whether a change could hide from
+/// the stamp (it is dated within [`TIMESTAMP_SLACK`] of the read, or
+/// cannot be dated), so that only its contents tell.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Seen {
+    stamp: Option<Stamp>,
+    racy: bool,
+}
+
+impl Seen {
+    /// `stamp`, taken after `since`, of something read after `since`.
+    fn new(stamp: Option<Stamp>, since: SystemTime) -> Seen {
+        let threshold = since.checked_sub(TIMESTAMP_SLACK);
+        let recent = |t: Option<SystemTime>| match (t, threshold) {
+            (Some(t), Some(threshold)) => t >= threshold,
+            _ => true,
+        };
+        let racy = stamp.is_some_and(|s| recent(s.modified) || recent(s.changed));
+        Seen { stamp, racy }
+    }
+
+    /// Whether `now` may differ from what was read.
+    fn stale(&self, now: &Option<Stamp>) -> bool {
+        self.racy || self.stamp != *now
+    }
+}
+
+/// What [`LiveWorkspace::refresh_from_disk`] found for one file.
+enum FileCheck {
+    Same(Seen),
+    Text(Seen, Result<crate::analyze::Decoded, String>),
+    Structure,
+}
+
 /// The result of applying every applicable fix to a file.
 #[derive(Clone, Debug)]
 pub struct FixAll {
@@ -107,6 +202,14 @@ pub struct LiveWorkspace {
     not_modelled: FxHashSet<PathBuf>,
     /// Editor text of files outside the workspace.
     standalone: FxHashMap<PathBuf, Arc<str>>,
+    /// Files whose text is the editor's, not the disk's.
+    overlaid: FxHashSet<FileId>,
+    /// What every file of the workspace was on disk when it was read, by
+    /// file id (review round 31, B1).
+    files_seen: Vec<Seen>,
+    /// What every directory of [`Workspace::directories`] was when
+    /// discovery read it.
+    directories_seen: Vec<Seen>,
 }
 
 impl LiveWorkspace {
@@ -124,6 +227,9 @@ impl LiveWorkspace {
         roots: Vec<PathBuf>,
     ) -> LiveWorkspace {
         let roots: Vec<PathBuf> = roots.iter().map(|r| absolute(r)).collect();
+        // Every read below happens after this: what changes later is dated
+        // after it, or within the slack (see `Seen`).
+        let since = SystemTime::now();
         // Like `check`: the workspace is everything below the workspace
         // roots of the folder, which may lie above it (a folder opened on
         // one project still sees the gateway's tag scripts).
@@ -214,6 +320,19 @@ impl LiveWorkspace {
             })
             .map(|f| (f.path.clone(), f.id))
             .collect();
+        // The stamps are taken after the reads: a change between a read
+        // and its stamp is dated after `since`, which makes the entry racy
+        // (its contents are compared on every refresh until it settles).
+        let files_seen = ws
+            .files
+            .par_iter()
+            .map(|f| Seen::new(Stamp::of(&f.path), since))
+            .collect();
+        let directories_seen = ws
+            .directories
+            .par_iter()
+            .map(|d| Seen::new(Stamp::of(&d.path), since))
+            .collect();
         LiveWorkspace {
             settings,
             roots,
@@ -227,6 +346,240 @@ impl LiveWorkspace {
             by_path,
             not_modelled,
             standalone: FxHashMap::default(),
+            overlaid: FxHashSet::default(),
+            files_seen,
+            directories_seen,
+        }
+    }
+
+    /// Whether `path` is a file of the workspace's index (its text counts
+    /// for the findings of other files), wherever the roots are.
+    pub fn indexes(&self, path: &Path) -> bool {
+        self.contains(path)
+    }
+
+    /// Whether a new file at `path` may belong to the workspace's index:
+    /// it is below a directory discovery read, or below a root.
+    pub fn may_index(&self, path: &Path) -> bool {
+        let path = absolute(path);
+        self.covers(&path)
+            || self.ws.directories.iter().any(|d| {
+                d.kind != iglint_project::workspace::DirectoryKind::Probe
+                    && path.starts_with(&d.path)
+            })
+            || self.indexes(&path)
+    }
+
+    /// The directories to watch for changes of the workspace: the
+    /// outermost directories discovery read.
+    pub fn watched_directories(&self) -> Vec<PathBuf> {
+        let mut dirs: Vec<PathBuf> = self
+            .ws
+            .directories
+            .iter()
+            .filter(|d| d.kind != iglint_project::workspace::DirectoryKind::Probe)
+            .map(|d| d.path.clone())
+            .chain(self.roots.iter().cloned())
+            .collect();
+        dirs.sort();
+        dirs.dedup();
+        let mut out: Vec<PathBuf> = Vec::new();
+        for d in dirs {
+            if !out.last().is_some_and(|o| d.starts_with(o)) {
+                out.push(d);
+            }
+        }
+        out
+    }
+
+    /// Compares every file and directory of the workspace with what was
+    /// read (review round 31, B1: a file changed on disk without a
+    /// notification, by `git pull` or another editor, must not leave a
+    /// stale safe fix). Unchanged stamps (size, times, identity) are
+    /// trusted, except for entries dated within [`TIMESTAMP_SLACK`] of
+    /// their read, whose contents are compared. Changed data files are
+    /// read again (except those with editor text) and their resources
+    /// summarised again; anything discovery decides (a file or directory
+    /// added or removed, a manifest) is [`DiskChange::Structure`], and only
+    /// a new workspace is current then.
+    pub fn refresh_from_disk(&mut self) -> DiskChange {
+        let since = SystemTime::now();
+        let directories: Vec<(usize, Option<Seen>)> = self
+            .ws
+            .directories
+            .par_iter()
+            .enumerate()
+            .filter_map(|(i, d)| {
+                let now = Stamp::of(&d.path);
+                if !self.directories_seen[i].stale(&now) {
+                    return None;
+                }
+                let same =
+                    iglint_project::workspace::directory_signature(&d.path, d.kind) == d.signature;
+                Some((i, same.then(|| Seen::new(now, since))))
+            })
+            .collect();
+        for (i, seen) in directories {
+            match seen {
+                Some(seen) => self.directories_seen[i] = seen,
+                None => return DiskChange::Structure(self.ws.directories[i].path.clone()),
+            }
+        }
+        let checks: Vec<(usize, FileCheck)> = self
+            .ws
+            .files
+            .par_iter()
+            .enumerate()
+            .filter(|(_, f)| !self.overlaid.contains(&f.id))
+            .filter_map(|(i, f)| {
+                let now = Stamp::of(&f.path);
+                let old = self.files_seen[i];
+                if !old.stale(&now) {
+                    return None;
+                }
+                let seen = Seen::new(now, since);
+                if now.is_none() {
+                    // Gone (a placeholder for a missing manifest never
+                    // had a stamp).
+                    return Some((
+                        i,
+                        if old.stamp.is_none() {
+                            FileCheck::Same(seen)
+                        } else {
+                            FileCheck::Structure
+                        },
+                    ));
+                }
+                let current = self.table.get(f.id);
+                if is_manifest_kind(f.kind) {
+                    let same = read_text(&f.path)
+                        .is_ok_and(|(text, _)| current.is_some_and(|c| *c.shared_text() == *text));
+                    return Some((
+                        i,
+                        if same {
+                            FileCheck::Same(seen)
+                        } else {
+                            FileCheck::Structure
+                        },
+                    ));
+                }
+                if current.is_none() && !self.read_errors.contains_key(&f.id) {
+                    // Not read for the index (not a text file).
+                    return Some((i, FileCheck::Same(seen)));
+                }
+                let read = read_text(&f.path);
+                let same = match (&read, current) {
+                    (Ok((text, invalid)), Some(c)) => {
+                        !self.read_errors.contains_key(&f.id)
+                            && *c.shared_text() == **text
+                            && c.invalid_utf8() == invalid.as_slice()
+                    }
+                    (Err(e), _) => self.read_errors.get(&f.id) == Some(e),
+                    (Ok(_), None) => false,
+                };
+                Some((
+                    i,
+                    if same {
+                        FileCheck::Same(seen)
+                    } else {
+                        FileCheck::Text(seen, read)
+                    },
+                ))
+            })
+            .collect();
+        let mut changed_files: Vec<FileId> = Vec::new();
+        for (i, check) in checks {
+            let file = self.ws.files[i].id;
+            match check {
+                FileCheck::Structure => {
+                    return DiskChange::Structure(self.ws.files[i].path.clone());
+                }
+                FileCheck::Same(seen) => self.files_seen[i] = seen,
+                FileCheck::Text(seen, read) => {
+                    self.files_seen[i] = seen;
+                    match read {
+                        Ok((text, invalid)) => {
+                            self.read_errors.remove(&file);
+                            self.table.insert(
+                                file,
+                                SourceFile::decoded(self.ws.files[i].path.clone(), text, invalid),
+                            );
+                        }
+                        Err(error) => {
+                            self.read_errors.insert(file, error);
+                        }
+                    }
+                    changed_files.push(file);
+                }
+            }
+        }
+        if changed_files.is_empty() {
+            return DiskChange::Unchanged;
+        }
+        let changed: Vec<PathBuf> = changed_files
+            .iter()
+            .map(|f| self.ws.file(*f).path.clone())
+            .collect();
+        let mut resources: Vec<ResourceId> = changed_files
+            .iter()
+            .filter_map(|f| self.ws.file(*f).resource)
+            .collect();
+        resources.sort_unstable();
+        resources.dedup();
+        let dependents = self.resummarise(&resources);
+        DiskChange::Files {
+            changed,
+            dependents,
+        }
+    }
+
+    /// Summarises `resources` again from the current texts. Returns the
+    /// files whose findings may have changed.
+    fn resummarise(&mut self, resources: &[ResourceId]) -> Dependents {
+        let fresh: Vec<(ResourceId, ResourceSummary)> = resources
+            .par_iter()
+            .map(|r| (*r, summary_of(&self.ws, &self.load_current(*r))))
+            .collect();
+        let mut old: Vec<(ResourceId, ResourceSummary)> = Vec::new();
+        for (rid, new) in fresh {
+            match self.summaries.get_mut(rid.index()) {
+                Some(slot) if *slot == new => {}
+                Some(slot) => old.push((rid, std::mem::replace(slot, new))),
+                None => return Dependents::All,
+            }
+        }
+        if old.is_empty() {
+            return Dependents::None;
+        }
+        let summaries = std::mem::take(&mut self.summaries);
+        let index = crate::analyze::build_index(
+            &self.ws,
+            summaries,
+            self.closed_world_unknown,
+            &self.settings.vetted,
+        );
+        let mut files: Vec<PathBuf> = Vec::new();
+        let mut all = false;
+        for (rid, old) in &old {
+            match dependents(&self.ws, &index, *rid, old) {
+                Dependents::All => {
+                    all = true;
+                    break;
+                }
+                Dependents::Files(f) => files.extend(f),
+                Dependents::None => {}
+            }
+        }
+        self.summaries = index.into_summaries();
+        if all {
+            return Dependents::All;
+        }
+        files.sort();
+        files.dedup();
+        if files.is_empty() {
+            Dependents::None
+        } else {
+            Dependents::Files(files)
         }
     }
 
@@ -323,8 +676,20 @@ impl LiveWorkspace {
             return Dependents::None;
         }
         let text = match text {
-            Some(text) => Ok((text, Vec::new())),
-            None => read_text(&path),
+            Some(text) => {
+                self.overlaid.insert(file);
+                Ok((text, Vec::new()))
+            }
+            None => {
+                self.overlaid.remove(&file);
+                let since = SystemTime::now();
+                let stamp = Stamp::of(&path);
+                let read = read_text(&path);
+                if let Some(seen) = self.files_seen.get_mut(file.index()) {
+                    *seen = Seen::new(stamp, since);
+                }
+                read
+            }
         };
         match text {
             Ok((text, invalid)) => {
@@ -383,6 +748,7 @@ impl LiveWorkspace {
             return (found, dependents);
         };
         self.read_errors.remove(&file);
+        self.overlaid.insert(file);
         self.table.insert(file, SourceFile::new(path.clone(), text));
         let loaded = self.load_current(rid);
         let model = build_model(&self.ws, &loaded);
@@ -1436,6 +1802,178 @@ mod tests {
             assert_eq!(parts.len() + rest.len(), paths.len());
             parts.extend(live.check(&rest));
             assert_eq!(key(&parts), whole, "stopped after {stop_after}");
+        }
+    }
+
+    /// Review round 31 (B1): after any changes on disk that nobody
+    /// reports (rewrites, rewrites of the same size dated back to the old
+    /// time, new and removed modules, a touch), a refresh, or a new live
+    /// workspace when the refresh says discovery may have changed, gives
+    /// the findings and fixes of a new live workspace read from scratch
+    /// (the conservative behaviour); and every change of a file's text is
+    /// seen.
+    #[test]
+    fn refreshing_from_disk_matches_a_new_workspace() {
+        use crate::rules::script::testing::{library, with_library};
+        let variants = [
+            "import json\ndef f():\n    return 1\n",
+            "import json\ndef f():\n    return 2\n",
+            "def f():\n    return lib.util.json.dumps(1)\n",
+            "def f():\n    return lib.util.json.dumps(2)\n",
+            "from lib import util\n",
+            "import os\ndef f():\n    return 1\n",
+        ];
+        let modules = ["lib/util", "m1", "m2", "b"];
+        let mut f = library("lib/util", variants[0]);
+        for m in &modules[1..] {
+            f = with_library(f, m, variants[1]);
+        }
+        let root = absolute(f.root());
+        let library = root.join("projects/p/ignition/script-python");
+        let settings =
+            || crate::rules::test_support::settings(&root, &[("SCR102", ""), ("REF002", "")]);
+        let key = |live: &mut LiveWorkspace| -> Vec<(PathBuf, Vec<String>)> {
+            let mut paths = live.lintable_files();
+            paths.sort();
+            live.check(&paths)
+                .iter()
+                .map(|f| {
+                    (
+                        f.path.clone(),
+                        f.diagnostics
+                            .iter()
+                            .map(|d| {
+                                format!("{} {:?} {} {:?}", d.rule.code(), d.range, d.message, d.fix)
+                            })
+                            .collect(),
+                    )
+                })
+                .collect()
+        };
+        let mut live = LiveWorkspace::new(settings(), vec![root.clone()]);
+        let mut rng = 0x2545_f491_4f6c_dd1du64;
+        let mut next = |n: usize| {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            (rng % n as u64) as usize
+        };
+        let (mut seen_text, mut seen_structure) = (0, 0);
+        for step in 0..80 {
+            let m = modules[next(modules.len())];
+            let code = library.join(m).join("code.py");
+            let text = variants[next(variants.len())];
+            let op = next(6);
+            let mut text_changed = false;
+            match op {
+                // A new module, or one removed.
+                0 => {
+                    let dir = library.join(format!("n{}", next(3)));
+                    if dir.exists() {
+                        std::fs::remove_dir_all(&dir).unwrap();
+                    } else {
+                        std::fs::create_dir_all(&dir).unwrap();
+                        std::fs::write(
+                            dir.join("resource.json"),
+                            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+                        )
+                        .unwrap();
+                        std::fs::write(dir.join("code.py"), text).unwrap();
+                    }
+                }
+                // Touched only.
+                1 => {
+                    let file = std::fs::File::options().append(true).open(&code).unwrap();
+                    file.set_modified(SystemTime::now()).unwrap();
+                }
+                // Rewritten with the same size, dated back.
+                2 => {
+                    let old = std::fs::read_to_string(&code).unwrap();
+                    let modified = std::fs::metadata(&code).unwrap().modified().unwrap();
+                    let same: Vec<&str> = variants
+                        .iter()
+                        .copied()
+                        .filter(|v| v.len() == old.len() && *v != old)
+                        .collect();
+                    if let Some(new) = same.first() {
+                        std::fs::write(&code, new).unwrap();
+                        let file = std::fs::File::options().append(true).open(&code).unwrap();
+                        file.set_modified(modified).unwrap();
+                        text_changed = true;
+                    }
+                }
+                _ => {
+                    text_changed = std::fs::read_to_string(&code).unwrap() != text;
+                    std::fs::write(&code, text).unwrap();
+                }
+            }
+            match live.refresh_from_disk() {
+                DiskChange::Structure(_) => {
+                    seen_structure += 1;
+                    live = LiveWorkspace::new(settings(), vec![root.clone()]);
+                }
+                DiskChange::Files { changed, .. } => {
+                    seen_text += 1;
+                    assert!(!changed.is_empty());
+                }
+                DiskChange::Unchanged => {
+                    assert!(!text_changed, "step {step}: a change of {m} was not seen");
+                }
+            }
+            let mut fresh = LiveWorkspace::new(settings(), vec![root.clone()]);
+            assert_eq!(key(&mut live), key(&mut fresh), "step {step} (op {op})");
+        }
+        assert!(
+            seen_text > 10 && seen_structure > 3,
+            "{seen_text} {seen_structure}"
+        );
+    }
+
+    /// Review round 31 (B1): files dated well before they were read are
+    /// trusted by their stamps, and every change shows in them: a rewrite
+    /// of another size, one of the same size dated back to the old time
+    /// (the change time moves), and a file replaced by another one.
+    #[test]
+    fn stamps_tell_changes_once_files_settle() {
+        use crate::rules::script::testing::{library, with_library};
+        let f = with_library(
+            library("lib/util", "import json\ndef f():\n    return 1\n"),
+            "b",
+            "def g():\n    return 1\n",
+        );
+        let root = absolute(f.root());
+        let b = root.join("projects/p/ignition/script-python/b/code.py");
+        std::thread::sleep(TIMESTAMP_SLACK + Duration::from_millis(200));
+        let mut live = LiveWorkspace::new(
+            crate::rules::test_support::settings(&root, &[("SCR102", "")]),
+            vec![root.clone()],
+        );
+        assert!(live.files_seen.iter().all(|s| !s.racy));
+        assert_eq!(live.refresh_from_disk(), DiskChange::Unchanged);
+        let modified = std::fs::metadata(&b).unwrap().modified().unwrap();
+        let rewrite = |text: &str, how: u8| {
+            match how {
+                0 => std::fs::write(&b, text).unwrap(),
+                _ => {
+                    let tmp = b.with_file_name("code.py.tmp");
+                    std::fs::write(&tmp, text).unwrap();
+                    std::fs::rename(&tmp, &b).unwrap();
+                }
+            }
+            let file = std::fs::File::options().append(true).open(&b).unwrap();
+            file.set_modified(modified).unwrap();
+        };
+        for (text, how) in [
+            ("def g():\n    return lib.util.json.dumps(1)\n", 0),
+            ("def g():\n    return lib.util.json.dumps(2)\n", 0),
+            ("def g():\n    return 1\n", 1),
+        ] {
+            rewrite(text, how);
+            match live.refresh_from_disk() {
+                DiskChange::Files { changed, .. } => assert_eq!(changed, vec![b.clone()]),
+                other => panic!("{text:?}: {other:?}"),
+            }
+            assert_eq!(&*live.source(&b).unwrap().shared_text(), text);
         }
     }
 

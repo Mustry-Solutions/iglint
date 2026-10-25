@@ -51,10 +51,12 @@ pub(crate) struct Document {
     /// Changed since the last analysis (findings to publish, per the run
     /// trigger).
     pub dirty: bool,
-    /// The live workspace has `text` (review round 30, B2: every fix is
-    /// computed from the editor's text of every open document, whatever
-    /// the run trigger).
-    pub synced: bool,
+    /// Identifies `text`: a new number for every change. A live workspace
+    /// has the editor's text when its folder's `applied` holds this
+    /// number (review round 30, B2, and round 31, B1: every fix is computed
+    /// from the editor's text of every open document, whatever the run
+    /// trigger, in every live workspace whose index holds the document).
+    pub generation: u64,
 }
 
 /// What was last published for a file.
@@ -73,6 +75,12 @@ pub(crate) struct Server {
     deadline: Option<Instant>,
     pub resolve_support: bool,
     watch_registration: bool,
+    /// The client takes watchers relative to a base URI.
+    relative_patterns: bool,
+    /// The directories outside every workspace folder that are watched
+    /// (the id of the registration and the directories).
+    watched: Option<(String, Vec<PathBuf>)>,
+    next_generation: u64,
     next_id: i32,
     shutdown: bool,
 }
@@ -110,6 +118,15 @@ impl Server {
                 .and_then(|w| w.did_change_watched_files.as_ref())
                 .and_then(|w| w.dynamic_registration)
                 .unwrap_or(false),
+            relative_patterns: params
+                .capabilities
+                .workspace
+                .as_ref()
+                .and_then(|w| w.did_change_watched_files.as_ref())
+                .and_then(|w| w.relative_pattern_support)
+                .unwrap_or(false),
+            watched: None,
+            next_generation: 0,
             next_id: 0,
             shutdown: false,
         };
@@ -152,6 +169,7 @@ impl Server {
         }
         if self.watch_registration {
             self.register_watchers();
+            self.update_watchers();
         }
         if self.options.scope == Scope::Workspace {
             self.publish_all();
@@ -301,6 +319,7 @@ impl Server {
         if !lintable(&path) {
             return;
         }
+        let generation = self.generation();
         self.documents.insert(
             uri,
             Document {
@@ -308,7 +327,7 @@ impl Server {
                 version: p.text_document.version,
                 text: p.text_document.text,
                 dirty: true,
-                synced: false,
+                generation,
             },
         );
         self.schedule(Duration::ZERO);
@@ -316,6 +335,7 @@ impl Server {
 
     fn did_change(&mut self, p: lsp_types::DidChangeTextDocumentParams) {
         let run = self.options.run;
+        let generation = self.generation();
         let Some(doc) = self.documents.get_mut(&p.text_document.uri) else {
             return;
         };
@@ -323,7 +343,7 @@ impl Server {
             convert::apply_change(&mut doc.text, change);
         }
         doc.version = p.text_document.version;
-        doc.synced = false;
+        doc.generation = generation;
         if run == RunTrigger::OnType {
             doc.dirty = true;
             let debounce = Duration::from_millis(self.options.debounce_ms);
@@ -351,15 +371,19 @@ impl Server {
             return;
         };
         let folder = self.folder_for(&doc.path);
-        let dependents = self.folders[folder].live.set_text(&doc.path, None);
-        let mut check = BTreeSet::new();
-        self.add_dependents(folder, dependents, &mut check);
-        if self.is_published(folder, &doc.path) {
-            check.insert(doc.path.clone());
-        } else {
-            self.clear(&doc.path);
+        // Every live workspace that had the editor's text goes back to
+        // the disk's.
+        for i in 0..self.folders.len() {
+            let mut check = self.reconcile(i);
+            if i == folder {
+                if self.is_published(folder, &doc.path) {
+                    check.insert(doc.path.clone());
+                } else {
+                    self.clear(&doc.path);
+                }
+            }
+            self.check_and_publish(i, check);
         }
-        self.check_and_publish(folder, check);
     }
 
     fn did_change_configuration(&mut self, settings: &Value) {
@@ -399,8 +423,12 @@ impl Server {
             if !lintable(&path) {
                 continue;
             }
+            // Every folder whose workspace the file is, or may be, part
+            // of (a parent project outside the folder, review round 31).
             let owners: Vec<usize> = (0..self.folders.len())
-                .filter(|i| self.folders[*i].surrounds(&path))
+                .filter(|i| {
+                    self.folders[*i].surrounds(&path) || self.folders[*i].live.may_index(&path)
+                })
                 .collect();
             let structural = change.typ != FileChangeType::CHANGED
                 || owners
@@ -418,7 +446,9 @@ impl Server {
         let mut checks: FxHashMap<usize, BTreeSet<PathBuf>> = FxHashMap::default();
         for path in reread {
             for i in 0..self.folders.len() {
-                if reload.contains(&i) || !self.folders[i].owns(&path) {
+                if reload.contains(&i)
+                    || !(self.folders[i].owns(&path) || self.folders[i].live.indexes(&path))
+                {
                     continue;
                 }
                 let dependents = self.folders[i].live.set_text(&path, None);
@@ -449,14 +479,21 @@ impl Server {
                 self.folders.retain(|f| f.root != root);
             }
         }
+        if !p.event.removed.is_empty() {
+            // Documents of a removed folder are published by another one.
+            for doc in self.documents.values_mut() {
+                doc.dirty = true;
+            }
+            self.schedule(Duration::ZERO);
+        }
         for added in &p.event.added {
             if let Some(root) = path_of(&added.uri) {
                 let i = self.add_folder(root, false);
-                self.reapply_documents(i);
                 let paths: BTreeSet<PathBuf> = self.published_paths(i).into_iter().collect();
                 self.check_and_publish(i, paths);
             }
         }
+        self.update_watchers();
     }
 
     // ---- folders ----
@@ -469,19 +506,31 @@ impl Server {
         for notice in notices {
             self.show(MessageType::WARNING, notice);
         }
-        self.folders.len() - 1
+        let i = self.folders.len() - 1;
+        // The new live workspace gets the editor text of every open
+        // document its index holds.
+        self.reapply_documents(i);
+        if adhoc {
+            self.update_watchers();
+        }
+        i
+    }
+
+    /// The folder that publishes a file, if there is one: the innermost
+    /// workspace folder that contains it, else a folder made for it.
+    fn owner_of(&self, path: &Path) -> Option<usize> {
+        self.folders
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| f.owns(path))
+            .max_by_key(|(_, f)| (!f.adhoc, f.root.components().count()))
+            .map(|(i, _)| i)
     }
 
     /// The folder a file belongs to: the innermost workspace folder that
     /// contains it, or a folder made for it.
     pub fn folder_for(&mut self, path: &Path) -> usize {
-        let best = self
-            .folders
-            .iter()
-            .enumerate()
-            .filter(|(_, f)| f.owns(path))
-            .max_by_key(|(_, f)| (!f.adhoc, f.root.components().count()))
-            .map(|(i, _)| i);
+        let best = self.owner_of(path);
         match best {
             Some(i) => i,
             None => {
@@ -508,6 +557,7 @@ impl Server {
         }
         self.folders[i] = folder;
         self.reapply_documents(i);
+        self.update_watchers();
         let paths: BTreeSet<PathBuf> = self.published_paths(i).into_iter().collect();
         let stale: Vec<PathBuf> = self
             .results
@@ -529,22 +579,115 @@ impl Server {
         self.check_and_publish(i, paths);
     }
 
-    /// Gives a (new) live workspace the editor text of its open documents.
+    /// Gives a (new) live workspace the editor text of the open documents
+    /// its index holds or it publishes. The documents it publishes are
+    /// published with the rest of the folder.
     fn reapply_documents(&mut self, i: usize) {
-        let docs: Vec<(Url, PathBuf)> = self
+        self.reconcile(i);
+        let owned: Vec<Url> = self
             .documents
             .iter()
-            .map(|(u, d)| (u.clone(), d.path.clone()))
+            .filter(|(_, d)| self.owner_of(&d.path) == Some(i))
+            .map(|(u, _)| u.clone())
             .collect();
-        for (uri, path) in docs {
-            if self.folder_for(&path) != i {
-                continue;
-            }
+        for uri in owned {
             if let Some(doc) = self.documents.get_mut(&uri) {
                 doc.dirty = false;
-                doc.synced = true;
-                let text: Arc<str> = Arc::from(doc.text.as_str());
-                self.folders[i].live.set_text(&path, Some(text));
+            }
+        }
+    }
+
+    /// Whether the live workspace of folder `i` must have the editor text
+    /// of `path`: its index holds the file, or the folder publishes it.
+    fn holds(&self, i: usize, path: &Path) -> bool {
+        self.folders[i].live.indexes(path) || self.owner_of(path) == Some(i)
+    }
+
+    /// Brings the editor texts of the live workspace of folder `i` up to
+    /// date with the open documents (review round 31, B1): the text of
+    /// every open document it holds, the disk text again for documents
+    /// closed since. Returns the published files whose findings may have
+    /// changed.
+    fn reconcile(&mut self, i: usize) -> BTreeSet<PathBuf> {
+        let mut out = BTreeSet::new();
+        let open: Vec<(PathBuf, u64)> = self
+            .documents
+            .values()
+            .map(|d| (d.path.clone(), d.generation))
+            .collect();
+        let mut stale: Vec<(PathBuf, Option<u64>)> = Vec::new();
+        for (path, generation) in &open {
+            if self.folders[i].applied.get(path) != Some(generation) && self.holds(i, path) {
+                stale.push((path.clone(), Some(*generation)));
+            }
+        }
+        for path in self.folders[i].applied.keys() {
+            if !open.iter().any(|(p, _)| p == path) {
+                stale.push((path.clone(), None));
+            }
+        }
+        for (path, generation) in stale {
+            let text: Option<Arc<str>> = generation.and_then(|g| {
+                self.documents
+                    .values()
+                    .find(|d| d.path == path && d.generation == g)
+                    .map(|d| Arc::from(d.text.as_str()))
+            });
+            let dependents = self.folders[i].live.set_text(&path, text);
+            match generation {
+                Some(g) => {
+                    self.folders[i].applied.insert(path.clone(), g);
+                }
+                None => {
+                    self.folders[i].applied.remove(&path);
+                    if self.is_published(i, &path) {
+                        out.insert(path.clone());
+                    }
+                }
+            }
+            self.add_dependents(i, dependents, &mut out);
+        }
+        out
+    }
+
+    /// Before a fix is computed by folder `i`: anything that changed on
+    /// disk without a notification (review round 31, B1) is read again,
+    /// and when what discovery found may have changed, or the
+    /// configuration did, the folder is discovered again.
+    pub fn refresh_disk(&mut self, i: usize) {
+        if self.folders[i].config_changed() {
+            self.reload_folder(i);
+            return;
+        }
+        let start = Instant::now();
+        match self.folders[i].live.refresh_from_disk() {
+            iglint_linter::live::DiskChange::Unchanged => {}
+            iglint_linter::live::DiskChange::Files {
+                changed,
+                dependents,
+            } => {
+                self.log(
+                    MessageType::LOG,
+                    format!(
+                        "iglint: {} file(s) changed on disk, read again in {:.1} ms",
+                        changed.len(),
+                        start.elapsed().as_secs_f64() * 1000.0
+                    ),
+                );
+                for path in changed {
+                    if self.is_published(i, &path) {
+                        self.folders[i].pending.push(path);
+                    }
+                }
+                self.add_pending(i, dependents);
+                self.schedule(Duration::ZERO);
+            }
+            iglint_linter::live::DiskChange::Structure(path) => {
+                self.log(
+                    MessageType::INFO,
+                    format!("iglint: {} changed on disk", path.display()),
+                );
+                self.reload_folder(i);
             }
         }
     }
@@ -620,12 +763,21 @@ impl Server {
                 continue;
             };
             doc.dirty = false;
-            doc.synced = true;
+            let generation = doc.generation;
             let path = doc.path.clone();
             let text: Arc<str> = Arc::from(doc.text.as_str());
             let i = self.folder_for(&path);
             let start = Instant::now();
-            let (result, dependents) = self.folders[i].live.update(&path, text);
+            let (result, dependents) = if self.folders[i].applied.get(&path) == Some(&generation) {
+                let result = self.folders[i]
+                    .live
+                    .check(std::slice::from_ref(&path))
+                    .remove(0);
+                (result, Dependents::None)
+            } else {
+                self.folders[i].applied.insert(path.clone(), generation);
+                self.folders[i].live.update(&path, text)
+            };
             let elapsed = start.elapsed();
             self.publish_result(i, result);
             self.log(
@@ -638,6 +790,8 @@ impl Server {
             );
             self.add_pending(i, dependents);
         }
+        // The other live workspaces whose index holds an edited document.
+        self.sync_documents();
         if self.deadline.is_some_and(|d| d <= Instant::now()) {
             self.deadline = None;
         }
@@ -673,23 +827,20 @@ impl Server {
     /// published per the run trigger; files whose findings may have
     /// changed wait in [`Folder::pending`](crate::folder::Folder).
     pub fn sync_documents(&mut self) {
-        let unsynced: Vec<Url> = self
-            .documents
-            .iter()
-            .filter(|(_, d)| !d.synced)
-            .map(|(u, _)| u.clone())
-            .collect();
-        for uri in unsynced {
-            let Some(doc) = self.documents.get_mut(&uri) else {
-                continue;
-            };
-            doc.synced = true;
-            let path = doc.path.clone();
-            let text: Arc<str> = Arc::from(doc.text.as_str());
-            let i = self.folder_for(&path);
-            let dependents = self.folders[i].live.set_text(&path, Some(text));
-            self.add_pending(i, dependents);
+        // Every open document has a folder that publishes it.
+        let paths: Vec<PathBuf> = self.documents.values().map(|d| d.path.clone()).collect();
+        for path in paths {
+            self.folder_for(&path);
         }
+        for i in 0..self.folders.len() {
+            let changed = self.reconcile(i);
+            self.folders[i].pending.extend(changed);
+        }
+    }
+
+    fn generation(&mut self) -> u64 {
+        self.next_generation += 1;
+        self.next_generation
     }
 
     /// Checks and publishes every published file.
@@ -857,6 +1008,88 @@ impl Server {
     fn show(&self, typ: MessageType, message: String) {
         self.log(typ, message.clone());
         self.notify::<ShowMessage>(ShowMessageParams { typ, message });
+    }
+
+    /// Watches the directories of every live workspace outside the
+    /// workspace folders (a parent project next to the folder's project,
+    /// the rest of a gateway; review round 31, B1), relative to their URI
+    /// when the client can, else with absolute glob patterns.
+    /// Notifications can still be missing or late; fixes do not depend on
+    /// them ([`Server::refresh_disk`]).
+    fn update_watchers(&mut self) {
+        if !self.watch_registration {
+            return;
+        }
+        let roots: Vec<PathBuf> = self
+            .folders
+            .iter()
+            .filter(|f| !f.adhoc)
+            .map(|f| f.root.clone())
+            .collect();
+        let mut dirs: Vec<PathBuf> = self
+            .folders
+            .iter()
+            .flat_map(|f| f.live.watched_directories())
+            .filter(|d| !roots.iter().any(|r| d.starts_with(r)))
+            .collect();
+        dirs.sort();
+        dirs.dedup();
+        let mut outer: Vec<PathBuf> = Vec::new();
+        for d in dirs {
+            if !outer.last().is_some_and(|o| d.starts_with(o)) {
+                outer.push(d);
+            }
+        }
+        if self.watched.as_ref().map(|(_, d)| d) == Some(&outer)
+            || (self.watched.is_none() && outer.is_empty())
+        {
+            return;
+        }
+        if let Some((id, _)) = self.watched.take() {
+            self.request::<lsp_types::request::UnregisterCapability>(
+                lsp_types::UnregistrationParams {
+                    unregisterations: vec![lsp_types::Unregistration {
+                        id,
+                        method: DidChangeWatchedFiles::METHOD.to_owned(),
+                    }],
+                },
+            );
+        }
+        let mut watchers = Vec::new();
+        for dir in &outer {
+            for glob in ["**/*.json", "**/*.py", "**/*.toml"] {
+                let pattern = if self.relative_patterns {
+                    let Some(uri) = uri_of(dir) else { continue };
+                    GlobPattern::Relative(lsp_types::RelativePattern {
+                        base_uri: lsp_types::OneOf::Right(uri),
+                        pattern: glob.to_owned(),
+                    })
+                } else {
+                    let base = iglint_linter::discovery::slash_path(dir);
+                    // A directory whose name a glob would read as a
+                    // pattern is not watched (fixes do not need it).
+                    if base.contains(['*', '?', '[', ']', '{', '}']) {
+                        continue;
+                    }
+                    GlobPattern::String(format!("{}/{glob}", base.trim_end_matches('/')))
+                };
+                watchers.push(FileSystemWatcher {
+                    glob_pattern: pattern,
+                    kind: None,
+                });
+            }
+        }
+        self.next_id += 1;
+        let id = format!("iglint-watched-outside-{}", self.next_id);
+        let options = DidChangeWatchedFilesRegistrationOptions { watchers };
+        self.request::<RegisterCapability>(RegistrationParams {
+            registrations: vec![Registration {
+                id: id.clone(),
+                method: DidChangeWatchedFiles::METHOD.to_owned(),
+                register_options: serde_json::to_value(options).ok(),
+            }],
+        });
+        self.watched = Some((id, outer));
     }
 
     fn register_watchers(&mut self) {

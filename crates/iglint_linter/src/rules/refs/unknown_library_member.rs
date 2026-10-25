@@ -67,6 +67,13 @@ checked; deleting a missing name (`del core.util.flag`, a `KeyError` on
 8.3.3, unless a `try` catches it) and changing one with an augmented
 assignment (`core.util.flag += 1`, an `AttributeError`) are reported.
 
+A use behind a check that the name exists (`if hasattr(core.util,
+"flag"):`) is reported all the same when no code anywhere creates the
+name, whether it reads, deletes or augments it: the check only hides the
+missing name, and the code it guards never runs. Once a script of the
+project creates the name (`core.util.flag = True`), none of them is
+reported.
+
 ## Why is this bad?
 
 The script raises `AttributeError` (or `ImportError`) when it reaches the
@@ -283,6 +290,38 @@ mod tests {
                 "Module `core.util` has no attribute `LIMITS`",
             ]
         );
+    }
+
+    /// Review round 31 (Opus, N1): a use guarded by `hasattr` is reported
+    /// like an unguarded one while nothing creates the name, in all three
+    /// forms (read, delete, augmented assignment), and none is once a
+    /// script creates it.
+    #[test]
+    fn guarded_uses_of_names_nothing_creates() {
+        let users = [
+            (
+                "app/read",
+                "def g():\n    if hasattr(core.util, 'extra'):\n        return core.util.extra\n",
+            ),
+            (
+                "app/drop",
+                "def g():\n    if hasattr(core.util, 'extra'):\n        del core.util.extra\n",
+            ),
+            (
+                "app/bump",
+                "def g():\n    if hasattr(core.util, 'extra'):\n        core.util.extra += 1\n",
+            ),
+        ];
+        let mut f = project(Fixture::new());
+        for (path, code) in users {
+            f = with_library(f, path, code);
+        }
+        assert_eq!(
+            flagged(&f.lint(&["REF002"])),
+            vec!["extra", "extra", "extra"]
+        );
+        let f = with_library(f, "app/make", "def s():\n    core.util.extra = 1\n");
+        assert_eq!(flagged(&f.lint(&["REF002"])), Vec::<String>::new());
     }
 
     /// A name another script creates (`core.util.extra = ...`) exists once

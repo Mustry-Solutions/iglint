@@ -1,6 +1,7 @@
 //! A workspace folder: its configuration and its live workspace.
 
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use iglint_config::{ConfigSource, LoadOptions};
 use iglint_linter::Diagnostic;
@@ -8,6 +9,7 @@ use iglint_linter::baseline::{Baseline, BaselineOrigin};
 use iglint_linter::live::LiveWorkspace;
 use iglint_linter::rules::REGISTRY;
 use iglint_linter::settings::ProjectSettings;
+use rustc_hash::FxHashMap;
 
 /// Configuration file names whose change reloads the folder.
 pub const CONFIG_NAMES: [&str; 4] = [
@@ -39,6 +41,15 @@ pub struct Folder {
     pub pending: Vec<PathBuf>,
     /// Every published file is pending (cheaper than listing them).
     pub pending_all: bool,
+    /// The open documents whose editor text the live workspace has, with
+    /// the generation of that text (review round 31, B1: every live
+    /// workspace whose index holds a document gets its text, not only
+    /// the folder that publishes it).
+    pub applied: FxHashMap<PathBuf, u64>,
+    /// Every file the configuration could come from (the configuration
+    /// file, and each configuration name in the folder and the directories
+    /// above it), with its size and modification time when it was loaded.
+    config_seen: Vec<(PathBuf, Option<FileStamp>)>,
 }
 
 impl Folder {
@@ -103,6 +114,18 @@ impl Folder {
         if roots.is_empty() {
             roots.push(root.to_path_buf());
         }
+        let config_seen = config
+            .iter()
+            .cloned()
+            .chain(
+                root.ancestors()
+                    .flat_map(|dir| CONFIG_NAMES.iter().map(move |name| dir.join(name))),
+            )
+            .map(|path| {
+                let stamp = file_stamp(&path);
+                (path, stamp)
+            })
+            .collect();
         Folder {
             root: root.to_path_buf(),
             config,
@@ -114,7 +137,17 @@ impl Folder {
             files: None,
             pending: Vec::new(),
             pending_all: false,
+            applied: FxHashMap::default(),
+            config_seen,
         }
+    }
+
+    /// Whether a file the configuration could come from changed on disk
+    /// since it was loaded (a change the client did not report).
+    pub fn config_changed(&self) -> bool {
+        self.config_seen
+            .iter()
+            .any(|(path, stamp)| file_stamp(path) != *stamp)
     }
 
     /// Whether files wait to be checked again.
@@ -158,4 +191,12 @@ impl Folder {
             _ => diagnostics,
         }
     }
+}
+
+/// A file's size and modification time.
+type FileStamp = (u64, Option<SystemTime>);
+
+fn file_stamp(path: &Path) -> Option<FileStamp> {
+    let meta = std::fs::metadata(path).ok()?;
+    Some((meta.len(), meta.modified().ok()))
 }

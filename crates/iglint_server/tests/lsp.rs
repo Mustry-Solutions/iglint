@@ -2174,3 +2174,378 @@ fn fixes_see_pending_edits_of_other_documents() {
         client.shutdown();
     }
 }
+
+/// Review round 31: a project `child` that inherits from `base`, with
+/// `lib.util` in `child` (`import json`, unused there) and `m1` in `base`.
+/// Returns the paths of `lib/util` and `m1`.
+fn parent_and_child(root: &std::path::Path) -> (std::path::PathBuf, std::path::PathBuf) {
+    write(
+        root,
+        "projects/base/project.json",
+        r#"{"title":"base","parent":"","enabled":true,"inheritable":true}"#,
+    );
+    write(
+        root,
+        "projects/child/project.json",
+        r#"{"title":"child","parent":"base","enabled":true,"inheritable":false}"#,
+    );
+    write(
+        root,
+        "pyproject.toml",
+        "[tool.iglint]\nselect = [\"SCR102\"]\n",
+    );
+    let manifest = r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#;
+    write(
+        root,
+        "projects/child/ignition/script-python/lib/util/resource.json",
+        manifest,
+    );
+    let util = write(
+        root,
+        "projects/child/ignition/script-python/lib/util/code.py",
+        UTIL,
+    );
+    write(
+        root,
+        "projects/base/ignition/script-python/m1/resource.json",
+        manifest,
+    );
+    let m1 = write(root, "projects/base/ignition/script-python/m1/code.py", M1);
+    (util, m1)
+}
+
+const UTIL: &str = "import json\ndef f():\n    return 1\n";
+const M1: &str = "def g():\n    return 1\n";
+const M1_USES_JSON: &str = "def g():\n    return lib.util.json.dumps(1)\n";
+
+/// The titles of the code actions of `uri` (line 0) whose edit removes
+/// `import json` from `text`: quick fixes, and "fix all" resolved.
+fn json_removals(client: &mut Client, uri: &Url, text: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    for action in code_actions(
+        client,
+        uri,
+        Range::new(Position::new(0, 0), Position::new(0, 11)),
+        None,
+    ) {
+        let action = if action.edit.is_none() && action.data.is_some() {
+            client.request::<CodeActionResolveRequest>(action)
+        } else {
+            action
+        };
+        let edits = action
+            .edit
+            .as_ref()
+            .and_then(|e| e.changes.as_ref())
+            .and_then(|c| c.get(uri))
+            .cloned()
+            .unwrap_or_default();
+        if !apply(text, &edits).contains("import json") {
+            found.push(action.title.clone());
+        }
+    }
+    let applied = client.request_raw(
+        "workspace/executeCommand",
+        json!({"command": "iglint.applyFixAll", "arguments": [uri.as_str()]}),
+    );
+    if applied == json!(true) {
+        found.push("iglint.applyFixAll".to_owned());
+    }
+    found
+}
+
+/// Review round 31 (Opus, B1): VS Code opened on `projects/child`, whose
+/// parent `base` lies outside the folder but inside its workspace. An
+/// editor change of `base`'s `m1` (now reading `lib.util.json`) reaches
+/// the child folder's live workspace, so no fix removes `import json`
+/// from `lib/util`; neither after saving it, nor after closing it; and
+/// closing an unsaved edit brings the removal back.
+#[test]
+fn a_parent_project_outside_the_folder_gets_the_editor_text() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    let (util, m1) = parent_and_child(&root);
+    let child = root.join("projects/child");
+    let mut client = Client::start(Some(&child), json!({"debounceMs": 0}));
+    let util_uri = client.open(&util, UTIL);
+    let before = client.diagnostics(&util_uri, Some(1));
+    assert!(has(&before, "SCR102", "`json`"), "{before:#?}");
+    assert!(!json_removals(&mut client, &util_uri, UTIL).is_empty());
+    let m1_uri = client.open(&m1, M1);
+    client.diagnostics(&m1_uri, Some(1));
+    // Edited, then closed without saving: the disk text again.
+    client.replace_all(&m1_uri, 2, M1_USES_JSON);
+    client.diagnostics(&m1_uri, Some(2));
+    assert_eq!(
+        json_removals(&mut client, &util_uri, UTIL),
+        Vec::<String>::new()
+    );
+    client.notify(
+        DidCloseTextDocument::METHOD,
+        json!({"textDocument": {"uri": m1_uri}}),
+    );
+    assert!(!json_removals(&mut client, &util_uri, UTIL).is_empty());
+    // Edited and saved.
+    let m1_uri = client.open(&m1, M1);
+    client.replace_all(&m1_uri, 2, M1_USES_JSON);
+    assert_eq!(
+        json_removals(&mut client, &util_uri, UTIL),
+        Vec::<String>::new()
+    );
+    std::fs::write(&m1, M1_USES_JSON).unwrap();
+    client.notify(
+        lsp_types::notification::DidSaveTextDocument::METHOD,
+        json!({"textDocument": {"uri": m1_uri}}),
+    );
+    client.notify(
+        DidChangeWatchedFiles::METHOD,
+        json!({"changes": [{"uri": m1_uri, "type": 2}]}),
+    );
+    assert_eq!(
+        json_removals(&mut client, &util_uri, UTIL),
+        Vec::<String>::new()
+    );
+    client.notify(
+        DidCloseTextDocument::METHOD,
+        json!({"textDocument": {"uri": m1_uri}}),
+    );
+    assert_eq!(
+        json_removals(&mut client, &util_uri, UTIL),
+        Vec::<String>::new()
+    );
+    let after = settled(&mut client, &util_uri);
+    assert!(after.is_none_or(|p| !has(&p, "SCR102", "`json`")));
+    client.shutdown();
+}
+
+/// Review round 31 (Opus, B1, variant a): a change on disk that no
+/// notification reports (`git pull`, another editor), of a file that was
+/// never opened: of `m1` in the parent project, of a module in the folder
+/// itself, a new module, and of the configuration (`SCR102` no longer
+/// selected). Before a fix is computed the server compares
+/// every file and directory of the workspace with what it read.
+#[test]
+fn changes_on_disk_without_notifications_reach_fixes() {
+    for change in [
+        "parent",
+        "own",
+        "new module",
+        "new module, no watchers",
+        "configuration",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        let (util, m1) = parent_and_child(&root);
+        let child = root.join("projects/child");
+        let own = write(
+            &root,
+            "projects/child/ignition/script-python/lib/b/resource.json",
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        )
+        .with_file_name("code.py");
+        std::fs::write(&own, M1).unwrap();
+        let capabilities = if change.ends_with("no watchers") {
+            serde_json::from_value(json!({})).unwrap()
+        } else {
+            client_capabilities()
+        };
+        let mut client = Client::start_with(Some(&child), json!({"debounceMs": 0}), capabilities);
+        let util_uri = client.open(&util, UTIL);
+        client.diagnostics(&util_uri, Some(1));
+        assert!(!json_removals(&mut client, &util_uri, UTIL).is_empty());
+        match change {
+            "parent" => std::fs::write(&m1, M1_USES_JSON).unwrap(),
+            "own" => std::fs::write(&own, M1_USES_JSON).unwrap(),
+            "configuration" => std::fs::write(
+                root.join("pyproject.toml"),
+                "[tool.iglint]\nselect = [\"REF002\"]\n",
+            )
+            .unwrap(),
+            _ => {
+                let manifest = r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#;
+                write(
+                    &root,
+                    "projects/base/ignition/script-python/m3/resource.json",
+                    manifest,
+                );
+                write(
+                    &root,
+                    "projects/base/ignition/script-python/m3/code.py",
+                    M1_USES_JSON,
+                );
+            }
+        }
+        assert_eq!(
+            json_removals(&mut client, &util_uri, UTIL),
+            Vec::<String>::new(),
+            "{change}"
+        );
+        let after = settled(&mut client, &util_uri);
+        assert!(
+            after.is_none_or(|p| !has(&p, "SCR102", "`json`")),
+            "{change}"
+        );
+        client.shutdown();
+    }
+}
+
+/// Review round 31 (Opus, B1, variant b, and Codex): nested and
+/// overlapping workspace folders. The folder that publishes `lib/util`
+/// (the innermost) is not the one that publishes the edited module, and
+/// the edit is not saved; with every run trigger. Also a folder on the
+/// parent project and one on the child at once.
+#[test]
+fn every_live_workspace_gets_the_editor_text() {
+    // Codex: folders R and R/.../users, `users/b` edited.
+    for init in [
+        json!({"run": "onSave"}),
+        json!({"run": "onType", "debounceMs": 60000}),
+        json!({"run": "onType", "debounceMs": 0}),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        write(
+            &root,
+            "projects/p/project.json",
+            r#"{"enabled":true,"inheritable":false}"#,
+        );
+        let manifest = r#"{"scope":"A","files":["code.py"]}"#;
+        let library = "projects/p/ignition/script-python";
+        write(
+            &root,
+            &format!("{library}/lib/util/resource.json"),
+            manifest,
+        );
+        let util = write(&root, &format!("{library}/lib/util/code.py"), UTIL);
+        write(&root, &format!("{library}/users/b/resource.json"), manifest);
+        let b = write(&root, &format!("{library}/users/b/code.py"), M1);
+        let users = root.join(format!("{library}/users"));
+        let lib = root.join(format!("{library}/lib"));
+        for folders in [vec![&root, &users], vec![&root, &lib]] {
+            let folders: Vec<&std::path::Path> = folders.iter().map(|p| p.as_path()).collect();
+            let mut client = Client::start_folders(&folders, init.clone(), client_capabilities());
+            let util_uri = client.open(&util, UTIL);
+            let b_uri = client.open(&b, M1);
+            let before = client.diagnostics(&util_uri, Some(1));
+            assert!(has(&before, "SCR102", "`json`"), "{before:#?}");
+            client.diagnostics(&b_uri, Some(1));
+            assert!(!json_removals(&mut client, &util_uri, UTIL).is_empty());
+            client.replace_all(&b_uri, 2, M1_USES_JSON);
+            assert_eq!(
+                json_removals(&mut client, &util_uri, UTIL),
+                Vec::<String>::new(),
+                "{init} {folders:?}"
+            );
+            client.notify(
+                DidCloseTextDocument::METHOD,
+                json!({"textDocument": {"uri": b_uri}}),
+            );
+            assert!(
+                !json_removals(&mut client, &util_uri, UTIL).is_empty(),
+                "{init} {folders:?}"
+            );
+            client.shutdown();
+        }
+    }
+    // Folders on the parent and on the child project.
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    let (util, m1) = parent_and_child(&root);
+    let base = root.join("projects/base");
+    let child = root.join("projects/child");
+    for folders in [[&base, &child], [&child, &base]] {
+        let folders: Vec<&std::path::Path> = folders.iter().map(|p| p.as_path()).collect();
+        let mut client =
+            Client::start_folders(&folders, json!({"run": "onSave"}), client_capabilities());
+        let util_uri = client.open(&util, UTIL);
+        client.diagnostics(&util_uri, Some(1));
+        let m1_uri = client.open(&m1, M1);
+        assert!(!json_removals(&mut client, &util_uri, UTIL).is_empty());
+        client.replace_all(&m1_uri, 2, M1_USES_JSON);
+        assert_eq!(
+            json_removals(&mut client, &util_uri, UTIL),
+            Vec::<String>::new(),
+            "{folders:?}"
+        );
+        client.shutdown();
+    }
+}
+
+/// Review round 31 (Codex): a folder added after the documents were
+/// opened gets the editor text of every open document its index holds.
+#[test]
+fn a_folder_added_later_gets_the_editor_text() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = root(&dir);
+    let (util, m1) = parent_and_child(&root);
+    let base = root.join("projects/base");
+    let child = root.join("projects/child");
+    let mut client = Client::start(Some(&base), json!({"run": "onSave"}));
+    let m1_uri = client.open(&m1, M1);
+    client.diagnostics(&m1_uri, Some(1));
+    client.replace_all(&m1_uri, 2, M1_USES_JSON);
+    client.notify(
+        lsp_types::notification::DidChangeWorkspaceFolders::METHOD,
+        json!({"event": {"added": [{"uri": Url::from_file_path(&child).unwrap(), "name": "child"}], "removed": []}}),
+    );
+    let util_uri = client.open(&util, UTIL);
+    assert_eq!(
+        json_removals(&mut client, &util_uri, UTIL),
+        Vec::<String>::new()
+    );
+    // Removing the base folder: `m1` is published by another folder, and
+    // its editor text still counts.
+    client.notify(
+        lsp_types::notification::DidChangeWorkspaceFolders::METHOD,
+        json!({"event": {"added": [], "removed": [{"uri": Url::from_file_path(&base).unwrap(), "name": "base"}]}}),
+    );
+    assert_eq!(
+        json_removals(&mut client, &util_uri, UTIL),
+        Vec::<String>::new()
+    );
+    client.shutdown();
+}
+
+/// Review round 31: the server watches the directories of a workspace
+/// outside the folder (here the workspace root, which holds the parent
+/// project), relative to their URI when
+/// the client supports it, else with absolute patterns.
+#[test]
+fn watches_workspace_directories_outside_the_folder() {
+    for relative in [true, false] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = root(&dir);
+        parent_and_child(&root);
+        let child = root.join("projects/child");
+        let mut capabilities = client_capabilities();
+        capabilities
+            .workspace
+            .as_mut()
+            .unwrap()
+            .did_change_watched_files
+            .as_mut()
+            .unwrap()
+            .relative_pattern_support = Some(relative);
+        let mut client = Client::start_with(Some(&child), json!({}), capabilities);
+        // The walk starts at the workspace root, which holds `base`.
+        let base = Url::from_file_path(&root).unwrap();
+        let registration = client.wait_for(|m| match m {
+            Message::Request(r)
+                if r.method == RegisterCapability::METHOD
+                    && r.params.to_string().contains("outside") =>
+            {
+                Some(r.params.clone())
+            }
+            _ => None,
+        });
+        let watchers = &registration["registrations"][0]["registerOptions"]["watchers"];
+        let text = watchers.to_string();
+        if relative {
+            assert!(text.contains(base.as_str()), "{text}");
+        } else {
+            let base = iglint_linter::discovery::slash_path(&root);
+            assert!(text.contains(&format!("\"{base}/**/*.py\"")), "{text}");
+        }
+        client.shutdown();
+    }
+}

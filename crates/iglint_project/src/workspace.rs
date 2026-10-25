@@ -250,6 +250,9 @@ pub struct Workspace {
     /// [`Workspace::unread`]: a deployment that resolves links (a copy,
     /// an archive) would load it. Sorted.
     pub directory_links: Vec<PathBuf>,
+    /// Every directory discovery looked at, with what it saw
+    /// ([`DirectoryRecord`]), in no particular order.
+    pub directories: Vec<DirectoryRecord>,
     /// Files of the workspace by identity, computed on first use
     /// ([`Workspace::shared_file`]).
     identities: std::sync::OnceLock<FxHashMap<FileIdentity, Vec<FileId>>>,
@@ -301,6 +304,140 @@ impl SharedFile {
     }
 }
 
+/// A directory discovery looked at and a digest of what it saw there
+/// (review round 31, B1): [`directory_signature`] of the directory now
+/// differs from `signature` when discovering again could find other
+/// projects, collections, resources or files. A long-running client (the
+/// language server) compares them, with the files' metadata, before it
+/// trusts what it discovered earlier.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DirectoryRecord {
+    pub path: PathBuf,
+    pub kind: DirectoryKind,
+    pub signature: u64,
+}
+
+/// How discovery used a directory, which decides what its signature
+/// covers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum DirectoryKind {
+    /// Listed by the walk for projects and collections (outside them):
+    /// its subdirectories, links and unreadable entries, and the entries
+    /// that make it a container or a Git work tree.
+    Walk,
+    /// Listed inside a project or collection: every entry the scan keeps
+    /// (hidden files are not read).
+    Scan,
+    /// Not listed (a directory the walk skips by name, a linked Git work
+    /// tree, the directory of a parent project): whether it is a link, a
+    /// container or a work tree.
+    Probe,
+}
+
+/// A digest of what discovery sees in `path` used as `kind`, the same
+/// digest discovery recorded in [`Workspace::directories`] for what it saw.
+pub fn directory_signature(path: &Path, kind: DirectoryKind) -> u64 {
+    match kind {
+        DirectoryKind::Probe => Probe::of(path).signature(),
+        _ => listing_signature(kind, &list_entries(path)),
+    }
+}
+
+/// What a walk needs to know about a directory it does not list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct Probe {
+    git: GitTop,
+    project: bool,
+    collection: bool,
+    link: bool,
+}
+
+impl Probe {
+    fn of(path: &Path) -> Probe {
+        Probe {
+            git: git_top(path),
+            project: path.join(PROJECT_MANIFEST).is_file(),
+            collection: path.join(COLLECTION_MANIFEST).is_file(),
+            link: is_symlink(path),
+        }
+    }
+
+    fn signature(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        DirectoryKind::Probe.hash(&mut h);
+        self.hash(&mut h);
+        h.finish()
+    }
+
+    fn record(&self, path: &Path, out: &mut Vec<DirectoryRecord>) {
+        out.push(DirectoryRecord {
+            path: path.to_path_buf(),
+            kind: DirectoryKind::Probe,
+            signature: self.signature(),
+        });
+    }
+}
+
+/// The entries of a directory with their kinds, or why it cannot be
+/// listed; `Err` for an entry that cannot be read. The flag says that
+/// the entry itself is a symbolic link.
+type Entries = std::io::Result<Vec<Result<(std::ffi::OsString, PathBuf, Entry, bool), String>>>;
+
+fn list_entries(dir: &Path) -> Entries {
+    let entries = std::fs::read_dir(dir)?;
+    Ok(entries
+        .map(|entry| {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let path = entry.path();
+            let kind = entry_kind(&entry, &path);
+            let link = entry.file_type().is_ok_and(|t| t.is_symlink());
+            Ok((entry.file_name(), path, kind, link))
+        })
+        .collect())
+}
+
+/// The digest of a listing, as [`DirectoryKind`] says what counts.
+fn listing_signature(kind: DirectoryKind, entries: &Entries) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::hash::DefaultHasher::new();
+    kind.hash(&mut h);
+    match entries {
+        Err(e) => {
+            u8::MAX.hash(&mut h);
+            e.kind().hash(&mut h);
+        }
+        Ok(entries) => {
+            let mut kept: Vec<(&std::ffi::OsStr, u8)> = entries
+                .iter()
+                .filter_map(|e| match e {
+                    Err(_) => Some((std::ffi::OsStr::new(""), 0)),
+                    Ok((name, _, entry, _)) => {
+                        let tag = entry.tag();
+                        let keep = match kind {
+                            DirectoryKind::Walk => {
+                                !matches!(entry, Entry::File | Entry::Other)
+                                    || name == ".git"
+                                    || name == PROJECT_MANIFEST
+                                    || name == COLLECTION_MANIFEST
+                            }
+                            _ => match entry {
+                                Entry::Other => false,
+                                Entry::File => !is_hidden(name),
+                                _ => true,
+                            },
+                        };
+                        keep.then_some((name.as_os_str(), tag))
+                    }
+                })
+                .collect();
+            kept.sort_unstable();
+            kept.hash(&mut h);
+        }
+    }
+    h.finish()
+}
+
 /// The most directories a walk for projects and collections visits
 /// outside them (see [`Workspace::unread`] when it is reached).
 pub const WALK_LIMIT: usize = 200_000;
@@ -331,6 +468,7 @@ struct ScannedContainer {
     other_files: Vec<(String, PathBuf, FileKind, bool)>,
     problems: Vec<WorkspaceProblem>,
     not_read: NotRead,
+    directories: Vec<DirectoryRecord>,
 }
 
 impl Workspace {
@@ -345,6 +483,7 @@ impl Workspace {
     /// Like [`Workspace::discover`] with explicit options.
     pub fn discover_with<P: AsRef<Path>>(roots: &[P], options: DiscoveryOptions) -> Workspace {
         let mut not_read = NotRead::default();
+        let mut directories = Vec::new();
         let mut containers: Vec<(PathBuf, bool, bool)> = Vec::new();
         for root in roots {
             let root = root.as_ref();
@@ -363,6 +502,7 @@ impl Workspace {
                     not_read: &mut not_read,
                     budget: WALK_LIMIT,
                     first_only: false,
+                    directories: Some(&mut directories),
                 };
                 walk.root(&root);
             }
@@ -371,7 +511,7 @@ impl Workspace {
         containers.dedup_by(|a, b| a.0 == b.0);
 
         if options.load_parents {
-            load_parent_dirs(&mut containers);
+            load_parent_dirs(&mut containers, &mut directories);
         }
 
         let scanned: Vec<ScannedContainer> = containers
@@ -382,6 +522,7 @@ impl Workspace {
         let mut ws = Workspace {
             unread: not_read.problems,
             directory_links: not_read.links,
+            directories,
             ..Workspace::default()
         };
         ws.assemble(scanned);
@@ -453,6 +594,7 @@ impl Workspace {
             self.problems.extend(scanned.problems);
             self.unread.extend(scanned.not_read.problems);
             self.directory_links.extend(scanned.not_read.links);
+            self.directories.extend(scanned.directories);
             let (manifest_path, manifest_doc) = manifest.expect("container manifest");
             let manifest_link = is_symlink(&manifest_path);
             let manifest_file = self.push_file(
@@ -1090,6 +1232,7 @@ pub fn holds_container(dir: &Path) -> Option<bool> {
         not_read: &mut not_read,
         budget: WALK_LIMIT,
         first_only: true,
+        directories: None,
     };
     walk.root(dir);
     let exhausted = walk.budget == 0;
@@ -1113,7 +1256,7 @@ fn skipped_by_name(name: &std::ffi::OsStr) -> bool {
 }
 
 /// What the `.git` entry of a directory makes it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum GitTop {
     /// No `.git` entry.
     None,
@@ -1230,6 +1373,9 @@ struct ContainerWalk<'o> {
     budget: usize,
     /// Stop at the first container found (or link to one).
     first_only: bool,
+    /// Where to record the directories looked at
+    /// ([`Workspace::directories`]).
+    directories: Option<&'o mut Vec<DirectoryRecord>>,
 }
 
 impl ContainerWalk<'_> {
@@ -1262,7 +1408,15 @@ impl ContainerWalk<'_> {
             return;
         }
         self.budget -= 1;
-        let entries = match std::fs::read_dir(dir) {
+        let listing = list_entries(dir);
+        if let Some(out) = self.directories.as_deref_mut() {
+            out.push(DirectoryRecord {
+                path: dir.to_path_buf(),
+                kind: DirectoryKind::Walk,
+                signature: listing_signature(DirectoryKind::Walk, &listing),
+            });
+        }
+        let entries = match listing {
             Ok(e) => e,
             Err(e) => {
                 self.not_read
@@ -1272,7 +1426,7 @@ impl ContainerWalk<'_> {
         };
         let mut subdirs = Vec::new();
         for entry in entries {
-            let entry = match entry {
+            let (name, path, kind, _) = match entry {
                 Ok(entry) => entry,
                 Err(e) => {
                     self.not_read
@@ -1280,9 +1434,7 @@ impl ContainerWalk<'_> {
                     continue;
                 }
             };
-            let name = entry.file_name();
-            let path = entry.path();
-            match entry_kind(&entry, &path) {
+            match kind {
                 Entry::File | Entry::Other => {}
                 Entry::Dir => subdirs.push((path, name, false)),
                 Entry::DirLink => subdirs.push((path, name, true)),
@@ -1298,14 +1450,20 @@ impl ContainerWalk<'_> {
             if self.done() {
                 return;
             }
+            // What decides how the walk treats the directory, also recorded
+            // for one it does not list.
+            let probe = Probe::of(&sub);
             // A linked Git work tree is another checkout, not part of
             // this one's gateway, wherever it lies.
-            if git_top(&sub) == GitTop::LinkedWorktree {
+            if probe.git == GitTop::LinkedWorktree {
+                if let Some(out) = self.directories.as_deref_mut() {
+                    probe.record(&sub, out);
+                }
                 continue;
             }
-            let container = if sub.join(PROJECT_MANIFEST).is_file() {
+            let container = if probe.project {
                 Some(true)
-            } else if sub.join(COLLECTION_MANIFEST).is_file() {
+            } else if probe.collection {
                 Some(false)
             } else {
                 None
@@ -1313,7 +1471,11 @@ impl ContainerWalk<'_> {
             match (container, link) {
                 (Some(_), true) => self.not_read.link(sub),
                 (Some(is_project), false) => self.out.push((sub, is_project, false)),
-                (None, _) if skipped_by_name(&name) => {}
+                (None, _) if skipped_by_name(&name) => {
+                    if let Some(out) = self.directories.as_deref_mut() {
+                        probe.record(&sub, out);
+                    }
+                }
                 (None, false) => self.dir(&sub),
                 (None, true) => {
                     // Does the link lead to projects or collections? The
@@ -1326,6 +1488,7 @@ impl ContainerWalk<'_> {
                         not_read: &mut probe_not_read,
                         budget: self.budget,
                         first_only: true,
+                        directories: None,
                     };
                     probe.dir(&sub);
                     let exhausted = probe.budget == 0;
@@ -1351,6 +1514,19 @@ enum Entry {
     /// It cannot be told (a broken link, an entry that cannot be read),
     /// and why.
     Unread(String),
+}
+
+impl Entry {
+    /// The kind, for [`listing_signature`].
+    fn tag(&self) -> u8 {
+        match self {
+            Entry::File => 1,
+            Entry::Dir => 2,
+            Entry::DirLink => 3,
+            Entry::Other => 4,
+            Entry::Unread(_) => 5,
+        }
+    }
 }
 
 fn entry_kind(entry: &std::fs::DirEntry, path: &Path) -> Entry {
@@ -1382,7 +1558,10 @@ fn is_symlink(path: &Path) -> bool {
 /// Adds parent projects that live next to discovered projects. A parent
 /// directory that is a symbolic link is not loaded (the gateway does not
 /// follow it), so the inheritance chain is incomplete.
-fn load_parent_dirs(containers: &mut Vec<(PathBuf, bool, bool)>) {
+fn load_parent_dirs(
+    containers: &mut Vec<(PathBuf, bool, bool)>,
+    directories: &mut Vec<DirectoryRecord>,
+) {
     let mut i = 0;
     while i < containers.len() {
         let (dir, is_project, _) = containers[i].clone();
@@ -1407,7 +1586,9 @@ fn load_parent_dirs(containers: &mut Vec<(PathBuf, bool, bool)>) {
         if containers.iter().any(|c| c.0 == parent_dir) {
             continue;
         }
-        if parent_dir.join(PROJECT_MANIFEST).is_file() && !is_symlink(&parent_dir) {
+        let probe = Probe::of(&parent_dir);
+        probe.record(&parent_dir, directories);
+        if probe.project && !probe.link {
             containers.push((parent_dir, true, true));
         }
     }
@@ -1422,20 +1603,21 @@ fn scan_container(dir: PathBuf, is_project: bool, context_only: bool) -> Scanned
         other_files: Vec::new(),
         problems: Vec::new(),
         not_read: NotRead::default(),
+        directories: Vec::new(),
     };
     let manifest_name = if is_project {
         PROJECT_MANIFEST
     } else {
         COLLECTION_MANIFEST
     };
-    let (files, modules) = list_dir(&dir, &mut sc.not_read);
+    let (files, modules) = list_dir(&dir, &mut sc.not_read, &mut sc.directories);
     for (name, path, link) in files {
         if name != manifest_name {
             sc.other_files.push((name, path, FileKind::Stray, link));
         }
     }
     for (module, module_dir) in modules {
-        let (files, types) = list_dir(&module_dir, &mut sc.not_read);
+        let (files, types) = list_dir(&module_dir, &mut sc.not_read, &mut sc.directories);
         for (name, path, link) in files {
             sc.other_files
                 .push((format!("{module}/{name}"), path, FileKind::Stray, link));
@@ -1454,7 +1636,7 @@ fn scan_resource_tree(
     dir: &Path,
     path: String,
 ) {
-    let (files, subdirs) = list_dir(dir, &mut sc.not_read);
+    let (files, subdirs) = list_dir(dir, &mut sc.not_read, &mut sc.directories);
     let manifest = if files.iter().any(|(n, _, _)| n == RESOURCE_MANIFEST) {
         Some(RESOURCE_MANIFEST)
     } else if files.iter().any(|(n, _, _)| n == UNARY_MANIFEST) {
@@ -1519,26 +1701,34 @@ type DirListing = (Vec<ListedFile>, Vec<(String, PathBuf)>);
 /// `ignition` gives `ImportError: No module named lib`, a linked tag
 /// folder of a collection has no tags), and are recorded in `not_read`
 /// with directories that cannot be read and broken links.
-fn list_dir(dir: &Path, not_read: &mut NotRead) -> DirListing {
+fn list_dir(
+    dir: &Path,
+    not_read: &mut NotRead,
+    directories: &mut Vec<DirectoryRecord>,
+) -> DirListing {
     let mut files = Vec::new();
     let mut dirs = Vec::new();
-    match std::fs::read_dir(dir) {
+    let listing = list_entries(dir);
+    directories.push(DirectoryRecord {
+        path: dir.to_path_buf(),
+        kind: DirectoryKind::Scan,
+        signature: listing_signature(DirectoryKind::Scan, &listing),
+    });
+    match listing {
         Ok(entries) => {
             for entry in entries {
-                let entry = match entry {
+                let (file_name, path, kind, link) = match entry {
                     Ok(entry) => entry,
                     Err(e) => {
                         not_read.problem(dir.to_path_buf(), format!("cannot read directory: {e}"));
                         continue;
                     }
                 };
-                let hidden = is_hidden(&entry.file_name());
-                let name = entry.file_name().to_string_lossy().into_owned();
-                let path = entry.path();
-                match entry_kind(&entry, &path) {
+                let hidden = is_hidden(&file_name);
+                let name = file_name.to_string_lossy().into_owned();
+                match kind {
                     Entry::File | Entry::Other if hidden => {}
                     Entry::File => {
-                        let link = entry.file_type().is_ok_and(|t| t.is_symlink());
                         files.push((name, path, link));
                     }
                     Entry::Other => {}
@@ -1638,6 +1828,155 @@ mod tests {
             None
         );
         assert_eq!(ws.unreached_container(&repo.join("README.md")), None);
+    }
+
+    /// What discovery found, for comparing two discoveries.
+    fn outline(ws: &Workspace) -> Vec<String> {
+        let mut out: Vec<String> = ws
+            .files
+            .iter()
+            .map(|f| format!("{} {:?} {:?}", f.path.display(), f.kind, f.resource))
+            .chain(names(ws))
+            .chain(
+                ws.unread
+                    .iter()
+                    .map(|u| format!("unread {}", u.path.display())),
+            )
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// Review round 31 (B1): the directories discovery records tell every
+    /// change that makes discovery find something else (differential
+    /// test against discovering again), and stay the same for changes it
+    /// does not read (hidden files in a container, files outside every
+    /// container, an editor's temporary file that is gone again).
+    #[test]
+    fn directory_records_tell_every_change_discovery_sees() {
+        type Change = fn(&Path);
+        let changes: &[(&str, Change, Option<bool>)] = &[
+            (
+                "new module",
+                |r| project_module(r, "projects/A", "n"),
+                Some(true),
+            ),
+            (
+                "new file in a module",
+                |r| write(r, "projects/A/ignition/script-python/m/x.py", ""),
+                Some(true),
+            ),
+            (
+                "hidden file in a module",
+                |r| write(r, "projects/A/ignition/script-python/m/.x.swp", ""),
+                Some(false),
+            ),
+            (
+                "file at the root",
+                |r| write(r, "README.md", ""),
+                Some(false),
+            ),
+            (
+                "temporary file gone",
+                |r| {
+                    write(r, "projects/A/ignition/script-python/m/code.py~", "");
+                    std::fs::remove_file(r.join("projects/A/ignition/script-python/m/code.py~"))
+                        .unwrap();
+                },
+                Some(false),
+            ),
+            ("new project", |r| project(r, "projects/B"), Some(true)),
+            (
+                "new project deep down",
+                |r| project(r, "x/y/projects/C"),
+                Some(true),
+            ),
+            (
+                "project in a skipped directory",
+                |r| write(r, "node_modules/project.json", "{}"),
+                Some(true),
+            ),
+            (
+                "collection in a hidden directory",
+                |r| write(r, ".cfg/config-mode.json", "{}"),
+                Some(true),
+            ),
+            (
+                "module removed",
+                |r| std::fs::remove_dir_all(r.join("projects/A/ignition/script-python/m")).unwrap(),
+                Some(true),
+            ),
+            (
+                "manifest removed",
+                |r| std::fs::remove_file(r.join("projects/A/project.json")).unwrap(),
+                Some(true),
+            ),
+            (
+                "parent project appears",
+                |r| project(r, "projects/Base"),
+                Some(true),
+            ),
+            (
+                "stray file in a project",
+                |r| write(r, "projects/A/notes.txt", ""),
+                Some(true),
+            ),
+            (
+                "directory becomes a linked work tree",
+                |r| {
+                    write(r, ".git/worktrees/w/commondir", "../..\n");
+                    write(
+                        r,
+                        "x/.git",
+                        &format!("gitdir: {}\n", r.join(".git/worktrees/w").display()),
+                    );
+                },
+                None,
+            ),
+        ];
+        for (what, change, expected) in changes {
+            let dir = tempfile::tempdir().unwrap();
+            let root = dir.path().to_path_buf();
+            project(&root, "projects/A");
+            write(&root, "x/y/z/readme.txt", "");
+            write(&root, ".git/HEAD", "ref: refs/heads/main\n");
+            // A child of `Base`, which does not exist yet: the walk is
+            // from the child project, as from a folder opened on it.
+            write(
+                &root,
+                "projects/Child/project.json",
+                r#"{"title": "c", "parent": "Base"}"#,
+            );
+            let roots = [root.clone(), root.join("projects/Child")];
+            let before = Workspace::discover(&roots);
+            change(&root);
+            let after = Workspace::discover(&roots);
+            let seen = before
+                .directories
+                .iter()
+                .any(|d| directory_signature(&d.path, d.kind) != d.signature);
+            let differs = outline(&before) != outline(&after);
+            assert!(
+                !differs || seen,
+                "{what}: discovery changed, the records did not"
+            );
+            if let Some(expected) = expected {
+                assert_eq!(seen, *expected, "{what}");
+            }
+        }
+    }
+
+    fn project_module(root: &Path, project: &str, name: &str) {
+        write(
+            root,
+            &format!("{project}/ignition/script-python/{name}/resource.json"),
+            r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#,
+        );
+        write(
+            root,
+            &format!("{project}/ignition/script-python/{name}/code.py"),
+            "",
+        );
     }
 
     fn names(ws: &Workspace) -> Vec<String> {

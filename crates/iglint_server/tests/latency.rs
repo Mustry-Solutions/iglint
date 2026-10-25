@@ -474,3 +474,149 @@ fn private_corpus_library_latency() {
     }
     client.shutdown();
 }
+
+/// The time of [`LiveWorkspace::refresh_from_disk`] on the workspace of
+/// folder `root` when nothing changed: every file and directory compared
+/// with what was read (review round 31, B1).
+fn refresh_cost(root: &Path, rounds: usize) -> (usize, usize, Stats) {
+    let config = iglint_config::load(
+        &iglint_config::LoadOptions {
+            cwd: root.to_path_buf(),
+            start: Some(root.to_path_buf()),
+            ..iglint_config::LoadOptions::default()
+        },
+        &iglint_linter::rules::REGISTRY,
+    )
+    .unwrap();
+    let mut live =
+        iglint_linter::live::LiveWorkspace::new(config.settings, vec![root.to_path_buf()]);
+    let files = live.workspace().files.len();
+    let directories = live.workspace().directories.len();
+    // The first refresh settles what was read within the slack.
+    live.refresh_from_disk();
+    let samples = (0..rounds)
+        .map(|_| {
+            let start = Instant::now();
+            assert_eq!(
+                live.refresh_from_disk(),
+                iglint_linter::live::DiskChange::Unchanged
+            );
+            start.elapsed()
+        })
+        .collect();
+    (files, directories, stats(samples))
+}
+
+/// Code actions on the first line of `path`, which has a fix: the time of
+/// each request, including the check of the disk, the fresh check and the
+/// fix.
+fn code_action_latency(client: &mut Client, path: &Path, rounds: usize) -> Stats {
+    let text = std::fs::read_to_string(path).unwrap();
+    let uri = client.open(path, &text);
+    client.diagnostics(&uri, Some(1));
+    let samples = (0..rounds)
+        .map(|_| {
+            let start = Instant::now();
+            client.request_raw(
+                "textDocument/codeAction",
+                json!({"textDocument": {"uri": uri}, "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 11}}, "context": {"diagnostics": []}}),
+            );
+            start.elapsed()
+        })
+        .collect();
+    client.drain();
+    stats(samples)
+}
+
+fn ms(d: Duration) -> f64 {
+    d.as_secs_f64() * 1000.0
+}
+
+/// Review round 31 (B1): before a fix, the server compares every file and
+/// directory of the workspace with what it read. On 3,000 generated files
+/// that costs a few milliseconds, and a code action with a fix stays
+/// responsive.
+#[test]
+fn fix_request_latency() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = iglint_linter::discovery::absolute(dir.path());
+    let path = library_workspace(&root, 1000, 500);
+    // Files dated within the slack of their read are compared by content
+    // until they settle.
+    std::thread::sleep(Duration::from_millis(2200));
+    let (files, directories, refresh) = refresh_cost(&root, 20);
+    println!(
+        "refresh from disk ({files} files, {directories} directories): median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
+        ms(refresh.median),
+        ms(refresh.p95),
+        ms(refresh.max)
+    );
+    let mut client = Client::start(Some(&root), json!({"debounceMs": 0}));
+    let s = code_action_latency(&mut client, &path, 15);
+    println!(
+        "code action with a fix: median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
+        ms(s.median),
+        ms(s.p95),
+        ms(s.max)
+    );
+    if !cfg!(debug_assertions) {
+        assert!(
+            refresh.median < Duration::from_millis(100),
+            "{:?}",
+            refresh.median
+        );
+    }
+    client.shutdown();
+}
+
+/// Review round 31 (B1): the same on a private corpus (aggregates only):
+/// the check of the disk alone, and code actions on the largest library
+/// modules.
+#[test]
+#[ignore = "needs IGLINT_PRIVATE_CORPUS"]
+fn private_corpus_fix_request_latency() {
+    let Some(corpus) = std::env::var_os("IGLINT_PRIVATE_CORPUS") else {
+        eprintln!("IGLINT_PRIVATE_CORPUS is not set");
+        return;
+    };
+    let corpus = iglint_linter::discovery::absolute(Path::new(&corpus));
+    let (files, directories, refresh) = refresh_cost(&corpus, 20);
+    println!(
+        "refresh from disk ({files} files, {directories} directories): median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
+        ms(refresh.median),
+        ms(refresh.p95),
+        ms(refresh.max)
+    );
+    let mut modules: Vec<(u64, PathBuf)> = Vec::new();
+    let mut stack = vec![corpus.clone()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.file_name().is_some_and(|n| n == "code.py")
+                && path.components().any(|c| c.as_os_str() == "script-python")
+            {
+                modules.push((entry.metadata().map(|m| m.len()).unwrap_or(0), path));
+            }
+        }
+    }
+    modules.sort();
+    let mut client = Client::start(Some(&corpus), json!({"debounceMs": 0}));
+    let mut all = Vec::new();
+    for (_, path) in modules.iter().rev().take(5) {
+        let s = code_action_latency(&mut client, path, 10);
+        all.extend([s.median, s.p95, s.max]);
+    }
+    let s = stats(all);
+    println!(
+        "code actions on the 5 largest library modules: median {:.1} ms, p95 {:.1} ms, max {:.1} ms",
+        ms(s.median),
+        ms(s.p95),
+        ms(s.max)
+    );
+    client.shutdown();
+}

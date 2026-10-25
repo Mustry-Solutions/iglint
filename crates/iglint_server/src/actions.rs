@@ -50,8 +50,13 @@ impl Server {
                 d.fix.is_some() && (overlaps(lsp.range, params.range) || wants(FIX_ALL_KIND))
             });
         let folder = self.folder_for(&path);
-        if fixable && self.republish_if_stale(folder, &path) {
-            return Some(actions);
+        if fixable {
+            // What changed on disk without a notification counts too
+            // (review round 31, B1).
+            self.refresh_disk(folder);
+            if self.republish_if_stale(folder, &path) {
+                return Some(actions);
+            }
         }
         if wants(CodeActionKind::QUICKFIX.as_str()) {
             let published = self.results.get(&path)?;
@@ -171,6 +176,7 @@ impl Server {
         self.sync_documents();
         self.flush_document(uri);
         let folder = self.folder_for(&path);
+        self.refresh_disk(folder);
         if self.republish_if_stale(folder, &path) {
             return None;
         }

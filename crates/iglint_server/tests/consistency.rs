@@ -606,3 +606,336 @@ fn fixes_offered_between_edits_match_a_fresh_check() {
     assert!(offered_total > 5, "{offered_total}");
     assert!(fix_alls > 5, "{fix_alls}");
 }
+
+/// How the workspace folders lie over the workspace (review round 31,
+/// B1): the folder is a child project whose parent is outside it, a
+/// directory inside the project, nested folders, or overlapping folders
+/// one of which is added after documents were opened.
+#[derive(Clone, Copy, Debug)]
+enum Layout {
+    ChildProject,
+    Subdirectory,
+    Nested,
+    AddedLater,
+}
+
+impl Layout {
+    /// Where a slot's file lives.
+    fn rel(self, rel: &str) -> String {
+        match self {
+            Layout::ChildProject => {
+                let base = ["/m0/", "/m1/", "/m2/", "/b/"]
+                    .iter()
+                    .any(|m| rel.contains(m));
+                rel.replacen(
+                    "projects/p/",
+                    if base {
+                        "projects/base/"
+                    } else {
+                        "projects/child/"
+                    },
+                    1,
+                )
+            }
+            _ => rel.to_owned(),
+        }
+    }
+
+    fn projects(self) -> Vec<(&'static str, &'static str)> {
+        match self {
+            Layout::ChildProject => vec![
+                (
+                    "projects/base/project.json",
+                    r#"{"title":"base","parent":"","enabled":true,"inheritable":true}"#,
+                ),
+                (
+                    "projects/child/project.json",
+                    r#"{"title":"child","parent":"base","enabled":true,"inheritable":false}"#,
+                ),
+            ],
+            _ => vec![(
+                "projects/p/project.json",
+                r#"{"title": "p", "enabled": true, "inheritable": false}"#,
+            )],
+        }
+    }
+
+    /// The workspace folders (relative; "" is the root), and those added
+    /// after the documents were opened.
+    fn folders(self) -> (Vec<&'static str>, Vec<&'static str>) {
+        match self {
+            Layout::ChildProject => (vec!["projects/child"], vec![]),
+            Layout::Subdirectory => (vec!["projects/p/ignition/script-python"], vec![]),
+            Layout::Nested => (vec!["", "projects/p/ignition/script-python/lib"], vec![]),
+            Layout::AddedLater => (
+                vec!["projects/p/ignition/script-python/lib"],
+                vec!["projects/p/ignition/script-python"],
+            ),
+        }
+    }
+
+    /// The directory the server lints a file from: the innermost folder
+    /// that contains it, else its project (a folder of its own).
+    fn owner(self, rel: &str, added: bool) -> String {
+        let (mut folders, later) = self.folders();
+        if added {
+            folders.extend(later);
+        }
+        folders
+            .iter()
+            .filter(|f| f.is_empty() || rel.starts_with(&format!("{f}/")))
+            .max_by_key(|f| f.len())
+            .map(|f| (*f).to_owned())
+            .unwrap_or_else(|| {
+                let project: Vec<&str> = rel.splitn(3, '/').take(2).collect();
+                project.join("/")
+            })
+    }
+}
+
+fn write_layout(root: &Path, layout: Layout, slots: &[Slot], texts: &[String]) {
+    for (rel, text) in layout.projects() {
+        write(root, rel, text);
+    }
+    for (slot, text) in slots.iter().zip(texts) {
+        let rel = layout.rel(&slot.rel);
+        let dir = Path::new(&rel).parent().unwrap();
+        write(
+            root,
+            &format!("{}/resource.json", dir.display()),
+            &manifest(&rel),
+        );
+        write(root, &rel, text);
+    }
+}
+
+/// A fresh `iglint check` and `iglint check --fix` (safe fixes, not
+/// written) of the folder `owner` of a copy of the workspace: the starts
+/// of the findings with a safe fix and the fixed text of each file, by
+/// file (relative to the workspace root).
+/// By file: the starts of the findings with a safe fix, and the texts
+/// `--fix` makes.
+type Fresh = (BTreeMap<String, BTreeSet<FixAt>>, BTreeMap<String, String>);
+
+fn fresh_in(layout: Layout, slots: &[Slot], texts: &[String], owner: &str) -> Fresh {
+    let dir = tempfile::tempdir().unwrap();
+    let root = iglint_linter::discovery::absolute(dir.path());
+    write_layout(&root, layout, slots, texts);
+    let folder = if owner.is_empty() {
+        root.clone()
+    } else {
+        root.join(owner)
+    };
+    let config = iglint_config::load(
+        &iglint_config::LoadOptions {
+            cwd: folder.clone(),
+            start: Some(folder.clone()),
+            ..iglint_config::LoadOptions::default()
+        },
+        &iglint_linter::rules::REGISTRY,
+    )
+    .unwrap();
+    let rel = |p: &Path| {
+        p.strip_prefix(&root)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/")
+    };
+    let mut safe: BTreeMap<String, BTreeSet<FixAt>> = BTreeMap::new();
+    let result = iglint_linter::check(
+        &config.settings,
+        std::slice::from_ref(&folder),
+        &iglint_linter::CheckOptions::default(),
+    );
+    for d in &result.diagnostics {
+        if d.fix
+            .as_ref()
+            .is_some_and(|f| f.applicability == iglint_linter::Applicability::Safe)
+        {
+            let start = position(d.file.text(), d.range.start().to_usize());
+            safe.entry(rel(d.file.path()))
+                .or_default()
+                .insert((d.rule.code().to_owned(), start));
+        }
+    }
+    let result = iglint_linter::check(
+        &config.settings,
+        std::slice::from_ref(&folder),
+        &iglint_linter::CheckOptions {
+            fix_mode: iglint_linter::FixMode::DiffOnly {
+                unsafe_fixes: false,
+            },
+            ..iglint_linter::CheckOptions::default()
+        },
+    );
+    let fixed = result
+        .fixed
+        .iter()
+        .filter(|f| f.fixed != *f.original)
+        .map(|f| (rel(&f.path), f.fixed.clone()))
+        .collect();
+    (safe, fixed)
+}
+
+/// Review round 31 (Opus and Codex, B1): whatever the workspace folders
+/// are (a child project whose parent lies outside the folder, a directory
+/// inside the project, nested folders, a folder added after documents
+/// were opened) and however files change (typing in any open document,
+/// saving, closing, and changes on disk with or without a
+/// `didChangeWatchedFiles` notification, also of files outside every
+/// folder), every safe fix offered or applied for a file equals what a
+/// fresh `iglint check` of the folder that publishes the file reports for
+/// the editor's texts and the files on disk: every quick fix offered as
+/// preferred is safe there, and "fix all" gives what `--fix` gives.
+#[test]
+fn fixes_match_a_fresh_check_in_every_folder_layout() {
+    let slots = slots();
+    // `IGLINT_CONSISTENCY_SEEDS=n` runs `n` sequences per layout (default 3).
+    let seeds: u64 = std::env::var("IGLINT_CONSISTENCY_SEEDS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(3);
+    let mut asked = 0;
+    let mut offered_total = 0;
+    let mut fix_alls = 0;
+    let mut unnotified = 0;
+    for layout in [
+        Layout::ChildProject,
+        Layout::Subdirectory,
+        Layout::Nested,
+        Layout::AddedLater,
+    ] {
+        for seed in 1..=seeds {
+            let mut rng = Rng(seed * 104_729 + layout as u64);
+            let init = match rng.next(3) {
+                0 => json!({"run": "onType", "debounceMs": 0}),
+                1 => json!({"run": "onType", "debounceMs": 60000}),
+                _ => json!({"run": "onSave"}),
+            };
+            let dir = tempfile::tempdir().unwrap();
+            let root = iglint_linter::discovery::absolute(dir.path());
+            let mut disk: Vec<String> = slots
+                .iter()
+                .map(|s| s.variants[rng.next(s.variants.len())].clone())
+                .collect();
+            write_layout(&root, layout, &slots, &disk);
+            let (folders, later) = layout.folders();
+            let folder_paths: Vec<PathBuf> = folders
+                .iter()
+                .map(|f| {
+                    if f.is_empty() {
+                        root.clone()
+                    } else {
+                        root.join(f)
+                    }
+                })
+                .collect();
+            let folder_refs: Vec<&Path> = folder_paths.iter().map(PathBuf::as_path).collect();
+            let mut client =
+                Client::start_folders(&folder_refs, init.clone(), client_capabilities());
+            let mut added = later.is_empty();
+            let mut editor: Vec<Option<(Url, i32, String)>> = vec![None; slots.len()];
+            for step in 0..20 {
+                if !added && step == 4 {
+                    let uri = Url::from_file_path(root.join(later[0])).unwrap();
+                    client.notify(
+                        lsp_types::notification::DidChangeWorkspaceFolders::METHOD,
+                        json!({"event": {"added": [{"uri": uri, "name": "later"}], "removed": []}}),
+                    );
+                    added = true;
+                }
+                let i = rng.next(slots.len());
+                let rel = layout.rel(&slots[i].rel);
+                let path = root.join(&rel);
+                let variant = slots[i].variants[rng.next(slots[i].variants.len())].clone();
+                match (rng.next(7), editor[i].is_some()) {
+                    (0 | 1, false) => {
+                        let uri = client.open(&path, &disk[i]);
+                        editor[i] = Some((uri, 1, disk[i].clone()));
+                    }
+                    (0, true) => {
+                        let (uri, _, _) = editor[i].take().unwrap();
+                        client.notify(
+                            lsp_types::notification::DidCloseTextDocument::METHOD,
+                            json!({"textDocument": {"uri": uri}}),
+                        );
+                    }
+                    (1, true) => {
+                        let (uri, _, text) = editor[i].clone().unwrap();
+                        std::fs::write(&path, &text).unwrap();
+                        disk[i] = text;
+                        client.notify(
+                            lsp_types::notification::DidSaveTextDocument::METHOD,
+                            json!({"textDocument": {"uri": uri}}),
+                        );
+                    }
+                    (_, true) => {
+                        let (uri, version, text) = editor[i].as_mut().unwrap();
+                        *version += 1;
+                        *text = variant;
+                        let (uri, version, text) = (uri.clone(), *version, text.clone());
+                        client.replace_all(&uri, version, &text);
+                    }
+                    (n, false) => {
+                        // On disk, reported or not (another editor, `git
+                        // pull`).
+                        std::fs::write(&path, &variant).unwrap();
+                        disk[i] = variant;
+                        if n % 2 == 0 {
+                            client.notify(
+                                DidChangeWatchedFiles::METHOD,
+                                json!({"changes": [{"uri": Url::from_file_path(&path).unwrap(), "type": 2}]}),
+                            );
+                        } else {
+                            unnotified += 1;
+                        }
+                    }
+                }
+                let texts: Vec<String> = (0..slots.len())
+                    .map(|k| match &editor[k] {
+                        Some((_, _, t)) => t.clone(),
+                        None => disk[k].clone(),
+                    })
+                    .collect();
+                let open: Vec<usize> = (0..slots.len()).filter(|k| editor[*k].is_some()).collect();
+                if open.is_empty() {
+                    continue;
+                }
+                let mut fresh: BTreeMap<String, Fresh> = BTreeMap::new();
+                for _ in 0..1 + rng.next(2) {
+                    let k = open[rng.next(open.len())];
+                    let (uri, _, text) = editor[k].clone().unwrap();
+                    let rel = layout.rel(&slots[k].rel);
+                    let owner = layout.owner(&rel, added);
+                    let (safe, fixed) = fresh
+                        .entry(owner.clone())
+                        .or_insert_with(|| fresh_in(layout, &slots, &texts, &owner));
+                    let safe = safe.get(&rel).cloned().unwrap_or_default();
+                    let offered = preferred_fixes(&mut client, &uri);
+                    assert!(
+                        offered.is_subset(&safe),
+                        "{layout:?} seed {seed} ({init}) step {step}: {rel} offers {offered:?}, fresh {safe:?}\n{texts:#?}"
+                    );
+                    offered_total += offered.len();
+                    if let Some(result) = fix_all_result(&mut client, &uri, &text) {
+                        assert_eq!(
+                            Some(&result),
+                            fixed.get(&rel),
+                            "{layout:?} seed {seed} ({init}) step {step}: {rel} fix all\n{texts:#?}"
+                        );
+                        fix_alls += 1;
+                    }
+                    asked += 1;
+                }
+            }
+            client.shutdown();
+        }
+    }
+    eprintln!(
+        "{asked} code action requests, {offered_total} preferred fixes, {fix_alls} fix-all edits, {unnotified} changes without notification"
+    );
+    assert!(asked > 40, "{asked}");
+    assert!(offered_total > 5, "{offered_total}");
+    assert!(fix_alls > 5, "{fix_alls}");
+    assert!(unnotified > 5, "{unnotified}");
+}

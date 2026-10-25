@@ -39,6 +39,14 @@ impl Client {
         init: Value,
         capabilities: ClientCapabilities,
     ) -> Client {
+        let roots: Vec<&Path> = root.into_iter().collect();
+        Client::start_folders(&roots, init, capabilities)
+    }
+
+    /// A client with one workspace folder for each of `roots` (none: no
+    /// folder).
+    pub fn start_folders(roots: &[&Path], init: Value, capabilities: ClientCapabilities) -> Client {
+        let root: Option<&Path> = roots.first().copied();
         let (server, client) = Connection::memory();
         let handle = std::thread::spawn(move || iglint_server::run_connection(server));
         let mut c = Client {
@@ -49,11 +57,15 @@ impl Client {
         };
         #[allow(deprecated)]
         let params = InitializeParams {
-            workspace_folders: root.map(|r| {
-                vec![WorkspaceFolder {
-                    uri: Url::from_file_path(r).unwrap(),
-                    name: "test".to_owned(),
-                }]
+            workspace_folders: root.map(|_| {
+                roots
+                    .iter()
+                    .enumerate()
+                    .map(|(i, r)| WorkspaceFolder {
+                        uri: Url::from_file_path(r).unwrap(),
+                        name: format!("test{i}"),
+                    })
+                    .collect()
             }),
             initialization_options: Some(init),
             capabilities,
