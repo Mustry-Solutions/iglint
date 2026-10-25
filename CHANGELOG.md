@@ -155,7 +155,7 @@ from 0.1.0 on.
   star-importing the ten before 22 s, 69 s with names bound nowhere,
   150 modules each star-importing every earlier one minutes. Where a
   name may come from through star imports is now found once per module
-  and name and kept for every consumer: 0.06 s, 0.09 s and 0.08 s
+  and name and kept for every consumer: 0.06 s, 0.09 s and 0.05 s
   (release). Every module that may provide the name is found (the old
   search stopped after 64 modules and counted a module reached twice
   like a cycle); a module that can neither provide nor pass on the name
