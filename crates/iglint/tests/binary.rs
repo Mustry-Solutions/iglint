@@ -2450,6 +2450,18 @@ fn make_submodule(top: &std::path::Path, inner: &str) {
     assert!(top.join(inner).join(".git").is_file());
 }
 
+/// `path` with `/` between components on every platform, as the findings
+/// of [`findings`] show paths (iglint prints `/`, and on Windows a path
+/// joined in a test mixes both).
+fn shown(path: &std::path::Path) -> String {
+    let text = path.display().to_string();
+    if cfg!(windows) {
+        text.replace('\\', "/")
+    } else {
+        text
+    }
+}
+
 /// The findings of a JSON run, one line each, with paths made absolute
 /// (relative ones are relative to `cwd`): file, code, position, message,
 /// fix applicability and the reason with its site.
@@ -2461,11 +2473,8 @@ fn findings(out: &std::process::Output, cwd: &std::path::Path) -> Vec<String> {
             String::from_utf8_lossy(&out.stderr)
         )
     });
-    let absolute = |p: &serde_json::Value| {
-        p.as_str()
-            .map(|p| cwd.join(p).display().to_string())
-            .unwrap_or_default()
-    };
+    let absolute =
+        |p: &serde_json::Value| p.as_str().map(|p| shown(&cwd.join(p))).unwrap_or_default();
     let mut found: Vec<String> = v
         .as_array()
         .unwrap()
@@ -2522,8 +2531,7 @@ fn single_file_runs_match_the_root_run(
     let files = fixture_files(top, skip.as_deref());
     if let Some(wt) = &skip {
         assert!(
-            all.iter()
-                .all(|f| !f.starts_with(&wt.display().to_string())),
+            all.iter().all(|f| !f.starts_with(&shown(wt))),
             "{}: the main checkout's run reports files of the linked work tree: {all:#?}",
             layout.name
         );
@@ -2532,7 +2540,7 @@ fn single_file_runs_match_the_root_run(
         let rel = file.strip_prefix(top).unwrap();
         let expected: Vec<&String> = all
             .iter()
-            .filter(|f| f.starts_with(&format!("{} ", file.display())))
+            .filter(|f| f.starts_with(&format!("{} ", shown(file))))
             .collect();
         for (cwd, path) in [
             (top, rel.to_path_buf()),
@@ -2629,20 +2637,20 @@ fn linked_worktree_runs_match_own_repository(
         std::fs::copy(file, &to).unwrap();
     }
     std::fs::create_dir_all(own.path().join(".git")).unwrap();
-    let own_prefix = own.path().display().to_string();
-    let wt_prefix = wt.display().to_string();
+    let own_prefix = shown(own.path());
+    let wt_prefix = shown(wt);
     let all: Vec<String> = check_json(own.path(), None)
         .into_iter()
         .map(|f| f.replace(&own_prefix, &wt_prefix))
         .collect();
     let elsewhere = tempfile::tempdir().unwrap();
     let mut failures = Vec::new();
-    let shown = format!("{} (work tree), {expect}: {all:#?}", layout.name);
+    let context = format!("{} (work tree), {expect}: {all:#?}", layout.name);
     for file in &files {
         let rel = file.strip_prefix(wt).unwrap();
         let expected: Vec<String> = all
             .iter()
-            .filter(|f| f.starts_with(&format!("{} ", file.display())))
+            .filter(|f| f.starts_with(&format!("{} ", shown(file))))
             .cloned()
             .collect();
         for (cwd, path) in [
@@ -2663,7 +2671,7 @@ fn linked_worktree_runs_match_own_repository(
     }
     let expect = expect.to_owned();
     move || {
-        assert_expected(&all, &expect, &shown);
+        assert_expected(&all, &expect, &context);
         assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 }
@@ -3414,6 +3422,8 @@ fn files_below_skipped_directories_get_a_root_that_reaches_them() {
             .output()
             .unwrap();
         let text = String::from_utf8_lossy(&out.stdout);
+        // `node_modules/pkg` with the platform's separators.
+        let pkg: std::path::PathBuf = pkg.components().collect();
         assert!(
             text.contains(&format!("Workspace root: {}\n", pkg.display())),
             "{text}"

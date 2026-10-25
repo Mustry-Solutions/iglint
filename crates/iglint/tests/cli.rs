@@ -377,7 +377,8 @@ fn fixes() {
 
 /// `--diff` output applies with GNU `patch -p1` and with `git apply` when
 /// paths hold spaces or characters git quotes. Skipped for a tool that is
-/// not installed.
+/// not installed, and for a `patch` that is not GNU patch (the BSD patch of
+/// macOS does not read the quoted file names of git's format).
 #[cfg(unix)]
 #[test]
 fn diff_applies_with_patch_and_git_for_any_path() {
@@ -401,6 +402,15 @@ fn diff_applies_with_patch_and_git_for_any_path() {
     assert!(patch.contains("--- \"a/Q\\\"x/b\\\\c.py\"\n"), "{patch}");
     let tools: [(&str, &[&str]); 2] = [("patch", &["-p1", "-s", "-t"]), ("git", &["apply"])];
     for (tool, args) in tools {
+        if tool == "patch"
+            && !std::process::Command::new(tool)
+                .arg("--version")
+                .output()
+                .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("GNU patch"))
+        {
+            eprintln!("{tool} is not GNU patch: skipped");
+            continue;
+        }
         let target = tempfile::tempdir().unwrap();
         source(target.path());
         let mut child = match std::process::Command::new(tool)
