@@ -1888,6 +1888,10 @@ fn git(cwd: &std::path::Path, args: &[&str]) {
             "init.defaultBranch=main",
             "-c",
             "commit.gpgsign=false",
+            // Git for Windows checks files out with CRLF otherwise, and
+            // the documents the test opens would differ from the disk.
+            "-c",
+            "core.autocrlf=false",
         ])
         .args(args)
         .output()
