@@ -29,6 +29,10 @@ by a text search:
   (`{this.custom.x}`, `{view.params.p}`, `{../Card.custom.x}`,
   `{/root/Card.custom.x}`); `{view.custom}` reads every view custom
   property;
+* `runScript` in an expression of the view runs its code with `self`,
+  `view`, `page` and `session`: code that names any of them, or a
+  computed script, counts as reading and writing every property of the
+  view;
 * property binding paths and indirect tag binding references;
 * scripts of the view (events, transforms, change scripts, message
   handlers, custom methods, extension functions), parsed with the Jython

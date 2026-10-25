@@ -878,6 +878,45 @@ The rule (`script_facts::refs`):
   package, is used as a value, escapes and is stored, and the chain is a
   library value; `REF002` does not report it missing (it exists).
 
+Review round 27 (Opus, blocker): the project index judged only the
+segment right after a module (`LibraryTree::object_member`), so a
+dotted reference that did not come from a script's chain walker, such as
+the `runScript` target `"m.f.func_globals.has_key"`, reached `m`'s
+namespace through a function and left `import re` removable as safe (on
+Ignition's own `ScriptFunction` the expression's value changed from
+`true` to `false`). The index now judges every segment of every dotted
+library reference, whatever produced it, default deny:
+
+* after the module, a member of its object or a special attribute that it
+  does not bind, as before;
+* after a function the module defines, any attribute but its name and
+  documentation (`__name__`, `func_name`, `__doc__`, `func_doc`,
+  `__module__`): `func_globals`, `__globals__`, `func_code`, `__call__`,
+  `__get__`, `__repr__`, an attribute stored on the function;
+* after a variable bound only to literals (`CACHE = {}`), a special
+  attribute (`m.CACHE.clear` is the dict's method);
+* after a class, another variable, an import of a module outside the
+  library, or a name the module does not define, any later segment that may hand
+  out more than a plain value (`library::is_value_attribute`): a special
+  attribute, a member of Jython's function, method, class, instance and
+  generator objects (measured: `func_*`, `im_class`, `im_func`,
+  `im_self`, `gi_code`, `gi_frame`, `gi_running`, `mro`, `next`, `send`,
+  `throw`, `close`; their Java members are not attributes,
+  `library::OBJECT_MEMBERS`), or a name shaped like a frame, code or
+  traceback attribute (`f_`, `co_`, `tb_`). A member of the library
+  objects (`dict`, `clear`, `name`, ...) counts there only when the
+  module's names are not known: a value holds a library module or package
+  only where code put it there as a value (`alias = core.util`), which
+  counts by itself, and any other value's `clear` is its own
+  (`m.CACHE.clear()` of a dict; review round 27, the one private-project
+  finding this would otherwise have lost);
+* after an import of another library module, the same for the rest of
+  the path in that module.
+
+Any of these makes the module a value use, escaped and stored, like
+`vars(m)`. The script walker now also hands the index the whole chain of
+a special attribute (`m.f.__call__`, not only `m.f`).
+
 Aliases, parameters, containers and arguments that hold a module are the
 module used as a value already, so every route through them counts too
 (`x = m; x.__getattribute__('re')`, `inspect.getmembers(m)`,
@@ -894,17 +933,28 @@ parameter may hold a module.
 
 The oracle enumerates every member of both objects (from `dir` of the
 object, its type and `object`, and every public Java method, field and
-bean property of the classes, that `getattr` finds) and runs 80 routes
+bean property of the classes, that `getattr` finds), the same for a
+function, an old-style and a new-style class, their methods (bound and
+unbound) and instances and a generator object, and runs 80 routes
 (`crates/iglint_linter/tests/fixtures/library-routes/routes.cases`:
 special attributes, Jython's accessors, `getattr`, `hasattr`, `setattr`,
 `delattr`, `vars`, `dir`, `operator.attrgetter` and `methodcaller`,
 `object` and `type` accessors, `types.ModuleType`, `super`, `copy`,
 `pickle`, `cPickle`, `inspect.getmembers`, `func_globals`, aliases,
-containers, package chains, `from pkg import m`). The replay test
-`rules::refs::library_routes` (137 routes: every member as `m.<member>`
-and `pkg.<member>`, and every case) checks that no route leaves a safe
-removal of the import it may reach, that `REF002` reports nothing, and
-that a route that may reach any name keeps `REF012` silent;
+containers, package chains, `from pkg import m`) and 56 `runScript`
+expressions (`runscript.cases`: dotted special-attribute paths after a
+function, module and package members, the module, package and an import
+as values, plain calls with and without a poll rate and arguments,
+builtins and `system.*` functions that run code, read frames or files,
+code literals, and Perspective's `self`, `view`, `page`, `session`). The
+replay test `rules::refs::library_routes` (273 routes: every member as
+`m.<member>`, `pkg.<member>` and `m.f.<member>`, every case, and every
+`runScript` case in a tag expression and in a Perspective binding, the
+`perspective:` ones only there) checks that no route leaves a safe
+removal of the import it may reach, that `REF002` reports nothing, that
+a route that may reach any name keeps `REF012` silent, that a plain call
+keeps the import's fix safe and uses `f`, and that code that is not
+vetted or reads a frame or a file keeps it unsafe;
 `library_object_members_match_the_oracle` that the member tables are the
 measured ones.
 
@@ -1653,20 +1703,59 @@ are part of the cache context.
 ### Expressions and resources iglint does not read
 
 Expressions run Python through `runScript(script, [pollRate],
-[args...])`, the only expression function of 8.3 that does (Vision's
-`objectScript` exists only in Vision clients). Its first argument is a
-Python expression evaluated in the project's scripting context, called
-with `args` when it is callable. In every expression iglint models
-(Perspective bindings and transforms, session properties, expression
-tags, derived tag getters and setters, bound tag and alarm properties):
+[args...])`, the only expression function of 8.3 that does. Measured
+over every class of the 8.3.3 image (common, gateway and every module
+file) that implements Ignition's expression `Function`: only
+`ScriptFunction` (common, the gateway's and the tag providers'
+`runScript`) and Perspective's `PerspectiveRunScriptFunction` (its
+subclass, Perspective's `runScript`) reference Jython's compiler or the
+script manager; `columnRearrange` only converts a Python list, and
+Vision's `objectScript` (`ComponentRunScriptExpression`) exists only in
+Vision clients, whose resources are unknown code. What `runScript` does
+was measured with the classes themselves (`oracle/run-oracle.sh
+--library-routes`, `runscript.cases`, through Ignition's expression
+parser and `DefaultFunctionFactory`, review round 27):
 
-* a literal dotted name (`runScript("lib.util.json.dumps", 0, x)`) is a
-  library reference, like the same name in a script: the project index
-  counts it as a use of every module attribute along the path;
-* any other literal is code: it is parsed and analysed like a script
-  (vetting, frame reads, library references), and if it does not parse it
-  is unknown code;
-* a computed first argument is unknown code.
+* it compiles `"__RESULT = " + script` in exec mode (`"\nm.f"` is a
+  syntax error), runs it with the project's library packages, `system`,
+  `fpmi` and `sys` as locals, and calls `__RESULT` with the remaining
+  arguments when it is callable, also when there are none
+  (`runScript("m.f")` returns `f()`); a value that is not callable
+  (`runScript("m")`, `runScript("m.re")`) is the expression's value;
+* Perspective's adds `self` (the element the expression belongs to), its
+  `view`, `page` and `session` to the locals.
+
+So, in every expression iglint models (Perspective bindings and
+transforms, session properties, expression tags, derived tag getters and
+setters, bound tag and alarm properties;
+`script_facts::code_sources`):
+
+* a literal dotted name is code too: the call `name(*args)` of a function
+  whose arguments are unknown values, through the same vetting, frame
+  routes, closed world, file reads and references as a script
+  (`runScript("eval", 0, x)`, `"execfile"`, `"locals"`, `"open"`,
+  `"system.file.readFileAsString"`, `"system.util.execute"`, an unknown
+  `system.*` function: unknown code or a file read; `"m.f.func_globals.get"`:
+  the module's namespace). Until review round 27 a dotted name was only a
+  library reference and was never analysed as code: every builtin or
+  `system.*` function named there, and every special attribute after a
+  library function, kept the safe fixes safe. It is still a library
+  reference (`REF012`, `REF002`), and its object is a library value
+  (`References::library_values`, a dynamic reference): what it holds
+  leaves the expression when it is not callable;
+* any other literal is the code `__RESULT = <literal>`, parsed and
+  analysed like a script; if it does not parse it is unknown code;
+* a computed first argument is unknown code;
+* in a Perspective expression, code that names `self`, `view`, `page` or
+  `session` reaches objects the view analyses do not follow there: it is
+  unknown code, and `VIEW015` counts every property of the view as read
+  and written. So does a computed script.
+
+The library reference of a dotted name (and of every dotted name from
+anywhere else: scripts, imports) is judged segment by segment by the
+project index, default deny ("Library module objects": a special
+attribute or an object member at any segment after the module is a use
+of the module as a value).
 
 Expression functions the 8.3 gateway does not register (a third-party
 module's; Vision's `objectScript`, which exists only in Vision clients;

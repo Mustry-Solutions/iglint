@@ -11,7 +11,15 @@
 # four spaces). <expect> and <target> are for the linter's replay test
 # (`library_routes` in iglint_linter): `value` when the route may reach
 # any name of the module <target> (`m` or `pkg.m`), `literal` when it names
-# one; the oracle ignores them.
+# one, `plain` when it calls or reads a name of the module, `unknown` when
+# it runs code that is not vetted or reads a file; the oracle ignores them.
+# In a file whose name starts with "runscript", the body of each route is
+# an Ignition expression instead (literal arguments only), evaluated by
+# Ignition's own expression parser and function factory: `runScript` is
+# the gateway's `ScriptFunction` (common.jar), run with the library below;
+# `perspective:` before the expression runs Perspective's
+# `PerspectiveRunScriptFunction` instead, for an element whose `str()` is
+# 'element' (its view, page and session: 'view', 'page', 'session').
 #
 # The project library is loaded by Ignition's own ScriptManager
 # (`addProjectScriptModules`, as a gateway loads a project's library):
@@ -29,6 +37,16 @@
 #   module <name>
 #   package <name>
 #
+# then, the same way, the members of the other objects a dotted name can
+# reach from a library module: a function, an old-style class, its unbound
+# and bound method and an instance, a new-style class, its method and an
+# instance, and a generator object (`<kind> <name>`; the name the test
+# module defines, `meth`, left out):
+#
+#   function <name>
+#   class <name>
+#   ...
+#
 # then one record per case, in input order:
 #
 #   ### <name>
@@ -45,6 +63,14 @@ from org.apache.commons.lang3.tuple import Pair
 from org.python.core import Py, PyObject
 from jarray import array
 from com.inductiveautomation.ignition.common.script import ScriptManager
+from com.inductiveautomation.ignition.common.expressions import (
+    DefaultFunctionFactory, ExpressionParseContext, FunctionFactory)
+from com.inductiveautomation.ignition.common.expressions.functions import (
+    AbstractPollingFunction, ScriptFunction)
+from com.inductiveautomation.ignition.common.expressions.parsing import ELParser
+from com.inductiveautomation.ignition.common.model import CommonContext
+from java.io import StringReader
+from java.lang.reflect import InvocationHandler, Proxy
 
 _SM = Class.forName('com.inductiveautomation.ignition.common.script.ScriptManager')
 _ADD = _SM.getDeclaredMethod('addProjectScriptModules', [Class.forName('java.util.List')])
@@ -98,8 +124,12 @@ def run(body, b=None):
 
 
 def java_names(name):
+    return java_class_names(PACKAGE + name)
+
+
+def java_class_names(class_name):
     names = set()
-    c = Class.forName(PACKAGE + name)
+    c = Class.forName(class_name)
     while c is not None:
         for method in Class.getMethods(c):
             if not Modifier.isPublic(method.getModifiers()):
@@ -132,6 +162,143 @@ def members():
     return out
 
 
+OBJECTS = ('def f():\n    pass\n'
+           'class C:\n    def meth(self):\n        pass\n'
+           'class N(object):\n    def meth(self):\n        pass\n'
+           'def g():\n    yield 1\n')
+OBJECT_KINDS = [
+    ('function', 'objs.f', 'org.python.core.PyFunction'),
+    ('class', 'objs.C', 'org.python.core.PyClass'),
+    ('unbound-method', 'objs.C.meth', 'org.python.core.PyMethod'),
+    ('bound-method', 'objs.C().meth', 'org.python.core.PyMethod'),
+    ('instance', 'objs.C()', 'org.python.core.PyInstance'),
+    ('type', 'objs.N', 'org.python.core.PyType'),
+    ('type-method', 'objs.N.meth', 'org.python.core.PyMethod'),
+    ('type-instance', 'objs.N()', 'org.python.core.PyObjectDerived'),
+    ('generator', 'objs.g()', 'org.python.core.PyGenerator'),
+]
+
+
+def object_members():
+    out = []
+    sm = manager([('objs', OBJECTS)])
+    for label, expr, java in OBJECT_KINDS:
+        obj = invoke(sm.compileFunction('def t(self, event):\n    return %s\n' % expr))
+        candidates = set(dir(obj)) | set(dir(type(obj))) | set(dir(object)) | java_class_names(java)
+        candidates.discard('meth')
+        probe = ('def t(self, event):\n'
+                 '    o = %s\n'
+                 '    found = []\n'
+                 '    for n in %r:\n'
+                 '        try:\n'
+                 '            getattr(o, n)\n'
+                 '            found.append(n)\n'
+                 '        except:\n'
+                 '            pass\n'
+                 '    return found\n') % (expr, sorted(candidates))
+        for n in sorted(invoke(sm.compileFunction(probe))):
+            out.append('%s %s' % (label, n))
+    return out
+
+
+_PERSPECTIVE = []
+
+
+def perspective():
+    """Perspective's runScript function and element types, loaded from the
+    module file and the gateway's jars."""
+    if not _PERSPECTIVE:
+        import glob
+        import os
+        import sys
+        import zipfile
+        modl = '/usr/local/bin/ignition/user-lib/modules/Perspective-module.modl'
+        out = '/tmp/iglint-perspective'
+        if not os.path.isdir(out):
+            os.makedirs(out)
+        z = zipfile.ZipFile(modl)
+        for n in z.namelist():
+            if n.startswith('perspective-gateway-') or n.startswith('perspective-common-'):
+                path = os.path.join(out, n)
+                f = open(path, 'wb')
+                f.write(z.read(n))
+                f.close()
+                sys.path.append(path)
+        for jar in sorted(glob.glob('/usr/local/bin/ignition/lib/core/gateway/*.jar')):
+            sys.path.append(jar)
+        from com.inductiveautomation.perspective.gateway.expression import PerspectiveRunScriptFunction
+        from com.inductiveautomation.perspective.gateway.api import PerspectiveElement, View, Page, Session
+        _PERSPECTIVE.extend([PerspectiveRunScriptFunction, PerspectiveElement, View, Page, Session])
+    return _PERSPECTIVE
+
+
+def proxy(iface, handler):
+    return Proxy.newProxyInstance(iface.getClassLoader(), [iface], handler)
+
+
+class Handler(InvocationHandler):
+    """A Java object that answers only what runScript asks: the script
+    manager of a context, the view, page and session of an element."""
+
+    def __init__(self, label, sm=None):
+        self.label = label
+        self.sm = sm
+
+    def invoke(self, p, method, args):
+        n = method.getName()
+        if n == 'getScriptManager':
+            return self.sm
+        if n == 'toString':
+            return self.label
+        if n == 'hashCode':
+            return 1
+        if n == 'equals':
+            return False
+        kinds = dict(zip(['getView', 'getPage', 'getSession'], perspective()[2:]))
+        if n in kinds:
+            return proxy(kinds[n], Handler(n[3:].lower()))
+        raise Exception('unexpected call ' + n)
+
+
+def run_expression(text):
+    """Evaluates the Ignition expression `text` with the gateway's function
+    factory; `runScript` runs with the library of the routes."""
+    sm = manager([('m', SOURCE), ('pkg.m', SOURCE)])
+    use_perspective = text.startswith('perspective:')
+    if use_perspective:
+        text = text[len('perspective:'):]
+    context = proxy(CommonContext, Handler('context', sm))
+    field = AbstractPollingFunction.getDeclaredField('context')
+    field.setAccessible(True)
+    default = DefaultFunctionFactory.getSharedInstance()
+
+    class Factory(FunctionFactory):
+        def getFunction(self, name):
+            f = default.getFunction(name)
+            if isinstance(f, ScriptFunction):
+                if use_perspective:
+                    run_script, element = perspective()[:2]
+                    f = run_script(proxy(element, Handler('element')))
+                field.set(f, context)
+            return f
+
+    class Parse(ExpressionParseContext):
+        def __init__(self):
+            self.factory = Factory()
+
+        def createBoundExpression(self, path):
+            raise Exception('references are not supported')
+
+        def getFunctionFactory(self):
+            return self.factory
+
+    try:
+        e = ELParser(StringReader(text), Parse()).parse().value
+        return 'ok ' + describe(e.execute().getValue())
+    except (Exception, Throwable), e:
+        return 'raised ' + error_name(e)
+
+
 def split_cases(data):
     cases = []
     name = None
@@ -150,12 +317,16 @@ def split_cases(data):
 
 
 def main(list_file, out_file):
-    records = ['### members'] + members()
+    records = ['### members'] + members() + object_members()
     for path in open(list_file).read().split():
+        expressions = path.split('/')[-1].startswith('runscript')
         for name, body in split_cases(open(path).read()):
-            b = 'def g(n):\n' + body
             records.append('### ' + name)
-            records.append(run("    return b.g('re')\n", b))
+            if expressions:
+                records.append(run_expression(body.strip()))
+            else:
+                b = 'def g(n):\n' + body
+                records.append(run("    return b.g('re')\n", b))
     out = open(out_file, 'w')
     out.write('\n'.join(records) + '\n')
     out.close()

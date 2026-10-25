@@ -147,8 +147,7 @@ mod tests {
         // Review round 25 (Opus, N2): the namespace of a module read
         // through `__dict__` from another module is the module used as a
         // value, like `vars(m)` and `getattr(m, name)`: `m.helper` and
-        // `m`'s import are not reported (a function's own `__dict__` is
-        // not its module's namespace).
+        // `m`'s import are not reported.
         // The namespace of a module holds its `__builtins__`
         // (`m.__dict__['__builtins__']['locals']()` reads the caller's
         // frame, measured on 8.3.3; review round 26, M2): `vars(m)` and
@@ -175,8 +174,14 @@ mod tests {
             "def g():\n    return m.helper.__dict__\n",
         );
         // `m.helper.__dict__` may be a module's namespace as far as `n`
-        // can tell (`pkg.m.__dict__` is): it observes there.
-        assert_eq!(flagged(&f.lint(&["REF012", "SCR102"])), vec!["os"]);
+        // can tell (`pkg.m.__dict__` is): it observes there. And a special
+        // attribute anywhere after the module uses `m` as a value (default
+        // deny, review round 27: `m.helper.__globals__` is its namespace),
+        // so `m`'s import is not reported either.
+        assert_eq!(
+            flagged(&f.lint(&["REF012", "SCR102"])),
+            Vec::<String>::new()
+        );
         // The target module is passed as a value: its functions may be
         // reached any way, but the caller itself is not introspective, so
         // its own unused function is still reported.

@@ -116,6 +116,45 @@ from 0.1.0 on.
 
 ### Fixed
 
+- A `runScript` target written as a dotted name was never analysed as
+  code (review round 27, blocker; since round 8). Measured with
+  Ignition 8.3.3's own `ScriptFunction` and Perspective's
+  `PerspectiveRunScriptFunction`: `runScript` compiles `"__RESULT = " +
+  script`, runs it with the library, `system` and `sys` (Perspective's
+  also `self`, `view`, `page` and `session`) as locals, and calls the
+  result with the other arguments when it is callable, also with none.
+  So `runScript("m.f.func_globals.has_key", 0, "re")` read `m`'s
+  namespace while `SCR102` removed `import re` from `m` as safe (the
+  tag's value changed from `true` to `false`), and `runScript("eval", 0,
+  ...)`, `"execfile"`, `"open"`, `"system.file.readFileAsString"`,
+  `"system.util.execute"`, `"system.tag.configure"` or an unknown
+  `system.*` function kept every safe fix safe. Now a dotted name is the
+  call `name(*args)` with unknown arguments, analysed like a script
+  (vetting, frame routes, closed world, file reads, references), its
+  object a library value (a module, package or import that is not
+  callable becomes the expression's value); any other literal is the
+  code `__RESULT = <literal>`. In Perspective expressions, code that
+  names `self`, `view`, `page` or `session`, or a computed script, is
+  unknown code and makes `VIEW015` count every property of the view as
+  read. The project index judges every segment of every dotted library
+  reference, whatever produced it (scripts, imports, expressions),
+  default deny: after a function any attribute but its name and
+  documentation, after a class, variable or import any special
+  attribute or member of Jython's function, method, class, instance and
+  generator objects (measured), makes the module a value use, like
+  `vars(m)`. The library-routes oracle measures those members and 56
+  `runScript` expressions; the replayed table has 273 routes. Only
+  `runScript` evaluates code among the expression functions of the
+  8.3.3 image (every `Function` class of common, gateway and the
+  modules scanned).
+- SCR120 exempted `max(g)` and `min(g)` of a generator expression made
+  in a loop when `*args` could add a positional argument (review round
+  27, Codex: `out.append(max((v * t for v in [1]), *[None]))` keeps the
+  generator, Jython prints `[[2], [2], [2]]`). The single-iterable
+  exemption now counts the items of a literal `*args` and is not granted
+  for any other; `**kwargs` adds no positional argument (verified on
+  Jython). The other builtin exemptions do not depend on the number of
+  arguments.
 - SCR102 removed an import of a library module as safe while another
   module reached it through the module object (review round 26, blocker):
   `m.__findattr_ex__('re')`, `m.dict['re']`, `m.getDict()['re']`,

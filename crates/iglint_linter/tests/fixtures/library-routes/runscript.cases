@@ -1,0 +1,112 @@
+### rs-func-globals-has-key value m
+runScript("m.f.func_globals.has_key", 0, "re")
+### rs-func-globals-get value m
+runScript("m.f.func_globals.get", 0, "re")
+### rs-func-globals-no-args value m
+runScript("m.f.func_globals.keys")
+### rs-dunder-globals-get value m
+runScript("m.f.__globals__.get", 0, "re")
+### rs-call-self-globals value m
+runScript("m.f.__call__.__self__.func_globals.get", 0, "re")
+### rs-package-dunder-globals value pkg.m
+runScript("pkg.m.f.__globals__.get", 0, "re")
+### rs-package-func-globals value pkg.m
+runScript("pkg.m.f.func_globals.has_key", 1000, "re")
+### rs-func-code value m
+runScript("m.f.func_code.co_names")
+### rs-func-closure value m
+runScript("m.f.func_closure")
+### rs-func-dict value m
+runScript("m.f.func_dict.keys")
+### rs-dunder-dict-get value m
+runScript("m.__dict__.get", 0, "re")
+### rs-member-dict-get value m
+runScript("m.dict.get", 0, "re")
+### rs-member-getdict value m
+runScript("m.getDict")
+### rs-findattr-ex value m
+runScript("m.__findattr_ex__", 0, "re")
+### rs-reduce-ex value m
+runScript("m.__reduce_ex__", 0, 2)
+### rs-class value m
+runScript("m.__class__")
+### rs-module value m
+runScript("m")
+### rs-package-module value pkg.m
+runScript("pkg.m")
+### rs-package value pkg.m
+runScript("pkg")
+### rs-package-member-dict value pkg.m
+runScript("pkg.dict.get", 0, "m")
+### rs-package-getdict value pkg.m
+runScript("pkg.getDict")
+### rs-code-func-globals value m
+runScript("m.f.func_globals['re']")
+### rs-code-vars value m
+runScript("vars(m)['re']")
+### rs-code-getattr literal m
+runScript("getattr(m, 're')")
+### rs-code-eval literal m
+runScript("eval('m.re')")
+### rs-import literal m
+runScript("m.re")
+### rs-import-member literal m
+runScript("m.re.escape", 0, "a.b")
+### rs-function plain m
+runScript("m.f")
+### rs-function-rate plain m
+runScript("m.f", 0)
+### rs-function-args plain m
+runScript("m.f", 0, 1, "a")
+### rs-package-function plain pkg.m
+runScript("pkg.m.f", 1000)
+### rs-function-name plain m
+runScript("m.f.__name__")
+### rs-code-call plain m
+runScript("m.f() + 1")
+### rs-eval unknown m
+runScript("eval", 0, "1 + 1")
+### rs-eval-no-args unknown m
+runScript("eval")
+### rs-execfile unknown m
+runScript("execfile", 0, "/nonexistent")
+### rs-locals unknown m
+runScript("locals")
+### rs-globals unknown m
+runScript("globals")
+### rs-vars unknown m
+runScript("vars")
+### rs-getattr unknown m
+runScript("getattr", 0, "x", "upper")
+### rs-import-builtin unknown m
+runScript("__import__", 0, "os")
+### rs-getframe unknown m
+runScript("sys._getframe", 0, 0)
+### rs-open unknown m
+runScript("open", 0, "/proc/sys/kernel/ostype")
+### rs-file unknown m
+runScript("file", 0, "/proc/sys/kernel/ostype")
+### rs-read-file unknown m
+runScript("system.file.readFileAsString", 0, "/proc/sys/kernel/ostype")
+### rs-execute unknown m
+runScript("system.util.execute", 0, "true")
+### rs-configure unknown m
+runScript("system.tag.configure", 0, "[default]", "[]")
+### rs-unknown-system unknown m
+runScript("system.nonexistent.fn", 0)
+### rs-code-open unknown m
+runScript("open(''.join(['/proc/sys/kernel/ostype'])).read()")
+### rs-perspective-self unknown m
+perspective:runScript("str(self)")
+### rs-perspective-view unknown m
+perspective:runScript("str(view)")
+### rs-perspective-page unknown m
+perspective:runScript("str(page)")
+### rs-perspective-session unknown m
+perspective:runScript("str(session)")
+### rs-perspective-locals unknown m
+perspective:runScript("sorted(locals().keys())")
+### rs-perspective-dotted unknown m
+perspective:runScript("self.toString")
+### rs-perspective-function plain m
+perspective:runScript("m.f", 0, 1)

@@ -44,6 +44,10 @@ by a text search:
   (`{this.custom.x}`, `{view.params.p}`, `{../Card.custom.x}`,
   `{/root/Card.custom.x}`); `{view.custom}` reads every view custom
   property;
+* `runScript` in an expression of the view runs its code with `self`,
+  `view`, `page` and `session`: code that names any of them, or a
+  computed script, counts as reading and writing every property of the
+  view;
 * property binding paths and indirect tag binding references;
 * scripts of the view (events, transforms, change scripts, message
   handlers, custom methods, extension functions), parsed with the Jython
@@ -284,6 +288,19 @@ pub(crate) fn usage(view: &View<'_>, accesses: &[PropertyAccess]) -> Usage {
     };
     // Expressions.
     for e in &view.expressions {
+        // `runScript` code that may reach the component, the view, the page
+        // or the session Perspective hands it (computed, or naming `self`,
+        // `view`, `page` or `session`): it may read and write any property
+        // (review round 27).
+        if crate::script_facts::code_sources::reaches_perspective_objects(e).is_some() {
+            for list in [&mut usage.all_read, &mut usage.all_written] {
+                list.extend([
+                    (Some(Owner::View), PropCategory::Custom),
+                    (Some(Owner::View), PropCategory::Params),
+                    (None, PropCategory::Custom),
+                ]);
+            }
+        }
         for (bound, reference) in e.references() {
             match reference {
                 Reference::Property(p) => {
@@ -909,6 +926,40 @@ mod tests {
         // `{view.custom.vy }` is a property reference to `vy ` (with the
         // space), so `vy` itself is unread.
         assert_eq!(unused(&v), vec!["view.custom.vy"]);
+    }
+
+    /// Review round 27: Perspective's `runScript` runs its code with
+    /// `self`, `view`, `page` and `session` (measured on 8.3.3), so code
+    /// that names them, or a computed script, may read any property.
+    #[test]
+    fn run_script_code_may_read_any_property() {
+        for (expression, expected) in [
+            ("runScript('self.view.custom.foo')", vec![]),
+            ("runScript('view.custom.get', 0, 'foo')", vec![]),
+            ("runScript('str(page)')", vec![]),
+            ("runScript('session.custom')", vec![]),
+            ("runScript('lib.' + 'fn')", vec![]),
+            ("runScript('lib.util.fn', 0, 1)", vec!["view.custom.foo"]),
+            ("runScript('len([1])')", vec!["view.custom.foo"]),
+        ] {
+            let v = view(
+                r#"{"foo": 1}"#,
+                "{}",
+                &[label(
+                    "A",
+                    &format!(
+                        r#", "custom": {{"bar": 1}}, "propConfig": {{"props.text": {{"binding": {{"type": "expr", "config": {{"expression": {}}}}}}}}}"#,
+                        serde_json::to_string(expression).unwrap()
+                    ),
+                )],
+                "{}",
+            );
+            let mut expected: Vec<&str> = expected;
+            if !expected.is_empty() {
+                expected.push("root/A.custom.bar");
+            }
+            assert_eq!(unused(&v), expected, "{expression}");
+        }
     }
 
     #[test]

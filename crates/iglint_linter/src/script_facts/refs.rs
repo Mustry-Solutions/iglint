@@ -562,6 +562,11 @@ impl Chains<'_, '_, '_, '_> {
             if let Some(base) = self.dotted(object) {
                 self.special_use(base, root, e.range());
             }
+            // The whole path too: the index judges every segment
+            // (`LibraryTree::object_member`; review round 27).
+            if root && let Some(q) = self.dotted(e) {
+                self.refs.library.push(q);
+            }
             return;
         }
         let Some(q) = self.dotted(e) else {

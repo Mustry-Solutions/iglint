@@ -163,6 +163,14 @@ To record new outputs (needs Docker):
   `rules::script::layout_oracle` in `iglint_linter`, writes its sources,
   compares the records and replays a committed sample
   (`tests/fixtures/layout-fix/`).
+* `oracle/run-oracle.sh --library-routes` records the members of
+  Ignition's library module and package objects and of Jython's
+  function, method, class, instance and generator objects, and what each
+  route of `crates/iglint_linter/tests/fixtures/library-routes/*.cases`
+  does (scripts in a library module, `runScript` expressions through
+  Ignition's own function factory); `rules::refs::library_routes`
+  replays it. `stubs-gen/code_functions.py` lists the expression
+  function classes of the image that can run Python.
 * `oracle/format-spec.sh all OUT` records Jython's verdict on every
   generated `str.format` spec and literal argument (SCR112); the replayed
   sample in `crates/iglint_linter/tests/fixtures/format-spec/` is

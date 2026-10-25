@@ -85,6 +85,66 @@ pub fn is_special_attribute(name: &str) -> bool {
         && !HARMLESS_ATTRIBUTES.contains(&name)
 }
 
+/// The attributes of Jython's function, method, class, instance and
+/// generator objects that are not special names (`func_globals`,
+/// `im_func`, `gi_frame`, `mro`, ...), measured on 8.3.3 by
+/// `oracle/jython_library_routes_oracle.py` (replayed by
+/// `library_object_members_match_the_oracle` in `iglint_linter`). Their
+/// Java members are not attributes (exposed types).
+pub const OBJECT_MEMBERS: &[&str] = &[
+    "close",
+    "func_closure",
+    "func_code",
+    "func_defaults",
+    "func_dict",
+    "func_doc",
+    "func_globals",
+    "func_name",
+    "gi_code",
+    "gi_frame",
+    "gi_running",
+    "im_class",
+    "im_func",
+    "im_self",
+    "mro",
+    "next",
+    "send",
+    "throw",
+];
+
+/// Whether the attribute `name`, read from an object a library module
+/// defines or holds, may hand out something other than a plain value:
+/// a special attribute ([`is_special_attribute`]), a member of Jython's
+/// function, method, class, instance or generator objects
+/// ([`OBJECT_MEMBERS`]) or of Ignition's library objects
+/// ([`MODULE_OBJECT_MEMBERS`], [`PACKAGE_OBJECT_MEMBERS`]), or a name
+/// shaped like the attributes of frames, code objects and tracebacks
+/// (`f_`, `co_`, `tb_`, and `func_`, `im_`, `gi_`). Names and
+/// documentation ([`HARMLESS_ATTRIBUTES`]) are plain.
+pub fn is_value_attribute(name: &str) -> bool {
+    !HARMLESS_ATTRIBUTES.contains(&name)
+        && (is_special_attribute(name)
+            || OBJECT_MEMBERS.contains(&name)
+            || MODULE_OBJECT_MEMBERS.contains(&name)
+            || PACKAGE_OBJECT_MEMBERS.contains(&name)
+            || ["f_", "co_", "tb_", "func_", "im_", "gi_"]
+                .iter()
+                .any(|p| name.starts_with(p)))
+}
+
+/// [`is_value_attribute`] after a class, a variable or an import of a
+/// module the module knows: the members of Ignition's library objects
+/// (`dict`, `clear`, `name`, ...) do not count there. Such a value holds a
+/// library module or package only if code put it there as a value
+/// (`alias = core.util`, `C.x = core`, `getattr(core, 'util')`), and that
+/// use counts by itself; any other value's `clear` or `name` is its own
+/// (`CACHE.clear()` of a dict).
+fn reaches_from_value(name: &str) -> bool {
+    is_value_attribute(name)
+        && !MODULE_OBJECT_MEMBERS.contains(&name)
+        && !PACKAGE_OBJECT_MEMBERS.contains(&name)
+}
+
 /// The library object (a module or a package) whose own member a dotted
 /// name reaches ([`LibraryTree::object_member`]): code that reads it may
 /// read and change everything in the object.
@@ -579,36 +639,110 @@ impl LibraryTree {
         }
     }
 
-    /// The module or package whose own member `dotted` reaches, if any:
-    /// a member of Ignition's module or package object
-    /// ([`MODULE_OBJECT_MEMBERS`], [`PACKAGE_OBJECT_MEMBERS`]) that the
-    /// module does not bind (or the package has no child of that name),
-    /// or a special attribute ([`is_special_attribute`]). A module whose
-    /// symbols are not known may bind anything: its members count.
+    /// The module or package that a use of `dotted` may hand out as a
+    /// value, if any: code that reads it may read and change everything in
+    /// the object. Default deny over every segment of the path (review
+    /// round 27; every source of dotted references goes through here:
+    /// scripts, `runScript` targets, expressions, imports):
+    ///
+    /// * right after a module, a member of Ignition's module object
+    ///   ([`MODULE_OBJECT_MEMBERS`]) or a special attribute
+    ///   ([`is_special_attribute`]) that the module does not bind (a name it
+    ///   binds wins); after a package, a member of the package object
+    ///   ([`PACKAGE_OBJECT_MEMBERS`]) or a special attribute where the
+    ///   package has no child of that name;
+    /// * after a function the module defines, any attribute other than its
+    ///   name and documentation ([`HARMLESS_ATTRIBUTES`]): `m.f.func_globals`,
+    ///   `m.f.__globals__`, `m.f.__call__`, `m.f.func_code`, an attribute
+    ///   stored on the function, ... reach the module's namespace or code;
+    /// * after a variable bound only to literals, a special attribute;
+    /// * after a class, another variable, an import of a module outside the
+    ///   library, or a name the module does not define, any later segment
+    ///   that names a special attribute or a member of Jython's function,
+    ///   method, class, instance or generator objects
+    ///   ([`reaches_from_value`]: `m.C.meth.im_func`, `m.logger.__class__`,
+    ///   `m.handler.func_globals`); when the module's names are not known,
+    ///   a member of the library objects too ([`is_value_attribute`]);
+    /// * after an import of another library module or package, the same
+    ///   for the rest of the path in that module.
     pub fn object_member<'i>(
         &self,
         dotted: &str,
         symbols: impl Fn(ResourceId) -> Option<&'i ModuleSymbols>,
     ) -> Option<LibraryObject> {
-        let mut segments = dotted.split('.');
-        let mut at = *self.roots.get(segments.next()?)?;
-        for seg in segments {
+        self.value_use(dotted, &symbols, 0)
+    }
+
+    fn value_use<'i>(
+        &self,
+        dotted: &str,
+        symbols: &dyn Fn(ResourceId) -> Option<&'i ModuleSymbols>,
+        depth: usize,
+    ) -> Option<LibraryObject> {
+        let segments: Vec<&str> = dotted.split('.').collect();
+        let mut at = *self.roots.get(*segments.first()?)?;
+        for (i, &seg) in segments.iter().enumerate().skip(1) {
             let node = &self.nodes[at];
+            let rest = &segments[i + 1..];
             if let Some(resource) = node.resource {
-                let bound = symbols(resource).is_some_and(|s| s.get(seg).is_some());
-                return (!bound && !node.children.contains_key(seg) && module_member(seg)).then(
-                    || LibraryObject::Module {
-                        resource,
-                        dotted: node.dotted.clone(),
-                    },
-                );
+                let module = || LibraryObject::Module {
+                    resource,
+                    dotted: node.dotted.clone(),
+                };
+                let syms = symbols(resource);
+                let Some(symbol) = syms.and_then(|s| s.get(seg)) else {
+                    if node.children.contains_key(seg) {
+                        // A child module the module's own code hides.
+                        return None;
+                    }
+                    // A member of the module object, or (default deny) a
+                    // name the module does not define, used further: it
+                    // may hold anything when the module's names are not
+                    // known.
+                    let known = syms.is_some_and(|s| !s.dynamic);
+                    let further = |s: &&str| {
+                        if known {
+                            reaches_from_value(s)
+                        } else {
+                            is_value_attribute(s)
+                        }
+                    };
+                    return (module_member(seg) || rest.iter().any(further)).then(module);
+                };
+                return match &symbol.kind {
+                    SymbolKind::Function(_) => rest
+                        .iter()
+                        .any(|s| !HARMLESS_ATTRIBUTES.contains(s))
+                        .then(module),
+                    SymbolKind::Import {
+                        target: Some(target),
+                    } if depth < 8 && self.roots.contains_key(target.split('.').next()?) => {
+                        let next: Vec<&str> = std::iter::once(target.as_str())
+                            .chain(rest.iter().copied())
+                            .collect();
+                        self.value_use(&next.join("."), symbols, depth + 1)
+                            .or_else(|| rest.iter().any(|s| is_value_attribute(s)).then(module))
+                    }
+                    // A variable bound only to literals holds a plain value
+                    // (`CACHE = {}`: `m.CACHE.clear` is the dict's method):
+                    // only its special attributes count.
+                    SymbolKind::Variable
+                        if syms.is_some_and(|s| s.constants.iter().any(|c| c == seg)) =>
+                    {
+                        rest.iter().any(|s| is_special_attribute(s)).then(module)
+                    }
+                    SymbolKind::Class | SymbolKind::Variable | SymbolKind::Import { .. } => {
+                        rest.iter().any(|s| reaches_from_value(s)).then(module)
+                    }
+                };
             }
             match node.children.get(seg) {
                 Some(&child) => at = child,
                 None => {
-                    return package_member(seg).then(|| LibraryObject::Package {
-                        dotted: node.dotted.clone(),
-                    });
+                    return (package_member(seg) || rest.iter().any(|s| is_value_attribute(s)))
+                        .then(|| LibraryObject::Package {
+                            dotted: node.dotted.clone(),
+                        });
                 }
             }
         }
@@ -707,6 +841,109 @@ mod tests {
             tree.shadowed_packages(),
             vec![("legacy", vec!["legacy.helpers"])]
         );
+    }
+
+    /// Review round 27: every segment of a dotted library reference is
+    /// judged, default deny.
+    #[test]
+    fn value_uses_are_judged_at_every_segment() {
+        let tree = LibraryTree::new([
+            ("core/format", ResourceId(1)),
+            ("core/tags", ResourceId(2)),
+            ("m", ResourceId(3)),
+        ]);
+        let format = ModuleSymbols {
+            symbols: vec![sym("withUnit")],
+            ..ModuleSymbols::default()
+        };
+        let symbol = |name: &str, kind: SymbolKind| Symbol {
+            name: name.into(),
+            kind,
+            range: TextRange::default(),
+        };
+        let m = ModuleSymbols {
+            symbols: vec![
+                sym("f"),
+                symbol("C", SymbolKind::Class),
+                symbol("V", SymbolKind::Variable),
+                symbol("K", SymbolKind::Variable),
+                symbol(
+                    "re",
+                    SymbolKind::Import {
+                        target: Some("re".into()),
+                    },
+                ),
+                symbol(
+                    "fmt",
+                    SymbolKind::Import {
+                        target: Some("core.format".into()),
+                    },
+                ),
+            ],
+            constants: vec!["K".into()],
+            ..ModuleSymbols::default()
+        };
+        let lookup = |r: ResourceId| match r.0 {
+            1 => Some(&format),
+            3 => Some(&m),
+            _ => None,
+        };
+        let module = |r: u32, dotted: &str| {
+            Some(LibraryObject::Module {
+                resource: ResourceId(r),
+                dotted: dotted.into(),
+            })
+        };
+        for (dotted, expected) in [
+            ("m.f", None),
+            ("m.f.__name__", None),
+            ("m.f.func_name", None),
+            ("m.f.func_globals", module(3, "m")),
+            ("m.f.func_globals.has_key", module(3, "m")),
+            ("m.f.__globals__.get", module(3, "m")),
+            ("m.f.__call__.__self__", module(3, "m")),
+            ("m.f.func_code", module(3, "m")),
+            ("m.f.cache", module(3, "m")),
+            ("m.C.meth", None),
+            ("m.C.X.upper", None),
+            ("m.C.meth.im_func", module(3, "m")),
+            ("m.C.__dict__", module(3, "m")),
+            ("m.V.get", None),
+            ("m.V.dict", None),
+            ("m.V.clear", None),
+            ("m.V.x.gi_frame", module(3, "m")),
+            ("m.V.__class__", module(3, "m")),
+            ("m.K.clear", None),
+            ("m.K.__class__", module(3, "m")),
+            ("m.re.compile", None),
+            ("m.re.__dict__", module(3, "m")),
+            ("m.fmt.withUnit", None),
+            ("m.fmt.withUnit.func_globals", module(1, "core.format")),
+            ("m.fmt.dict", module(1, "core.format")),
+            ("m.nope", None),
+            ("m.nope.func_globals", module(3, "m")),
+            ("m.dict", module(3, "m")),
+            ("m.__name__", None),
+            ("core.tags.read", None),
+            ("core.tags.read.func_globals", module(2, "core.tags")),
+            ("core.tags.dict", module(2, "core.tags")),
+            (
+                "core.dict",
+                Some(LibraryObject::Package {
+                    dotted: "core".into(),
+                }),
+            ),
+            (
+                "core.nope.__dict__",
+                Some(LibraryObject::Package {
+                    dotted: "core".into(),
+                }),
+            ),
+            ("core.format.withUnit.__code__", module(1, "core.format")),
+            ("system.util.func_globals", None),
+        ] {
+            assert_eq!(tree.object_member(dotted, lookup), expected, "{dotted}");
+        }
     }
 
     #[test]
