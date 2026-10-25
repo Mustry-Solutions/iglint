@@ -1116,7 +1116,31 @@ method, `+=`, an alias, a use in a function, several or conditional
 bindings, a module that writes its namespace dynamically) makes the
 export list unknown: any name may be exported, also one starting with
 `_` (before, a module with several bindings of `__all__` was taken to
-export only the names without a leading `_`).
+export only the names without a leading `_`). So does one binding that is
+not an assignment to the bare name (review round 30, Opus minor 2: `from
+x import __all__`, `for __all__ in ...`, `with c as __all__`, `__all__,
+y = ...`, `def __all__()` gave an empty list, and names a caller's star
+import uses were reported unused; four `chains.cases`, each also without
+the import).
+
+Deletes and augmented assignments are stores that never create the name
+(review round 30, Opus nit 4): on 8.3.3 `del lib.util.nothere` raises
+`KeyError` and `lib.util.nothere += 1` raises `AttributeError`. They are
+kept apart (`References::library_updates`): for `SCR102`, `REF003` and
+every other consumer they are stores as before
+(`ProjectIndex::library_name_stored`), but they do not make a missing
+name possibly existing for `REF002` (`ProjectIndex::library_name_created`),
+which now also checks them as uses (a delete guarded by a `try` that
+catches `KeyError` or `LookupError` too). Seven `chains.cases` (new
+expectation `missing-key`).
+
+The unsafe reason of an import removal that a store elsewhere makes
+unsafe names the store (review round 30, Opus nit 3): the index keeps
+where each store is first made (by file and offset, from the change of
+the object recorded with it), and the reason (`UnsafeReason::store`) is
+completed after the cache from the current index, like the closed-world
+reasons, so a moved store is named where it is now; a store through
+`global` in a function of the module is named at that binding.
 
 Evidence: `chains.cases` of the library-routes oracle has each form
 (del and augmented assignment directly, through an alias, a package
@@ -1184,6 +1208,50 @@ sets at a time; and a module reached on the way from a star import
 already looked at adds nothing (what it reaches, that one reaches too),
 so it is skipped (star imports are looked at from the last, which in a
 module star-importing every earlier one reaches all the others).
+
+Review round 30 (B1, Codex; a regression of the above): the graph looked
+each star import's target up without following imports, so `from
+m0.exports import *` with `m0` doing `from lib import exports` had no
+edge to `lib.exports`. The module's own paths still continued in the
+star import as written, but a further star hop (`m2` doing `from m1 import
+*`) asked the graph whether `m1` may pass `leaf` on, and the graph said
+no: `m2.leaf.json.dumps(1)` (`ok 1` on 8.3.3, `AttributeError` without
+the import) did not use `json` of `core.leaf`, and `SCR102` removed it as
+safe. Now:
+
+* a star import's target is resolved by the one resolver
+  (`LibraryTree::resolve_path_with`, imports, aliases, chains of imports
+  followed; star imports not followed while the graph is built, so a
+  target found only through another star import is not exact);
+* a star import that does not resolve exactly to one module with nothing
+  reached as a value (a package, a variable bound by several imports, a
+  name, a target behind a star import, a cycle) keeps its place for the
+  module's own paths (the resolver follows it there as written, with
+  every rule above), and makes the module's names not known to the
+  modules star-importing it, transitively (`StarGraph::unknown`, then
+  `reach_unknown`): whatever the name, the path continues in it;
+* where two searches of the memo meet star imports that are not modules
+  in different orders, their order is canonical, so what a path reaches
+  does not depend on what the memo met first.
+
+Evidence: seven `chains.cases` (the repro, through an alias, a chain of
+module imports, a variable, a further star import, a package, and in the
+importing script), each also without the import, on 8.3.3; a generated
+batch of 600 star-import graphs (`rules::refs::star_graphs`, chains,
+diamonds and cycles of star imports naming modules directly, through
+another module's alias or re-export, through a variable, or packages;
+recorded on 8.3.3 with and without `import json`, committed records
+`chains-stars.expected`): wherever Jython needs the import (456 cases),
+no safe removal is offered (the round 29 code offered 61). The memo
+property test now generates such star imports with modules dynamic by
+their star imports only, and asserts that every name the round 28
+resolver finds (its star step reading `__all__` through imports) is
+found, read where the star import is written, or reached as a value
+(the index follows the imports of values); the Jython-model test
+follows star imports transitively, of any target, and checks guided
+paths through what the library binds one at a time. The Jython-model
+test and the generated batch fail on the round 29 code; the memo test
+fails when inexact star imports do not make the importer unknown.
 
 ### Closed world
 
@@ -2247,6 +2315,33 @@ Tests: `an_edit_in_the_middle_of_a_chain_updates_the_module_at_its_end`
 files of generated libraries; after every step the published findings
 and the preferred quick fixes equal a fresh `iglint check`; 8 sequences
 by default, `IGLINT_CONSISTENCY_SEEDS` for more, 150 run).
+
+Review round 30 (B2, Codex): the fresh check saw stale text of other
+open documents. With `run: onSave`, edits never reached the live
+workspace before a save, and with `onType` and a long debounce they
+waited for it, so a code action on `lib.util` after `m1` was edited to
+`import m2` offered the removal of `import json` that a check of the
+editor's texts does not report. Every fix computation (quick fixes,
+`source.fixAll` and fix-all actions, `codeAction/resolve`, the fix-all
+command) now first gives the live workspace the editor text of every
+open document that changed (`Server::sync_documents`), whatever the run
+trigger, and then checks fresh. Publishing still follows the run
+trigger: the files whose findings may have changed wait
+(`Folder::pending`) for the next run, a requested document that waits is
+checked first, and commands finish everything pending before they
+answer. Tests: the repro in both modes (quick fix, fix-all action,
+resolve, command, close without saving), and
+`fixes_offered_between_edits_match_a_fresh_check` (random run triggers
+and debounces, code actions between edits, opens, closes and saves:
+every preferred fix is safe in a fresh check of the editor's texts and
+"fix all" equals a fresh `--fix`; 9 sequences by default, 60 run;
+fails on the round 29 code).
+
+Re-checking the files an edit may affect (every published file, after
+an edit of a library module) goes 128 files at a time with one index
+and stops when a message arrives (`LiveWorkspace::check_until`); what is
+left is pending (review round 30, Opus minor 1). This changes when
+findings are published, not what a fix is computed from.
 
 ## Dynamic code: audit of every safe fix
 

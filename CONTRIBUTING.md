@@ -170,7 +170,10 @@ To record new outputs (needs Docker):
   does (scripts in a library module, `runScript` expressions through
   Ignition's own function factory, and in `chains.cases` paths through
   the imports of libraries each case defines); `rules::refs::library_routes`
-  replays it. `stubs-gen/code_functions.py` lists the expression
+  replays it. `rules::refs::star_graphs` generates star-import graphs
+  between library modules (`star_graphs::write_cases`, see its module
+  docs) whose records the same mode makes and
+  `tests/fixtures/library-routes/chains-stars.expected` keeps. `stubs-gen/code_functions.py` lists the expression
   function classes of the image that can run Python.
 * `oracle/format-spec.sh all OUT` records Jython's verdict on every
   generated `str.format` spec and literal argument (SCR112); the replayed

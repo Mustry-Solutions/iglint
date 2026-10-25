@@ -9,6 +9,18 @@ from 0.1.0 on.
 
 ### Changed
 
+- Language server latency (review round 30, minor): after an edit, the
+  edited file is published first and the files it may affect are
+  checked again 128 at a time until the next message arrives, so typing
+  in a library module in workspace scope no longer waits for the whole
+  workspace (3,000 generated files: 88.8 ms to 5.2 ms median per
+  keystroke; the private project, 3,143 files: 320 ms to 18 ms median,
+  26 ms p95; the rest is published about 350 ms after the last
+  keystroke). A view's scripts are summarised, their property accesses
+  found and their vetting judged in parallel: the 3,000-component view
+  of `latency.rs` 101 ms to 36 ms (CLI 85 ms to 33 ms; the earlier miss
+  of the 50 ms target was this cost, not machine load).
+
 - `bench/README.md` re-measured (2026-10-24, small, medium, large and the
   private project, with and without pylint, all CPUs and 2 CPUs) with
   every 10x claim qualified: without pylint 10x or more from about 300
@@ -115,6 +127,43 @@ from 0.1.0 on.
   `PylintScriptRule` (every script line `rstrip()`ed).
 
 ### Fixed
+
+- A star import of a module named through another module's import was
+  not followed by a further star import (review round 30, blocker; new
+  in round 29): with `m0` doing `from lib import exports`, `m1` doing
+  `from m0.exports import *` and `m2` doing `from m1 import *`,
+  `m2.leaf.json.dumps(1)` (`ok` on 8.3.3, `AttributeError` without the
+  import) did not use `json` of `core.leaf`, and `SCR102` removed it as
+  safe. Star-import targets are resolved through imports, aliases and
+  chains, and a star import that cannot be resolved exactly to one
+  module (a package, a variable, a target behind another star import)
+  makes its module's names unknown to the modules star-importing it.
+  Measured on 8.3.3 with 7 `chains.cases` and 600 generated star-import
+  graphs (`chains-stars.expected`).
+- The language server computed fixes from stale text of other open
+  documents (review round 30, blocker; incomplete in round 29): with
+  `run: onSave`, or `onType` with a long debounce, an unsaved or not yet
+  analysed edit of `m1` was not seen by the fresh check of a code action
+  on `lib.util`, which offered a safe removal a check of the editor's
+  texts does not report (also fix all, resolve and the fix-all
+  command). Every fix computation now first gives the server's
+  workspace the editor text of every open document, whatever the run
+  trigger; publishing still follows it.
+- `SCR102` reported names a caller's `from m import *` uses when `m`
+  binds `__all__` once otherwise than by an assignment to the bare name
+  (review round 30, minor): `from x import __all__`, `for __all__ in
+  ...`, `with c as __all__`, `__all__, y = ...` were read as an empty
+  export list. Such a module now exports any name (4 `chains.cases`).
+- The unsafe reason of an import removal that a store elsewhere makes
+  unsafe (`lib.util.json = 1` in a view script) named no site: what,
+  file and location were null in JSON and the SARIF related location had
+  no physical location (review round 30, nit). It names the first store,
+  also from the cache and after the store moves.
+- `REF002` did not report `del lib.util.nothere` (a `KeyError` on 8.3.3)
+  or `lib.util.nothere += 1` (an `AttributeError`) (review round 30,
+  nit). Both are checked, also through aliases, chains and packages; a
+  delete or augmented assignment elsewhere no longer counts as creating
+  the name (7 `chains.cases`).
 
 - Deleting or augmenting a library module's name elsewhere did not use
   it (review round 29, blocker; since the first project index): `del
