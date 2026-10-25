@@ -2679,9 +2679,14 @@ fix is computed from:
   `iglint check`: the live workspace gets the editor's text with the mark
   put back (`fresh::as_saved`), and positions on the first line of a file
   that starts with one are given after it (`convert::source_range`,
-  `source_offset`), as editors show the text. Known limit (display only):
-  an editor that keeps U+FEFF in a document's text sees first-line
-  positions one character early.
+  `source_offset`), as editors that hide it show the text. An editor
+  that keeps U+FEFF in a document's text has it as the first character,
+  as iglint does, so its positions are not shifted (review round 35, Opus
+  minor: they were, which put diagnostics and the hover one character
+  early and a suppression comment inside the last word of the line).
+  Whether to shift is decided per file by `Server::mark_in_editor`: what
+  the open document's text starts with; for a file that is not open,
+  whether the client kept the mark in a document it opened.
 * **A refused overlay counted as used** (Codex minor).
   `analyze::apply_overlay` refused the target's text when some file that
   is the target did not take it (a manifest, which discovery reads from

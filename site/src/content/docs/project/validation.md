@@ -53,7 +53,7 @@ The Rust workspace has more than 1,100 test functions, plus snapshot tests of th
 
 ## Independent review
 
-Before the first release, the code went through 24 rounds of independent review, ending with an approval in round 24. Reviewers tried to break the rules and, above all, the safe fixes; each finding was fixed with a regression test named after the condition it covers. The [fix safety design notes](/internals/fix-safety/) record what the rounds found and why the safe-fix design ended up default-deny.
+Before the first release, the code went through repeated rounds of independent review until two independent reviewers approved it. Reviewers tried to break the rules and, above all, the safe fixes; each finding was fixed with a regression test named after the condition it covers. The [fix safety design notes](/internals/fix-safety/) record what the rounds found and why the safe-fix design ended up default-deny.
 
 ## Private data
 

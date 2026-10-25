@@ -3622,6 +3622,97 @@ fn a_file_with_a_byte_order_mark_shows_scr001_and_gets_no_fix() {
     }
 }
 
+/// Review round 35 (Opus minor): a file starting with a byte order mark,
+/// open in an editor that hides the mark (VS Code) and in one that keeps
+/// it in the document's text. Each gets diagnostic positions, the hover
+/// and "suppress on this line" in its own text; before, an editor that
+/// kept the mark got every position on the first line one character to
+/// the left, and the suppression split `json`.
+#[test]
+fn a_byte_order_mark_the_editor_keeps_or_hides() {
+    const UTIL: &str = "import json\ndef f():\n    return 1\n";
+    for keeps in [false, true] {
+        for capabilities in [client_capabilities(), versioned_client()] {
+            let dir = tempfile::tempdir().unwrap();
+            let root = root(&dir);
+            let paths = library(&root, &[("a", &format!("\u{feff}{UTIL}"))]);
+            write(&root, "iglint.toml", "select = [\"SCR001\", \"SCR102\"]\n");
+            let mut client =
+                Client::start_folders(&[&root], json!({"debounceMs": 0}), capabilities.clone());
+            let text = if keeps {
+                format!("\u{feff}{UTIL}")
+            } else {
+                UTIL.to_owned()
+            };
+            // Where `json` starts in the editor's text.
+            let json = if keeps { 8 } else { 7 };
+            let uri = client.open(&paths[0], &text);
+            let shown = client.diagnostics(&uri, Some(1));
+            assert_eq!(codes(&shown), ["SCR001", "SCR102"], "{shown:#?}");
+            let find = |code: &str| {
+                shown
+                    .diagnostics
+                    .iter()
+                    .find(|d| d.code == Some(lsp_types::NumberOrString::String(code.to_owned())))
+                    .unwrap()
+                    .clone()
+            };
+            let mark_end = if keeps { 1 } else { 0 };
+            assert_eq!(
+                find("SCR001").range,
+                Range::new(Position::new(0, 0), Position::new(0, mark_end))
+            );
+            let scr102 = find("SCR102");
+            assert_eq!(
+                scr102.range,
+                Range::new(Position::new(0, json), Position::new(0, json + 4))
+            );
+            // The hover finds the finding at the editor's position.
+            let hover = client
+                .request::<HoverRequest>(HoverParams {
+                    text_document_position_params: TextDocumentPositionParams {
+                        text_document: TextDocumentIdentifier { uri: uri.clone() },
+                        position: Position::new(0, json + 1),
+                    },
+                    work_done_progress_params: Default::default(),
+                })
+                .expect("a hover");
+            assert_eq!(hover.range, Some(scr102.range));
+            let HoverContents::Markup(markup) = hover.contents else {
+                panic!("{hover:?}");
+            };
+            assert!(markup.value.contains("SCR102"), "{}", markup.value);
+            // The suppression goes at the end of the editor's line.
+            let actions = code_actions(
+                &mut client,
+                &uri,
+                scr102.range,
+                Some(vec![CodeActionKind::QUICKFIX]),
+            );
+            let suppress = actions
+                .into_iter()
+                .find(|a| a.title == "SCR102: suppress on this line")
+                .unwrap_or_else(|| panic!("no suppression"));
+            let suppress = if suppress.edit.is_none() && suppress.data.is_some() {
+                client.request::<CodeActionResolveRequest>(suppress)
+            } else {
+                suppress
+            };
+            let (_, edits) = versioned_edits(suppress.edit.as_ref().unwrap(), &uri);
+            let fixed = apply(&text, &edits);
+            assert_eq!(
+                fixed,
+                text.replace("import json\n", "import json  # iglint: ignore[SCR102]\n"),
+                "keeps the mark: {keeps}"
+            );
+            client.replace_all(&uri, 2, &fixed);
+            let after = client.diagnostics(&uri, Some(2));
+            assert_eq!(codes(&after), ["SCR001"], "{after:#?}");
+            client.shutdown();
+        }
+    }
+}
+
 /// Review round 34 (Opus minor): another open document whose file starts
 /// with a byte order mark the editor hides has no unsaved changes, so it
 /// does not withhold fixes of other files (before, it did as long as it

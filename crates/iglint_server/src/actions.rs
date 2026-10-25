@@ -305,7 +305,7 @@ impl Server {
         };
         let (range, content) = convert::minimal_edit(original.text(), &fixed);
         let edit = TextEdit {
-            range: convert::source_range(&original, range),
+            range: convert::source_range(&original, range, self.mark_in_editor(original.path())),
             new_text: content,
         };
         Ok(self.edit_of(vec![(uri.clone(), version, vec![edit])]))
@@ -386,7 +386,7 @@ impl Server {
                 None => (uri_of(&path)?, None),
             };
             let edit = TextEdit {
-                range: convert::source_range(&source, e.edit.range),
+                range: convert::source_range(&source, e.edit.range, self.mark_in_editor(&path)),
                 new_text: e.edit.content.clone(),
             };
             match out.iter_mut().find(|(u, _, _)| *u == uri) {
@@ -409,7 +409,7 @@ impl Server {
             return None;
         }
         let index = LineIndex::new(text);
-        let offset = convert::source_offset(&index, text, position);
+        let offset = convert::source_offset(&index, text, position, self.mark_in_editor(&path));
         let mut sections: Vec<String> = Vec::new();
         let mut range: Option<Range> = None;
         let mut seen: Vec<RuleCode> = Vec::new();

@@ -25,6 +25,10 @@ and the changes listed here.
   metadata (BIND002, BIND004, BIND005, NAME001, SCR900, VIEW012, VIEW013
   and VIEW018 did not); a test checks the defaults that pages state
   themselves.
+- Documentation site: the validation page no longer counts the review
+  rounds (it said 24, ending with an approval in round 24); it says the
+  code was reviewed in repeated rounds until two independent reviewers
+  approved it.
 - Documentation: README and CHANGELOG say that nothing is released yet
   (PyPI wheel, GitHub release binaries, VS Code packages and the
   `v0.1.0` tag are planned for 0.1.0); the README documents `extend`,
@@ -153,6 +157,15 @@ and the changes listed here.
 
 ### Fixed
 
+- Language server and a byte order mark the editor keeps (review round
+  35, Opus minor): positions on the first line of a file that starts
+  with a mark were always given after it, so an editor that keeps U+FEFF
+  in the document's text saw diagnostics and the hover one character to
+  the left, and "suppress on this line" inserted its comment before the
+  last character of the line (`import jso  # iglint: ignore[SCR102]n`).
+  Positions are now shifted only when the editor's text of the file
+  lacks the mark (for a file that is not open, when the client left it
+  out of the documents it opened).
 - Language server and byte order marks or other encodings (review round
   34, Opus minor): VS Code hides a leading byte order mark and writes it
   back on save, so an open file with one counted as modified forever and

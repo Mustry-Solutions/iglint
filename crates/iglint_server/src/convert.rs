@@ -61,11 +61,13 @@ pub fn offset(index: &LineIndex, text: &str, position: Position) -> TextSize {
 
 /// `r` in the editor's lines: the Language Server Protocol ends a line at
 /// a lone `\r` too (where iglint's own output follows Jython's numbering).
-/// A leading byte order mark is not part of the editor's text (editors
-/// hide it), so positions on the first line come after it.
-pub fn source_range(file: &SourceFile, r: TextRange) -> Range {
+/// A leading byte order mark is left out of the editor's text by most
+/// editors (VS Code hides it and writes it back on save), so positions on
+/// the first line come after it; an editor that keeps it in the text
+/// (`mark_in_editor`) has it as its first character, like iglint.
+pub fn source_range(file: &SourceFile, r: TextRange, mark_in_editor: bool) -> Range {
     let mut range = range(file.protocol_line_index(), file.text(), r);
-    if file.text().starts_with('\u{feff}') {
+    if file.text().starts_with('\u{feff}') && !mark_in_editor {
         for p in [&mut range.start, &mut range.end] {
             if p.line == 0 {
                 p.character = p.character.saturating_sub(1);
@@ -76,9 +78,14 @@ pub fn source_range(file: &SourceFile, r: TextRange) -> Range {
 }
 
 /// The offset in a file's `text` of an editor position (see
-/// [`source_range`] for a leading byte order mark).
-pub fn source_offset(index: &LineIndex, text: &str, mut position: Position) -> TextSize {
-    if position.line == 0 && text.starts_with('\u{feff}') {
+/// [`source_range`] for a leading byte order mark and `mark_in_editor`).
+pub fn source_offset(
+    index: &LineIndex,
+    text: &str,
+    mut position: Position,
+    mark_in_editor: bool,
+) -> TextSize {
+    if position.line == 0 && text.starts_with('\u{feff}') && !mark_in_editor {
         position.character += 1;
     }
     offset(index, text, position)
@@ -106,7 +113,13 @@ pub fn tags(d: &Diagnostic) -> Option<Vec<DiagnosticTag>> {
     (!tags.is_empty()).then_some(tags)
 }
 
-pub fn diagnostic(d: &Diagnostic, options: &ServerOptions) -> lsp_types::Diagnostic {
+/// `d` for the editor; `mark_in_editor` tells whether the editor's text of
+/// a file keeps a leading byte order mark (see [`source_range`]).
+pub fn diagnostic(
+    d: &Diagnostic,
+    options: &ServerOptions,
+    mark_in_editor: impl Fn(&Path) -> bool,
+) -> lsp_types::Diagnostic {
     let related: Vec<DiagnosticRelatedInformation> = d
         .labels
         .iter()
@@ -114,7 +127,11 @@ pub fn diagnostic(d: &Diagnostic, options: &ServerOptions) -> lsp_types::Diagnos
             Some(DiagnosticRelatedInformation {
                 location: Location {
                     uri: uri_of(label.file.path())?,
-                    range: source_range(&label.file, label.range),
+                    range: source_range(
+                        &label.file,
+                        label.range,
+                        mark_in_editor(label.file.path()),
+                    ),
                 },
                 message: label.message.clone(),
             })
@@ -142,7 +159,7 @@ pub fn diagnostic(d: &Diagnostic, options: &ServerOptions) -> lsp_types::Diagnos
         )
         .collect();
     lsp_types::Diagnostic {
-        range: source_range(&d.file, d.range),
+        range: source_range(&d.file, d.range, mark_in_editor(d.file.path())),
         severity: Some(severity(d.severity)),
         code: Some(NumberOrString::String(d.rule.code().to_owned())),
         code_description: Url::parse(&options.rule_docs_url(d.rule.code(), d.rule.name()))
@@ -249,12 +266,12 @@ mod tests {
         );
     }
 
-    /// A leading byte order mark is hidden by editors: positions on the
+    /// A leading byte order mark that the editor hides: positions on the
     /// first line come after it, other lines are as they are.
     #[test]
     fn positions_after_a_byte_order_mark() {
         let file = SourceFile::new("m.py", "\u{feff}import json\nx = 1\n");
-        let r = |a: u32, b: u32| source_range(&file, TextRange::new(a.into(), b.into()));
+        let r = |a: u32, b: u32| source_range(&file, TextRange::new(a.into(), b.into()), false);
         assert_eq!(
             r(0, 3),
             Range::new(Position::new(0, 0), Position::new(0, 0))
@@ -270,17 +287,47 @@ mod tests {
         let text = file.text();
         let index = LineIndex::new(text);
         assert_eq!(
-            source_offset(&index, text, Position::new(0, 7)),
+            source_offset(&index, text, Position::new(0, 7), false),
             TextSize::new(10)
         );
         assert_eq!(
-            source_offset(&index, text, Position::new(1, 1)),
+            source_offset(&index, text, Position::new(1, 1), false),
             TextSize::new(16)
         );
         // Without a mark, as before.
         let plain = SourceFile::new("m.py", "import json\n");
-        let range = source_range(&plain, TextRange::new(7u32.into(), 11u32.into()));
+        let range = source_range(&plain, TextRange::new(7u32.into(), 11u32.into()), false);
         assert_eq!(range, Range::new(Position::new(0, 7), Position::new(0, 11)));
+    }
+
+    /// An editor that keeps the mark in its text has it as the first
+    /// character of the first line, as iglint does: no shift.
+    #[test]
+    fn positions_with_a_byte_order_mark_the_editor_keeps() {
+        let file = SourceFile::new("m.py", "\u{feff}import json\nx = 1\n");
+        let r = |a: u32, b: u32| source_range(&file, TextRange::new(a.into(), b.into()), true);
+        assert_eq!(
+            r(0, 3),
+            Range::new(Position::new(0, 0), Position::new(0, 1))
+        );
+        assert_eq!(
+            r(10, 14),
+            Range::new(Position::new(0, 8), Position::new(0, 12))
+        );
+        assert_eq!(
+            r(15, 16),
+            Range::new(Position::new(1, 0), Position::new(1, 1))
+        );
+        let text = file.text();
+        let index = LineIndex::new(text);
+        assert_eq!(
+            source_offset(&index, text, Position::new(0, 8), true),
+            TextSize::new(10)
+        );
+        assert_eq!(
+            source_offset(&index, text, Position::new(1, 1), true),
+            TextSize::new(16)
+        );
     }
 
     #[test]

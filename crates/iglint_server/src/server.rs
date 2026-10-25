@@ -91,6 +91,11 @@ pub(crate) struct Server {
     /// The directories outside every workspace folder that are watched
     /// (the id of the registration and the directories).
     watched: Option<(String, Vec<PathBuf>)>,
+    /// The client keeps a leading byte order mark in the text of a
+    /// document it opens (seen in one), where most editors leave it out:
+    /// what is assumed for a file that is not open
+    /// ([`Server::mark_in_editor`]).
+    keeps_mark: bool,
     next_generation: u64,
     next_id: i32,
     shutdown: bool,
@@ -152,6 +157,7 @@ impl Server {
                 .and_then(|w| w.relative_pattern_support)
                 .unwrap_or(false),
             watched: None,
+            keeps_mark: false,
             next_generation: 0,
             next_id: 0,
             shutdown: false,
@@ -348,6 +354,9 @@ impl Server {
             return;
         }
         let generation = self.generation();
+        if p.text_document.text.starts_with('\u{feff}') {
+            self.keeps_mark = true;
+        }
         self.documents.insert(
             uri,
             Document {
@@ -997,7 +1006,7 @@ impl Server {
         };
         let lsp: Vec<lsp_types::Diagnostic> = diagnostics
             .iter()
-            .map(|d| convert::diagnostic(d, &self.options))
+            .map(|d| convert::diagnostic(d, &self.options, |p| self.mark_in_editor(p)))
             .collect();
         self.notify::<PublishDiagnostics>(PublishDiagnosticsParams {
             uri,
@@ -1006,6 +1015,18 @@ impl Server {
         });
         self.results
             .insert(path.to_path_buf(), Published { diagnostics, lsp });
+    }
+
+    /// Whether the editor's text of `path` keeps a leading byte order mark
+    /// the file starts with (review round 35, Opus minor): what the text of
+    /// the open document starts with; for a file that is not open, whether
+    /// the client kept it in a document it opened.
+    pub(crate) fn mark_in_editor(&self, path: &Path) -> bool {
+        let path = iglint_linter::discovery::absolute(path);
+        match self.documents.values().find(|d| d.path == path) {
+            Some(doc) => doc.text.starts_with('\u{feff}'),
+            None => self.keeps_mark,
+        }
     }
 
     fn clear(&mut self, path: &Path) {
