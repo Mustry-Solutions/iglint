@@ -32,7 +32,7 @@ On an existing project, commit a [baseline](/guides/baseline/) first so that onl
 
 The examples below download the Linux x86_64 binary of a pinned release from [GitHub releases](https://github.com/Mustry-Solutions/iglint/releases) (it is statically linked and runs on any Linux image) and put it on the `PATH`. The archive `iglint-linux-x64.tar.gz` holds a directory of the same name with the `iglint` binary. Change the version in one place to upgrade. The release's `SHA256SUMS` file holds the checksum of every archive, which the GitHub Actions example checks; for a stronger check, compare against a hash you recorded yourself.
 
-Once iglint is on PyPI (planned, not published yet), `pip install iglint==0.1.0` will do the same in an image with Python.
+In an image with Python, `pip install iglint==0.1.0` does the same.
 
 ## GitHub Actions
 

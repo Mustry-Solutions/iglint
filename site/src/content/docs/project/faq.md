@@ -27,7 +27,7 @@ No. iglint finds a specific set of mistakes with certainty; it cannot see logic 
 
 ### Can I use it on Windows?
 
-Yes. The release binaries and VS Code extension cover Windows x86_64 (as will the planned PyPI wheel), and the test suite runs on Windows in CI. Paths in the baseline and in globs always use `/`, so the same files work on every platform.
+Yes. The release binaries and VS Code extension cover Windows x86_64 (as does the PyPI wheel), and the test suite runs on Windows in CI. Paths in the baseline and in globs always use `/`, so the same files work on every platform.
 
 ## Troubleshooting
 

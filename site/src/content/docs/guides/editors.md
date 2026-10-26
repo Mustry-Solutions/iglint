@@ -20,7 +20,7 @@ The findings shown while you type leave out pylint (`SCR900`): the server does n
 
 ## VS Code
 
-Install the extension from a VSIX file attached to every [GitHub release](https://github.com/Mustry-Solutions/iglint/releases); see [Installation](/installation/#vs-code-extension). The VSIX contains the `iglint` binary for every supported platform; on any other platform, the extension uses `iglint` from your `PATH`. The extension starts when the workspace contains a `project.json`, `view.json`, `iglint.toml` or `.iglint.toml`.
+Install [iglint](https://marketplace.visualstudio.com/items?itemName=mustry-solutions.iglint) from the Visual Studio Marketplace, or from the VSIX file attached to every [GitHub release](https://github.com/Mustry-Solutions/iglint/releases); see [Installation](/installation/#vs-code-extension). The VSIX contains the `iglint` binary for every supported platform; on any other platform, the extension uses `iglint` from your `PATH`. The extension starts when the workspace contains a `project.json`, `view.json`, `iglint.toml` or `.iglint.toml`.
 
 | Setting | Default | |
 |---|---|---|

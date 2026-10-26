@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install iglint as a prebuilt binary, with Cargo, or as a VS Code extension. A PyPI package is planned.
+description: Install iglint as a prebuilt binary, with Cargo, as a VS Code extension, or from PyPI.
 ---
 
 iglint is a single executable with no runtime dependencies. Pick whichever channel suits your team; they all install the same binary.
@@ -42,21 +42,19 @@ Without `--tag`, Cargo builds the latest commit of the `main` branch.
 
 ## VS Code extension
 
-The extension is attached to the GitHub releases as `iglint-vscode.vsix` (it is not on the Visual Studio Marketplace). It contains the `iglint` binary for every platform above and uses the one for your machine:
+Install [iglint](https://marketplace.visualstudio.com/items?itemName=mustry-solutions.iglint) from the Visual Studio Marketplace, or from the command line. It contains the `iglint` binary for every platform above and uses the one for your machine:
 
 ```sh
-code --install-extension iglint-vscode.vsix
+code --install-extension mustry-solutions.iglint
 ```
+
+The same extension is attached to every GitHub release as `iglint-vscode.vsix`, for machines without Marketplace access: `code --install-extension iglint-vscode.vsix`.
 
 See [Editors](/guides/editors/) for its settings.
 
-## Python package (pip, uv, pipx; planned)
+## Python package (pip, uv, pipx)
 
-:::note[Not on PyPI yet]
-The Python package is planned but not published yet: `pip install iglint` does not work today. Use a [prebuilt binary](#prebuilt-binaries) or [Cargo](#cargo) until it is. The commands below are the ones that will work once it is on PyPI.
-:::
-
-The `iglint` package on PyPI will be a wheel that contains only the binary (no Python code), so it fits into an existing Python tool chain or CI image:
+The [`iglint` package on PyPI](https://pypi.org/project/iglint/) is a wheel that contains only the binary (no Python code), so it fits into an existing Python tool chain or CI image:
 
 ```sh
 pip install iglint
@@ -65,7 +63,7 @@ uv tool install iglint
 pipx install iglint
 ```
 
-The package will require Python 3.8 or newer to install. Wheels will be built for Linux (x86_64 and aarch64, glibc and musl), macOS (x86_64 and Apple silicon) and Windows (x86_64). On other platforms pip will fall back to the source distribution, which needs a Rust toolchain to build.
+The package requires Python 3.8 or newer to install. Wheels are built for Linux (x86_64 and aarch64, glibc and musl), macOS (x86_64 and Apple silicon) and Windows (x86_64). On other platforms pip falls back to the source distribution, which needs a Rust toolchain to build.
 
 Pin a version with `pip install iglint==0.1.0`.
 

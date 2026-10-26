@@ -36,7 +36,7 @@ repos:
         require_serial: true
 ```
 
-Once the PyPI wheel is published (planned, not yet), pre-commit can install the prebuilt binary itself:
+With the PyPI wheel, pre-commit can install the prebuilt binary itself:
 
 ```yaml
 repos:

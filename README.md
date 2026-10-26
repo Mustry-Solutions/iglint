@@ -64,15 +64,16 @@ Benchmarks against ign-lint and how to reproduce them are in
   cargo install --locked --path crates/iglint
   ```
 
-* The VS Code extension is attached to the releases as well, as one VSIX
-  with the binary for every platform inside:
+* The VS Code extension is on the
+  [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=mustry-solutions.iglint),
+  with the binary for every platform inside. It is also attached to the
+  releases as `iglint-vscode.vsix`:
 
   ```sh
-  code --install-extension iglint-vscode.vsix
+  code --install-extension mustry-solutions.iglint
   ```
 
-* A PyPI wheel with the binary and no Python code is planned but not
-  published yet. Once it is:
+* The PyPI wheel contains the binary and no Python code:
 
   ```sh
   pip install iglint      # or: uv tool install iglint / pipx install iglint
@@ -354,8 +355,8 @@ iglint:
 ```
 
 JUnit XML (`--output-format junit`) works with most other CI systems. The
-examples download the static Linux x86_64 binary of v0.1.0; once the PyPI
-wheel is published, `pip install iglint==0.1.0` does the same.
+examples download the static Linux x86_64 binary of v0.1.0;
+`pip install iglint==0.1.0` does the same in an image with Python.
 
 ## pre-commit
 
@@ -384,8 +385,7 @@ repos:
 ```
 
 These hooks build iglint from source on first use, which needs a Rust
-toolchain. Once the PyPI wheel is published (planned, not yet), a local
-hook can use it instead:
+toolchain. A local hook can use the PyPI wheel instead:
 
 ```yaml
 repos:

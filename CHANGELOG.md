@@ -41,9 +41,10 @@ First public release.
   `iglint migrate` to convert the configuration.
 - Result cache and parallel checking.
 - Language server (`iglint server`) and a VS Code extension.
-- Distribution as prebuilt binaries (Linux x64 and ARM, macOS, Windows) and
-  a VS Code extension attached to the GitHub release, and pre-commit hooks. The release workflow also builds a
-  PyPI wheel (`pip install iglint`); it is not published to PyPI yet.
+- Distribution as prebuilt binaries (Linux x64 and ARM, macOS, Windows), a
+  PyPI wheel (`pip install iglint`), a VS Code extension on the Visual
+  Studio Marketplace (`mustry-solutions.iglint`, also attached to the GitHub
+  release), and pre-commit hooks.
 
 ### Changes during development
 
