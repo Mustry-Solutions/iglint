@@ -7,6 +7,15 @@ from 0.1.0 on.
 
 ## [Unreleased]
 
+## [VS Code extension 0.1.1] - 2026-10-27
+
+Extension-only patch release. The bundled iglint CLI remains at 0.1.0.
+
+### Fixed
+
+- VS Code: start the language server without the unsupported `--stdio`
+  argument, which caused it to exit before reporting any findings.
+
 ## [0.1.0] - 2026-10-25
 
 First public release.

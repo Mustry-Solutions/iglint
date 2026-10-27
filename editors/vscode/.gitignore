@@ -3,3 +3,4 @@ dist/
 out-test/
 bundled/
 *.vsix
+.vscode-test/
