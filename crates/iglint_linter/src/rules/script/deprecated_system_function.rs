@@ -1,12 +1,13 @@
 //! SCR204 deprecated-system-function.
 
 use iglint_python::ast::{Expr, ExprContext};
+use iglint_stubs::{Scope, Scopes};
 
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
 use crate::registry::{Category, RuleMeta};
 use crate::rule::{Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
-use crate::rules::script::system_api::{script_scope, system_path};
+use crate::rules::script::system_api::{scope_names, script_scope, system_path};
 use crate::rules::script::{report, semantic, walk_exprs};
 
 pub static META: RuleMeta = RuleMeta {
@@ -26,6 +27,14 @@ changes). `system.dataset.toPyDataSet` and a few others have no
 replacement in 8.3. Deprecation is taken from the scope the script runs in; a library
 module is only reported when the function is deprecated in every scope
 where it exists.
+
+A replacement is only suggested where it exists: a gateway script that
+calls `system.util.beep` is told that `system.vision.beep` exists only in
+the Vision Client and the Designer. A library module runs in the scope of
+whatever imports it, so its message says where a replacement exists when
+that is not everywhere (`system.security.getUsername` and its replacement
+`system.vision.getUsername` both exist only in the Vision Client and the
+Designer).
 
 ## Why is this bad?
 
@@ -150,6 +159,97 @@ const KNOWN_REPLACEMENTS: &[(&str, &str, &str)] = &[
     ("system.gui.swapWindow", "system.vision.swapWindow", ""),
 ];
 
+/// Where the `system.*` member `path` exists, `None` when the stubs do not
+/// list it (a method of a returned object, such as `httpClient.get`).
+fn scopes_of(path: &str) -> Option<Scopes> {
+    iglint_stubs::system_member(path).map(|m| m.scopes())
+}
+
+/// The end of the message for a deprecated function that exists in
+/// `deprecated` and is used in `scope` (`None` in a library module), with
+/// the replacements `names` and the `note` on how the call changes.
+///
+/// A replacement is only suggested where it exists: in a script with a
+/// known scope, the replacements missing there are left out, and when
+/// none is left the message says where they exist instead. A library
+/// module runs wherever it is imported from, so each replacement that
+/// does not exist everywhere says where it does (`system.vision.*` only
+/// in the Vision Client and the Designer).
+fn replacement_advice(
+    names: &[&str],
+    note: &str,
+    scope: Option<Scope>,
+    deprecated: Scopes,
+) -> String {
+    if names.is_empty() {
+        return String::new();
+    }
+    let quoted = |names: &[&str]| -> String {
+        names
+            .iter()
+            .map(|r| format!("`{r}`"))
+            .collect::<Vec<_>>()
+            .join(" or ")
+    };
+    let mut notes: Vec<String> = Vec::new();
+    if !note.is_empty() {
+        notes.push(note.to_owned());
+    }
+    let suggested: Vec<&str> = match scope {
+        Some(scope) => {
+            let here: Vec<&str> = names
+                .iter()
+                .copied()
+                .filter(|r| scopes_of(r).is_none_or(|s| s.contains(scope)))
+                .collect();
+            if here.is_empty() {
+                let (subject, verb) = if names.len() == 1 {
+                    ("its replacement", "exists")
+                } else {
+                    ("its replacements", "exist")
+                };
+                let elsewhere = names
+                    .iter()
+                    .filter_map(|r| scopes_of(r))
+                    .fold(Scopes::NONE, Scopes::union);
+                return format!(
+                    "; {subject} {} {verb} only in {}, not in {}",
+                    quoted(names),
+                    scope_names(elsewhere),
+                    scope_names(scope.into())
+                );
+            }
+            here
+        }
+        None => {
+            for r in names {
+                let Some(scopes) = scopes_of(r) else { continue };
+                if scopes == Scopes::ALL {
+                    continue;
+                }
+                let subject = if names.len() > 1 {
+                    format!("`{r}`")
+                } else if scopes == deprecated {
+                    "both".to_owned()
+                } else {
+                    "it".to_owned()
+                };
+                notes.push(format!(
+                    "{subject} {} only in {}",
+                    if subject == "both" { "exist" } else { "exists" },
+                    scope_names(scopes)
+                ));
+            }
+            names.to_vec()
+        }
+    };
+    let mut text = format!("; use {} instead", quoted(&suggested));
+    if !notes.is_empty() {
+        text.push_str(&format!(" ({})", notes.join("; ")));
+    }
+    text
+}
+
 impl ScriptRule for DeprecatedSystemFunction {
     fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
         let Some(model) = semantic(cx, unit) else {
@@ -181,18 +281,21 @@ impl ScriptRule for DeprecatedSystemFunction {
             }
             let mut message = format!("`{path}` is deprecated");
             let known = KNOWN_REPLACEMENTS.iter().find(|(from, _, _)| *from == path);
-            if let (None, Some((_, to, note))) = (replacement, known) {
-                message.push_str(&format!("; use `{to}` instead"));
-                if !note.is_empty() {
-                    message.push_str(&format!(" ({note})"));
-                }
-            } else if let Some(replacement) = replacement {
-                let names: Vec<String> = replacement
-                    .split(',')
-                    .map(|r| format!("`{}`", r.trim()))
-                    .collect();
-                message.push_str(&format!("; use {} instead", names.join(" or ")));
-            }
+            // The replacement Ignition names, else the documented one with
+            // how the call changes.
+            let (names, note): (Vec<&str>, &str) = match (replacement, known) {
+                (Some(replacement), _) => (
+                    replacement
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|r| !r.is_empty())
+                        .collect(),
+                    "",
+                ),
+                (None, Some((_, to, note))) => (vec![*to], *note),
+                (None, None) => (Vec::new(), ""),
+            };
+            message.push_str(&replacement_advice(&names, note, scope, function.scopes()));
             found.push((a.range, message));
         });
         for (range, message) in found {
@@ -270,6 +373,44 @@ mod tests {
         let d = gateway_timer("def handleTimerEvent():\n\tsystem.tag.writeAll(['a'], [1])\n")
             .lint(&["SCR204"]);
         assert_eq!(flagged(&d), ["system.tag.writeAll"]);
+    }
+
+    /// A replacement is only suggested where it exists (reviewer report:
+    /// `system.vision.getUsername` suggested for a library module that
+    /// runs on the gateway).
+    #[test]
+    fn replacements_that_exist_in_fewer_scopes() {
+        // A library module runs wherever it is imported from: say where
+        // the replacement exists.
+        let d = lint_module(
+            "SCR204",
+            "a = system.security.getUsername()\nsystem.util.beep()\nb = system.tag.readAll(['x'])\n",
+        );
+        assert_eq!(
+            messages(&d),
+            [
+                "`system.security.getUsername` is deprecated; use `system.vision.getUsername` instead (both exist only in the Vision Client and the Designer)",
+                "`system.util.beep` is deprecated; use `system.vision.beep` instead (it exists only in the Vision Client and the Designer)",
+                "`system.tag.readAll` is deprecated; use `system.tag.readBlocking` instead",
+            ]
+        );
+        // On the gateway the Vision replacement does not exist: it is not
+        // suggested.
+        let d = gateway_timer("def handleTimerEvent():\n\tsystem.util.beep()\n").lint(&["SCR204"]);
+        assert_eq!(
+            messages(&d),
+            [
+                "`system.util.beep` is deprecated; its replacement `system.vision.beep` exists only in the Vision Client and the Designer, not in the gateway"
+            ]
+        );
+        let d = webdev("def doGet(request, session):\n\tsystem.util.playSoundClip('a.wav')\n")
+            .lint(&["SCR204"]);
+        assert_eq!(
+            messages(&d),
+            [
+                "`system.util.playSoundClip` is deprecated; its replacement `system.vision.playSoundClip` exists only in the Vision Client and the Designer, not in the gateway"
+            ]
+        );
     }
 
     #[test]

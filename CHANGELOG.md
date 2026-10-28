@@ -24,6 +24,13 @@ from 0.1.0 on.
   under its canonical header and enabled or not as the sibling
   `config.json` says; without `config.json`, a header-only stub is not
   reported.
+- `SCR204` only suggests a replacement where it exists. In a gateway,
+  WebDev, tag or Perspective script, a Vision-only replacement (for
+  `system.util.beep` and `system.util.playSoundClip`) is no longer
+  suggested; the message says where it exists instead. In a library
+  module, the message says when the replacement exists only in some scopes
+  (`system.security.getUsername` and `system.vision.getUsername` both exist
+  only in the Vision Client and the Designer).
 
 ## [0.1.0] - 2026-10-25
 
