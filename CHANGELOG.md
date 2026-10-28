@@ -44,6 +44,13 @@ from 0.1.0 on.
   SQL Server keeps a `SET` option made by a prepared statement only until
   that call ends, so the replacement would change what the code does; the
   message says so instead.
+- Baseline paths no longer depend on the directory name of the checkout
+  when `--config` names a configuration file outside the Git work tree:
+  they are relative to the workspace root, as without a configuration
+  file, so one baseline matches in every checkout (a linked work tree, a
+  CI clone). Entries written relative to the configuration file's
+  directory by 0.1.0 still match, and rewriting the baseline stores them
+  relative to the workspace root.
 
 ## [0.1.0] - 2026-10-25
 

@@ -85,7 +85,13 @@ fn format_fingerprint(value: u64) -> String {
 /// them) are relative to.
 ///
 /// With a configuration file it is the configuration file's directory
-/// (the settings root). Without one, the settings root is the working
+/// (the settings root), unless that directory lies outside the Git work
+/// tree of the run's workspace root (`--config ../shared/iglint.toml`):
+/// paths relative to it would then name the checkout's own directory, so
+/// the same finding would be a different entry in every checkout (a
+/// linked work tree, a CI clone with another name). The origin is then
+/// the workspace root, as without a configuration file, when the run has
+/// exactly one. Without a configuration file, the settings root is the working
 /// directory, which would make the same finding a different entry from
 /// every directory iglint is run in; the origin is then the workspace
 /// root of the run ([`crate::discovery::workspace_roots`]), which does
@@ -106,7 +112,7 @@ impl BaselineOrigin {
     /// The origin of a run over `paths` with `settings`.
     pub fn new(settings: &ProjectSettings, paths: &[PathBuf]) -> BaselineOrigin {
         let settings_root = crate::discovery::absolute(&settings.root);
-        if settings.root_is_configured || settings.root.as_os_str().is_empty() {
+        if settings.root.as_os_str().is_empty() {
             return BaselineOrigin::at(settings_root);
         }
         let paths: Vec<PathBuf> = if paths.is_empty() {
@@ -115,11 +121,23 @@ impl BaselineOrigin {
             paths.to_vec()
         };
         let roots = crate::discovery::workspace_roots(settings, &paths);
+        // A configuration file outside the Git work tree of the root.
+        let outside = |root: &Path| {
+            crate::discovery::git_work_trees(root)
+                .last()
+                .is_some_and(|top| !settings_root.starts_with(top))
+        };
         match roots.roots.as_slice() {
-            [root] if roots.unknown.is_empty() && *root != settings_root => BaselineOrigin {
-                root: root.clone(),
-                legacy: Some(settings_root),
-            },
+            [root]
+                if roots.unknown.is_empty()
+                    && *root != settings_root
+                    && (!settings.root_is_configured || outside(root)) =>
+            {
+                BaselineOrigin {
+                    root: root.clone(),
+                    legacy: Some(settings_root),
+                }
+            }
             _ => BaselineOrigin::at(settings_root),
         }
     }
@@ -510,6 +528,38 @@ mod tests {
                 .suppressed,
             1
         );
+    }
+
+    /// A configuration file outside the checkout's Git work tree does not
+    /// decide the origin: paths stay relative to the checkout, so a
+    /// baseline matches in every checkout whatever its directory is
+    /// called. Baselines written relative to the configuration file's
+    /// directory still match through the legacy root. A configuration file
+    /// inside the work tree stays the origin.
+    #[test]
+    fn origin_with_a_configuration_file_outside_the_checkout() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = crate::discovery::absolute(dir.path());
+        let checkout = base.join("checkout-1");
+        std::fs::create_dir_all(checkout.join(".git")).unwrap();
+        std::fs::create_dir_all(checkout.join("projects/A")).unwrap();
+        std::fs::write(checkout.join("projects/A/project.json"), "{}").unwrap();
+        let settings = |root: &Path| ProjectSettings {
+            root: root.to_path_buf(),
+            root_is_configured: true,
+            ..ProjectSettings::default()
+        };
+        let paths = [checkout.join("projects")];
+        let origin = BaselineOrigin::new(&settings(&base), &paths);
+        assert_eq!(origin.root(), checkout);
+        assert_eq!(origin.legacy(), Some(base.as_path()));
+        let origin = BaselineOrigin::new(&settings(&checkout), &paths);
+        assert_eq!(origin, BaselineOrigin::at(checkout.clone()));
+        // Outside every Git work tree the configuration file's directory
+        // stays the origin.
+        std::fs::remove_dir_all(checkout.join(".git")).unwrap();
+        let origin = BaselineOrigin::new(&settings(&base), &paths);
+        assert_eq!(origin, BaselineOrigin::at(base));
     }
 
     #[test]

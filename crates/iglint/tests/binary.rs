@@ -3862,3 +3862,89 @@ fn configuration_outside_the_checkout_does_not_move_the_workspace() {
         }
     }
 }
+
+/// With a configuration file outside the checkout, a baseline written in
+/// one checkout matches in another one with a different directory name (a
+/// linked work tree, a CI clone): its paths are relative to the checkout,
+/// not to the configuration file's directory.
+#[test]
+fn baseline_with_a_configuration_outside_the_checkout_matches_in_every_checkout() {
+    let dir = resolved_tempdir();
+    let base = dir.path();
+    std::fs::write(base.join("iglint.toml"), "").unwrap();
+    let main = base.join("main");
+    let write = |rel: &str, text: &str| {
+        let path = main.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    let library = r#"{"scope": "A", "version": 1, "files": ["code.py"]}"#;
+    write(
+        "projects/A/project.json",
+        r#"{"title": "A", "enabled": true, "inheritable": false}"#,
+    );
+    write(
+        "projects/A/ignition/script-python/lib/resource.json",
+        library,
+    );
+    write(
+        "projects/A/ignition/script-python/lib/code.py",
+        "def helper():\n    return 1\n",
+    );
+    write(
+        "projects/A/ignition/script-python/app/resource.json",
+        library,
+    );
+    write(
+        "projects/A/ignition/script-python/app/code.py",
+        "def run():\n    return lib.missing()\n",
+    );
+    let linked = base.join("linked");
+    git(&main, &["init", "-q"]);
+    git(&main, &["add", "-A"]);
+    git(&main, &["commit", "-q", "-m", "main"]);
+    git(
+        &main,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "feature",
+            linked.to_str().unwrap(),
+        ],
+    );
+    let run = |checkout: &std::path::Path, command: &str| {
+        iglint(checkout)
+            .args([
+                command,
+                "--no-cache",
+                "--config",
+                "../iglint.toml",
+                "--baseline",
+                "../baseline.json",
+                "--output-format",
+                "concise",
+                "projects",
+            ])
+            .output()
+            .unwrap()
+    };
+    let written = run(&main, "baseline");
+    assert!(written.status.success(), "{written:?}");
+    let baseline = std::fs::read_to_string(base.join("baseline.json")).unwrap();
+    assert!(
+        baseline.contains("\"projects/A/ignition/script-python/app/code.py\""),
+        "{baseline}"
+    );
+    for checkout in [&main, &linked] {
+        let out = run(checkout, "check");
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(out.status.success(), "{}: {stdout}", checkout.display());
+        assert!(
+            !stdout.contains("REF002"),
+            "{}: {stdout}",
+            checkout.display()
+        );
+    }
+}

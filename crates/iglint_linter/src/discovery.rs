@@ -682,7 +682,7 @@ fn holds_ignition_layout(dir: &Path) -> bool {
 /// [`iglint_project::workspace::GitTop::LinkedWorktree`]) is a checkout of
 /// its own: the search stops there, wherever it lies (`.worktrees/x` inside
 /// the main checkout is not part of the main checkout's work tree).
-fn git_work_trees(path: &Path) -> Vec<PathBuf> {
+pub(crate) fn git_work_trees(path: &Path) -> Vec<PathBuf> {
     use iglint_project::workspace::{GitTop, git_top};
     let mut out = Vec::new();
     for dir in path.ancestors() {
