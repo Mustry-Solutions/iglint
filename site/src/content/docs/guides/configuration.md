@@ -15,7 +15,7 @@ iglint searches for a configuration file starting at the first linted path and g
 
 The first file found is used. If none is found, iglint looks for an ign-lint `rule_config.json` the same way and reads it with a deprecation warning (see [Migrating from ign-lint](/guides/migrating-from-ign-lint/)). Without any file, the defaults apply.
 
-On the command line, `--config FILE` uses that file instead of searching, and `--isolated` ignores every configuration file.
+On the command line, `--config FILE` uses that file instead of searching, and `--isolated` ignores every configuration file. A file given with `--config` that lies outside the Git work tree of the linted paths only selects settings; it does not change which projects form the workspace.
 
 `iglint check --show-settings PATH` prints the configuration file in use, the workspace root and every setting that applies to `PATH`, including the list of enabled rules with their severities. Use it whenever a setting does not seem to work.
 

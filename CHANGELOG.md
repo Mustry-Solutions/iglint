@@ -7,6 +7,17 @@ from 0.1.0 on.
 
 ## [Unreleased]
 
+### Fixed
+
+- A configuration file outside the checkout (`--config ../iglint.toml`) no
+  longer becomes the workspace root. Run from a linked Git work tree, the
+  walk from that directory skipped the work tree, so every file was linted
+  on its own: cross-file findings such as `REF001` and `REF002` were lost
+  and `REF009` was reported for every file. The configuration file's
+  directory now counts as a workspace root only inside the Git work tree of
+  the linted path, and only when the workspace walk from it reaches the
+  path.
+
 ## [0.1.0] - 2026-10-25
 
 First public release.

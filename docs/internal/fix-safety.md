@@ -1286,7 +1286,10 @@ whichever file is linted. The root of a path is the **outermost** of
 these candidates, each counted only when it contains the path and is not
 inside (or equal to) a project or collection:
 
-* the configuration file's directory;
+* the configuration file's directory, when it lies inside the outermost
+  Git work tree that contains the path (or the path is in none): a
+  configuration file shared from outside the checkout selects settings
+  only;
 * every Ignition layout root around the path: the directory that holds
   the layout around the enclosing project or collection
   (`<root>/projects/<project>`, `<root>/config/resources/<collection>`,

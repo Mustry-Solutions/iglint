@@ -396,13 +396,17 @@ pub struct WorkspaceRoots {
 /// when it contains the path, is not inside (or equal to) a project or
 /// gateway collection (the rest of the gateway lies outside it), and its
 /// workspace walk reaches the path's project or collection
-/// ([`iglint_project::workspace::walk_reaches`]: no hidden or otherwise
+/// ([`iglint_project::workspace::walk_reaches`], or reaches the path
+/// itself when it is in no project or collection: no hidden or otherwise
 /// skipped directory and no linked Git work tree on the way; a symbolic
 /// link to a directory on the way counts as reached, since the walk
 /// records it and the files behind it are treated as such):
 ///
 /// 1. the configuration file's directory, when a configuration file was
-///    found;
+///    found and lies inside the outermost Git work tree that contains the
+///    path (or the path is in no Git work tree): a configuration file
+///    outside the checkout (`--config` pointing at a shared file) selects
+///    settings only;
 /// 2. every Ignition layout root around the path: the directory that
 ///    holds the layout around the enclosing project or collection
 ///    (`<root>/projects/<project>`, `<root>/config/resources/<collection>`,
@@ -478,25 +482,33 @@ pub fn workspace_roots(settings: &ProjectSettings, paths: &[PathBuf]) -> Workspa
             .map(|d| same_directory_above(&path, d, canonical_cwd.as_deref()));
         let container = enclosing_container(&path);
         // A candidate must contain the path, lie outside its container and
-        // reach the container in the workspace walk: a root whose walk
-        // skips a directory on the way (a hidden directory, a linked Git
-        // work tree) would analyse a workspace without the path's own
-        // project.
+        // reach the container (or, outside every container, the path
+        // itself) in the workspace walk: a root whose walk skips a
+        // directory on the way (a hidden directory, a linked Git work
+        // tree) would analyse a workspace without the path's own
+        // projects.
+        let reached = container.as_deref().unwrap_or(&path);
         let usable = |dir: &Path| {
             path.starts_with(dir)
                 && container.as_ref().is_none_or(|c| !dir.starts_with(c))
                 && !is_container(dir)
-                && container
-                    .as_ref()
-                    .is_none_or(|c| iglint_project::workspace::walk_reaches(dir, c))
+                && iglint_project::workspace::walk_reaches(dir, reached)
         };
         // Every Git work tree around the path, nearest first: a submodule
         // or a nested repository is part of the work tree around it,
         // which may hold the rest of the gateway.
         let work_trees = git_work_trees(&path);
         let git = work_trees.last().cloned();
+        // The configuration file's directory counts only inside the
+        // outermost Git work tree around the path: a configuration file
+        // shared from outside the checkout selects settings, it does not
+        // widen the workspace to the directories next to the checkout.
         let mut candidates: Vec<PathBuf> = Vec::new();
-        candidates.extend(configured.clone().filter(|d| usable(d)));
+        candidates.extend(
+            configured
+                .clone()
+                .filter(|d| usable(d) && git.as_ref().is_none_or(|g| d.starts_with(g))),
+        );
         candidates.extend(
             container
                 .as_deref()

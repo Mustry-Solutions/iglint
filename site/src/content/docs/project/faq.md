@@ -76,7 +76,7 @@ The note under the finding says why. Most often, some code in the workspace is u
 
 ### Linting one file gives different cross-resource findings than linting the repository
 
-It should not: iglint analyses the same workspace in both cases, from the workspace root (the configuration file's directory, the directory that holds `projects/`, or the Git work tree). Check the root with `--show-settings`. A linked Git work tree (`git worktree add`) is its own workspace, separate from the main checkout.
+It should not: iglint analyses the same workspace in both cases, from the workspace root (the configuration file's directory, the directory that holds `projects/`, or the Git work tree). Check the root with `--show-settings`. A linked Git work tree (`git worktree add`) is its own workspace, separate from the main checkout. A configuration file outside the Git work tree (`--config ../shared/iglint.toml`) only selects settings: the workspace root is still found inside the work tree.
 
 ### Results look stale
 
