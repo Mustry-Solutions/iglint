@@ -138,7 +138,10 @@ Use instead:
   `["root"]`.
 * `allowed-abbreviations` (default `[]`): extra abbreviations; an abbreviation written in
   capitals as a whole word is accepted where the convention writes words
-  differently (`read_API_data` in snake_case, `API Key` in Title Case).
+  differently (`read_API_data` in snake_case, `API Key` in Title Case). In
+  camelCase one of these is also accepted as the whole name or the first
+  word (`ID`, `IMLocation` with `["ID", "IM"]`); the built-in list of
+  `auto-detect-abbreviations` is not, so `HTTPServer` is still reported.
 * `auto-detect-abbreviations` (default `true`): also use the built-in list (`API`, `HTTP`,
   `ID`, `URL`, ...).
 

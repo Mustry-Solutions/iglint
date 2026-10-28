@@ -51,6 +51,11 @@ from 0.1.0 on.
   CI clone). Entries written relative to the configuration file's
   directory by 0.1.0 still match, and rewriting the baseline stores them
   relative to the workspace root.
+- `NAME001` accepts an abbreviation from `allowed-abbreviations` as the
+  whole name or the first word of a camelCase name (`ID`, `PV`,
+  `IMLocation`). Before, it was only accepted after the first word
+  (`lineID`). The built-in list of `auto-detect-abbreviations` does not
+  lead camelCase names, so `HTTPServer` is still reported.
 
 ## [0.1.0] - 2026-10-25
 
