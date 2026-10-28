@@ -2,6 +2,7 @@
 
 use iglint_python::ast::{Expr, ExprContext};
 use iglint_stubs::{Scope, Scopes};
+use iglint_text::{Ranged, TextRange};
 
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
@@ -9,6 +10,7 @@ use crate::registry::{Category, RuleMeta};
 use crate::rule::{Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
 use crate::rules::script::system_api::{scope_names, script_scope, system_path};
 use crate::rules::script::{report, semantic, walk_exprs};
+use crate::rules::sec::constant_string;
 
 pub static META: RuleMeta = RuleMeta {
     code: "SCR204",
@@ -40,6 +42,14 @@ Some replacements Ignition names are not `system.*` functions:
 `system.net.httpGet` and the other `system.net.http*` functions are
 replaced by the client `system.net.httpClient()` returns, and the message
 names that method (`.get(...)`).
+
+`system.db.runUpdateQuery` and the other deprecated query functions are
+replaced by functions that run the query as a prepared statement. For a
+`SET` statement (`SET IDENTITY_INSERT Orders ON`) that changes what the
+code does: SQL Server keeps a `SET` option made by a prepared statement
+only until that call ends, so the next statement no longer sees it. When
+the query is a string literal (or a name assigned one) that starts with
+`SET`, the message suggests no replacement and says why.
 
 ## Why is this bad?
 
@@ -213,6 +223,23 @@ impl Replacement {
     }
 }
 
+/// Whether `query` is a `SET` statement (`SET IDENTITY_INSERT t ON`,
+/// `set nocount on`): its first word, after whitespace, is `SET`.
+fn is_set_statement(query: &str) -> bool {
+    let query = query.trim_start();
+    query
+        .get(..3)
+        .is_some_and(|word| word.eq_ignore_ascii_case("set"))
+        && query
+            .get(3..)
+            .and_then(|rest| rest.chars().next())
+            .is_some_and(char::is_whitespace)
+}
+
+/// What the message says instead of a replacement for a deprecated
+/// `system.db.*` query function called with a `SET` statement.
+const SET_STATEMENT_NOTE: &str = "its replacements run the query as a prepared statement, and SQL Server keeps a `SET` option set by a prepared statement only until that call ends, so a later statement does not see it; keep this call, or run the `SET`, the statements that need it and the `SET` that restores it in one call";
+
 /// The end of the message for a deprecated function that exists in
 /// `deprecated` and is used in `scope` (`None` in a library module), with
 /// the replacements `names` and the `note` on how the call changes.
@@ -304,6 +331,24 @@ impl ScriptRule for DeprecatedSystemFunction {
             return;
         };
         let scope = script_scope(unit);
+        // The called expressions of calls whose query is a `SET`
+        // statement.
+        let mut set_statements: Vec<TextRange> = Vec::new();
+        walk_exprs(&unit.parsed.module.body, &mut |e| {
+            let Expr::Call(call) = e else { return };
+            let query = call.args.first().or_else(|| {
+                call.keywords
+                    .iter()
+                    .find(|k| k.arg.as_str() == "query")
+                    .map(|k| &k.value)
+            });
+            if query
+                .and_then(|q| constant_string(model, q))
+                .is_some_and(|q| is_set_statement(&q))
+            {
+                set_statements.push(call.func.range());
+            }
+        });
         let mut found = Vec::new();
         walk_exprs(&unit.parsed.module.body, &mut |e| {
             let Expr::Attribute(a) = e else { return };
@@ -343,7 +388,15 @@ impl ScriptRule for DeprecatedSystemFunction {
                 (None, Some((_, to, note))) => (vec![*to], *note),
                 (None, None) => (Vec::new(), ""),
             };
-            message.push_str(&replacement_advice(&names, note, scope, function.scopes()));
+            if !names.is_empty()
+                && path.starts_with("system.db.")
+                && set_statements.contains(&a.range)
+            {
+                message.push_str("; ");
+                message.push_str(SET_STATEMENT_NOTE);
+            } else {
+                message.push_str(&replacement_advice(&names, note, scope, function.scopes()));
+            }
             found.push((a.range, message));
         });
         for (range, message) in found {
@@ -477,6 +530,38 @@ mod tests {
                 "`system.gui.isTouchscreenModeEnabled` is deprecated; use `system.vision.isTouchScreenMode` instead (both exist only in the Vision Client and the Designer)",
             ]
         );
+    }
+
+    /// A `SET` statement run through a prepared call ends with the call:
+    /// the replacement is not suggested for one.
+    #[test]
+    fn set_statements_keep_their_call() {
+        let code = "def handleTimerEvent():\n\tsystem.db.runUpdateQuery('  set IDENTITY_INSERT dbo.Orders ON', 'db', tx)\n\tq = 'SET\\tNOCOUNT ON'\n\tsystem.db.runUpdateQuery(query=q, database='db')\n\tsystem.db.runUpdateQuery('UPDATE t SET a = 1')\n\tsystem.db.runQuery('SETTINGS')\n\tsystem.db.runUpdateQuery(build())\n";
+        let d = gateway_timer(code).lint(&["SCR204"]);
+        let note = format!(
+            "`system.db.runUpdateQuery` is deprecated; {}",
+            super::SET_STATEMENT_NOTE
+        );
+        assert_eq!(
+            messages(&d),
+            [
+                note.as_str(),
+                note.as_str(),
+                "`system.db.runUpdateQuery` is deprecated; use `system.db.execUpdate` or `system.db.runPrepUpdate` instead",
+                "`system.db.runQuery` is deprecated; use `system.db.execQuery` or `system.db.runPrepQuery` instead",
+                "`system.db.runUpdateQuery` is deprecated; use `system.db.execUpdate` or `system.db.runPrepUpdate` instead",
+            ]
+        );
+        assert!(super::SET_STATEMENT_NOTE.contains("SQL Server"));
+        for (query, set) in [
+            ("SET XACT_ABORT ON", true),
+            ("\n  Set NoCount On", true),
+            ("SET", false),
+            ("SETTINGS", false),
+            ("UPDATE t SET a = 1", false),
+        ] {
+            assert_eq!(super::is_set_statement(query), set, "{query:?}");
+        }
     }
 
     /// Every replacement Ignition names is a `system.*` member or a

@@ -38,6 +38,12 @@ from 0.1.0 on.
   and for `system.gui.isTouchscreenModeEnabled` and
   `setTouchscreenModeEnabled` it uses the 8.3 names
   `system.vision.isTouchScreenMode` and `setTouchScreenMode`.
+- `SCR204` no longer suggests a prepared replacement (`system.db.execUpdate`,
+  `system.db.runPrepUpdate`, ...) for a deprecated `system.db` query
+  function whose query is a `SET` statement (`SET IDENTITY_INSERT ... ON`).
+  SQL Server keeps a `SET` option made by a prepared statement only until
+  that call ends, so the replacement would change what the code does; the
+  message says so instead.
 
 ## [0.1.0] - 2026-10-25
 
