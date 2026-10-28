@@ -56,6 +56,13 @@ from 0.1.0 on.
   `IMLocation`). Before, it was only accepted after the first word
   (`lineID`). The built-in list of `auto-detect-abbreviations` does not
   lead camelCase names, so `HTTPServer` is still reported.
+- `# iglint: ignore[...]` at the end of a statement that spans several
+  lines (brackets, a backslash, a triple-quoted string) also suppresses the
+  findings that start on the statement's earlier lines. A finding on a line
+  that opens a triple-quoted string (`SEC001` on
+  `query = """SELECT ... {}""".format(x)`) could not be suppressed
+  before, since a comment there would be inside the string. `SCR123`
+  judges such comments the same way.
 
 ## [0.1.0] - 2026-10-25
 
