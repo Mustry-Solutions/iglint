@@ -36,6 +36,11 @@ that is not everywhere (`system.security.getUsername` and its replacement
 `system.vision.getUsername` both exist only in the Vision Client and the
 Designer).
 
+Some replacements Ignition names are not `system.*` functions:
+`system.net.httpGet` and the other `system.net.http*` functions are
+replaced by the client `system.net.httpClient()` returns, and the message
+names that method (`.get(...)`).
+
 ## Why is this bad?
 
 Deprecated functions still work, but they are kept only for
@@ -159,10 +164,53 @@ const KNOWN_REPLACEMENTS: &[(&str, &str, &str)] = &[
     ("system.gui.swapWindow", "system.vision.swapWindow", ""),
 ];
 
-/// Where the `system.*` member `path` exists, `None` when the stubs do not
-/// list it (a method of a returned object, such as `httpClient.get`).
-fn scopes_of(path: &str) -> Option<Scopes> {
-    iglint_stubs::system_member(path).map(|m| m.scopes())
+/// A replacement as the message names it, and where it exists (`None`
+/// when the stubs cannot tell).
+struct Replacement {
+    /// Markdown for the message: `` `system.tag.readBlocking` ``.
+    text: String,
+    scopes: Option<Scopes>,
+}
+
+impl Replacement {
+    /// The replacement `name` as Ignition or the documentation spells it.
+    /// Ignition's deprecation notes name some replacements that are not
+    /// `system.*` members:
+    ///
+    /// * a method of an object a `system.*` function returns
+    ///   (`system.net.httpClient.get` for `system.net.httpGet`): the
+    ///   message names the function that makes the object and the method;
+    /// * a function with other capitalisation
+    ///   (`system.vision.isTouchscreenMode`, which 8.3 spells
+    ///   `isTouchScreenMode`): the message uses the member's own name.
+    fn resolve(name: &str) -> Replacement {
+        if let Some(member) = iglint_stubs::system_member(name) {
+            return Replacement {
+                text: format!("`{}`", member.path()),
+                scopes: Some(member.scopes()),
+            };
+        }
+        if let Some((parent, method)) = name.rsplit_once('.') {
+            if let Some(object) = iglint_stubs::system_object(parent) {
+                return Replacement {
+                    text: format!("`{parent}()` and its `.{method}(...)` method"),
+                    scopes: Some(object.scopes()),
+                };
+            }
+            if let Some(member) =
+                iglint_stubs::system_members(parent).find(|m| m.path().eq_ignore_ascii_case(name))
+            {
+                return Replacement {
+                    text: format!("`{}`", member.path()),
+                    scopes: Some(member.scopes()),
+                };
+            }
+        }
+        Replacement {
+            text: format!("`{name}`"),
+            scopes: None,
+        }
+    }
 }
 
 /// The end of the message for a deprecated function that exists in
@@ -184,10 +232,11 @@ fn replacement_advice(
     if names.is_empty() {
         return String::new();
     }
-    let quoted = |names: &[&str]| -> String {
-        names
+    let all: Vec<Replacement> = names.iter().map(|n| Replacement::resolve(n)).collect();
+    let joined = |replacements: &[&Replacement]| -> String {
+        replacements
             .iter()
-            .map(|r| format!("`{r}`"))
+            .map(|r| r.text.as_str())
             .collect::<Vec<_>>()
             .join(" or ")
     };
@@ -195,26 +244,25 @@ fn replacement_advice(
     if !note.is_empty() {
         notes.push(note.to_owned());
     }
-    let suggested: Vec<&str> = match scope {
+    let suggested: Vec<&Replacement> = match scope {
         Some(scope) => {
-            let here: Vec<&str> = names
+            let here: Vec<&Replacement> = all
                 .iter()
-                .copied()
-                .filter(|r| scopes_of(r).is_none_or(|s| s.contains(scope)))
+                .filter(|r| r.scopes.is_none_or(|s| s.contains(scope)))
                 .collect();
             if here.is_empty() {
-                let (subject, verb) = if names.len() == 1 {
+                let (subject, verb) = if all.len() == 1 {
                     ("its replacement", "exists")
                 } else {
                     ("its replacements", "exist")
                 };
-                let elsewhere = names
+                let elsewhere = all
                     .iter()
-                    .filter_map(|r| scopes_of(r))
+                    .filter_map(|r| r.scopes)
                     .fold(Scopes::NONE, Scopes::union);
                 return format!(
                     "; {subject} {} {verb} only in {}, not in {}",
-                    quoted(names),
+                    joined(&all.iter().collect::<Vec<_>>()),
                     scope_names(elsewhere),
                     scope_names(scope.into())
                 );
@@ -222,13 +270,13 @@ fn replacement_advice(
             here
         }
         None => {
-            for r in names {
-                let Some(scopes) = scopes_of(r) else { continue };
+            for r in &all {
+                let Some(scopes) = r.scopes else { continue };
                 if scopes == Scopes::ALL {
                     continue;
                 }
-                let subject = if names.len() > 1 {
-                    format!("`{r}`")
+                let subject = if all.len() > 1 {
+                    r.text.clone()
                 } else if scopes == deprecated {
                     "both".to_owned()
                 } else {
@@ -240,10 +288,10 @@ fn replacement_advice(
                     scope_names(scopes)
                 ));
             }
-            names.to_vec()
+            all.iter().collect()
         }
     };
-    let mut text = format!("; use {} instead", quoted(&suggested));
+    let mut text = format!("; use {} instead", joined(&suggested));
     if !notes.is_empty() {
         text.push_str(&format!(" ({})", notes.join("; ")));
     }
@@ -411,6 +459,46 @@ mod tests {
                 "`system.util.playSoundClip` is deprecated; its replacement `system.vision.playSoundClip` exists only in the Vision Client and the Designer, not in the gateway"
             ]
         );
+    }
+
+    /// Replacements that are a method of the object a function returns,
+    /// or that Ignition spells with other capitalisation.
+    #[test]
+    fn replacements_that_are_not_system_functions() {
+        let d = lint_module(
+            "SCR204",
+            "system.net.httpGet('https://x')\nsystem.net.httpPut('https://x', 'a')\nsystem.gui.isTouchscreenModeEnabled()\n",
+        );
+        assert_eq!(
+            messages(&d),
+            [
+                "`system.net.httpGet` is deprecated; use `system.net.httpClient()` and its `.get(...)` method instead",
+                "`system.net.httpPut` is deprecated; use `system.net.httpClient()` and its `.put(...)` method instead",
+                "`system.gui.isTouchscreenModeEnabled` is deprecated; use `system.vision.isTouchScreenMode` instead (both exist only in the Vision Client and the Designer)",
+            ]
+        );
+    }
+
+    /// Every replacement Ignition names is a `system.*` member or a
+    /// method of an object a `system.*` function returns.
+    #[test]
+    fn named_replacements_resolve() {
+        let mut checked = 0;
+        for package in iglint_stubs::system_packages() {
+            for member in iglint_stubs::system_members(package.path) {
+                let iglint_stubs::Member::Function(function) = member else {
+                    continue;
+                };
+                for v in function.variants {
+                    for name in v.replacement.iter().flat_map(|r| r.split(',')) {
+                        let r = super::Replacement::resolve(name.trim());
+                        assert!(r.scopes.is_some(), "{}: {}", function.path, r.text);
+                        checked += 1;
+                    }
+                }
+            }
+        }
+        assert!(checked > 50, "{checked}");
     }
 
     #[test]

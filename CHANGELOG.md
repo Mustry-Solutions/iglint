@@ -31,6 +31,13 @@ from 0.1.0 on.
   module, the message says when the replacement exists only in some scopes
   (`system.security.getUsername` and `system.vision.getUsername` both exist
   only in the Vision Client and the Designer).
+- `SCR204` names replacements that are not `system.*` functions correctly:
+  for `system.net.httpGet`, `httpPost`, `httpPut` and `httpDelete` it
+  suggests `system.net.httpClient()` and its `.get(...)` (or other) method
+  instead of a `system.net.httpClient.get` function that does not exist,
+  and for `system.gui.isTouchscreenModeEnabled` and
+  `setTouchscreenModeEnabled` it uses the 8.3 names
+  `system.vision.isTouchScreenMode` and `setTouchScreenMode`.
 
 ## [0.1.0] - 2026-10-25
 
