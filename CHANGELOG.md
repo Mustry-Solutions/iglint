@@ -17,6 +17,13 @@ from 0.1.0 on.
   directory now counts as a workspace root only inside the Git work tree of
   the linted path, and only when the workspace walk from it reaches the
   path.
+- `SCR001` no longer reports the header-only `do<Method>.py` stub of a
+  disabled WebDev method when the resource is linted outside its project
+  (a loose directory, or a project the workspace walk does not reach). A
+  WebDev handler linted on its own is now compiled as Ignition compiles it,
+  under its canonical header and enabled or not as the sibling
+  `config.json` says; without `config.json`, a header-only stub is not
+  reported.
 
 ## [0.1.0] - 2026-10-25
 

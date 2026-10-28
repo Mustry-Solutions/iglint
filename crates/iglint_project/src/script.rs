@@ -345,7 +345,7 @@ pub struct ScriptFile<'a> {
 impl<'a> ScriptFile<'a> {
     /// Models `text` the way `ExtensionFunctionDescriptor.extractUserScript`
     /// and `buildMethod` handle it.
-    pub(crate) fn new(
+    pub fn new(
         file: FileId,
         kind: EventScriptKind,
         text: &'a str,
