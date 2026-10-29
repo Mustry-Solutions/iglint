@@ -6,7 +6,6 @@ import {
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
-  TransportKind,
 } from "vscode-languageclient/node";
 
 import { Settings, needsRestart, readSettings, resolveServerPath, serverSettings } from "./config";
@@ -72,7 +71,8 @@ async function start(context: vscode.ExtensionContext): Promise<void> {
   const serverOptions: ServerOptions = {
     command,
     args: ["server", ...settings.args],
-    transport: TransportKind.stdio,
+    // Executables use stdio by default. An explicit transport adds a
+    // `--stdio` argument, which `iglint server` does not accept.
   };
   const clientOptions: LanguageClientOptions = {
     documentSelector: DOCUMENTS,
