@@ -41,7 +41,9 @@ Two Ignition-specific cases, verified on an 8.3 gateway:
 Empty Perspective scripts are reported by `VIEW008` instead. Empty
 disabled scripts are not reported: the Designer writes a header-only
 `do<Method>.py` stub for every disabled WebDev method, and Ignition does
-not compile disabled scripts.
+not compile disabled scripts. A WebDev handler linted outside its project
+is still read with its resource's `config.json`; without one, whether the
+method is enabled is unknown and a header-only stub is not reported.
 
 ## Why is this bad?
 
@@ -202,5 +204,51 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    /// A WebDev resource linted outside its workspace (a loose directory,
+    /// or a project the workspace walk does not reach) is still compiled
+    /// as Ignition compiles it: the handler under its canonical header,
+    /// enabled or not as its `config.json` says.
+    #[test]
+    fn webdev_handlers_outside_a_workspace() {
+        use crate::rules::test_support::Fixture;
+        let config = r#"{"resource-type": "python-resource", "doGet": {"enabled": true}, "doPost": {"enabled": true}, "doDelete": {"enabled": false}}"#;
+        let f = Fixture::new().resource(
+            "loose/api",
+            &[
+                ("config.json", config),
+                ("doGet.py", "\treturn {'json': 1}\n"),
+                ("doPost.py", "def doPost(request, session):\n"),
+                ("doDelete.py", "def doDelete(request, session):\n"),
+            ],
+        );
+        let d = f.lint(&["SCR001", "SCR002"]);
+        let files: Vec<String> = d
+            .iter()
+            .map(|d| {
+                d.file
+                    .path()
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        // The enabled stub does not compile; the disabled one is never
+        // compiled; the header-less handler is the function's body.
+        assert_eq!(files, ["doPost.py"], "{d:?}");
+        // Without `config.json` whether a method is enabled is unknown: a
+        // header-only stub is not reported, a real error still is.
+        let f = Fixture::new().resource(
+            "loose/api",
+            &[
+                ("doPut.py", "def doPut(request, session):\n"),
+                ("doPatch.py", "def doPatch(request, session):\n\tif x\n"),
+            ],
+        );
+        let d = f.lint(&["SCR001"]);
+        assert_eq!(d.len(), 1, "{d:?}");
+        assert!(d[0].file.path().ends_with("doPatch.py"), "{d:?}");
     }
 }

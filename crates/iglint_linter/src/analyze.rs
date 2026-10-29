@@ -30,12 +30,13 @@ use std::time::{Duration, Instant};
 
 use iglint_json::Value;
 use iglint_project::EmbeddedScript;
+use iglint_project::event_resource::{EventScriptResource, EventSettings};
 use iglint_project::library::LibraryModule;
 use iglint_project::model::{FileError as ModelFileError, LoadedFile, LoadedResource, ModelData};
-use iglint_project::script::library_script;
+use iglint_project::script::{ScriptFile, library_script};
 use iglint_project::{
-    Container, FileId, JsonDocument, ProjectId, ProjectIndex, ResourceId, ResourceModel,
-    ResourceSummary, Workspace, build_model, build_view, summarize,
+    Container, EventScriptKind, FileId, HttpMethod, JsonDocument, ProjectId, ProjectIndex,
+    ResourceId, ResourceModel, ResourceSummary, Workspace, build_model, build_view, summarize,
 };
 use iglint_text::TextEdit;
 use iglint_text::TextRange;
@@ -1614,7 +1615,9 @@ pub(crate) fn replace_text(f: &mut LoadedFile, text: Arc<str>) {
 }
 
 /// The model of a file outside any resource: views are modelled as views,
-/// Python files as modules, other JSON files only by their parse result.
+/// WebDev handlers ([`standalone_webdev_method`]) as the event script
+/// Ignition compiles, other Python files as modules, other JSON files only
+/// by their parse result.
 pub(crate) fn standalone_model<'a>(
     path: &Path,
     file: FileId,
@@ -1630,12 +1633,32 @@ pub(crate) fn standalone_model<'a>(
         });
     }
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-    let data = match doc.and_then(JsonDocument::root) {
-        Some(root) if name == "view.json" => ModelData::View {
+    let webdev = doc
+        .is_none()
+        .then(|| standalone_webdev_method(path, name))
+        .flatten();
+    let data = match (doc.and_then(JsonDocument::root), webdev) {
+        (Some(root), _) if name == "view.json" => ModelData::View {
             file,
             view: build_view(root),
         },
-        Some(_) | None if doc.is_some() => ModelData::None,
+        (Some(_) | None, _) if doc.is_some() => ModelData::None,
+        (_, Some((method, enabled))) => {
+            let kind = EventScriptKind::WebDev(method);
+            ModelData::EventScript(EventScriptResource {
+                kind,
+                attributes: None,
+                enabled: Some(enabled),
+                script: Some(ScriptFile::new(
+                    file,
+                    kind,
+                    text,
+                    method.function_name().to_owned(),
+                    enabled,
+                )),
+                settings: EventSettings::None,
+            })
+        }
         _ if path.extension().is_some_and(|e| e == "py") => {
             let module_path = path
                 .file_stem()
@@ -1652,6 +1675,39 @@ pub(crate) fn standalone_model<'a>(
         _ => ModelData::None,
     };
     (data, errors)
+}
+
+/// The HTTP method of `path`, a `do<Method>.py` file linted outside its
+/// workspace, when it is a WebDev handler: its directory holds the
+/// resource's `config.json` or `resource.json`, or it lies below
+/// `com.inductiveautomation.webdev/resources/`. Returns whether the method
+/// is enabled as the workspace model reads it from `config.json` (absent
+/// means enabled). Without a readable `config.json` it is unknown, and
+/// `false` is returned: a header-only stub, which the Designer writes for
+/// every disabled method, then is not a syntax error.
+fn standalone_webdev_method(path: &Path, name: &str) -> Option<(HttpMethod, bool)> {
+    let method = HttpMethod::from_file_name(name)?;
+    let dir = path.parent()?;
+    let below_webdev = dir.ancestors().any(|a| {
+        a.file_name().is_some_and(|n| n == "resources")
+            && a.parent()
+                .and_then(Path::file_name)
+                .is_some_and(|n| n == iglint_project::kinds::MODULE_WEBDEV)
+    });
+    let config = std::fs::read_to_string(dir.join("config.json"))
+        .ok()
+        .map(|text| JsonDocument::parse(Arc::from(text)));
+    let root = config.as_ref().and_then(JsonDocument::root);
+    if root.is_none() && !below_webdev && !dir.join("resource.json").is_file() {
+        return None;
+    }
+    let enabled = root.is_some_and(|root| {
+        root.get(method.function_name())
+            .and_then(|c| c.get("enabled"))
+            .and_then(Value::as_bool)
+            != Some(false)
+    });
+    Some((method, enabled))
 }
 
 /// Re-analyses the resource that owns `file` with new text for `file`,

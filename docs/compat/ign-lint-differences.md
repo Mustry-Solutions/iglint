@@ -51,6 +51,10 @@ finding).
   or `urlParams` fail camelCase while names containing `ID`, `AI`, `IP`, ...
   pass SCREAMING_SNAKE_CASE and lower case. iglint accepts the first group
   and reports the second (78 extra, 8 missing).
+* **Leading abbreviations in camelCase.** iglint accepts an abbreviation
+  from `allowed-abbreviations` (not the built-in list) as the whole name or
+  the first word of a camelCase name (`ID`, `IMLocation`), which ign-lint
+  reports.
 * **Suggestions** split words consistently, keep digits and keep
   abbreviation runs instead of splitting capitals per letter and dropping
   digits (bug 8). The

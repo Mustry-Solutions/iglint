@@ -6,8 +6,12 @@
 //! # iglint: ignore-file[SCR102]
 //! ```
 //!
-//! `ignore` applies to findings that start on the comment's line,
-//! `ignore-file` to every finding of the script. Selectors are rule codes,
+//! `ignore` applies to findings that start on the comment's line, or on
+//! an earlier line of the same logical line: a statement continued inside
+//! brackets, after a backslash or inside a triple-quoted string can carry
+//! its comment on the line where it ends (a finding that starts on a line
+//! opening a triple-quoted string has no room for a comment there).
+//! `ignore-file` applies to every finding of the script. Selectors are rule codes,
 //! code prefixes (`SCR1`) or rule names; an empty or missing list means
 //! every rule. Comments are found with a small Python lexer, so `#` inside
 //! string literals is never a comment.
@@ -26,8 +30,8 @@ use crate::diagnostic::Diagnostic;
 pub struct Suppression {
     /// Range of the comment in the script's `source`.
     pub comment: TextRange,
-    /// File range of the line the comment is on (whole script for
-    /// `ignore-file`).
+    /// File range from the start of the logical line the comment ends to
+    /// the end of the comment's line (whole script for `ignore-file`).
     pub scope: Option<TextRange>,
     /// Selectors; empty means all rules.
     pub selectors: Vec<String>,
@@ -49,12 +53,21 @@ impl Suppressions {
     pub fn of(script: &EmbeddedScript<'_>) -> Suppressions {
         let source: &str = &script.source;
         let mut items = Vec::new();
+        let mut continued: Option<Vec<usize>> = None;
         for comment in comments(source) {
             let text = comment.slice(source);
             let Some(parsed) = parse_comment(text) else {
                 continue;
             };
-            let line = line_range(source, comment.start());
+            let continued = continued.get_or_insert_with(|| continued_lines(source));
+            let mut line = line_range(source, comment.start());
+            // Back to the first physical line of the logical line.
+            while line.start() > TextSize::ZERO
+                && continued.binary_search(&line.start().to_usize()).is_ok()
+            {
+                let previous = line_range(source, line.start() - TextSize::new(1));
+                line = TextRange::new(previous.start(), line.end());
+            }
             items.push(Suppression {
                 comment,
                 scope: if parsed.1 {
@@ -143,6 +156,86 @@ fn line_range(text: &str, offset: TextSize) -> TextRange {
     TextRange::from(start..end)
 }
 
+/// Offsets (ascending) of the line starts that continue the logical line
+/// before them: inside brackets, after a backslash, or inside a string
+/// (a triple-quoted one, or a quoted one continued with a backslash).
+fn continued_lines(source: &str) -> Vec<usize> {
+    let b = source.as_bytes();
+    let mut out = Vec::new();
+    let mut depth = 0usize;
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            b'#' => {
+                while i < b.len() && b[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            b'\\' => {
+                // A backslash at the end of a line (before `\n` or `\r\n`).
+                let next = if b.get(i + 1) == Some(&b'\r') {
+                    i + 2
+                } else {
+                    i + 1
+                };
+                if b.get(next) == Some(&b'\n') {
+                    out.push(next + 1);
+                    i = next + 1;
+                } else {
+                    i += 1;
+                }
+            }
+            b'(' | b'[' | b'{' => {
+                depth += 1;
+                i += 1;
+            }
+            b')' | b']' | b'}' => {
+                depth = depth.saturating_sub(1);
+                i += 1;
+            }
+            b'\n' => {
+                if depth > 0 {
+                    out.push(i + 1);
+                }
+                i += 1;
+            }
+            q @ (b'\'' | b'"') => {
+                let triple = b.get(i + 1) == Some(&q) && b.get(i + 2) == Some(&q);
+                i += if triple { 3 } else { 1 };
+                while i < b.len() {
+                    match b[i] {
+                        b'\\' => {
+                            if b.get(i + 1) == Some(&b'\n') {
+                                out.push(i + 2);
+                            }
+                            i += 2;
+                        }
+                        c if c == q => {
+                            if !triple {
+                                i += 1;
+                                break;
+                            }
+                            if b.get(i + 1) == Some(&q) && b.get(i + 2) == Some(&q) {
+                                i += 3;
+                                break;
+                            }
+                            i += 1;
+                        }
+                        b'\n' if triple => {
+                            out.push(i + 1);
+                            i += 1;
+                        }
+                        b'\n' => break,
+                        _ => i += 1,
+                    }
+                }
+            }
+            _ => i += 1,
+        }
+    }
+    out
+}
+
 /// Ranges of `#` comments in Python source, skipping string literals
 /// (single, double and triple quoted, any prefix).
 pub fn comments(source: &str) -> Vec<TextRange> {
@@ -204,6 +297,17 @@ mod tests {
         let src = "a = '#no' # yes\nb = \"\"\"\n# no\n\"\"\"  # also\nc = 'x\\'#' #last";
         let found: Vec<&str> = comments(src).iter().map(|r| r.slice(src)).collect();
         assert_eq!(found, vec!["# yes", "# also", "#last"]);
+    }
+
+    #[test]
+    fn continued_lines_follow_brackets_backslashes_and_strings() {
+        let src = "a = f(1,\n  2)\nb = 1 + \\\n  2\nc = '''x\ny'''\nd = 'x\\\ny'\n# (\ne = 1\n";
+        let starts: Vec<usize> = continued_lines(src);
+        let lines: Vec<&str> = starts
+            .iter()
+            .map(|&s| src.get(s..).unwrap().lines().next().unwrap())
+            .collect();
+        assert_eq!(lines, ["  2)", "  2", "y'''", "y'"]);
     }
 
     #[test]

@@ -16,6 +16,14 @@ x = 1  # iglint: ignore[unused-variable, SCR1]
 ```
 
 - `# iglint: ignore[...]` suppresses the findings that **start on the comment's line**.
+- A statement that spans several lines (inside brackets, after a backslash, or with a triple-quoted string) takes the comment on **the line where it ends**, which also suppresses the findings that start on its earlier lines. A finding on a line that opens a triple-quoted string has no room for a comment there:
+
+  ```python
+  query = """SELECT * FROM orders
+      WHERE id = {}""".format(order_id)  # iglint: ignore[SEC001]
+  ```
+
+  A comment on an earlier line of the statement covers only the lines up to its own.
 - `# iglint: ignore-file[...]` suppresses findings in the **whole script**, wherever the comment is. For a script embedded in a view, "the whole script" is that one script (one event action, transform or handler), not the whole view.
 - Inside the brackets go rule codes, code prefixes (`SCR1`) or rule names, separated by commas. Without a list (`# iglint: ignore`), the comment suppresses every rule. Prefer a list: it documents what you meant and does not hide new problems on the same line.
 

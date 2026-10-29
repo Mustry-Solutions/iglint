@@ -24,6 +24,8 @@ pub static META: RuleMeta = RuleMeta {
 
 Reports `# iglint: ignore[...]` and `# iglint: ignore-file[...]` comments,
 or single codes in them, that did not suppress any finding in this run.
+A comment at the end of a statement that spans several lines counts the
+findings of the whole statement up to its line.
 Scripts that do not parse are skipped: the rules that need the syntax
 tree did not run on them.
 
@@ -324,6 +326,36 @@ mod tests {
         assert!(
             fixed.contains("y = 2  # iglint: ignore[SCR103]\n"),
             "{fixed}"
+        );
+    }
+
+    /// A finding that starts on a line opening a triple-quoted string (or
+    /// any multi-line statement) is suppressed by a comment on the line
+    /// where the statement ends; a comment there that suppresses nothing
+    /// is still reported.
+    #[test]
+    fn suppressions_at_the_end_of_a_multi_line_statement() {
+        let code = "def f(x):\n    query = \"\"\"SELECT *\n        FROM t WHERE a = {}\"\"\".format(x)  # iglint: ignore[SEC001]\n    system.db.runPrepQuery(query, [])\n    total = (1 +\n        2)  # iglint: ignore[SCR101]\n    return undefined_name(\n        1)  # iglint: ignore[SCR101]\n";
+        let f = library("m", code);
+        let d = f.lint(&["SEC001", "SCR101", "SCR123"]);
+        assert_eq!(messages(&d), ["Unused suppression of `SCR101`"], "{d:?}");
+        assert_eq!(lines(&d)[0].0, 6);
+        // Without the comment the finding is there, on the first line.
+        let f = library("m", &code.replace("  # iglint: ignore[SEC001]", ""));
+        let d = f.lint(&["SEC001"]);
+        assert_eq!(lines(&d).iter().map(|l| l.0).collect::<Vec<_>>(), [2]);
+        // A comment on a line before the end covers only up to its line.
+        let f = library(
+            "m",
+            "def f():\n    return max(1,  # iglint: ignore[SCR101]\n        undefined_name)\n",
+        );
+        let d = f.lint(&["SCR101", "SCR123"]);
+        assert_eq!(
+            messages(&d),
+            [
+                "Unused suppression of `SCR101`",
+                "Undefined name `undefined_name`",
+            ]
         );
     }
 

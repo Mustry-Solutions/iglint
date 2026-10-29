@@ -4,7 +4,7 @@
 use iglint_project::RunScope;
 use iglint_python::ast::{Expr, ExprCall};
 use iglint_python_semantic::SemanticModel;
-use iglint_stubs::{Function, OverloadKind, Scope};
+use iglint_stubs::{Function, OverloadKind, Scope, Scopes};
 
 use crate::rule::ScriptUnit;
 
@@ -22,6 +22,23 @@ pub fn script_scope(unit: &ScriptUnit<'_, '_>) -> Option<Scope> {
         | RunScope::Tag => Some(Scope::Gateway),
         RunScope::VisionClient => Some(Scope::Client),
         RunScope::Library => None,
+    }
+}
+
+/// `scopes` in words: `the gateway`, `the Vision Client and the Designer`.
+pub fn scope_names(scopes: Scopes) -> String {
+    let names: Vec<&str> = scopes
+        .iter()
+        .map(|s| match s {
+            Scope::Gateway => "the gateway",
+            Scope::Client => "the Vision Client",
+            Scope::Designer => "the Designer",
+        })
+        .collect();
+    match names.as_slice() {
+        [] => String::new(),
+        [one] => (*one).to_owned(),
+        [init @ .., last] => format!("{} and {last}", init.join(", ")),
     }
 }
 
