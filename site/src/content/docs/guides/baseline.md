@@ -13,7 +13,7 @@ iglint baseline             # writes .iglint-baseline.json
 
 `iglint baseline` accepts the same paths and options as `iglint check` (it is the same as `iglint check --update-baseline`), so the baseline records exactly the findings that run would report. Write it with the rule selection you will use in CI.
 
-Commit the file. Paths in it are relative and always use `/`, so the same file works on Linux, macOS and Windows.
+Commit the file. Paths in it are relative and always use `/`, so the same file works on Linux, macOS and Windows. They are relative to the directory of the configuration file, or to the workspace root when there is no configuration file or when `--config` names a file outside the Git checkout, so a shared configuration file does not tie the baseline to the checkout's directory name. Run `iglint check --show-settings` to see the directory (`Baseline paths relative to:`). Entries written relative to the configuration file's directory by earlier versions still match, and the next `iglint baseline` rewrites them.
 
 ## Using it
 

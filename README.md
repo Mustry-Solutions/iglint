@@ -284,8 +284,10 @@ x = 1  # iglint: ignore[unused-variable, SCR1]
 # iglint: ignore-file[SCR102]
 ```
 
-`ignore` applies to findings that start on the comment's line, `ignore-file`
-to the whole script. Unused suppressions are reported (`SCR123`).
+`ignore` applies to findings that start on the comment's line; at the end
+of a statement that spans several lines, to the whole statement.
+`ignore-file` applies to the whole script. Unused suppressions are reported
+(`SCR123`).
 
 `view.json` and other JSON resources have no comments: use `exclude`, a
 per-rule `exclude`, `[[overrides]]` or the baseline.

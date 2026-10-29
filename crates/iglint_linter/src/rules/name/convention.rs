@@ -145,9 +145,37 @@ pub fn normalize_abbreviations(
         Convention::Snake | Convention::Kebab => rewrite(&['_', '-'], &|w| w.to_lowercase()),
         Convention::Lower => rewrite(&[], &|w| w.to_lowercase()),
         Convention::Title => rewrite(&[], &|w| capitalize(w)),
-        // Upper-case abbreviations already match these patterns.
+        // Upper-case abbreviations already match these patterns, except
+        // as camelCase's first word ([`leading_abbreviation_lowered`]).
         Convention::Pascal | Convention::Camel | Convention::Screaming => None,
     }
+}
+
+/// camelCase writes its first word in lower case, so an abbreviation can
+/// only stay in capitals after it (`lineID`). An allowed abbreviation that
+/// is the whole name (`ID`) or its first word (`IMLocation`: the rest
+/// starts with a capital followed by a lower-case letter or a digit) is
+/// written in lower case here (`id`, `imLocation`). `IDLE` is not `ID`
+/// followed by a word, and stays as it is.
+pub fn leading_abbreviation_lowered(name: &str, abbreviations: &[String]) -> Option<String> {
+    let mut candidates: Vec<String> = abbreviations
+        .iter()
+        .map(|a| a.to_uppercase())
+        .filter(|a| a.chars().any(char::is_uppercase))
+        .collect();
+    candidates.sort_by_key(|a| std::cmp::Reverse(a.len()));
+    candidates.into_iter().find_map(|abbreviation| {
+        let rest = name.strip_prefix(abbreviation.as_str())?;
+        let mut chars = rest.chars();
+        let starts_word = match (chars.next(), chars.next()) {
+            (None, _) => true,
+            (Some(first), Some(second)) => {
+                first.is_uppercase() && (second.is_lowercase() || second.is_ascii_digit())
+            }
+            (Some(_), None) => false,
+        };
+        starts_word.then(|| format!("{}{rest}", abbreviation.to_lowercase()))
+    })
 }
 
 /// First character upper case, the rest lower case (Python `capitalize`).

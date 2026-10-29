@@ -1,13 +1,16 @@
 //! SCR204 deprecated-system-function.
 
 use iglint_python::ast::{Expr, ExprContext};
+use iglint_stubs::{Scope, Scopes};
+use iglint_text::{Ranged, TextRange};
 
 use crate::checker::Checker;
 use crate::diagnostic::Severity;
 use crate::registry::{Category, RuleMeta};
 use crate::rule::{Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
-use crate::rules::script::system_api::{script_scope, system_path};
+use crate::rules::script::system_api::{scope_names, script_scope, system_path};
 use crate::rules::script::{report, semantic, walk_exprs};
+use crate::rules::sec::constant_string;
 
 pub static META: RuleMeta = RuleMeta {
     code: "SCR204",
@@ -26,6 +29,27 @@ changes). `system.dataset.toPyDataSet` and a few others have no
 replacement in 8.3. Deprecation is taken from the scope the script runs in; a library
 module is only reported when the function is deprecated in every scope
 where it exists.
+
+A replacement is only suggested where it exists: a gateway script that
+calls `system.util.beep` is told that `system.vision.beep` exists only in
+the Vision Client and the Designer. A library module runs in the scope of
+whatever imports it, so its message says where a replacement exists when
+that is not everywhere (`system.security.getUsername` and its replacement
+`system.vision.getUsername` both exist only in the Vision Client and the
+Designer).
+
+Some replacements Ignition names are not `system.*` functions:
+`system.net.httpGet` and the other `system.net.http*` functions are
+replaced by the client `system.net.httpClient()` returns, and the message
+names that method (`.get(...)`).
+
+`system.db.runUpdateQuery` and the other deprecated query functions are
+replaced by functions that run the query as a prepared statement. For a
+`SET` statement (`SET IDENTITY_INSERT Orders ON`) that changes what the
+code does: SQL Server keeps a `SET` option made by a prepared statement
+only until that call ends, so the next statement no longer sees it. When
+the query is a string literal (or a name assigned one) that starts with
+`SET`, the message suggests no replacement and says why.
 
 ## Why is this bad?
 
@@ -150,12 +174,181 @@ const KNOWN_REPLACEMENTS: &[(&str, &str, &str)] = &[
     ("system.gui.swapWindow", "system.vision.swapWindow", ""),
 ];
 
+/// A replacement as the message names it, and where it exists (`None`
+/// when the stubs cannot tell).
+struct Replacement {
+    /// Markdown for the message: `` `system.tag.readBlocking` ``.
+    text: String,
+    scopes: Option<Scopes>,
+}
+
+impl Replacement {
+    /// The replacement `name` as Ignition or the documentation spells it.
+    /// Ignition's deprecation notes name some replacements that are not
+    /// `system.*` members:
+    ///
+    /// * a method of an object a `system.*` function returns
+    ///   (`system.net.httpClient.get` for `system.net.httpGet`): the
+    ///   message names the function that makes the object and the method;
+    /// * a function with other capitalisation
+    ///   (`system.vision.isTouchscreenMode`, which 8.3 spells
+    ///   `isTouchScreenMode`): the message uses the member's own name.
+    fn resolve(name: &str) -> Replacement {
+        if let Some(member) = iglint_stubs::system_member(name) {
+            return Replacement {
+                text: format!("`{}`", member.path()),
+                scopes: Some(member.scopes()),
+            };
+        }
+        if let Some((parent, method)) = name.rsplit_once('.') {
+            if let Some(object) = iglint_stubs::system_object(parent) {
+                return Replacement {
+                    text: format!("`{parent}()` and its `.{method}(...)` method"),
+                    scopes: Some(object.scopes()),
+                };
+            }
+            if let Some(member) =
+                iglint_stubs::system_members(parent).find(|m| m.path().eq_ignore_ascii_case(name))
+            {
+                return Replacement {
+                    text: format!("`{}`", member.path()),
+                    scopes: Some(member.scopes()),
+                };
+            }
+        }
+        Replacement {
+            text: format!("`{name}`"),
+            scopes: None,
+        }
+    }
+}
+
+/// Whether `query` is a `SET` statement (`SET IDENTITY_INSERT t ON`,
+/// `set nocount on`): its first word, after whitespace, is `SET`.
+fn is_set_statement(query: &str) -> bool {
+    let query = query.trim_start();
+    query
+        .get(..3)
+        .is_some_and(|word| word.eq_ignore_ascii_case("set"))
+        && query
+            .get(3..)
+            .and_then(|rest| rest.chars().next())
+            .is_some_and(char::is_whitespace)
+}
+
+/// What the message says instead of a replacement for a deprecated
+/// `system.db.*` query function called with a `SET` statement.
+const SET_STATEMENT_NOTE: &str = "its replacements run the query as a prepared statement, and SQL Server keeps a `SET` option set by a prepared statement only until that call ends, so a later statement does not see it; keep this call, or run the `SET`, the statements that need it and the `SET` that restores it in one call";
+
+/// The end of the message for a deprecated function that exists in
+/// `deprecated` and is used in `scope` (`None` in a library module), with
+/// the replacements `names` and the `note` on how the call changes.
+///
+/// A replacement is only suggested where it exists: in a script with a
+/// known scope, the replacements missing there are left out, and when
+/// none is left the message says where they exist instead. A library
+/// module runs wherever it is imported from, so each replacement that
+/// does not exist everywhere says where it does (`system.vision.*` only
+/// in the Vision Client and the Designer).
+fn replacement_advice(
+    names: &[&str],
+    note: &str,
+    scope: Option<Scope>,
+    deprecated: Scopes,
+) -> String {
+    if names.is_empty() {
+        return String::new();
+    }
+    let all: Vec<Replacement> = names.iter().map(|n| Replacement::resolve(n)).collect();
+    let joined = |replacements: &[&Replacement]| -> String {
+        replacements
+            .iter()
+            .map(|r| r.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" or ")
+    };
+    let mut notes: Vec<String> = Vec::new();
+    if !note.is_empty() {
+        notes.push(note.to_owned());
+    }
+    let suggested: Vec<&Replacement> = match scope {
+        Some(scope) => {
+            let here: Vec<&Replacement> = all
+                .iter()
+                .filter(|r| r.scopes.is_none_or(|s| s.contains(scope)))
+                .collect();
+            if here.is_empty() {
+                let (subject, verb) = if all.len() == 1 {
+                    ("its replacement", "exists")
+                } else {
+                    ("its replacements", "exist")
+                };
+                let elsewhere = all
+                    .iter()
+                    .filter_map(|r| r.scopes)
+                    .fold(Scopes::NONE, Scopes::union);
+                return format!(
+                    "; {subject} {} {verb} only in {}, not in {}",
+                    joined(&all.iter().collect::<Vec<_>>()),
+                    scope_names(elsewhere),
+                    scope_names(scope.into())
+                );
+            }
+            here
+        }
+        None => {
+            for r in &all {
+                let Some(scopes) = r.scopes else { continue };
+                if scopes == Scopes::ALL {
+                    continue;
+                }
+                let subject = if all.len() > 1 {
+                    r.text.clone()
+                } else if scopes == deprecated {
+                    "both".to_owned()
+                } else {
+                    "it".to_owned()
+                };
+                notes.push(format!(
+                    "{subject} {} only in {}",
+                    if subject == "both" { "exist" } else { "exists" },
+                    scope_names(scopes)
+                ));
+            }
+            all.iter().collect()
+        }
+    };
+    let mut text = format!("; use {} instead", joined(&suggested));
+    if !notes.is_empty() {
+        text.push_str(&format!(" ({})", notes.join("; ")));
+    }
+    text
+}
+
 impl ScriptRule for DeprecatedSystemFunction {
     fn check_script(&self, cx: &mut Checker<'_, '_>, unit: &ScriptUnit<'_, '_>) {
         let Some(model) = semantic(cx, unit) else {
             return;
         };
         let scope = script_scope(unit);
+        // The called expressions of calls whose query is a `SET`
+        // statement.
+        let mut set_statements: Vec<TextRange> = Vec::new();
+        walk_exprs(&unit.parsed.module.body, &mut |e| {
+            let Expr::Call(call) = e else { return };
+            let query = call.args.first().or_else(|| {
+                call.keywords
+                    .iter()
+                    .find(|k| k.arg.as_str() == "query")
+                    .map(|k| &k.value)
+            });
+            if query
+                .and_then(|q| constant_string(model, q))
+                .is_some_and(|q| is_set_statement(&q))
+            {
+                set_statements.push(call.func.range());
+            }
+        });
         let mut found = Vec::new();
         walk_exprs(&unit.parsed.module.body, &mut |e| {
             let Expr::Attribute(a) = e else { return };
@@ -181,17 +374,28 @@ impl ScriptRule for DeprecatedSystemFunction {
             }
             let mut message = format!("`{path}` is deprecated");
             let known = KNOWN_REPLACEMENTS.iter().find(|(from, _, _)| *from == path);
-            if let (None, Some((_, to, note))) = (replacement, known) {
-                message.push_str(&format!("; use `{to}` instead"));
-                if !note.is_empty() {
-                    message.push_str(&format!(" ({note})"));
-                }
-            } else if let Some(replacement) = replacement {
-                let names: Vec<String> = replacement
-                    .split(',')
-                    .map(|r| format!("`{}`", r.trim()))
-                    .collect();
-                message.push_str(&format!("; use {} instead", names.join(" or ")));
+            // The replacement Ignition names, else the documented one with
+            // how the call changes.
+            let (names, note): (Vec<&str>, &str) = match (replacement, known) {
+                (Some(replacement), _) => (
+                    replacement
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|r| !r.is_empty())
+                        .collect(),
+                    "",
+                ),
+                (None, Some((_, to, note))) => (vec![*to], *note),
+                (None, None) => (Vec::new(), ""),
+            };
+            if !names.is_empty()
+                && path.starts_with("system.db.")
+                && set_statements.contains(&a.range)
+            {
+                message.push_str("; ");
+                message.push_str(SET_STATEMENT_NOTE);
+            } else {
+                message.push_str(&replacement_advice(&names, note, scope, function.scopes()));
             }
             found.push((a.range, message));
         });
@@ -270,6 +474,116 @@ mod tests {
         let d = gateway_timer("def handleTimerEvent():\n\tsystem.tag.writeAll(['a'], [1])\n")
             .lint(&["SCR204"]);
         assert_eq!(flagged(&d), ["system.tag.writeAll"]);
+    }
+
+    /// A replacement is only suggested where it exists (reviewer report:
+    /// `system.vision.getUsername` suggested for a library module that
+    /// runs on the gateway).
+    #[test]
+    fn replacements_that_exist_in_fewer_scopes() {
+        // A library module runs wherever it is imported from: say where
+        // the replacement exists.
+        let d = lint_module(
+            "SCR204",
+            "a = system.security.getUsername()\nsystem.util.beep()\nb = system.tag.readAll(['x'])\n",
+        );
+        assert_eq!(
+            messages(&d),
+            [
+                "`system.security.getUsername` is deprecated; use `system.vision.getUsername` instead (both exist only in the Vision Client and the Designer)",
+                "`system.util.beep` is deprecated; use `system.vision.beep` instead (it exists only in the Vision Client and the Designer)",
+                "`system.tag.readAll` is deprecated; use `system.tag.readBlocking` instead",
+            ]
+        );
+        // On the gateway the Vision replacement does not exist: it is not
+        // suggested.
+        let d = gateway_timer("def handleTimerEvent():\n\tsystem.util.beep()\n").lint(&["SCR204"]);
+        assert_eq!(
+            messages(&d),
+            [
+                "`system.util.beep` is deprecated; its replacement `system.vision.beep` exists only in the Vision Client and the Designer, not in the gateway"
+            ]
+        );
+        let d = webdev("def doGet(request, session):\n\tsystem.util.playSoundClip('a.wav')\n")
+            .lint(&["SCR204"]);
+        assert_eq!(
+            messages(&d),
+            [
+                "`system.util.playSoundClip` is deprecated; its replacement `system.vision.playSoundClip` exists only in the Vision Client and the Designer, not in the gateway"
+            ]
+        );
+    }
+
+    /// Replacements that are a method of the object a function returns,
+    /// or that Ignition spells with other capitalisation.
+    #[test]
+    fn replacements_that_are_not_system_functions() {
+        let d = lint_module(
+            "SCR204",
+            "system.net.httpGet('https://x')\nsystem.net.httpPut('https://x', 'a')\nsystem.gui.isTouchscreenModeEnabled()\n",
+        );
+        assert_eq!(
+            messages(&d),
+            [
+                "`system.net.httpGet` is deprecated; use `system.net.httpClient()` and its `.get(...)` method instead",
+                "`system.net.httpPut` is deprecated; use `system.net.httpClient()` and its `.put(...)` method instead",
+                "`system.gui.isTouchscreenModeEnabled` is deprecated; use `system.vision.isTouchScreenMode` instead (both exist only in the Vision Client and the Designer)",
+            ]
+        );
+    }
+
+    /// A `SET` statement run through a prepared call ends with the call:
+    /// the replacement is not suggested for one.
+    #[test]
+    fn set_statements_keep_their_call() {
+        let code = "def handleTimerEvent():\n\tsystem.db.runUpdateQuery('  set IDENTITY_INSERT dbo.Orders ON', 'db', tx)\n\tq = 'SET\\tNOCOUNT ON'\n\tsystem.db.runUpdateQuery(query=q, database='db')\n\tsystem.db.runUpdateQuery('UPDATE t SET a = 1')\n\tsystem.db.runQuery('SETTINGS')\n\tsystem.db.runUpdateQuery(build())\n";
+        let d = gateway_timer(code).lint(&["SCR204"]);
+        let note = format!(
+            "`system.db.runUpdateQuery` is deprecated; {}",
+            super::SET_STATEMENT_NOTE
+        );
+        assert_eq!(
+            messages(&d),
+            [
+                note.as_str(),
+                note.as_str(),
+                "`system.db.runUpdateQuery` is deprecated; use `system.db.execUpdate` or `system.db.runPrepUpdate` instead",
+                "`system.db.runQuery` is deprecated; use `system.db.execQuery` or `system.db.runPrepQuery` instead",
+                "`system.db.runUpdateQuery` is deprecated; use `system.db.execUpdate` or `system.db.runPrepUpdate` instead",
+            ]
+        );
+        assert!(super::SET_STATEMENT_NOTE.contains("SQL Server"));
+        for (query, set) in [
+            ("SET XACT_ABORT ON", true),
+            ("\n  Set NoCount On", true),
+            ("SET", false),
+            ("SETTINGS", false),
+            ("UPDATE t SET a = 1", false),
+        ] {
+            assert_eq!(super::is_set_statement(query), set, "{query:?}");
+        }
+    }
+
+    /// Every replacement Ignition names is a `system.*` member or a
+    /// method of an object a `system.*` function returns.
+    #[test]
+    fn named_replacements_resolve() {
+        let mut checked = 0;
+        for package in iglint_stubs::system_packages() {
+            for member in iglint_stubs::system_members(package.path) {
+                let iglint_stubs::Member::Function(function) = member else {
+                    continue;
+                };
+                for v in function.variants {
+                    for name in v.replacement.iter().flat_map(|r| r.split(',')) {
+                        let r = super::Replacement::resolve(name.trim());
+                        assert!(r.scopes.is_some(), "{}: {}", function.path, r.text);
+                        checked += 1;
+                    }
+                }
+            }
+        }
+        assert!(checked > 50, "{checked}");
     }
 
     #[test]

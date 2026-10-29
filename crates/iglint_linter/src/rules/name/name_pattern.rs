@@ -12,7 +12,8 @@ use regex::Regex;
 use rustc_hash::FxHashSet;
 
 use super::convention::{
-    BUILTIN_ABBREVIATIONS, Convention, compile, normalize_abbreviations, suggest,
+    BUILTIN_ABBREVIATIONS, Convention, compile, leading_abbreviation_lowered,
+    normalize_abbreviations, suggest,
 };
 use super::rename::{References, escaped};
 use crate::checker::Checker;
@@ -155,7 +156,10 @@ Use instead:
   `["root"]`.
 * `allowed-abbreviations`: extra abbreviations; an abbreviation written in
   capitals as a whole word is accepted where the convention writes words
-  differently (`read_API_data` in snake_case, `API Key` in Title Case).
+  differently (`read_API_data` in snake_case, `API Key` in Title Case). In
+  camelCase one of these is also accepted as the whole name or the first
+  word (`ID`, `IMLocation` with `["ID", "IM"]`); the built-in list of
+  `auto-detect-abbreviations` is not, so `HTTPServer` is still reported.
 * `auto-detect-abbreviations`: also use the built-in list (`API`, `HTTP`,
   `ID`, `URL`, ...).
 
@@ -339,6 +343,10 @@ struct TypeRules {
 pub struct Options {
     types: Vec<(NodeType, TypeRules)>,
     abbreviations: Vec<String>,
+    /// `allowed-abbreviations` alone, which camelCase also accepts as the
+    /// first word (`ID`, `IMLocation`). The built-in list is not: there
+    /// `HTTPServer` stays a PascalCase name.
+    leading: Vec<String>,
 }
 
 impl Options {
@@ -378,6 +386,7 @@ fn parse_options(o: &OptionReader<'_>) -> Result<ParsedOptions, String> {
     let skip = o.string_list("skip-names")?;
     let per_type = o.table("per-type")?;
     let mut abbreviations = o.string_list("allowed-abbreviations")?;
+    let leading = abbreviations.clone();
     if o.bool("auto-detect-abbreviations")? {
         abbreviations.extend(BUILTIN_ABBREVIATIONS.iter().map(|s| (*s).to_owned()));
     }
@@ -527,6 +536,7 @@ fn parse_options(o: &OptionReader<'_>) -> Result<ParsedOptions, String> {
     Ok(Box::new(Options {
         types,
         abbreviations,
+        leading,
     }))
 }
 
@@ -538,7 +548,7 @@ enum Failure {
     Pattern,
 }
 
-fn check_name(name: &str, rules: &TypeRules, abbreviations: &[String]) -> Option<Failure> {
+fn check_name(name: &str, rules: &TypeRules, options: &Options) -> Option<Failure> {
     if rules.skip.iter().any(|s| s == name) {
         return None;
     }
@@ -555,19 +565,22 @@ fn check_name(name: &str, rules: &TypeRules, abbreviations: &[String]) -> Option
     {
         return Some(Failure::TooLong(max));
     }
-    if matches_pattern(name, rules, abbreviations) {
+    if matches_pattern(name, rules, options) {
         None
     } else {
         Some(Failure::Pattern)
     }
 }
 
-fn matches_pattern(name: &str, rules: &TypeRules, abbreviations: &[String]) -> bool {
+fn matches_pattern(name: &str, rules: &TypeRules, options: &Options) -> bool {
     rules.regex.is_match(name)
         || rules
             .normalize
-            .and_then(|c| normalize_abbreviations(name, c, abbreviations))
+            .and_then(|c| normalize_abbreviations(name, c, &options.abbreviations))
             .is_some_and(|n| rules.regex.is_match(&n))
+        || (rules.normalize == Some(Convention::Camel)
+            && leading_abbreviation_lowered(name, &options.leading)
+                .is_some_and(|n| rules.regex.is_match(&n)))
 }
 
 /// One name to check.
@@ -683,7 +696,7 @@ fn report(
     if node.name.is_empty() {
         return;
     }
-    let Some(failure) = check_name(node.name, rules, &options.abbreviations) else {
+    let Some(failure) = check_name(node.name, rules, options) else {
         return;
     };
     let mut text = message(t, node, &failure, rules);
@@ -735,7 +748,7 @@ fn check_components<'v>(
         if c.name.is_empty() {
             continue;
         }
-        let Some(failure) = check_name(c.name, rules, &options.abbreviations) else {
+        let Some(failure) = check_name(c.name, rules, options) else {
             continue;
         };
         let node = Node {
@@ -762,7 +775,7 @@ fn check_components<'v>(
         let usable = suggestion.as_deref().filter(|s| {
             matches!(rules.suggestion, Suggestion::In(_))
                 && !sibling_named(s)
-                && check_name(s, rules, &options.abbreviations).is_none()
+                && check_name(s, rules, options).is_none()
         });
         if let Some(s) = &suggestion
             && matches!(failure, Failure::Pattern)
@@ -1695,6 +1708,43 @@ mod tests {
             f.lint_with(&[("NAME001", "convention = \"Title Case\"")])
                 .is_empty()
         );
+    }
+
+    /// camelCase writes its first word in lower case, so an allowed
+    /// abbreviation is also accepted as the whole name or the first word.
+    #[test]
+    fn allowed_abbreviations_lead_camel_case_names() {
+        let f = Fixture::view(&root(&[
+            component("ID", "ia.display.label", ""),
+            component("IMLocation", "ia.display.label", ""),
+            component("lineID", "ia.display.label", ""),
+            component("PV2Value", "ia.display.label", ""),
+            component("IDLE", "ia.display.label", ""),
+            component("IMlocation", "ia.display.label", ""),
+            component("SPValue", "ia.display.label", ""),
+            component("HTTPServer", "ia.display.label", ""),
+        ]));
+        let d = f.lint_with(&[(
+            "NAME001",
+            "convention = \"camelCase\"\nallowed-abbreviations = [\"ID\", \"IM\", \"PV2\"]",
+        )]);
+        // `IDLE` is not `ID` and a word, `IMlocation` neither; `SP` is not
+        // allowed; the built-in `HTTP` does not lead a camelCase name.
+        assert_eq!(
+            flagged(&d),
+            vec![
+                "\"IDLE\"",
+                "\"IMlocation\"",
+                "\"SPValue\"",
+                "\"HTTPServer\""
+            ]
+        );
+        // Other conventions are unchanged.
+        let d = f.lint_with(&[(
+            "NAME001",
+            "convention = \"snake_case\"\nallowed-abbreviations = [\"ID\", \"IM\"]",
+        )]);
+        assert!(flagged(&d).contains(&"\"IMLocation\"".to_owned()), "{d:?}");
     }
 
     #[test]

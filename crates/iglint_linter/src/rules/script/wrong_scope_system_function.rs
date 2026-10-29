@@ -10,7 +10,7 @@ use crate::diagnostic::Severity;
 use crate::registry::{Category, RuleMeta};
 use crate::rule::{Hook, Phase, RuleImpl, ScriptRule, ScriptUnit};
 use crate::rules::script::system_api::{
-    called_function, is_checkable, keyword_names, script_scope, system_path,
+    called_function, is_checkable, keyword_names, scope_names, script_scope, system_path,
 };
 use crate::rules::script::{report, semantic, walk_exprs};
 
@@ -86,22 +86,6 @@ fn scope_description(run_scope: RunScope) -> &'static str {
         RunScope::Tag => "tag event scripts, which run on the gateway",
         RunScope::VisionClient => "Vision Client scripts",
         RunScope::Library => "library modules",
-    }
-}
-
-fn scope_names(scopes: iglint_stubs::Scopes) -> String {
-    let names: Vec<&str> = scopes
-        .iter()
-        .map(|s| match s {
-            Scope::Gateway => "the gateway",
-            Scope::Client => "the Vision Client",
-            Scope::Designer => "the Designer",
-        })
-        .collect();
-    match names.as_slice() {
-        [] => String::new(),
-        [one] => (*one).to_owned(),
-        [init @ .., last] => format!("{} and {last}", init.join(", ")),
     }
 }
 

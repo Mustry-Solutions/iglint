@@ -7,14 +7,62 @@ from 0.1.0 on.
 
 ## [Unreleased]
 
-## [VS Code extension 0.1.1] - 2026-10-27
-
-Extension-only patch release. The bundled iglint CLI remains at 0.1.0.
-
 ### Fixed
 
-- VS Code: start the language server without the unsupported `--stdio`
-  argument, which caused it to exit before reporting any findings.
+- A configuration file outside the checkout (`--config ../iglint.toml`) no
+  longer becomes the workspace root. Run from a linked Git work tree, the
+  walk from that directory skipped the work tree, so every file was linted
+  on its own: cross-file findings such as `REF001` and `REF002` were lost
+  and `REF009` was reported for every file. The configuration file's
+  directory now counts as a workspace root only inside the Git work tree of
+  the linted path, and only when the workspace walk from it reaches the
+  path.
+- `SCR001` no longer reports the header-only `do<Method>.py` stub of a
+  disabled WebDev method when the resource is linted outside its project
+  (a loose directory, or a project the workspace walk does not reach). A
+  WebDev handler linted on its own is now compiled as Ignition compiles it,
+  under its canonical header and enabled or not as the sibling
+  `config.json` says; without `config.json`, a header-only stub is not
+  reported.
+- `SCR204` only suggests a replacement where it exists. In a gateway,
+  WebDev, tag or Perspective script, a Vision-only replacement (for
+  `system.util.beep` and `system.util.playSoundClip`) is no longer
+  suggested; the message says where it exists instead. In a library
+  module, the message says when the replacement exists only in some scopes
+  (`system.security.getUsername` and `system.vision.getUsername` both exist
+  only in the Vision Client and the Designer).
+- `SCR204` names replacements that are not `system.*` functions correctly:
+  for `system.net.httpGet`, `httpPost`, `httpPut` and `httpDelete` it
+  suggests `system.net.httpClient()` and its `.get(...)` (or other) method
+  instead of a `system.net.httpClient.get` function that does not exist,
+  and for `system.gui.isTouchscreenModeEnabled` and
+  `setTouchscreenModeEnabled` it uses the 8.3 names
+  `system.vision.isTouchScreenMode` and `setTouchScreenMode`.
+- `SCR204` no longer suggests a prepared replacement (`system.db.execUpdate`,
+  `system.db.runPrepUpdate`, ...) for a deprecated `system.db` query
+  function whose query is a `SET` statement (`SET IDENTITY_INSERT ... ON`).
+  SQL Server keeps a `SET` option made by a prepared statement only until
+  that call ends, so the replacement would change what the code does; the
+  message says so instead.
+- Baseline paths no longer depend on the directory name of the checkout
+  when `--config` names a configuration file outside the Git work tree:
+  they are relative to the workspace root, as without a configuration
+  file, so one baseline matches in every checkout (a linked work tree, a
+  CI clone). Entries written relative to the configuration file's
+  directory by 0.1.0 still match, and rewriting the baseline stores them
+  relative to the workspace root.
+- `NAME001` accepts an abbreviation from `allowed-abbreviations` as the
+  whole name or the first word of a camelCase name (`ID`, `PV`,
+  `IMLocation`). Before, it was only accepted after the first word
+  (`lineID`). The built-in list of `auto-detect-abbreviations` does not
+  lead camelCase names, so `HTTPServer` is still reported.
+- `# iglint: ignore[...]` at the end of a statement that spans several
+  lines (brackets, a backslash, a triple-quoted string) also suppresses the
+  findings that start on the statement's earlier lines. A finding on a line
+  that opens a triple-quoted string (`SEC001` on
+  `query = """SELECT ... {}""".format(x)`) could not be suppressed
+  before, since a comment there would be inside the string. `SCR123`
+  judges such comments the same way.
 
 ## [0.1.0] - 2026-10-25
 
